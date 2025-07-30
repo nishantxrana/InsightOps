@@ -1,51 +1,52 @@
 import Joi from 'joi';
 import { logger } from '../utils/logger.js';
+import { env } from './env.js';
 
 class ConfigLoader {
   constructor() {
     this.config = {
       // Azure DevOps Configuration
       azureDevOps: {
-        organization: process.env.AZURE_DEVOPS_ORG,
-        project: process.env.AZURE_DEVOPS_PROJECT,
-        personalAccessToken: process.env.AZURE_DEVOPS_PAT,
-        baseUrl: process.env.AZURE_DEVOPS_BASE_URL || 'https://dev.azure.com'
+        organization: env.AZURE_DEVOPS_ORG || '',
+        project: env.AZURE_DEVOPS_PROJECT || '',
+        personalAccessToken: env.AZURE_DEVOPS_PAT || '',
+        baseUrl: env.AZURE_DEVOPS_BASE_URL || 'https://dev.azure.com'
       },
       
       // AI Configuration
       ai: {
-        provider: process.env.AI_PROVIDER || 'openai', // 'openai' or 'groq'
-        openaiApiKey: process.env.OPENAI_API_KEY,
-        groqApiKey: process.env.GROQ_API_KEY,
-        model: process.env.AI_MODEL || 'gpt-3.5-turbo'
+        provider: env.AI_PROVIDER || 'openai', // 'openai' or 'groq'
+        openaiApiKey: env.OPENAI_API_KEY || '',
+        groqApiKey: env.GROQ_API_KEY || '',
+        model: env.AI_MODEL || 'gpt-3.5-turbo'
       },
       
       // Notification Configuration
       notifications: {
-        teamsWebhookUrl: process.env.TEAMS_WEBHOOK_URL,
-        slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
-        enabled: process.env.NOTIFICATIONS_ENABLED === 'true'
+        teamsWebhookUrl: env.TEAMS_WEBHOOK_URL || '',
+        slackWebhookUrl: env.SLACK_WEBHOOK_URL || '',
+        enabled: env.NOTIFICATIONS_ENABLED === 'true'
       },
       
       // Polling Configuration
       polling: {
-        workItemsInterval: process.env.WORK_ITEMS_POLL_INTERVAL || '*/15 * * * *', // Every 15 minutes
-        pipelineInterval: process.env.PIPELINE_POLL_INTERVAL || '*/10 * * * *', // Every 10 minutes
-        pullRequestInterval: process.env.PR_POLL_INTERVAL || '0 */2 * * *', // Every 2 hours
-        overdueCheckInterval: process.env.OVERDUE_CHECK_INTERVAL || '0 9 * * *' // Daily at 9 AM
+        workItemsInterval: env.WORK_ITEMS_POLL_INTERVAL || '*/15 * * * *', // Every 15 minutes
+        pipelineInterval: env.PIPELINE_POLL_INTERVAL || '*/10 * * * *', // Every 10 minutes
+        pullRequestInterval: env.PR_POLL_INTERVAL || '0 */2 * * *', // Every 2 hours
+        overdueCheckInterval: env.OVERDUE_CHECK_INTERVAL || '0 9 * * *' // Daily at 9 AM
       },
       
       // Security Configuration
       security: {
-        webhookSecret: process.env.WEBHOOK_SECRET,
-        apiToken: process.env.API_TOKEN || 'default-token-change-me'
+        webhookSecret: env.WEBHOOK_SECRET || '',
+        apiToken: env.API_TOKEN || 'default-token-change-me'
       },
       
       // Application Configuration
       app: {
-        port: process.env.PORT || 3001,
-        nodeEnv: process.env.NODE_ENV || 'development',
-        logLevel: process.env.LOG_LEVEL || 'info'
+        port: parseInt(env.PORT) || 3001,
+        nodeEnv: env.NODE_ENV || 'development',
+        logLevel: env.LOG_LEVEL || 'info'
       }
     };
   }
@@ -54,9 +55,9 @@ class ConfigLoader {
   getValidationSchema() {
     return Joi.object({
       azureDevOps: Joi.object({
-        organization: Joi.string().required(),
-        project: Joi.string().required(),
-        personalAccessToken: Joi.string().required(),
+        organization: Joi.string().min(1).required(),
+        project: Joi.string().min(1).required(),
+        personalAccessToken: Joi.string().min(1).required(),
         baseUrl: Joi.string().uri().required()
       }).required(),
       
@@ -64,33 +65,33 @@ class ConfigLoader {
         provider: Joi.string().valid('openai', 'groq').required(),
         openaiApiKey: Joi.when('provider', {
           is: 'openai',
-          then: Joi.string().required(),
-          otherwise: Joi.string().optional()
+          then: Joi.string().min(1).required(),
+          otherwise: Joi.string().allow('').optional()
         }),
         groqApiKey: Joi.when('provider', {
           is: 'groq',
-          then: Joi.string().required(),
-          otherwise: Joi.string().optional()
+          then: Joi.string().min(1).required(),
+          otherwise: Joi.string().allow('').optional()
         }),
-        model: Joi.string().required()
+        model: Joi.string().min(1).required()
       }).required(),
       
       notifications: Joi.object({
-        teamsWebhookUrl: Joi.string().uri().optional(),
-        slackWebhookUrl: Joi.string().uri().optional(),
+        teamsWebhookUrl: Joi.string().uri().allow('').optional(),
+        slackWebhookUrl: Joi.string().uri().allow('').optional(),
         enabled: Joi.boolean().required()
       }).required(),
       
       polling: Joi.object({
-        workItemsInterval: Joi.string().required(),
-        pipelineInterval: Joi.string().required(),
-        pullRequestInterval: Joi.string().required(),
-        overdueCheckInterval: Joi.string().required()
+        workItemsInterval: Joi.string().min(1).required(),
+        pipelineInterval: Joi.string().min(1).required(),
+        pullRequestInterval: Joi.string().min(1).required(),
+        overdueCheckInterval: Joi.string().min(1).required()
       }).required(),
       
       security: Joi.object({
-        webhookSecret: Joi.string().optional(),
-        apiToken: Joi.string().required()
+        webhookSecret: Joi.string().allow('').optional(),
+        apiToken: Joi.string().min(1).required()
       }).required(),
       
       app: Joi.object({

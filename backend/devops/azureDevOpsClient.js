@@ -5,7 +5,28 @@ import { configLoader } from '../config/settings.js';
 class AzureDevOpsClient {
   constructor() {
     this.config = configLoader.getAzureDevOpsConfig();
-    this.baseURL = `${this.config.baseUrl}/${this.config.organization}/${this.config.project}/_apis`;
+    this.orgBaseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/_apis`;
+    this.baseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/${encodeURIComponent(this.config.project)}/_apis`;
+    
+    // Create axios instance with default configuration for project-level APIs
+    this.client = axios.create({
+      baseURL: this.baseURL,
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000 // 30 seconds timeout
+    });
+
+    // Create axios instance for organization-level APIs
+    this.orgClient = axios.create({
+      baseURL: this.orgBaseURL,
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000 // 30 seconds timeout
+    });
     
     // Create axios instance with default configuration
     this.client = axios.create({
@@ -43,15 +64,69 @@ class AzureDevOpsClient {
         return response;
       },
       (error) => {
-        logger.error('Azure DevOps API response error:', {
+        const errorDetails = {
           status: error.response?.status,
           statusText: error.response?.statusText,
           url: error.config?.url,
           message: error.message
-        });
+        };
+        
+        // Add specific error messages for common issues
+        if (error.response?.status === 401) {
+          errorDetails.userMessage = 'Authentication failed. Please check your Personal Access Token.';
+        } else if (error.response?.status === 404) {
+          errorDetails.userMessage = 'Resource not found. Please check your organization and project names.';
+        } else if (error.response?.status === 403) {
+          errorDetails.userMessage = 'Access denied. Please check your Personal Access Token permissions.';
+        } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+          errorDetails.userMessage = 'Cannot connect to Azure DevOps. Please check your internet connection.';
+        }
+        
+        logger.error('Azure DevOps API response error:', errorDetails);
         return Promise.reject(error);
       }
     );
+  }
+
+  // Add a method to test the connection
+  async testConnection() {
+    try {
+      logger.info('Testing Azure DevOps connection...');
+      // Test organization-level access first
+      const orgResponse = await this.orgClient.get('/projects', {
+        params: { 'api-version': '7.0' }
+      });
+      
+      // Check if our specific project exists
+      const projects = orgResponse.data.value || [];
+      const targetProject = projects.find(p => p.name === this.config.project);
+      
+      if (!targetProject) {
+        throw new Error(`Project "${this.config.project}" not found in organization "${this.config.organization}"`);
+      }
+      
+      logger.info('Azure DevOps connection test successful');
+      return { 
+        success: true, 
+        message: `Connection successful. Found project "${this.config.project}" in organization "${this.config.organization}"`,
+        projectCount: projects.length
+      };
+    } catch (error) {
+      logger.error('Azure DevOps connection test failed:', error);
+      
+      // Provide more specific error messages
+      if (error.response?.status === 401) {
+        throw new Error('Authentication failed. Please check your Personal Access Token.');
+      } else if (error.response?.status === 404) {
+        throw new Error(`Organization "${this.config.organization}" not found or not accessible.`);
+      } else if (error.response?.status === 403) {
+        throw new Error('Access denied. Please check your Personal Access Token permissions.');
+      } else if (error.code === 'ENOTFOUND') {
+        throw new Error('Cannot connect to Azure DevOps. Please check your internet connection.');
+      }
+      
+      throw new Error(error.message || 'Connection test failed');
+    }
   }
 
   // Work Items API
@@ -90,6 +165,7 @@ class AzureDevOpsClient {
 
   async getCurrentSprintWorkItems() {
     try {
+      // First try to get work items from current iteration
       const wiql = `
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
@@ -102,6 +178,23 @@ class AzureDevOpsClient {
       
       if (queryResult.workItems && queryResult.workItems.length > 0) {
         const workItemIds = queryResult.workItems.map(wi => wi.id);
+        return await this.getWorkItems(workItemIds);
+      }
+      
+      // If no items in current iteration, try to get recent work items
+      logger.warn('No work items found in current iteration, trying recent work items');
+      const recentWiql = `
+        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
+        FROM WorkItems
+        WHERE [System.TeamProject] = '${this.config.project}'
+        AND [System.CreatedDate] >= @Today - 30
+        ORDER BY [System.CreatedDate] DESC
+      `;
+      
+      const recentQueryResult = await this.queryWorkItems(recentWiql);
+      
+      if (recentQueryResult.workItems && recentQueryResult.workItems.length > 0) {
+        const workItemIds = recentQueryResult.workItems.map(wi => wi.id);
         return await this.getWorkItems(workItemIds);
       }
       

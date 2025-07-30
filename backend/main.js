@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
+import { config } from 'dotenv';
 import { logger } from './utils/logger.js';
 import { configLoader } from './config/settings.js';
 import { webhookRoutes } from './webhooks/index.js';
@@ -10,8 +10,8 @@ import { apiRoutes } from './api/routes.js';
 import { startPollingJobs } from './polling/index.js';
 import { errorHandler } from './utils/errorHandler.js';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables first
+config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -84,19 +84,21 @@ app.listen(PORT, async () => {
   
   try {
     // Validate configuration (but don't fail if Azure DevOps is not configured yet)
+    let configValid = false;
     try {
       await configLoader.validate();
       logger.info('Configuration validated successfully');
+      configValid = true;
     } catch (configError) {
       logger.warn('Configuration validation failed (this is expected for initial setup):', configError.message);
     }
     
     // Start polling jobs only if configuration is valid
-    if (process.env.AZURE_DEVOPS_ORG && process.env.AZURE_DEVOPS_PROJECT && process.env.AZURE_DEVOPS_PAT) {
+    if (configValid && process.env.AZURE_DEVOPS_ORG && process.env.AZURE_DEVOPS_PROJECT && process.env.AZURE_DEVOPS_PAT) {
       startPollingJobs();
       logger.info('Polling jobs started');
     } else {
-      logger.info('Polling jobs not started - Azure DevOps configuration incomplete');
+      logger.info('Polling jobs not started - Azure DevOps configuration incomplete or invalid');
     }
     
   } catch (error) {

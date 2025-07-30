@@ -13,7 +13,15 @@ router.get('/work-items', async (req, res) => {
     res.json(workItems);
   } catch (error) {
     logger.error('Error fetching work items:', error);
-    res.status(500).json({ error: 'Failed to fetch work items' });
+    const statusCode = error.response?.status || 500;
+    const message = error.response?.data?.message || error.message || 'Failed to fetch work items';
+    res.status(statusCode).json({ 
+      error: 'Failed to fetch work items',
+      details: message,
+      suggestion: statusCode === 401 ? 'Please check your Azure DevOps credentials' : 
+                 statusCode === 404 ? 'Please check your organization and project names' :
+                 'Please check your Azure DevOps configuration'
+    });
   }
 });
 
@@ -32,7 +40,15 @@ router.get('/work-items/sprint-summary', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error fetching sprint summary:', error);
-    res.status(500).json({ error: 'Failed to fetch sprint summary' });
+    const statusCode = error.response?.status || 500;
+    const message = error.response?.data?.message || error.message || 'Failed to fetch sprint summary';
+    res.status(statusCode).json({ 
+      error: 'Failed to fetch sprint summary',
+      details: message,
+      suggestion: statusCode === 401 ? 'Please check your Azure DevOps credentials' : 
+                 statusCode === 404 ? 'Please check your organization and project names' :
+                 'Please check your Azure DevOps configuration'
+    });
   }
 });
 
@@ -42,7 +58,15 @@ router.get('/work-items/overdue', async (req, res) => {
     res.json(overdueItems);
   } catch (error) {
     logger.error('Error fetching overdue items:', error);
-    res.status(500).json({ error: 'Failed to fetch overdue items' });
+    const statusCode = error.response?.status || 500;
+    const message = error.response?.data?.message || error.message || 'Failed to fetch overdue items';
+    res.status(statusCode).json({ 
+      error: 'Failed to fetch overdue items',
+      details: message,
+      suggestion: statusCode === 401 ? 'Please check your Azure DevOps credentials' : 
+                 statusCode === 404 ? 'Please check your organization and project names' :
+                 'Please check your Azure DevOps configuration'
+    });
   }
 });
 
@@ -158,11 +182,11 @@ router.put('/settings', async (req, res) => {
 router.post('/settings/test-connection', async (req, res) => {
   try {
     // Test Azure DevOps connection
-    const workItems = await azureDevOpsClient.getCurrentSprintWorkItems();
+    const result = await azureDevOpsClient.testConnection();
     res.json({ 
       success: true, 
       message: 'Connection test successful',
-      details: `Found ${workItems.count || 0} work items in current sprint`
+      details: result.message
     });
   } catch (error) {
     logger.error('Connection test failed:', error);

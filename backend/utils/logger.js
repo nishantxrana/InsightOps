@@ -8,7 +8,28 @@ const consoleFormat = printf(({ level, message, timestamp, ...meta }) => {
   let log = `${timestamp} [${level}]: ${message}`;
   
   if (Object.keys(meta).length > 0) {
-    log += ` ${JSON.stringify(meta)}`;
+    try {
+      // Use JSON.stringify with replacer to handle circular references
+      const metaString = JSON.stringify(meta, (key, value) => {
+        if (typeof value === 'object' && value !== null) {
+          // Check for circular references by looking for common circular properties
+          if (key === 'req' || key === 'res' || key === 'socket' || key === 'client') {
+            return '[Circular]';
+          }
+          // Limit object depth to prevent large outputs
+          if (typeof value.constructor === 'function' && 
+              (value.constructor.name === 'ClientRequest' || 
+               value.constructor.name === 'IncomingMessage' ||
+               value.constructor.name === 'Socket')) {
+            return '[Object]';
+          }
+        }
+        return value;
+      }, 2);
+      log += ` ${metaString}`;
+    } catch (error) {
+      log += ` [Meta serialization error: ${error.message}]`;
+    }
   }
   
   return log;
