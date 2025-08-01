@@ -42,7 +42,7 @@ const logWebhookEvent = (req, res, next) => {
 };
 
 // Apply middleware to all webhook routes
-router.use(webhookAuth);
+// router.use(webhookAuth);
 router.use(logWebhookEvent);
 
 // Work Item webhooks
