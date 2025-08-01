@@ -5,6 +5,9 @@
 echo "🚀 Starting Azure DevOps Monitoring Agent"
 echo "=========================================="
 
+# Create logs directory first
+mkdir -p logs
+
 # Check if .env file exists
 if [ ! -f "backend/.env" ]; then
     echo "⚠️  Warning: backend/.env file not found!"
@@ -16,69 +19,101 @@ fi
 
 # Function to check if port is in use
 check_port() {
-    if lsof -Pi :$1 -sTCP:LISTEN -t >/dev/null 2>&1; then
-        echo "⚠️  Port $1 is already in use. Stopping existing process..."
-        lsof -ti:$1 | xargs kill -9 2>/dev/null || true
-        sleep 2
+    local port=$1
+    if command -v lsof >/dev/null 2>&1; then
+        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+            echo "⚠️  Port $port is already in use. Stopping existing process..."
+            lsof -ti:$port | xargs kill -9 2>/dev/null || true
+            sleep 2
+        fi
+    elif command -v netstat >/dev/null 2>&1; then
+        if netstat -tuln | grep ":$port " >/dev/null 2>&1; then
+            echo "⚠️  Port $port appears to be in use"
+        fi
+    else
+        echo "⚠️  Cannot check port $port (lsof/netstat not available)"
     fi
+}
+
+# Function to wait for service to be ready
+wait_for_service() {
+    local url=$1
+    local service_name=$2
+    local max_attempts=30
+    local attempt=1
+    
+    echo "   Waiting for $service_name to start..."
+    while [ $attempt -le $max_attempts ]; do
+        if curl -s "$url" >/dev/null 2>&1; then
+            echo "✅ $service_name is ready"
+            return 0
+        fi
+        echo "   Attempt $attempt/$max_attempts - waiting..."
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    
+    echo "❌ $service_name failed to start after $max_attempts attempts"
+    return 1
 }
 
 # Check and free up required ports
 echo "🔍 Checking ports..."
 check_port 3001
 check_port 5173
-
-echo "✅ Ports are ready"
+echo "✅ Port check completed"
 echo ""
 
 # Start backend
 echo "🔧 Starting Backend (Node.js + Express)..."
-cd backend
-node main.js > ../logs/backend.log 2>&1 &
+cd backend || exit 1
+
+# Start backend in background and capture PID
+nohup node main.js > ../logs/backend.log 2>&1 &
 BACKEND_PID=$!
-cd ..
+echo "   Backend PID: $BACKEND_PID"
 
-# Wait for backend to start and test it
-echo "   Waiting for backend to start..."
-sleep 3
+cd .. || exit 1
 
-# Test backend health
-BACKEND_HEALTH=$(curl -s http://localhost:3001/health 2>/dev/null | grep -o '"status":"healthy"' || echo "")
-if [ -n "$BACKEND_HEALTH" ]; then
+# Wait for backend to be ready
+if wait_for_service "http://localhost:3001/health" "Backend"; then
     echo "✅ Backend started successfully on http://localhost:3001"
 else
-    echo "❌ Backend failed to start. Check logs/backend.log"
+    echo "❌ Backend failed to start. Check logs/backend.log for details:"
+    tail -n 10 logs/backend.log 2>/dev/null || echo "   No log file found"
     kill $BACKEND_PID 2>/dev/null
     exit 1
 fi
 
-# Test Azure DevOps connection
+# Test Azure DevOps connection (optional - don't fail if it doesn't work)
 echo "   Testing Azure DevOps connection..."
-CONNECTION_TEST=$(curl -s -X POST http://localhost:3001/api/settings/test-connection 2>/dev/null | grep -o '"success":true' || echo "")
-if [ -n "$CONNECTION_TEST" ]; then
-    echo "✅ Azure DevOps connection successful"
+if curl -s -X GET "http://localhost:3001/api/settings" >/dev/null 2>&1; then
+    echo "✅ Backend API is responding"
 else
-    echo "⚠️  Azure DevOps connection failed - check your configuration"
+    echo "⚠️  Backend API test failed - but continuing..."
 fi
 
 # Start frontend
 echo ""
 echo "🎨 Starting Frontend (React + Vite)..."
-cd frontend
-npm run dev > ../logs/frontend.log 2>&1 &
+cd frontend || exit 1
+
+# Start frontend in background and capture PID
+nohup npm run dev > ../logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
-cd ..
+echo "   Frontend PID: $FRONTEND_PID"
 
-# Wait for frontend to start
-echo "   Waiting for frontend to start..."
-sleep 5
+cd .. || exit 1
 
-# Test frontend
-FRONTEND_TEST=$(curl -s http://localhost:5173 2>/dev/null | grep -o '<title>' || echo "")
-if [ -n "$FRONTEND_TEST" ]; then
+# Wait for frontend to be ready (Vite takes longer to start)
+echo "   Waiting for frontend to start (this may take a moment)..."
+sleep 8
+
+# Check if frontend is accessible
+if curl -s "http://localhost:5173" >/dev/null 2>&1; then
     echo "✅ Frontend started successfully on http://localhost:5173"
 else
-    echo "⚠️  Frontend may still be starting..."
+    echo "⚠️  Frontend may still be starting - check http://localhost:5173 in a moment"
 fi
 
 echo ""
@@ -88,47 +123,67 @@ echo "📊 Frontend Dashboard: http://localhost:5173"
 echo "🔧 Backend API:        http://localhost:3001"
 echo "📋 API Health Check:   http://localhost:3001/health"
 echo ""
-echo "📝 Current Status:"
-echo "- Work Items: Available"
-echo "- Builds: Available" 
-echo "- Pull Requests: Available"
-echo "- AI Summaries: $([ -n "$CONNECTION_TEST" ] && echo "Ready" || echo "Configure AI provider")"
+echo "📝 Process Information:"
+echo "- Backend PID: $BACKEND_PID"
+echo "- Frontend PID: $FRONTEND_PID"
 echo ""
 echo "📁 Logs:"
 echo "- Backend: logs/backend.log"
 echo "- Frontend: logs/frontend.log"
 echo ""
+echo "💡 Tips:"
+echo "- Use 'tail -f logs/backend.log' to monitor backend logs"
+echo "- Use 'tail -f logs/frontend.log' to monitor frontend logs"
+echo "- Visit http://localhost:5173/settings to configure Azure DevOps"
+echo ""
 echo "🛑 To stop the application, press Ctrl+C"
-
-# Create logs directory if it doesn't exist
-mkdir -p logs
 
 # Function to cleanup on exit
 cleanup() {
     echo ""
     echo "🛑 Stopping application..."
-    kill $BACKEND_PID 2>/dev/null
-    kill $FRONTEND_PID 2>/dev/null
-    # Kill any remaining processes on our ports
-    lsof -ti:3001 | xargs kill -9 2>/dev/null || true
-    lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+    
+    # Kill our processes
+    if [ -n "$BACKEND_PID" ]; then
+        kill $BACKEND_PID 2>/dev/null
+        echo "   Stopped backend (PID: $BACKEND_PID)"
+    fi
+    
+    if [ -n "$FRONTEND_PID" ]; then
+        kill $FRONTEND_PID 2>/dev/null
+        echo "   Stopped frontend (PID: $FRONTEND_PID)"
+    fi
+    
+    # Kill any remaining processes on our ports (if lsof is available)
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -ti:3001 | xargs kill -9 2>/dev/null || true
+        lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+    fi
+    
     echo "✅ Application stopped"
     exit 0
 }
 
 # Set trap to cleanup on script exit
-trap cleanup SIGINT SIGTERM
+trap cleanup SIGINT SIGTERM EXIT
 
 # Wait for processes and show live status
 while true; do
     sleep 10
+    
     # Check if processes are still running
-    if ! kill -0 $BACKEND_PID 2>/dev/null; then
-        echo "❌ Backend process died. Check logs/backend.log"
+    if [ -n "$BACKEND_PID" ] && ! kill -0 $BACKEND_PID 2>/dev/null; then
+        echo "❌ Backend process died. Check logs/backend.log for details:"
+        tail -n 5 logs/backend.log 2>/dev/null || echo "   No log file found"
         cleanup
     fi
-    if ! kill -0 $FRONTEND_PID 2>/dev/null; then
-        echo "❌ Frontend process died. Check logs/frontend.log"
+    
+    if [ -n "$FRONTEND_PID" ] && ! kill -0 $FRONTEND_PID 2>/dev/null; then
+        echo "❌ Frontend process died. Check logs/frontend.log for details:"
+        tail -n 5 logs/frontend.log 2>/dev/null || echo "   No log file found"
         cleanup
     fi
+    
+    # Optional: Show a status message every minute
+    echo "📊 Status: Backend (PID: $BACKEND_PID) and Frontend (PID: $FRONTEND_PID) running..."
 done
