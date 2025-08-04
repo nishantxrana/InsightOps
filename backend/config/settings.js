@@ -25,6 +25,7 @@ class ConfigLoader {
       notifications: {
         teamsWebhookUrl: env.TEAMS_WEBHOOK_URL || '',
         slackWebhookUrl: env.SLACK_WEBHOOK_URL || '',
+        googleChatWebhookUrl: env.GOOGLE_CHAT_WEBHOOK_URL || '',
         enabled: env.NOTIFICATIONS_ENABLED === 'true'
       },
       
@@ -79,6 +80,7 @@ class ConfigLoader {
       notifications: Joi.object({
         teamsWebhookUrl: Joi.string().uri().allow('').optional(),
         slackWebhookUrl: Joi.string().uri().allow('').optional(),
+        googleChatWebhookUrl: Joi.string().uri().allow('').optional(),
         enabled: Joi.boolean().required()
       }).required(),
       

@@ -30,16 +30,17 @@ class PullRequestWebhook {
       });
 
       // Generate AI summary of the PR changes
-      let aiSummary = null;
-      try {
-        const prDetails = await azureDevOpsClient.getPullRequestDetails(pullRequestId);
-        aiSummary = await aiService.summarizePullRequest(prDetails);
-      } catch (error) {
-        logger.error('Error generating AI summary for PR:', error);
-      }
+      // let aiSummary = null;
+      // try {
+      //   // const prDetails = await azureDevOpsClient.getPullRequestDetails(pullRequestId);
+      //   logger.info('Fetched pull request detailss:', resource);
+      //   aiSummary = await aiService.summarizePullRequest(resource);
+      // } catch (error) {
+      //   logger.error('Error generating AI summary for PR:', error);
+      // }
 
       // Format notification message
-      const message = markdownFormatter.formatPullRequestCreated(resource, aiSummary);
+      const message = markdownFormatter.formatPullRequestCreated(resource);
       
       // Send notification
       await notificationService.sendNotification(message, 'pull-request-created');

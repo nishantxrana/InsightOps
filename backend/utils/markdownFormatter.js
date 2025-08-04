@@ -16,7 +16,7 @@ class MarkdownFormatter {
     message += `- **Priority**: ${priority}\n`;
 
     if (aiSummary) {
-      message += `\n### 🤖 AI Summary\n${aiSummary}\n`;
+      message += `\n*🤖 AI Summary* \n${aiSummary}\n`;
     }
 
     return message;
@@ -85,20 +85,20 @@ class MarkdownFormatter {
     const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
     const reviewers = pullRequest.reviewers?.map(r => r.displayName).join(', ') || 'None assigned';
 
-    let message = `## 🔀 New Pull Request Created\n\n`;
-    message += `**#${pullRequest.pullRequestId}**: ${title}\n\n`;
-    message += `- **Author**: ${createdBy}\n`;
-    message += `- **Source**: ${sourceBranch}\n`;
-    message += `- **Target**: ${targetBranch}\n`;
-    message += `- **Reviewers**: ${reviewers}\n`;
+    let message = `*New Pull Request Created*\n\n`;
+    message += `*${pullRequest.pullRequestId}*: ${title}\n\n`;
+    message += `- *Author*: ${createdBy}\n`;
+    message += `- *Source*: ${sourceBranch}\n`;
+    message += `- *Target*: ${targetBranch}\n`;
+    message += `- *Reviewers*: ${reviewers}\n`;
 
     if (pullRequest.description) {
-      message += `\n### Description\n${pullRequest.description}\n`;
+      message += `\n*Description* \n${pullRequest.description}\n`;
     }
 
-    if (aiSummary) {
-      message += `\n### 🤖 AI Summary\n${aiSummary}\n`;
-    }
+    // if (aiSummary) {
+    //   message += `\n*🤖 AI Summary* \n${aiSummary}\n`;
+    // }
 
     return message;
   }
