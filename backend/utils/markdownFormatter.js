@@ -112,6 +112,7 @@ class MarkdownFormatter {
     message += `**#${pullRequest.pullRequestId}**: ${title}\n\n`;
     message += `- **Status**: ${status}\n`;
     message += `- **Updated**: ${new Date().toLocaleString()}\n`;
+    message += `- **PR URL**: ${pullRequest.webUrl || pullRequest.url}\n`;
 
     return message;
   }
@@ -124,6 +125,7 @@ class MarkdownFormatter {
     message += `**#${pullRequest.pullRequestId}**: ${title}\n\n`;
     message += `- **New Reviewers**: ${reviewerList}\n`;
     message += `- **Action Required**: Please review the pull request\n`;
+    message += `- **PR URL**: ${pullRequest.webUrl || pullRequest.url}\n`;
 
     return message;
   }
@@ -143,9 +145,10 @@ class MarkdownFormatter {
       const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
 
       message += `*Pull Request ID:* ${pr.pullRequestId}\n`;
-      message += `*Title:* ${title} ${title} ${title}\n`;
+      message += `*Title:* ${title}\n`;
       message += `*Author:* ${createdBy}\n`;
-      message += `*Last Activity:* ${daysSinceActivity} days ago\n\n`;
+      message += `*Last Activity:* ${daysSinceActivity} days ago\n`;
+      message += `*PR Url:* <${pr.webUrl || pr.url}|Open Pull Request> \n\n`;
     });
 
     message += `Please review these pull requests to keep the development process moving.\n`;
