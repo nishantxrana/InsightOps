@@ -152,6 +152,7 @@ router.get('/settings', async (req, res) => {
       notifications: {
         teamsWebhookUrl: configLoader.get('notifications.teamsWebhookUrl') ? '***' : '',
         slackWebhookUrl: configLoader.get('notifications.slackWebhookUrl') ? '***' : '',
+        googleChatWebhookUrl: configLoader.get('notifications.googleChatWebhookUrl') ? '***' : '',
         enabled: configLoader.get('notifications.enabled')
       },
       polling: {

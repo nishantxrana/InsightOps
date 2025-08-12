@@ -25,6 +25,11 @@ class NotificationService {
       promises.push(this.sendSlackNotification(message, type));
     }
 
+    // Send to Google Chat if configured
+    if (this.config.googleChatWebhookUrl) {
+      promises.push(this.sendGoogleChatNotification(message, type));
+    }
+
     if (promises.length === 0) {
       logger.warn('No notification channels configured');
       return;
@@ -99,6 +104,29 @@ class NotificationService {
       logger.debug('Slack notification sent successfully', { type });
     } catch (error) {
       logger.error('Error sending Slack notification:', error);
+      throw error;
+    }
+  }
+
+  async sendGoogleChatNotification(message, type) {
+    try {
+      const title = this.getTitleForType(type);
+      const formattedMessage = `${title}\n\n${message}`;
+
+      const googleChatMessage = {
+        text: formattedMessage
+      };
+
+      await axios.post(this.config.googleChatWebhookUrl, googleChatMessage, {
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        timeout: 10000
+      });
+
+      logger.debug('Google Chat notification sent successfully', { type });
+    } catch (error) {
+      logger.error('Error sending Google Chat notification:', error);
       throw error;
     }
   }

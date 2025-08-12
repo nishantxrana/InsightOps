@@ -1,3 +1,4 @@
+
 class MarkdownFormatter {
   formatWorkItemCreated(workItem, aiSummary = null) {
     const title = workItem.fields?.['System.Title'] || 'No title';
@@ -16,7 +17,7 @@ class MarkdownFormatter {
     message += `- **Priority**: ${priority}\n`;
 
     if (aiSummary) {
-      message += `\n### 🤖 AI Summary\n${aiSummary}\n`;
+      message += `\n*🤖 AI Summary* \n${aiSummary}\n`;
     }
 
     return message;
@@ -85,20 +86,20 @@ class MarkdownFormatter {
     const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
     const reviewers = pullRequest.reviewers?.map(r => r.displayName).join(', ') || 'None assigned';
 
-    let message = `## 🔀 New Pull Request Created\n\n`;
-    message += `**#${pullRequest.pullRequestId}**: ${title}\n\n`;
-    message += `- **Author**: ${createdBy}\n`;
-    message += `- **Source**: ${sourceBranch}\n`;
-    message += `- **Target**: ${targetBranch}\n`;
-    message += `- **Reviewers**: ${reviewers}\n`;
+    let message = `*New Pull Request Created*\n\n`;
+    message += `*${pullRequest.pullRequestId}*: ${title}\n\n`;
+    message += `- *Author*: ${createdBy}\n`;
+    message += `- *Source*: ${sourceBranch}\n`;
+    message += `- *Target*: ${targetBranch}\n`;
+    message += `- *Reviewers*: ${reviewers}\n`;
 
     if (pullRequest.description) {
-      message += `\n### Description\n${pullRequest.description}\n`;
+      message += `\n*Description* \n${pullRequest.description}\n`;
     }
 
-    if (aiSummary) {
-      message += `\n### 🤖 AI Summary\n${aiSummary}\n`;
-    }
+    // if (aiSummary) {
+    //   message += `\n*🤖 AI Summary* \n${aiSummary}\n`;
+    // }
 
     return message;
   }
@@ -132,7 +133,7 @@ class MarkdownFormatter {
       return '';
     }
 
-    let message = `## ⏰ Idle Pull Requests Reminder\n\n`;
+    let message = `*⏰ Idle Pull Requests Reminder* \n\n`;
     message += `The following pull requests have been inactive for more than 48 hours:\n\n`;
 
     pullRequests.forEach(pr => {
@@ -141,9 +142,10 @@ class MarkdownFormatter {
       const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
       const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
 
-      message += `- **#${pr.pullRequestId}**: ${title}\n`;
-      message += `  - Author: ${createdBy}\n`;
-      message += `  - Last Activity: ${daysSinceActivity} days ago\n\n`;
+      message += `*Pull Request ID:* ${pr.pullRequestId}\n`;
+      message += `*Title:* ${title} ${title} ${title}\n`;
+      message += `*Author:* ${createdBy}\n`;
+      message += `*Last Activity:* ${daysSinceActivity} days ago\n\n`;
     });
 
     message += `Please review these pull requests to keep the development process moving.\n`;

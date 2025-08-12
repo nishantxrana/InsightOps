@@ -212,7 +212,7 @@ Format the summary as a brief changelog entry highlighting the key changes and t
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { max_tokens: 250 });
+      const summary = await this.generateCompletion(messages, { max_tokens: 5000 });
       
       logger.info('Generated pull request summary', {
         pullRequestId: pullRequest.pullRequestId,
