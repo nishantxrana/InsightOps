@@ -143,12 +143,23 @@ class MarkdownFormatter {
       const createdBy = pr.createdBy?.displayName || 'Unknown';
       const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
       const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
+      const project = pr.repository?.project?.name || 'Unknown';
+      const repository = pr.repository?.name || 'Unknown';
+      const sourceBranch = pr.sourceRefName?.replace('refs/heads/', '') || 'unknown';
+      const targetBranch = pr.targetRefName?.replace('refs/heads/', '') || 'unknown';
+      const description = ((pr.description || 'No description').slice(0, 100)) +
+                    ((pr.description?.length ?? 0) > 100 ? '...' : '');
 
       message += `*Pull Request ID:* ${pr.pullRequestId}\n`;
-      message += `*Title:* ${title}\n`;
-      message += `*Author:* ${createdBy}\n`;
-      message += `*Last Activity:* ${daysSinceActivity} days ago\n`;
-      message += `*PR Url:* <${pr.webUrl || pr.url}|Open Pull Request> \n\n`;
+      message += `- *Title:* ${title}\n`;
+      message += `- *Created By:* ${createdBy}\n`;
+      message += `- *Project:* ${project}\n`;
+      message += `- *Repository:* ${repository}\n`;
+      message += `- *Source Branch:* ${sourceBranch}\n`;
+      message += `- *Target Branch:* ${targetBranch}\n`;
+      message += `- *Last Activity:* ${daysSinceActivity} days ago\n`;
+      message += `- *PR Url:* <${pr.webUrl || pr.url}|Open Pull Request>\n`;
+      message += `- *Description:* ${description}\n\n`;
     });
 
     message += `Please review these pull requests to keep the development process moving.\n`;
