@@ -29,6 +29,9 @@ class PullRequestWebhook {
         reviewers
       });
 
+      // Add web URL to the resource object
+      resource.webUrl = azureDevOpsClient.constructPullRequestWebUrl(resource);
+
       // Generate AI summary of the PR changes
       // let aiSummary = null;
       // try {
@@ -79,6 +82,9 @@ class PullRequestWebhook {
         status,
         updatedBy
       });
+
+      // Add web URL to the resource object
+      resource.webUrl = azureDevOpsClient.constructPullRequestWebUrl(resource);
 
       // Check if this is a reviewer assignment
       const isReviewerAssignment = this.isReviewerAssignment(req.body);

@@ -292,10 +292,51 @@ class AzureDevOpsClient {
           'searchCriteria.status': status
         }
       });
+      
+      // Add web URL to each pull request
+      if (response.data && response.data.value) {
+        response.data.value = response.data.value.map(pr => ({
+          ...pr,
+          webUrl: this.constructPullRequestWebUrl(pr)
+        }));
+      }
+      
       return response.data;
     } catch (error) {
       logger.error('Error fetching pull requests:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Construct the web URL for a pull request
+   * @param {Object} pullRequest - The pull request object from Azure DevOps API
+   * @returns {string} The web URL for the pull request
+   */
+  constructPullRequestWebUrl(pullRequest) {
+    try {
+      const organization = this.config.organization;
+      const project = pullRequest.repository?.project?.name || this.config.project;
+      const repository = pullRequest.repository?.name;
+      const pullRequestId = pullRequest.pullRequestId;
+
+      if (!repository || !pullRequestId) {
+        logger.warn('Missing repository or pullRequestId for web URL construction', {
+          repository,
+          pullRequestId,
+          prTitle: pullRequest.title
+        });
+        return pullRequest.url || ''; // Fallback to API URL
+      }
+
+      // Encode components for URL safety
+      const encodedProject = encodeURIComponent(project);
+      const encodedRepository = encodeURIComponent(repository);
+      
+      return `${this.config.baseUrl}/${organization}/${encodedProject}/_git/${encodedRepository}/pullrequest/${pullRequestId}`;
+    } catch (error) {
+      logger.error('Error constructing pull request web URL:', error);
+      return pullRequest.url || ''; // Fallback to API URL
     }
   }
 
@@ -304,6 +345,12 @@ class AzureDevOpsClient {
       const response = await this.client.get(`/git/pullrequests/${pullRequestId}`, {
         params: { 'api-version': '7.0' }
       });
+      
+      // Add web URL to the pull request details
+      if (response.data) {
+        response.data.webUrl = this.constructPullRequestWebUrl(response.data);
+      }
+      
       return response.data;
     } catch (error) {
       logger.error(`Error fetching pull request ${pullRequestId}:`, error);
@@ -311,23 +358,76 @@ class AzureDevOpsClient {
     }
   }
 
+  // async getIdlePullRequests(hoursThreshold = 48) {
+  //   try {
+  //     const allPRs = await this.getPullRequests('active');
+  //     const thresholdDate = new Date();
+  //     thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold);
+
+  //     const idlePRs = allPRs.value.filter(pr => {
+  //       const lastActivityDate = new Date(pr.lastMergeCommit?.committer?.date || pr.creationDate);
+  //       return lastActivityDate < thresholdDate;
+  //     });
+
+  //     return { count: idlePRs.length, value: idlePRs };
+  //   } catch (error) {
+  //     logger.error('Error fetching idle pull requests:', error);
+  //     throw error;
+  //   }
+  // }
+
+  // adding more comprehensive functions for determining idle pull requests
+
+  /**
+   * Get idle pull requests based on activity threshold
+   * 
+   * BUG: This function uses the PR list API (/git/pullrequests) which has
+   * limited commit information. The lastMergeCommit and lastMergeSourceCommit fields are
+   * often null/undefined in the list response, causing the function to fall back to 
+   * creationDate only, which leads to incorrect idle detection.
+   * 
+   * FIXME: Idle detection is inaccurate - uses creation date instead of actual last activity
+   * 
+   * TODO: Implement proper activity date calculation:
+   * 1. For each PR, make individual API calls to /git/pullrequests/{id} to get complete
+   *    commit information including lastMergeCommit.committer.date
+   * 2. Consider fetching recent commits via /git/repositories/{repositoryId}/pullRequests/{pullRequestId}/commits
+   * 3. Include PR update activities like comments, reviews, and status changes
+   * 4. Add caching mechanism to avoid excessive API calls
+   * 
+   * TODO: Example of correct implementation:
+   * - Get PR list first
+   * - For each PR, fetch detailed info: await this.getPullRequest(pr.pullRequestId)
+   * - Use all available dates: creationDate, lastMergeCommit.committer.date, 
+   *   lastMergeSourceCommit.committer.date, recent comments, etc.
+   * 
+   * @param {number} hoursThreshold - Hours of inactivity to consider PR as idle (default: 48)
+   * @returns {Object} Object with count and array of idle PRs
+   */
   async getIdlePullRequests(hoursThreshold = 48) {
-    try {
-      const allPRs = await this.getPullRequests('active');
-      const thresholdDate = new Date();
-      thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold);
+  try {
+    const allPRs = await this.getPullRequests('active');
+    const thresholdDate = new Date();
+    thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold);
 
-      const idlePRs = allPRs.value.filter(pr => {
-        const lastActivityDate = new Date(pr.lastMergeCommit?.committer?.date || pr.creationDate);
-        return lastActivityDate < thresholdDate;
-      });
+    const idlePRs = allPRs.value.filter(pr => {
+      const activityDates = [
+        pr.creationDate,
+        pr.lastMergeCommit?.committer?.date,
+        pr.lastMergeSourceCommit?.committer?.date,
+        pr.closedDate,
+      ].filter(date => date != null);
 
-      return { count: idlePRs.length, value: idlePRs };
-    } catch (error) {
-      logger.error('Error fetching idle pull requests:', error);
-      throw error;
-    }
+      const lastActivityDate = new Date(Math.max(...activityDates.map(date => new Date(date).getTime())));      
+      return lastActivityDate < thresholdDate;
+    });
+
+    return { count: idlePRs.length, value: idlePRs };
+  } catch (error) {
+    logger.error('Error fetching idle pull requests:', error);
+    throw error;
   }
+}
 
   // Repository API
   async getRepositories() {
