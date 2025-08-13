@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   Home, 
@@ -13,7 +13,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import clsx from 'clsx'
-import { apiService } from '../api/apiService'
+import { useHealth } from '../contexts/HealthContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
@@ -26,32 +26,8 @@ const navigation = [
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [isConnected, setIsConnected] = useState(false)
-  const [isChecking, setIsChecking] = useState(true)
+  const { isConnected, isChecking, checkConnection } = useHealth()
   const location = useLocation()
-
-  // Check backend connectivity
-  const checkConnection = async () => {
-    setIsChecking(true)
-    try {
-      await apiService.getHealth()
-      setIsConnected(true)
-    } catch (error) {
-      setIsConnected(false)
-    } finally {
-      setIsChecking(false)
-    }
-  }
-
-  // Check connection on component mount and set up periodic checks
-  useEffect(() => {
-    checkConnection()
-    
-    // Check connection every 30 seconds
-    const interval = setInterval(checkConnection, 30000)
-    
-    return () => clearInterval(interval)
-  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50">
