@@ -10,6 +10,7 @@ import {
   Activity
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
+import { useHealth } from '../contexts/HealthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
 
@@ -22,6 +23,7 @@ export default function Dashboard() {
     pullRequests: { total: 0, active: 0, idle: 0 }
   })
   const [recentActivity, setRecentActivity] = useState([])
+  const { isConnected, isChecking, healthData, lastCheck } = useHealth()
 
   useEffect(() => {
     loadDashboardData()
@@ -127,11 +129,13 @@ export default function Dashboard() {
     },
     {
       title: 'System Status',
-      value: 'Healthy',
-      subtitle: 'All services operational',
+      value: isChecking ? 'Checking...' : isConnected ? 'Healthy' : 'Unhealthy',
+      subtitle: isChecking ? 'Checking connection...' : 
+                isConnected ? `Uptime: ${healthData?.uptime ? Math.floor(healthData.uptime / 3600) + 'h' : 'N/A'}` : 
+                'Backend disconnected',
       icon: Activity,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50'
+      color: isChecking ? 'text-yellow-600' : isConnected ? 'text-green-600' : 'text-red-600',
+      bgColor: isChecking ? 'bg-yellow-50' : isConnected ? 'bg-green-50' : 'bg-red-50'
     }
   ]
 
@@ -147,8 +151,17 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => {
           const Icon = stat.icon
+          const isSystemStatus = stat.title === 'System Status'
+          const tooltipText = isSystemStatus && lastCheck 
+            ? `Last checked: ${lastCheck.toLocaleTimeString()}`
+            : undefined
+            
           return (
-            <div key={index} className="card">
+            <div 
+              key={index} 
+              className="card"
+              title={tooltipText}
+            >
               <div className="flex items-center">
                 <div className={`p-2 rounded-lg ${stat.bgColor}`}>
                   <Icon className={`h-6 w-6 ${stat.color}`} />

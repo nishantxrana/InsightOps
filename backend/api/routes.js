@@ -6,6 +6,16 @@ import { configLoader } from '../config/settings.js';
 
 const router = express.Router();
 
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    service: 'Azure DevOps Monitoring Agent'
+  });
+});
+
 // Work Items endpoints
 router.get('/work-items', async (req, res) => {
   try {

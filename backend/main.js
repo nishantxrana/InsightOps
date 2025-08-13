@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { logger } from './utils/logger.js';
 import { configLoader } from './config/settings.js';
-import { webhookRoutes } from './webhooks/index.js';
+import { webhookRoutes } from './webhooks/routes.js';
 import { apiRoutes } from './api/routes.js';
 import { startPollingJobs } from './polling/index.js';
 import { errorHandler } from './utils/errorHandler.js';
@@ -48,24 +48,6 @@ app.use((req, res, next) => {
   });
   next();
 });
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
-});
-
-// middle ware that i will insert in b/w the routes for loggin even the request is comming on route or not
-app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path}`, {
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
-  });
-  next();
-})
 
 // API routes
 app.use('/api/webhooks',  webhookRoutes);
