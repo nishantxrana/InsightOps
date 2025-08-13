@@ -49,24 +49,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
-});
-
-// middle ware that i will insert in b/w the routes for loggin even the request is comming on route or not
-app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path}`, {
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
-  });
-  next();
-})
-
 // API routes
 app.use('/api/webhooks',  webhookRoutes);
 app.use('/api', apiRoutes);

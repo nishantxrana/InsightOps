@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   Home, 
@@ -9,9 +9,11 @@ import {
   Settings,
   Menu,
   X,
-  Activity
+  Activity,
+  RefreshCw
 } from 'lucide-react'
 import clsx from 'clsx'
+import { apiService } from '../api/apiService'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
@@ -24,7 +26,32 @@ const navigation = [
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
   const location = useLocation()
+
+  // Check backend connectivity
+  const checkConnection = async () => {
+    setIsChecking(true)
+    try {
+      await apiService.getHealth()
+      setIsConnected(true)
+    } catch (error) {
+      setIsConnected(false)
+    } finally {
+      setIsChecking(false)
+    }
+  }
+
+  // Check connection on component mount and set up periodic checks
+  useEffect(() => {
+    checkConnection()
+    
+    // Check connection every 30 seconds
+    const interval = setInterval(checkConnection, 30000)
+    
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -133,8 +160,24 @@ export default function Layout({ children }) {
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
               <div className="flex items-center space-x-2">
-                <div className="status-dot status-dot-success"></div>
-                <span className="text-sm text-gray-600">Connected</span>
+                <div className={clsx(
+                  'status-dot',
+                  isChecking ? 'status-dot-warning' : isConnected ? 'status-dot-success' : 'status-dot-error'
+                )}></div>
+                <span className="text-sm text-gray-600">
+                  {isChecking ? 'Checking...' : isConnected ? 'Connected' : 'Disconnected'}
+                </span>
+                <button
+                  onClick={checkConnection}
+                  disabled={isChecking}
+                  className={clsx(
+                    'p-1 rounded-md text-gray-400 hover:text-gray-600 transition-colors',
+                    isChecking && 'animate-spin'
+                  )}
+                  title="Refresh connection status"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
