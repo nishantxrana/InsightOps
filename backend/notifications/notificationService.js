@@ -110,11 +110,11 @@ class NotificationService {
 
   async sendGoogleChatNotification(message, type) {
     try {
-      const title = this.getTitleForType(type);
-      const formattedMessage = `${title}\n\n${message}`;
+      // const title = this.getTitleForType(type);
+      // const formattedMessage = `${title}\n\n${message}`;
 
       const googleChatMessage = {
-        text: formattedMessage
+        text: message
       };
 
       await axios.post(this.config.googleChatWebhookUrl, googleChatMessage, {
