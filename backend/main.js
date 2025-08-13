@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { logger } from './utils/logger.js';
 import { configLoader } from './config/settings.js';
-import { webhookRoutes } from './webhooks/index.js';
+import { webhookRoutes } from './webhooks/routes.js';
 import { apiRoutes } from './api/routes.js';
 import { startPollingJobs } from './polling/index.js';
 import { errorHandler } from './utils/errorHandler.js';

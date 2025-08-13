@@ -80,22 +80,26 @@ class MarkdownFormatter {
   }
 
   formatPullRequestCreated(pullRequest, aiSummary = null) {
-    const title = pullRequest.title || 'No title';
-    const createdBy = pullRequest.createdBy?.displayName || 'Unknown';
-    const sourceBranch = pullRequest.sourceRefName?.replace('refs/heads/', '') || 'unknown';
-    const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
-    const reviewers = pullRequest.reviewers?.map(r => r.displayName).join(', ') || 'None assigned';
+      const title = pullRequest.title || 'No title';
+      const createdBy = pullRequest.createdBy?.displayName || 'Unknown';
+      const project = pullRequest.repository?.project?.name || 'Unknown';
+      const repository = pullRequest.repository?.name || 'Unknown';
+      const sourceBranch = pullRequest.sourceRefName?.replace('refs/heads/', '') || 'unknown';
+      const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
+      const description = ((pullRequest.description || 'No description').slice(0, 200)) +
+                    ((pullRequest.description?.length ?? 0) > 200 ? '...' : '');
 
-    let message = `*New Pull Request Created*\n\n`;
-    message += `*${pullRequest.pullRequestId}*: ${title}\n\n`;
-    message += `- *Author*: ${createdBy}\n`;
-    message += `- *Source*: ${sourceBranch}\n`;
-    message += `- *Target*: ${targetBranch}\n`;
-    message += `- *Reviewers*: ${reviewers}\n`;
+      let message = `*New Pull Request Created!*\n`;
 
-    if (pullRequest.description) {
-      message += `\n*Description* \n${pullRequest.description}\n`;
-    }
+      message += `- *Title:* ${title}\n`;
+      message += `- *PR ID:* ${pullRequest.pullRequestId}\n`;
+      message += `- *Created By:* ${createdBy}\n`;
+      message += `- *Project:* ${project}\n`;
+      message += `- *Repository:* ${repository}\n`;
+      message += `- *Source Branch:* ${sourceBranch}\n`;
+      message += `- *Target Branch:* ${targetBranch}\n`;
+      message += `- *PR Url:* <${pullRequest.webUrl || pullRequest.url}|Open Pull Request>\n`;
+      message += `- *Description:* ${description}\n\n`;
 
     // if (aiSummary) {
     //   message += `\n*🤖 AI Summary* \n${aiSummary}\n`;

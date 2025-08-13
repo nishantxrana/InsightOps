@@ -87,10 +87,10 @@ class PullRequestWebhook {
       resource.webUrl = azureDevOpsClient.constructPullRequestWebUrl(resource);
 
       // Check if this is a reviewer assignment
-      const isReviewerAssignment = this.isReviewerAssignment(req.body);
+      const isReviewerAssignment = this.isReviewerAssignment(resource);
       
       if (isReviewerAssignment) {
-        const newReviewers = this.getNewReviewers(req.body);
+        const newReviewers = this.getNewReviewers(resource);
         const message = markdownFormatter.formatPullRequestReviewerAssigned(resource, newReviewers);
         await notificationService.sendNotification(message, 'pull-request-reviewer-assigned');
       } else {
@@ -113,9 +113,8 @@ class PullRequestWebhook {
     }
   }
 
-  isReviewerAssignment(webhookPayload) {
+  isReviewerAssignment(resource) {
     // Check if the update includes reviewer changes
-    const resource = webhookPayload.resource;
     return resource.reviewers && resource.reviewers.length > 0;
   }
 
