@@ -170,6 +170,19 @@ class MarkdownFormatter {
 
     return message;
   }
+
+  formatOverdueItemsMessage(overdueItems) {
+    const itemsList = overdueItems.map(item => {
+      const title = item.fields?.['System.Title'] || 'No title';
+      const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+      const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+      const workItemType = item.fields?.['System.WorkItemType'] || 'Item';
+      
+      return `- **${workItemType} #${item.id}**: ${title}\n  - Assigned to: ${assignee}\n  - Due: ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No due date'}`;
+    }).join('\n\n');
+
+    return `## ⚠️ Overdue Work Items (${overdueItems.length})\n\nThe following work items are past their due date and need attention:\n\n${itemsList}\n\nPlease review and update the status of these items.`;
+  }
 }
 
 export const markdownFormatter = new MarkdownFormatter();
