@@ -1,9 +1,26 @@
 import React, { useState, useEffect } from 'react'
-import { GitBranch, CheckCircle, XCircle, Clock, User, Calendar } from 'lucide-react'
+import { 
+  GitBranch, 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  User, 
+  Calendar,
+  ExternalLink,
+  Play,
+  Pause,
+  AlertCircle,
+  TrendingUp,
+  Activity,
+  Timer,
+  GitCommit,
+  Building,
+  Zap
+} from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
-import { format } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
 
 export default function Pipelines() {
   const [loading, setLoading] = useState(true)
@@ -49,7 +66,7 @@ export default function Pipelines() {
 
   const getBuildStatusIcon = (result, status) => {
     if (status === 'inProgress') {
-      return <Clock className="h-5 w-5 text-blue-500 animate-pulse" />
+      return <Building className="h-5 w-5 text-blue-500 animate-pulse" />
     }
     
     switch (result) {
@@ -58,7 +75,9 @@ export default function Pipelines() {
       case 'failed':
         return <XCircle className="h-5 w-5 text-red-500" />
       case 'canceled':
-        return <XCircle className="h-5 w-5 text-gray-500" />
+        return <Pause className="h-5 w-5 text-gray-500" />
+      case 'partiallySucceeded':
+        return <AlertCircle className="h-5 w-5 text-yellow-500" />
       default:
         return <Clock className="h-5 w-5 text-gray-400" />
     }
@@ -66,18 +85,68 @@ export default function Pipelines() {
 
   const getBuildStatusBadge = (result, status) => {
     if (status === 'inProgress') {
-      return 'badge bg-blue-100 text-blue-800'
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          <Building className="h-3 w-3 animate-pulse" />
+          In Progress
+        </span>
+      )
     }
     
     switch (result) {
       case 'succeeded':
-        return 'badge badge-success'
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <CheckCircle className="h-3 w-3" />
+            Succeeded
+          </span>
+        )
       case 'failed':
-        return 'badge badge-error'
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <XCircle className="h-3 w-3" />
+            Failed
+          </span>
+        )
       case 'canceled':
-        return 'badge bg-gray-100 text-gray-800'
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <Pause className="h-3 w-3" />
+            Canceled
+          </span>
+        )
+      case 'partiallySucceeded':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <AlertCircle className="h-3 w-3" />
+            Partial
+          </span>
+        )
       default:
-        return 'badge bg-gray-100 text-gray-800'
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <Clock className="h-3 w-3" />
+            {status || 'Unknown'}
+          </span>
+        )
+    }
+  }
+
+  const formatBuildDuration = (startTime, finishTime) => {
+    if (!startTime) return 'N/A'
+    
+    const start = new Date(startTime)
+    const end = finishTime ? new Date(finishTime) : new Date()
+    const durationMs = end - start
+    
+    if (durationMs < 60000) { // Less than 1 minute
+      return `${Math.round(durationMs / 1000)}s`
+    } else if (durationMs < 3600000) { // Less than 1 hour
+      return `${Math.round(durationMs / 60000)}m`
+    } else {
+      const hours = Math.floor(durationMs / 3600000)
+      const minutes = Math.round((durationMs % 3600000) / 60000)
+      return `${hours}h ${minutes}m`
     }
   }
 
@@ -87,13 +156,16 @@ export default function Pipelines() {
     const start = new Date(startTime)
     const end = finishTime ? new Date(finishTime) : new Date()
     const durationMs = end - start
-    const minutes = Math.floor(durationMs / 60000)
-    const seconds = Math.floor((durationMs % 60000) / 1000)
     
-    if (minutes > 0) {
-      return `${minutes}m ${seconds}s`
+    if (durationMs < 60000) { // Less than 1 minute
+      return `${Math.round(durationMs / 1000)}s`
+    } else if (durationMs < 3600000) { // Less than 1 hour
+      return `${Math.round(durationMs / 60000)}m`
+    } else {
+      const hours = Math.floor(durationMs / 3600000)
+      const minutes = Math.round((durationMs % 3600000) / 60000)
+      return `${hours}h ${minutes}m`
     }
-    return `${seconds}s`
   }
 
   if (loading) {
