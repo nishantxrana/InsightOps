@@ -159,11 +159,11 @@ export default function Dashboard() {
           return (
             <div 
               key={index} 
-              className="card"
+              className="card hover:shadow-lg transition-shadow duration-200"
               title={tooltipText}
             >
               <div className="flex items-center">
-                <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                <div className={`p-2 rounded-lg ${stat.bgColor} transition-all duration-200 hover:scale-105`}>
                   <Icon className={`h-6 w-6 ${stat.color}`} />
                 </div>
                 <div className="ml-4">
@@ -172,6 +172,38 @@ export default function Dashboard() {
                 </div>
               </div>
               <p className="mt-2 text-sm text-gray-500">{stat.subtitle}</p>
+              
+              {/* Add progress indicator for Work Items */}
+              {stat.title === 'Work Items' && stats.workItems.total > 0 && (
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs text-gray-600 mb-1">
+                    <span>Completion</span>
+                    <span>{Math.round(((stats.workItems.total - stats.workItems.active) / stats.workItems.total) * 100)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.round(((stats.workItems.total - stats.workItems.active) / stats.workItems.total) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Add success rate for Builds */}
+              {stat.title === 'Recent Builds' && stats.builds.total > 0 && (
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs text-gray-600 mb-1">
+                    <span>Success Rate</span>
+                    <span>{Math.round((stats.builds.succeeded / stats.builds.total) * 100)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.round((stats.builds.succeeded / stats.builds.total) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}

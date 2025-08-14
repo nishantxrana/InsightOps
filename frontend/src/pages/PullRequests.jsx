@@ -1,5 +1,20 @@
 import React, { useState, useEffect } from 'react'
-import { GitPullRequest, User, Clock, GitBranch, MessageSquare, Eye } from 'lucide-react'
+import { 
+  GitPullRequest, 
+  User, 
+  Clock, 
+  GitBranch, 
+  MessageSquare, 
+  Eye, 
+  ExternalLink,
+  Building,
+  FolderGit2,
+  Calendar,
+  Activity,
+  AlertCircle,
+  CheckCircle2,
+  XCircle
+} from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
@@ -62,13 +77,66 @@ export default function PullRequests() {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'active':
-        return 'badge bg-blue-100 text-blue-800'
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <Activity className="h-3 w-3" />
+            Active
+          </span>
+        )
       case 'completed':
-        return 'badge badge-success'
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <CheckCircle2 className="h-3 w-3" />
+            Completed
+          </span>
+        )
       case 'abandoned':
-        return 'badge bg-gray-100 text-gray-800'
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <XCircle className="h-3 w-3" />
+            Abandoned
+          </span>
+        )
       default:
-        return 'badge bg-gray-100 text-gray-800'
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <AlertCircle className="h-3 w-3" />
+            {status}
+          </span>
+        )
+    }
+  }
+
+  const getMergeStatusBadge = (mergeStatus) => {
+    switch (mergeStatus) {
+      case 'succeeded':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <CheckCircle2 className="h-3 w-3" />
+            Ready
+          </span>
+        )
+      case 'conflicts':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <AlertCircle className="h-3 w-3" />
+            Conflicts
+          </span>
+        )
+      case 'queued':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <Clock className="h-3 w-3" />
+            Queued
+          </span>
+        )
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <AlertCircle className="h-3 w-3" />
+            {mergeStatus || 'Unknown'}
+          </span>
+        )
     }
   }
 
@@ -206,6 +274,9 @@ export default function PullRequests() {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Merge Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Branches
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -226,22 +297,51 @@ export default function PullRequests() {
                     <td className="px-6 py-4">
                       <div className="flex items-start">
                         {getStatusIcon(pr.status)}
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900">
-                            #{pr.pullRequestId}: {pr.title}
+                        <div className="ml-3 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-gray-900">
+                              #{pr.pullRequestId}: {pr.title}
+                            </div>
+                            {pr.webUrl && (
+                              <a
+                                href={pr.webUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                                title="Open in Azure DevOps"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            )}
                           </div>
                           {pr.description && (
                             <div className="text-sm text-gray-500 mt-1 max-w-md truncate">
                               {pr.description}
                             </div>
                           )}
+                          {/* Project and Repository Info */}
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <div className="flex items-center gap-1">
+                              <Building className="h-3 w-3" />
+                              <span>{pr.repository?.project?.name || 'Unknown Project'}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <FolderGit2 className="h-3 w-3" />
+                              <span>{pr.repository?.name || 'Unknown Repo'}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              <span>Created {format(new Date(pr.creationDate), 'MMM d, yyyy')}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={getStatusBadge(pr.status)}>
-                        {pr.status}
-                      </span>
+                      {getStatusBadge(pr.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getMergeStatusBadge(pr.mergeStatus)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900">
@@ -287,7 +387,7 @@ export default function PullRequests() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                     No pull requests found
                   </td>
                 </tr>
