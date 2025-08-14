@@ -172,16 +172,37 @@ class MarkdownFormatter {
   }
 
   formatOverdueItemsMessage(overdueItems) {
-    const itemsList = overdueItems.map(item => {
+    if (!overdueItems || overdueItems.length === 0) {
+      return '';
+    }
+
+    let message = `*⚠️ Overdue Work Items (${overdueItems.length})* \n\n`;
+    message += `The following work items are past their due date and need attention:\n\n`;
+
+    overdueItems.forEach(item => {
       const title = item.fields?.['System.Title'] || 'No title';
       const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
       const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
       const workItemType = item.fields?.['System.WorkItemType'] || 'Item';
-      
-      return `- **${workItemType} #${item.id}**: ${title}\n  - Assigned to: ${assignee}\n  - Due: ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No due date'}`;
-    }).join('\n\n');
+      const state = item.fields?.['System.State'] || 'Unknown';
+      const priority = item.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
+      const createdBy = item.fields?.['System.CreatedBy']?.displayName || 'Unknown';
+      const daysPastDue = dueDate ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
 
-    return `## ⚠️ Overdue Work Items (${overdueItems.length})\n\nThe following work items are past their due date and need attention:\n\n${itemsList}\n\nPlease review and update the status of these items.`;
+      message += `*${workItemType}* #${item.id}: ${title}\n`;
+      message += `- *Assigned To:* ${assignee}\n`;
+      message += `- *State:* ${state}\n`;
+      message += `- *Priority:* ${priority}\n`;
+      message += `- *Due Date:* ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No due date'}\n`;
+      if (dueDate && daysPastDue > 0) {
+        message += `- *Days Overdue:* ${daysPastDue} days\n`;
+      }
+      message += `- *Work Item Url:* <${item.url || `https://dev.azure.com/${item.fields?.['System.TeamProject']}/_workitems/edit/${item.id}`}|Open Work Item>\n\n`;
+    });
+
+    message += `Please review and update the status of these items to keep the project on track.\n`;
+
+    return message;
   }
 }
 
