@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { 
   CheckSquare, 
   Clock, 
@@ -270,14 +271,51 @@ export default function WorkItems() {
         </>
       )}
 
-      {/* Sprint Summary */}
+      {/* Sprint Summary with Professional Markdown Rendering */}
       {sprintSummary?.summary && (
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Sprint Summary</h3>
-          <div className="prose max-w-none">
-            <div className="whitespace-pre-wrap text-sm text-gray-700">
+          <div className="prose prose-sm max-w-none">
+            <ReactMarkdown
+              components={{
+                h2: ({children}) => (
+                  <h2 className="text-lg font-medium text-gray-900 mb-4 mt-6 first:mt-0 border-b border-gray-200 pb-2">
+                    {children}
+                  </h2>
+                ),
+                h3: ({children}) => (
+                  <h3 className="text-base font-medium text-blue-900 mb-2 mt-4">
+                    {children}
+                  </h3>
+                ),
+                p: ({children}) => (
+                  <p className="text-sm text-gray-700 mb-3 leading-relaxed text-justify">
+                    {children}
+                  </p>
+                ),
+                ul: ({children}) => (
+                  <ul className="list-disc list-inside text-sm text-gray-700 mb-4 ml-4 space-y-1 text-justify">
+                    {children}
+                  </ul>
+                ),
+                li: ({children}) => (
+                  <li className="mb-1 text-sm text-gray-700 text-justify">
+                    {children}
+                  </li>
+                ),
+                strong: ({children}) => (
+                  <strong className="font-semibold text-gray-900">
+                    {children}
+                  </strong>
+                ),
+                em: ({children}) => (
+                  <em className="italic text-gray-800">
+                    {children}
+                  </em>
+                )
+              }}
+            >
               {sprintSummary.summary}
-            </div>
+            </ReactMarkdown>
           </div>
         </div>
       )}
