@@ -240,85 +240,84 @@ export default function Pipelines() {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Recent Builds</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Build
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Branch
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Requested By
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Duration
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Started
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {builds.length > 0 ? (
-                builds.map((build) => (
-                  <tr key={build.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {getBuildStatusIcon(build.result, build.status)}
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900">
+        <div className="max-h-96 overflow-y-auto">
+          {builds.length > 0 ? (
+            <div className="divide-y divide-gray-200">
+              {builds.map((build) => (
+                <div key={build.id} className="p-4 hover:bg-gray-50 transition-colors">
+                  {/* Header Row */}
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-start flex-1 min-w-0">
+                      {getBuildStatusIcon(build.result, build.status)}
+                      <div className="ml-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-sm font-medium text-gray-900 truncate">
                             {build.definition?.name || 'Unknown'}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            #{build.buildNumber}
-                          </div>
+                          </h4>
+                          {build._links?.web?.href && (
+                            <a
+                              href={build._links.web.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-shrink-0 text-blue-600 hover:text-blue-800 transition-colors"
+                              title="Open in Azure DevOps"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          #{build.buildNumber}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={getBuildStatusBadge(build.result, build.status)}>
-                        {build.status === 'inProgress' ? 'In Progress' : (build.result || 'Unknown')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {build.sourceBranch?.replace('refs/heads/', '') || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <User className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">
-                          {build.requestedBy?.displayName || 'Unknown'}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 ml-4 flex-shrink-0">
+                      {getBuildStatusBadge(build.result, build.status)}
+                    </div>
+                  </div>
+
+                  {/* All content aligned with title - no indentation */}
+                  <div className="ml-7">
+                    {/* Compact Info Row */}
+                    <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
+                      <div className="flex items-center gap-1">
+                        <GitBranch className="h-3 w-3" />
+                        <span className="font-mono truncate max-w-32">
+                          {build.sourceBranch?.replace('refs/heads/', '') || 'N/A'}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDuration(build.startTime, build.finishTime)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">
-                          {build.startTime ? format(new Date(build.startTime), 'MMM dd, HH:mm') : 'N/A'}
-                        </span>
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        <span className="truncate max-w-24">{build.requestedBy?.displayName || 'Unknown'}</span>
                       </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                    No builds found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      <div className="flex items-center gap-1">
+                        <Timer className="h-3 w-3" />
+                        <span>{formatDuration(build.startTime, build.finishTime)}</span>
+                      </div>
+                    </div>
+
+                    {/* Project Info */}
+                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>Started {build.startTime ? format(new Date(build.startTime), 'MMM d, HH:mm') : 'N/A'}</span>
+                      </div>
+                      {build.finishTime && (
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          <span>Finished {format(new Date(build.finishTime), 'MMM d, HH:mm')}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-6 py-12 text-center text-gray-500">
+              No builds found
+            </div>
+          )}
         </div>
       </div>
 

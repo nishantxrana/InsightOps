@@ -284,7 +284,7 @@ export default function PullRequests() {
                               className="flex-shrink-0 text-blue-600 hover:text-blue-800 transition-colors"
                               title="Open in Azure DevOps"
                             >
-                              <ExternalLink className="h-3 w-3" />
+                              <ExternalLink className="h-4 w-4" />
                             </a>
                           )}
                         </div>
