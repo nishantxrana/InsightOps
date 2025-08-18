@@ -1,7 +1,25 @@
 import React, { useState, useEffect } from 'react'
-import { Save, TestTube, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react'
+import { 
+  Save, 
+  TestTube, 
+  Eye, 
+  EyeOff, 
+  CheckCircle, 
+  XCircle, 
+  AlertTriangle,
+  Info,
+  Settings as SettingsIcon,
+  Bell,
+  Zap,
+  Clock,
+  Shield,
+  Database,
+  Webhook,
+  Bot
+} from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useHealth } from '../contexts/HealthContext'
 
 export default function Settings() {
   const [loading, setLoading] = useState(true)
@@ -9,6 +27,10 @@ export default function Settings() {
   const [testing, setTesting] = useState(false)
   const [showSecrets, setShowSecrets] = useState({})
   const [testResult, setTestResult] = useState(null)
+  const [activeTab, setActiveTab] = useState('azure')
+  const [validationErrors, setValidationErrors] = useState({})
+  const { isConnected, healthData } = useHealth()
+  
   const [settings, setSettings] = useState({
     azureDevOps: {
       organization: '',
@@ -25,6 +47,7 @@ export default function Settings() {
     notifications: {
       teamsWebhookUrl: '',
       slackWebhookUrl: '',
+      googleChatWebhookUrl: '',
       enabled: true
     },
     polling: {
@@ -32,8 +55,48 @@ export default function Settings() {
       pipelineInterval: '*/10 * * * *',
       pullRequestInterval: '0 */2 * * *',
       overdueCheckInterval: '0 9 * * *'
+    },
+    security: {
+      webhookSecret: '',
+      apiToken: '',
+      enableRateLimit: true,
+      maxRequestsPerMinute: 100
     }
   })
+
+  const validateSettings = () => {
+    const errors = {}
+    
+    // Azure DevOps validation
+    if (!settings.azureDevOps.organization.trim()) {
+      errors.organization = 'Organization is required'
+    }
+    if (!settings.azureDevOps.project.trim()) {
+      errors.project = 'Project is required'
+    }
+    if (!settings.azureDevOps.personalAccessToken.trim()) {
+      errors.personalAccessToken = 'Personal Access Token is required'
+    }
+    
+    // AI validation
+    if (settings.ai.provider === 'openai' && !settings.ai.openaiApiKey.trim()) {
+      errors.openaiApiKey = 'OpenAI API Key is required when using OpenAI'
+    }
+    if (settings.ai.provider === 'groq' && !settings.ai.groqApiKey.trim()) {
+      errors.groqApiKey = 'Groq API Key is required when using Groq'
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const tabs = [
+    { id: 'azure', name: 'Azure DevOps', icon: Database },
+    { id: 'ai', name: 'AI Configuration', icon: Bot },
+    { id: 'notifications', name: 'Notifications', icon: Bell },
+    { id: 'polling', name: 'Polling', icon: Clock },
+    { id: 'security', name: 'Security', icon: Shield }
+  ]
 
   useEffect(() => {
     loadSettings()
@@ -52,6 +115,11 @@ export default function Settings() {
   }
 
   const handleSave = async () => {
+    if (!validateSettings()) {
+      setTestResult({ success: false, message: 'Please fix validation errors before saving.' })
+      return
+    }
+    
     try {
       setSaving(true)
       await apiService.updateSettings(settings)
