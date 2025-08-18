@@ -83,32 +83,46 @@ class AIService {
       const title = workItem.fields?.['System.Title'] || 'No title';
       const description = workItem.fields?.['System.Description'] || 'No description';
       const workItemType = workItem.fields?.['System.WorkItemType'] || 'Unknown';
-      const state = workItem.fields?.['System.State'] || 'Unknown';
-      const assignedTo = workItem.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+      const priority = workItem.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
+
+      // Clean HTML from description
+      const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
 
       const messages = [
         {
           role: 'system',
-          content: 'You are an AI assistant that summarizes Azure DevOps work items. Provide a concise, professional summary focusing on the key points and requirements.'
+          content: `You are a DevOps work item analyzer. Provide concise, impactful summaries for Google Chat notifications.
+
+Rules:
+- Use Google Chat formatting: *bold text* (not **bold**)
+- Write exactly 2-3 sentences for comprehensive coverage
+- State only facts from the work item data
+- No assumptions or speculation
+- Focus on what needs to be done and its impact
+- Make it informative and actionable`
         },
         {
           role: 'user',
-          content: `Please summarize this work item:
-          
-Type: ${workItemType}
-Title: ${title}
-State: ${state}
-Assigned To: ${assignedTo}
-Description: ${description}
+          content: `Summarize this work item in exactly 2-3 sentences using Google Chat formatting (*bold*):
 
-Provide a brief, actionable summary in 2-3 sentences.`
+*${workItemType}*: ${title}
+*Priority*: ${this.getPriorityText(priority)}
+
+*Description*: ${cleanDescription}
+
+Provide a comprehensive summary covering what needs to be done and why it's important, based only on the information provided.`
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { max_tokens: 200 });
+      const summary = await this.generateCompletion(messages, { 
+        max_tokens: 150,  // Increased for 2-3 sentences
+        temperature: 0.1  // Very low for factual, consistent responses
+      });
       
       logger.info('Generated work item summary', {
         workItemId: workItem.id,
+        workItemType,
+        priority: this.getPriorityText(priority),
         summaryLength: summary.length
       });
 
@@ -117,6 +131,18 @@ Provide a brief, actionable summary in 2-3 sentences.`
       logger.error('Error summarizing work item:', error);
       return 'Unable to generate AI summary at this time.';
     }
+  }
+
+  // Helper method to convert priority number to readable text
+  getPriorityText(priority) {
+    if (!priority) return 'Not set';
+    const priorityMap = {
+      1: 'Critical',
+      2: 'High', 
+      3: 'Medium',
+      4: 'Low'
+    };
+    return priorityMap[priority] || `Priority ${priority}`;
   }
 
   async summarizeBuildFailure(build, timeline, logs) {
