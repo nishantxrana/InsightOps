@@ -45,18 +45,21 @@ class WorkItemWebhook {
 
   async handleUpdated(req, res) {
     try {
-      const { resource } = req.body;
+      const webhookData = req.body;
+      const { resource } = webhookData;
       
       if (!resource) {
         return res.status(400).json({ error: 'Missing resource in webhook payload' });
       }
 
-      const workItemId = resource.id;
-      const workItemType = resource.fields?.['System.WorkItemType'];
-      const title = resource.fields?.['System.Title'];
-      const state = resource.fields?.['System.State'];
-      const assignedTo = resource.fields?.['System.AssignedTo']?.displayName;
-      const changedBy = resource.fields?.['System.ChangedBy']?.displayName;
+      const workItemId = resource.workItemId || resource.revision?.id || resource.id;
+      const revision = resource.revision || resource;
+      const fields = revision.fields || resource.fields || {};
+      const workItemType = fields['System.WorkItemType'] || 'Work Item';
+      const title = fields['System.Title'] || 'No title';
+      const state = fields['System.State'] || 'Unknown';
+      const assignedTo = fields['System.AssignedTo'] || 'Unassigned';
+      const changedBy = fields['System.ChangedBy'] || 'Unknown';
 
       logger.info('Work item updated webhook received', {
         workItemId,
@@ -64,11 +67,12 @@ class WorkItemWebhook {
         title,
         state,
         assignedTo,
-        changedBy
+        changedBy,
+        eventType: webhookData.eventType
       });
 
-      // Format notification message
-      const message = markdownFormatter.formatWorkItemUpdated(resource);
+      // Format notification message with complete webhook data
+      const message = markdownFormatter.formatWorkItemUpdated(webhookData);
       
       // Send notification
       await notificationService.sendNotification(message, 'work-item-updated');
