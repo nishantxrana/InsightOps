@@ -142,6 +142,15 @@ class AzureDevOpsClient {
       }
 
       const response = await this.client.get('/wit/workitems', { params });
+      
+      // Add web URL to each work item
+      if (response.data && response.data.value) {
+        response.data.value = response.data.value.map(workItem => ({
+          ...workItem,
+          webUrl: this.constructWorkItemWebUrl(workItem)
+        }));
+      }
+      
       return response.data;
     } catch (error) {
       logger.error('Error fetching work items:', error);
@@ -337,6 +346,35 @@ class AzureDevOpsClient {
     } catch (error) {
       logger.error('Error constructing pull request web URL:', error);
       return pullRequest.url || ''; // Fallback to API URL
+    }
+  }
+
+  /**
+   * Construct the web URL for a work item
+   * @param {Object} workItem - The work item object from Azure DevOps API
+   * @returns {string} The web URL for the work item
+   */
+  constructWorkItemWebUrl(workItem) {
+    try {
+      const organization = this.config.organization;
+      const project = workItem.fields?.['System.TeamProject'] || this.config.project;
+      const workItemId = workItem.id;
+
+      if (!workItemId) {
+        logger.warn('Missing workItemId for web URL construction', {
+          workItemId,
+          workItemTitle: workItem.fields?.['System.Title']
+        });
+        return workItem.url || ''; // Fallback to API URL
+      }
+
+      // Encode components for URL safety
+      const encodedProject = encodeURIComponent(project);
+      
+      return `${this.config.baseUrl}/${organization}/${encodedProject}/_workitems/edit/${workItemId}`;
+    } catch (error) {
+      logger.error('Error constructing work item web URL:', error);
+      return workItem.url || ''; // Fallback to API URL
     }
   }
 
