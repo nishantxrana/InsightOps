@@ -16,7 +16,10 @@ import {
   BookOpen,
   Star,
   FileText,
-  ArrowUp
+  ArrowUp,
+  ChevronDown,
+  ChevronUp,
+  Eye
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -31,6 +34,10 @@ export default function WorkItems() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedState, setSelectedState] = useState('all')
   const [selectedAssignee, setSelectedAssignee] = useState('all')
+  
+  // Progressive disclosure for overdue items
+  const [visibleOverdueCount, setVisibleOverdueCount] = useState(5)
+  const [isOverdueExpanded, setIsOverdueExpanded] = useState(true)
 
   useEffect(() => {
     loadWorkItemsData()
@@ -146,6 +153,32 @@ export default function WorkItems() {
       default: return 'None'
     }
   }
+
+  // Progressive disclosure functions for overdue items
+  const visibleOverdueItems = overdueItems.slice(0, visibleOverdueCount)
+  const hasMoreOverdueItems = visibleOverdueCount < overdueItems.length
+  const remainingOverdueCount = overdueItems.length - visibleOverdueCount
+
+  const showMoreOverdueItems = () => {
+    setVisibleOverdueCount(prev => Math.min(prev + 5, overdueItems.length))
+  }
+
+  const showAllOverdueItems = () => {
+    setVisibleOverdueCount(overdueItems.length)
+  }
+
+  const resetOverdueView = () => {
+    setVisibleOverdueCount(5)
+  }
+
+  const toggleOverdueExpanded = () => {
+    setIsOverdueExpanded(!isOverdueExpanded)
+  }
+
+  // Reset visible count when overdue items change
+  useEffect(() => {
+    setVisibleOverdueCount(5)
+  }, [overdueItems.length])
 
   if (loading) {
     return <LoadingSpinner />
@@ -353,103 +386,158 @@ export default function WorkItems() {
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-6 w-6 text-red-600" />
               <h3 className="text-lg font-medium text-red-900">Critical: Overdue Items</h3>
+              <button
+                onClick={toggleOverdueExpanded}
+                className="p-1 hover:bg-red-100 rounded transition-colors"
+                title={isOverdueExpanded ? "Collapse section" : "Expand section"}
+              >
+                {isOverdueExpanded ? (
+                  <ChevronUp className="h-4 w-4 text-red-600" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-red-600" />
+                )}
+              </button>
             </div>
             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
               {overdueItems.length} items need attention
             </span>
           </div>
           
-          <div className="space-y-4">
-            {overdueItems.map((item) => {
-              const title = item.fields?.['System.Title'] || 'No title'
-              const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned'
-              const state = item.fields?.['System.State'] || 'Unknown'
-              const workItemType = item.fields?.['System.WorkItemType'] || 'Item'
-              const priority = item.fields?.['Microsoft.VSTS.Common.Priority']
-              const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate']
-              const createdDate = item.fields?.['System.CreatedDate']
-              const description = item.fields?.['System.Description']
+          {isOverdueExpanded && (
+            <>
+              {/* Overdue Items List */}
+              <div className="space-y-4">
+                {visibleOverdueItems.map((item) => {
+                  const title = item.fields?.['System.Title'] || 'No title'
+                  const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned'
+                  const state = item.fields?.['System.State'] || 'Unknown'
+                  const workItemType = item.fields?.['System.WorkItemType'] || 'Item'
+                  const priority = item.fields?.['Microsoft.VSTS.Common.Priority']
+                  const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate']
+                  const createdDate = item.fields?.['System.CreatedDate']
+                  const description = item.fields?.['System.Description']
 
-              return (
-                <div key={item.id} className="bg-white border border-red-200 rounded-lg p-4 shadow-sm">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      {getWorkItemTypeIcon(workItemType)}
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-gray-900">#{item.id}</span>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStateColor(state)}`}>
-                            {state}
-                          </span>
-                          {priority && (
+                  return (
+                    <div key={item.id} className="bg-white border border-red-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          {getWorkItemTypeIcon(workItemType)}
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-gray-900">#{item.id}</span>
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStateColor(state)}`}>
+                                {state}
+                              </span>
+                              {priority && (
+                                <div className="flex items-center gap-1">
+                                  {getPriorityIcon(priority)}
+                                  <span className="text-xs text-gray-600">{getPriorityText(priority)}</span>
+                                </div>
+                              )}
+                            </div>
+                            <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
+                          </div>
+                        </div>
+                        {(() => {
+                          const workItemUrl = getWorkItemUrl(item)
+                          const isValidUrl = workItemUrl.startsWith('http')
+                          
+                          return isValidUrl ? (
+                            <a 
+                              href={workItemUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
+                              title="Open in Azure DevOps"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1 text-gray-400" title="Work Item URL not available">
+                              <ExternalLink className="h-4 w-4" />
+                            </span>
+                          )
+                        })()}
+                      </div>
+
+                      {description && (
+                        <div className="mb-3 p-2 bg-gray-50 rounded text-xs text-gray-700 max-h-16 overflow-hidden">
+                          {description.replace(/<[^>]*>/g, '').substring(0, 150)}...
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-xs text-gray-600">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            <span className={assignee === 'Unassigned' ? 'text-red-600 font-medium' : ''}>{assignee}</span>
+                          </div>
+                          {createdDate && (
                             <div className="flex items-center gap-1">
-                              {getPriorityIcon(priority)}
-                              <span className="text-xs text-gray-600">{getPriorityText(priority)}</span>
+                              <Calendar className="h-3 w-3" />
+                              <span>Created {formatDistanceToNow(new Date(createdDate), { addSuffix: true })}</span>
                             </div>
                           )}
                         </div>
-                        <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
+                        {dueDate && (
+                          <div className="flex items-center gap-1 text-red-600 font-medium">
+                            <Clock className="h-3 w-3" />
+                            <span>Due: {format(new Date(dueDate), 'MMM dd, yyyy')}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {(() => {
-                      const workItemUrl = getWorkItemUrl(item)
-                      const isValidUrl = workItemUrl.startsWith('http')
-                      
-                      return isValidUrl ? (
-                        <a 
-                          href={workItemUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
-                          title="Open in Azure DevOps"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      ) : (
-                        <span className="flex items-center gap-1 text-gray-400" title="Work Item URL not available">
-                          <ExternalLink className="h-4 w-4" />
-                        </span>
-                      )
-                    })()}
+                  )
+                })}
+              </div>
+
+              {/* Progressive Disclosure Controls */}
+              {hasMoreOverdueItems && (
+                <div className="flex items-center justify-center gap-3 mt-6 pt-4 border-t border-red-200">
+                  <div className="text-sm text-red-700">
+                    Showing {visibleOverdueCount} of {overdueItems.length} items
                   </div>
-
-                  {description && (
-                    <div className="mb-3 p-2 bg-gray-50 rounded text-xs text-gray-700 max-h-16 overflow-hidden">
-                      {description.replace(/<[^>]*>/g, '').substring(0, 150)}...
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-xs text-gray-600">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        <span className={assignee === 'Unassigned' ? 'text-red-600 font-medium' : ''}>{assignee}</span>
-                      </div>
-                      {createdDate && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>Created {formatDistanceToNow(new Date(createdDate), { addSuffix: true })}</span>
-                        </div>
-                      )}
-                    </div>
-                    {dueDate && (
-                      <div className="flex items-center gap-1 text-red-600 font-medium">
-                        <Clock className="h-3 w-3" />
-                        <span>Due: {format(new Date(dueDate), 'MMM dd, yyyy')}</span>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={showMoreOverdueItems}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50 hover:text-red-800 transition-colors"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                      Show Next 5
+                    </button>
+                    <button
+                      onClick={showAllOverdueItems}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Show All
+                    </button>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-          
-          <div className="mt-4 p-3 bg-red-100 rounded-lg">
-            <p className="text-sm text-red-800">
-              <strong>Action Required:</strong> These items are past their due date and may impact sprint goals. 
-              Consider reassigning, updating priorities, or extending deadlines.
-            </p>
-          </div>
+              )}
+
+              {/* Show "Show Less" option when viewing more than 5 items */}
+              {visibleOverdueCount > 5 && !hasMoreOverdueItems && (
+                <div className="flex items-center justify-center mt-6 pt-4 border-t border-red-200">
+                  <button
+                    onClick={resetOverdueView}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50 hover:text-red-800 transition-colors"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                    Show Less (Back to top 5)
+                  </button>
+                </div>
+              )}
+
+              {/* Action Required Notice */}
+              <div className="mt-4 p-3 bg-red-100 rounded-lg">
+                <p className="text-sm text-red-800">
+                  <strong>Action Required:</strong> These items are past their due date and may impact sprint goals. 
+                  Consider reassigning, updating priorities, or extending deadlines.
+                </p>
+              </div>
+            </>
+          )}
         </div>
       )}
 
