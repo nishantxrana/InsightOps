@@ -91,26 +91,30 @@ class AIService {
       const messages = [
         {
           role: 'system',
-          content: `You are a DevOps work item analyzer. Provide concise, impactful summaries for Google Chat notifications.
+          content: `You are a DevOps work item analyzer. Provide clear, actionable summaries for development teams.
 
-Rules:
-- Use Google Chat formatting: *bold text* (not **bold**)
-- Write exactly 2-3 sentences for comprehensive coverage
-- State only facts from the work item data
-- No assumptions or speculation
-- Focus on what needs to be done and its impact
-- Make it informative and actionable`
+Formatting Rules:
+- Write in plain text with selective *bold* emphasis only for key terms
+- Use *bold* ONLY for: feature names, bug types, component names, or priority levels
+- Do NOT make entire sentences or responses bold
+- Write exactly 2-3 sentences
+
+Content Rules:
+- State only facts from the work item data provided
+- Focus on what needs to be done and its business impact
+- No assumptions or speculation beyond the data
+- Make it informative and actionable for the team`
         },
         {
           role: 'user',
-          content: `Summarize this work item in exactly 2-3 sentences using Google Chat formatting (*bold*):
+          content: `Analyze this work item and provide a 2-3 sentence summary:
 
-*${workItemType}*: ${title}
-*Priority*: ${this.getPriorityText(priority)}
+Work Item Type: ${workItemType}
+Title: ${title}
+Priority: ${this.getPriorityText(priority)}
+Description: ${cleanDescription}
 
-*Description*: ${cleanDescription}
-
-Provide a comprehensive summary covering what needs to be done and why it's important, based only on the information provided.`
+Summarize what needs to be done, why it's important, and any key technical or business considerations.`
         }
       ];
 
@@ -175,28 +179,31 @@ Provide a comprehensive summary covering what needs to be done and why it's impo
       const messages = [
         {
           role: 'system',
-          content: `You are a DevOps build failure analyzer. Provide concise, actionable analysis for Google Chat notifications.
+          content: `You are a DevOps build failure analyzer. Provide clear, actionable analysis for development teams.
 
-Rules:
-- Use Google Chat formatting: *bold text* (not **bold**)
+Formatting Rules:
+- Write in plain text with selective *bold* emphasis only for key terms
+- Use *bold* ONLY for: error types, component names, file names, or critical actions
+- Do NOT make entire sentences or responses bold
 - Write exactly 2-3 sentences
-- Focus on likely cause and immediate next steps
+
+Content Rules:
+- Focus on the most likely cause based on error data
+- Suggest immediate next steps for developers
 - Be specific about technical issues when available
 - No speculation beyond what the error data shows
-- Make it actionable for developers`
+- Make it actionable and helpful for debugging`
         },
         {
           role: 'user',
-          content: `Analyze this build failure using Google Chat formatting (*bold*):
+          content: `Analyze this build failure and provide a 2-3 sentence analysis:
 
-*Build*: ${buildName} #${buildNumber}
-*Branch*: ${sourceBranch}
-*Result*: ${result}
+Build: ${buildName} #${buildNumber}
+Branch: ${sourceBranch}
+Result: ${result}
+Failed Jobs & Errors: ${errorMessages || 'No specific error details available'}
 
-*Failed Jobs & Errors*:
-${errorMessages || 'No specific error details available'}
-
-Provide a 2-3 sentence analysis focusing on the likely cause and what the team should check first.`
+Identify the most likely cause of the failure and suggest what the development team should check first.`
         }
       ];
 
@@ -240,11 +247,24 @@ Provide a 2-3 sentence analysis focusing on the likely cause and what the team s
       const messages = [
         {
           role: 'system',
-          content: 'You are an AI assistant that summarizes pull requests. Create a changelog-style summary focusing on what changes were made and their impact.'
+          content: `You are a pull request code reviewer assistant. Provide clear, actionable summaries for development teams.
+
+Formatting Rules:
+- Write in plain text with selective *bold* emphasis only for key terms
+- Use *bold* ONLY for: feature names, bug types, component names, or critical impacts
+- Do NOT make entire sentences or responses bold
+- Write exactly 2-3 sentences
+
+Content Rules:
+- Focus on WHAT was changed and WHY it matters
+- Identify the type of change: feature, bugfix, refactor, etc.
+- Mention business impact or technical benefit
+- Be specific about components or functionality affected
+- No speculation beyond the provided information`
         },
         {
           role: 'user',
-          content: `Please create a changelog-style summary for this pull request:
+          content: `Analyze this pull request and provide a 2-3 sentence summary:
 
 Title: ${title}
 Author: ${createdBy}
@@ -252,14 +272,20 @@ Source Branch: ${sourceBranch}
 Target Branch: ${targetBranch}
 Description: ${description}
 
-Format the summary as a brief changelog entry highlighting the key changes and their purpose.`
+Summarize what type of change this is, what specific functionality is affected, and why this change is important for the codebase.`
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { max_tokens: 5000 });
+      const summary = await this.generateCompletion(messages, { 
+        max_tokens: 120,  // Slightly reduced for more focused output
+        temperature: 0.2  // Slightly higher for more natural language
+      });
       
       logger.info('Generated pull request summary', {
         pullRequestId: pullRequest.pullRequestId,
+        author: createdBy,
+        sourceBranch,
+        targetBranch,
         summaryLength: summary.length
       });
 
