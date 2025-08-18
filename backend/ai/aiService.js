@@ -158,40 +158,58 @@ Provide a comprehensive summary covering what needs to be done and why it's impo
       
       const buildName = build.definition?.name || 'Unknown Build';
       const buildNumber = build.buildNumber || 'Unknown';
+      const result = build.result || 'Unknown';
+      const sourceBranch = build.sourceBranch?.replace('refs/heads/', '') || 'Unknown';
       
       // Extract relevant error information from timeline and logs
       const failedJobs = timeline?.records?.filter(record => 
         record.result === 'failed' || record.result === 'canceled'
       ) || [];
 
-      const errorMessages = failedJobs.map(job => 
-        `Job: ${job.name}, Result: ${job.result}, Issues: ${job.issues?.map(i => i.message).join('; ') || 'None'}`
-      ).join('\n');
+      const errorMessages = failedJobs.map(job => {
+        const jobName = job.name || 'Unknown Job';
+        const issues = job.issues?.map(i => i.message).join('; ') || 'No specific error details';
+        return `${jobName}: ${issues}`;
+      }).join('\n');
 
       const messages = [
         {
           role: 'system',
-          content: 'You are an AI assistant that analyzes build failures in Azure DevOps. Provide a concise analysis of the failure cause and suggest potential solutions.'
+          content: `You are a DevOps build failure analyzer. Provide concise, actionable analysis for Google Chat notifications.
+
+Rules:
+- Use Google Chat formatting: *bold text* (not **bold**)
+- Write exactly 2-3 sentences
+- Focus on likely cause and immediate next steps
+- Be specific about technical issues when available
+- No speculation beyond what the error data shows
+- Make it actionable for developers`
         },
         {
           role: 'user',
-          content: `Please analyze this build failure:
+          content: `Analyze this build failure using Google Chat formatting (*bold*):
 
-Build: ${buildName} #${buildNumber}
-Status: ${build.status}
-Result: ${build.result}
+*Build*: ${buildName} #${buildNumber}
+*Branch*: ${sourceBranch}
+*Result*: ${result}
 
-Failed Jobs and Errors:
-${errorMessages}
+*Failed Jobs & Errors*:
+${errorMessages || 'No specific error details available'}
 
-Provide a brief analysis of the likely cause and 1-2 actionable suggestions to fix the issue.`
+Provide a 2-3 sentence analysis focusing on the likely cause and what the team should check first.`
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { max_tokens: 300 });
+      const summary = await this.generateCompletion(messages, { 
+        max_tokens: 150,
+        temperature: 0.1
+      });
       
       logger.info('Generated build failure summary', {
         buildId: build.id,
+        buildName,
+        result,
+        failedJobsCount: failedJobs.length,
         summaryLength: summary.length
       });
 
