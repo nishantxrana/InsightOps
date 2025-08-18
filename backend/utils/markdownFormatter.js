@@ -3,45 +3,170 @@ import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 
 class MarkdownFormatter {
   formatWorkItemCreated(workItem, aiSummary = null) {
-    const title = workItem.fields?.['System.Title'] || 'No title';
-    const workItemType = workItem.fields?.['System.WorkItemType'] || 'Work Item';
-    const assignedTo = workItem.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
-    const createdBy = workItem.fields?.['System.CreatedBy']?.displayName || 'Unknown';
-    const state = workItem.fields?.['System.State'] || 'New';
-    const priority = workItem.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
+    const fields = workItem.fields || {};
+    const title = fields['System.Title'] || 'No title';
+    const workItemType = fields['System.WorkItemType'] || 'Work Item';
+    const assignedTo = fields['System.AssignedTo'] || 'Unassigned';
+    const createdBy = fields['System.CreatedBy'] || 'Unknown';
+    const state = fields['System.State'] || 'New';
+    const priority = fields['Microsoft.VSTS.Common.Priority'] || 'Not set';
+    const createdDate = fields['System.CreatedDate'] || new Date().toISOString();
 
-    let message = `## 🆕 New ${workItemType} Created\n\n`;
-    message += `**#${workItem.id}**: ${title}\n\n`;
-    message += `- **Type**: ${workItemType}\n`;
-    message += `- **State**: ${state}\n`;
-    message += `- **Assigned To**: ${assignedTo}\n`;
-    message += `- **Created By**: ${createdBy}\n`;
-    message += `- **Priority**: ${priority}\n`;
-    message += `- **Work Item URL**: ${workItem.webUrl || azureDevOpsClient.constructWorkItemWebUrl(workItem)}\n`;
+    // Construct work item URL
+    const webUrl = workItem.webUrl || azureDevOpsClient.constructWorkItemWebUrl(workItem);
+
+    let message = `*🆕 New ${workItemType} Created*\n\n`;
+    message += `*${workItemType} #${workItem.id}*: ${title}\n\n`;
+    message += `- *State*: ${state}\n`;
+    message += `- *Assigned To*: ${this.extractDisplayName(assignedTo)}\n`;
+    message += `- *Created By*: ${this.extractDisplayName(createdBy)}\n`;
+    message += `- *Priority*: ${this.getPriorityText(priority)}\n`;
+    message += `- *Created*: ${this.formatLocalTime(createdDate)}\n`;
+    message += `- *Work Item URL*: <${webUrl}|Open Work Item>\n`;
 
     if (aiSummary) {
-      message += `\n*🤖 AI Summary* \n${aiSummary}\n`;
+      message += `\n*🤖 AI Summary*\n${aiSummary}\n`;
     }
 
     return message;
   }
 
-  formatWorkItemUpdated(workItem) {
-    const title = workItem.fields?.['System.Title'] || 'No title';
-    const workItemType = workItem.fields?.['System.WorkItemType'] || 'Work Item';
-    const assignedTo = workItem.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
-    const changedBy = workItem.fields?.['System.ChangedBy']?.displayName || 'Unknown';
-    const state = workItem.fields?.['System.State'] || 'Unknown';
+  formatWorkItemUpdated(webhookData) {
+    // Extract data from webhook structure
+    const resource = webhookData.resource || webhookData;
+    const revision = resource.revision || resource;
+    const fields = revision.fields || resource.fields || {};
+    const changedFields = resource.fields || {}; // This contains old/new values
+    
+    const workItemId = resource.workItemId || revision.id || resource.id;
+    const title = fields['System.Title'] || 'No title';
+    const workItemType = fields['System.WorkItemType'] || 'Work Item';
+    const currentState = fields['System.State'] || 'Unknown';
+    const currentAssignedTo = fields['System.AssignedTo'] || 'Unassigned';
+    const priority = fields['Microsoft.VSTS.Common.Priority'] || 'Not set';
+    const changedBy = fields['System.ChangedBy'] || 'Unknown';
+    const changedDate = fields['System.ChangedDate'] || new Date().toISOString();
+    
+    // Extract what changed
+    const changes = [];
+    
+    // Check for state change
+    if (changedFields['System.State']) {
+      const oldState = changedFields['System.State'].oldValue || 'Unknown';
+      const newState = changedFields['System.State'].newValue || currentState;
+      changes.push(`*State*: ${oldState} ➝ ${newState}`);
+    }
+    
+    // Check for assignment change
+    if (changedFields['System.AssignedTo']) {
+      const oldAssignee = this.extractDisplayName(changedFields['System.AssignedTo'].oldValue) || 'Unassigned';
+      const newAssignee = this.extractDisplayName(changedFields['System.AssignedTo'].newValue) || 'Unassigned';
+      changes.push(`*Assigned To*: ${oldAssignee} ➝ ${newAssignee}`);
+    }
+    
+    // Check for priority change
+    if (changedFields['Microsoft.VSTS.Common.Priority']) {
+      const oldPriority = this.getPriorityText(changedFields['Microsoft.VSTS.Common.Priority'].oldValue);
+      const newPriority = this.getPriorityText(changedFields['Microsoft.VSTS.Common.Priority'].newValue);
+      changes.push(`*Priority*: ${oldPriority} ➝ ${newPriority}`);
+    }
 
-    let message = `## 📝 ${workItemType} Updated\n\n`;
-    message += `**#${workItem.id}**: ${title}\n\n`;
-    message += `- **Current State**: ${state}\n`;
-    message += `- **Assigned To**: ${assignedTo}\n`;
-    message += `- **Updated By**: ${changedBy}\n`;
-    message += `- **Updated**: ${new Date().toLocaleString()}\n`;
-    message += `- **Work Item URL**: ${workItem.webUrl || azureDevOpsClient.constructWorkItemWebUrl(workItem)}\n`;
+    // Check for due date change
+    if (changedFields['Microsoft.VSTS.Scheduling.DueDate']) {
+      const oldDueDate = changedFields['Microsoft.VSTS.Scheduling.DueDate'].oldValue;
+      const newDueDate = changedFields['Microsoft.VSTS.Scheduling.DueDate'].newValue;
+      const oldDueDateFormatted = oldDueDate ? this.formatLocalDate(oldDueDate) : 'Not set';
+      const newDueDateFormatted = newDueDate ? this.formatLocalDate(newDueDate) : 'Not set';
+      changes.push(`*Due Date*: ${oldDueDateFormatted} ➝ ${newDueDateFormatted}`);
+    }
+
+    // Construct work item URL
+    const webUrl = resource._links?.html?.href || 
+                   revision._links?.html?.href ||
+                   azureDevOpsClient.constructWorkItemWebUrl({ id: workItemId, fields });
+
+    let message = `*📝 Work Item Updated*\n\n`;
+    message += `*${workItemType} #${workItemId}*: ${title}\n\n`;
+    
+    if (changes.length > 0) {
+      message += `*Changes:*\n`;
+      changes.forEach(change => {
+        message += `- ${change}\n`;
+      });
+      message += `\n`;
+    }
+    
+    message += `- *Current State*: ${currentState}\n`;
+    message += `- *Current Assigned To*: ${this.extractDisplayName(currentAssignedTo)}\n`;
+    message += `- *Priority*: ${this.getPriorityText(priority)}\n`;
+    message += `- *Updated By*: ${this.extractDisplayName(changedBy)}\n`;
+    message += `- *Updated*: ${this.formatLocalTime(changedDate)}\n`;
+    message += `- *Work Item URL*: <${webUrl}|Open Work Item>\n`;
 
     return message;
+  }
+
+  // Helper method to extract display name from Azure DevOps user string
+  extractDisplayName(userString) {
+    if (!userString) return 'Unassigned';
+    if (typeof userString === 'string') {
+      // Handle formats like "Nishant Rana <nishantrana249000@gmail.com>" or just "nishantrana249000@gmail.com"
+      const match = userString.match(/^([^<]+)<.*>$/) || userString.match(/^(.+)$/);
+      return match ? match[1].trim() : userString;
+    }
+    return userString.displayName || userString.name || 'Unknown';
+  }
+
+  // Helper method to convert priority number to text
+  getPriorityText(priority) {
+    if (!priority) return 'Not set';
+    const priorityMap = {
+      1: 'Critical',
+      2: 'High', 
+      3: 'Medium',
+      4: 'Low'
+    };
+    return priorityMap[priority] || `Priority ${priority}`;
+  }
+
+  // Helper method to format time in IST timezone (+5:30)
+  formatLocalTime(dateString) {
+    if (!dateString) return 'Unknown';
+    
+    try {
+      const date = new Date(dateString);
+      // Format in IST timezone (Asia/Kolkata)
+      return date.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      return dateString; // Fallback to original string if parsing fails
+    }
+  }
+
+  // Helper method to format date only in IST timezone (+5:30)
+  formatLocalDate(dateString) {
+    if (!dateString) return 'Not set';
+    
+    try {
+      const date = new Date(dateString);
+      // Format date only in IST timezone (Asia/Kolkata)
+      return date.toLocaleDateString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      return dateString; // Fallback to original string if parsing fails
+    }
   }
 
   formatBuildCompleted(build) {
