@@ -4,7 +4,6 @@ import {
   User, 
   Clock, 
   GitBranch, 
-  MessageSquare, 
   Eye, 
   ExternalLink,
   Building,
@@ -258,142 +257,122 @@ export default function PullRequests() {
         </div>
       )}
 
-      {/* Pull Requests Table */}
+      {/* Pull Requests List */}
       <div className="card p-0">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">All Pull Requests</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Pull Request
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Merge Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Branches
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Author
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Reviewers
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Activity
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {pullRequests.length > 0 ? (
-                pullRequests.map((pr) => (
-                  <tr key={pr.pullRequestId} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-start">
-                        {getStatusIcon(pr.status)}
-                        <div className="ml-3 flex-1">
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm font-medium text-gray-900">
-                              #{pr.pullRequestId}: {pr.title}
-                            </div>
-                            {pr.webUrl && (
-                              <a
-                                href={pr.webUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-                                title="Open in Azure DevOps"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            )}
-                          </div>
-                          {pr.description && (
-                            <div className="text-sm text-gray-500 mt-1 max-w-md truncate">
-                              {pr.description}
-                            </div>
+        <div className="max-h-96 overflow-y-auto">
+          {pullRequests.length > 0 ? (
+            <div className="divide-y divide-gray-200">
+              {pullRequests.map((pr) => (
+                <div key={pr.pullRequestId} className="p-4 hover:bg-gray-50 transition-colors">
+                  {/* Header Row */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center flex-1 min-w-0">
+                      {getStatusIcon(pr.status)}
+                      <div className="ml-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium text-gray-900 truncate">
+                            #{pr.pullRequestId}: {pr.title}
+                          </h4>
+                          {pr.webUrl && (
+                            <a
+                              href={pr.webUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-shrink-0 text-blue-600 hover:text-blue-800 transition-colors"
+                              title="Open in Azure DevOps"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
                           )}
-                          {/* Project and Repository Info */}
-                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                            <div className="flex items-center gap-1">
-                              <Building className="h-3 w-3" />
-                              <span>{pr.repository?.project?.name || 'Unknown Project'}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <FolderGit2 className="h-3 w-3" />
-                              <span>{pr.repository?.name || 'Unknown Repo'}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              <span>Created {format(new Date(pr.creationDate), 'MMM d, yyyy')}</span>
-                            </div>
-                          </div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    </div>
+                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                       {getStatusBadge(pr.status)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
                       {getMergeStatusBadge(pr.mergeStatus)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-gray-900">
-                        <GitBranch className="h-4 w-4 text-gray-400 mr-1" />
-                        <span className="font-mono text-xs">
+                    </div>
+                  </div>
+
+                  {/* All content aligned with title - no indentation */}
+                  <div className="ml-7">
+                    {/* Compact Info Row */}
+                    <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        <span className="truncate max-w-24">{pr.createdBy?.displayName || 'Unknown'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{getLastActivityTime(pr)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <GitBranch className="h-3 w-3" />
+                        <span className="font-mono truncate max-w-32">
                           {pr.sourceRefName?.replace('refs/heads/', '')} → {pr.targetRefName?.replace('refs/heads/', '')}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <User className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">
-                          {pr.createdBy?.displayName || 'Unknown'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {pr.reviewers && pr.reviewers.length > 0 ? (
-                          pr.reviewers.slice(0, 3).map((reviewer, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800"
-                            >
-                              {reviewer.displayName}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-sm text-gray-500">No reviewers</span>
-                        )}
-                        {pr.reviewers && pr.reviewers.length > 3 && (
-                          <span className="text-xs text-gray-500">
-                            +{pr.reviewers.length - 3} more
+                    </div>
+
+                    {/* Reviewers - Clear section with label */}
+                    {pr.reviewers && pr.reviewers.length > 0 && (
+                      <div className="mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                            Reviewers
                           </span>
-                        )}
+                          <div className="flex flex-wrap gap-1">
+                            {pr.reviewers.slice(0, 3).map((reviewer, index) => (
+                              <span
+                                key={index}
+                                className="inline-block px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 border border-blue-200"
+                              >
+                                {reviewer.displayName}
+                              </span>
+                            ))}
+                            {pr.reviewers.length > 3 && (
+                              <span className="text-xs text-gray-500 px-2 py-1">
+                                +{pr.reviewers.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {getLastActivityTime(pr)}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                    No pull requests found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    )}
+
+                    {/* Description - Only show if present */}
+                    {pr.description && (
+                      <p className="text-xs text-gray-500 mb-2 line-clamp-1">
+                        {pr.description}
+                      </p>
+                    )}
+
+                    {/* Project Info */}
+                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                      <div className="flex items-center gap-1">
+                        <Building className="h-3 w-3" />
+                        <span className="truncate">{pr.repository?.project?.name || 'Unknown'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <FolderGit2 className="h-3 w-3" />
+                        <span className="truncate">{pr.repository?.name || 'Unknown'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{format(new Date(pr.creationDate), 'MMM d')}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-6 py-12 text-center text-gray-500">
+              No pull requests found
+            </div>
+          )}
         </div>
       </div>
 
