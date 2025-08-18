@@ -83,32 +83,50 @@ class AIService {
       const title = workItem.fields?.['System.Title'] || 'No title';
       const description = workItem.fields?.['System.Description'] || 'No description';
       const workItemType = workItem.fields?.['System.WorkItemType'] || 'Unknown';
-      const state = workItem.fields?.['System.State'] || 'Unknown';
-      const assignedTo = workItem.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+      const priority = workItem.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
+
+      // Clean HTML from description
+      const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
 
       const messages = [
         {
           role: 'system',
-          content: 'You are an AI assistant that summarizes Azure DevOps work items. Provide a concise, professional summary focusing on the key points and requirements.'
+          content: `You are a DevOps work item analyzer. Provide clear, actionable summaries for development teams.
+
+Formatting Rules:
+- Write in plain text with selective *bold* emphasis only for key terms
+- Use *bold* ONLY for: feature names, bug types, component names, or priority levels
+- Do NOT make entire sentences or responses bold
+- Write exactly 2-3 sentences
+
+Content Rules:
+- State only facts from the work item data provided
+- Focus on what needs to be done and its business impact
+- No assumptions or speculation beyond the data
+- Make it informative and actionable for the team`
         },
         {
           role: 'user',
-          content: `Please summarize this work item:
-          
-Type: ${workItemType}
-Title: ${title}
-State: ${state}
-Assigned To: ${assignedTo}
-Description: ${description}
+          content: `Analyze this work item and provide a 2-3 sentence summary:
 
-Provide a brief, actionable summary in 2-3 sentences.`
+Work Item Type: ${workItemType}
+Title: ${title}
+Priority: ${this.getPriorityText(priority)}
+Description: ${cleanDescription}
+
+Summarize what needs to be done, why it's important, and any key technical or business considerations.`
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { max_tokens: 200 });
+      const summary = await this.generateCompletion(messages, { 
+        max_tokens: 150,  // Increased for 2-3 sentences
+        temperature: 0.1  // Very low for factual, consistent responses
+      });
       
       logger.info('Generated work item summary', {
         workItemId: workItem.id,
+        workItemType,
+        priority: this.getPriorityText(priority),
         summaryLength: summary.length
       });
 
@@ -117,6 +135,18 @@ Provide a brief, actionable summary in 2-3 sentences.`
       logger.error('Error summarizing work item:', error);
       return 'Unable to generate AI summary at this time.';
     }
+  }
+
+  // Helper method to convert priority number to readable text
+  getPriorityText(priority) {
+    if (!priority) return 'Not set';
+    const priorityMap = {
+      1: 'Critical',
+      2: 'High', 
+      3: 'Medium',
+      4: 'Low'
+    };
+    return priorityMap[priority] || `Priority ${priority}`;
   }
 
   async summarizeBuildFailure(build, timeline, logs) {
@@ -132,40 +162,61 @@ Provide a brief, actionable summary in 2-3 sentences.`
       
       const buildName = build.definition?.name || 'Unknown Build';
       const buildNumber = build.buildNumber || 'Unknown';
+      const result = build.result || 'Unknown';
+      const sourceBranch = build.sourceBranch?.replace('refs/heads/', '') || 'Unknown';
       
       // Extract relevant error information from timeline and logs
       const failedJobs = timeline?.records?.filter(record => 
         record.result === 'failed' || record.result === 'canceled'
       ) || [];
 
-      const errorMessages = failedJobs.map(job => 
-        `Job: ${job.name}, Result: ${job.result}, Issues: ${job.issues?.map(i => i.message).join('; ') || 'None'}`
-      ).join('\n');
+      const errorMessages = failedJobs.map(job => {
+        const jobName = job.name || 'Unknown Job';
+        const issues = job.issues?.map(i => i.message).join('; ') || 'No specific error details';
+        return `${jobName}: ${issues}`;
+      }).join('\n');
 
       const messages = [
         {
           role: 'system',
-          content: 'You are an AI assistant that analyzes build failures in Azure DevOps. Provide a concise analysis of the failure cause and suggest potential solutions.'
+          content: `You are a DevOps build failure analyzer. Provide clear, actionable analysis for development teams.
+
+Formatting Rules:
+- Write in plain text with selective *bold* emphasis only for key terms
+- Use *bold* ONLY for: error types, component names, file names, or critical actions
+- Do NOT make entire sentences or responses bold
+- Write exactly 2-3 sentences
+
+Content Rules:
+- Focus on the most likely cause based on error data
+- Suggest immediate next steps for developers
+- Be specific about technical issues when available
+- No speculation beyond what the error data shows
+- Make it actionable and helpful for debugging`
         },
         {
           role: 'user',
-          content: `Please analyze this build failure:
+          content: `Analyze this build failure and provide a 2-3 sentence analysis:
 
 Build: ${buildName} #${buildNumber}
-Status: ${build.status}
-Result: ${build.result}
+Branch: ${sourceBranch}
+Result: ${result}
+Failed Jobs & Errors: ${errorMessages || 'No specific error details available'}
 
-Failed Jobs and Errors:
-${errorMessages}
-
-Provide a brief analysis of the likely cause and 1-2 actionable suggestions to fix the issue.`
+Identify the most likely cause of the failure and suggest what the development team should check first.`
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { max_tokens: 300 });
+      const summary = await this.generateCompletion(messages, { 
+        max_tokens: 150,
+        temperature: 0.1
+      });
       
       logger.info('Generated build failure summary', {
         buildId: build.id,
+        buildName,
+        result,
+        failedJobsCount: failedJobs.length,
         summaryLength: summary.length
       });
 
@@ -196,11 +247,24 @@ Provide a brief analysis of the likely cause and 1-2 actionable suggestions to f
       const messages = [
         {
           role: 'system',
-          content: 'You are an AI assistant that summarizes pull requests. Create a changelog-style summary focusing on what changes were made and their impact.'
+          content: `You are a pull request code reviewer assistant. Provide clear, actionable summaries for development teams.
+
+Formatting Rules:
+- Write in plain text with selective *bold* emphasis only for key terms
+- Use *bold* ONLY for: feature names, bug types, component names, or critical impacts
+- Do NOT make entire sentences or responses bold
+- Write exactly 2-3 sentences
+
+Content Rules:
+- Focus on WHAT was changed and WHY it matters
+- Identify the type of change: feature, bugfix, refactor, etc.
+- Mention business impact or technical benefit
+- Be specific about components or functionality affected
+- No speculation beyond the provided information`
         },
         {
           role: 'user',
-          content: `Please create a changelog-style summary for this pull request:
+          content: `Analyze this pull request and provide a 2-3 sentence summary:
 
 Title: ${title}
 Author: ${createdBy}
@@ -208,14 +272,20 @@ Source Branch: ${sourceBranch}
 Target Branch: ${targetBranch}
 Description: ${description}
 
-Format the summary as a brief changelog entry highlighting the key changes and their purpose.`
+Summarize what type of change this is, what specific functionality is affected, and why this change is important for the codebase.`
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { max_tokens: 5000 });
+      const summary = await this.generateCompletion(messages, { 
+        max_tokens: 120,  // Slightly reduced for more focused output
+        temperature: 0.2  // Slightly higher for more natural language
+      });
       
       logger.info('Generated pull request summary', {
         pullRequestId: pullRequest.pullRequestId,
+        author: createdBy,
+        sourceBranch,
+        targetBranch,
         summaryLength: summary.length
       });
 

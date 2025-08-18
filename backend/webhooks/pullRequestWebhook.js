@@ -33,17 +33,16 @@ class PullRequestWebhook {
       resource.webUrl = azureDevOpsClient.constructPullRequestWebUrl(resource);
 
       // Generate AI summary of the PR changes
-      // let aiSummary = null;
-      // try {
-      //   // const prDetails = await azureDevOpsClient.getPullRequestDetails(pullRequestId);
-      //   logger.info('Fetched pull request detailss:', resource);
-      //   aiSummary = await aiService.summarizePullRequest(resource);
-      // } catch (error) {
-      //   logger.error('Error generating AI summary for PR:', error);
-      // }
+      let aiSummary = null;
+      try {
+        logger.info('Generating AI summary for pull request:', { pullRequestId, title });
+        aiSummary = await aiService.summarizePullRequest(resource);
+      } catch (error) {
+        logger.error('Error generating AI summary for PR:', error);
+      }
 
       // Format notification message
-      const message = markdownFormatter.formatPullRequestCreated(resource);
+      const message = markdownFormatter.formatPullRequestCreated(resource, aiSummary);
       
       // Send notification
       await notificationService.sendNotification(message, 'pull-request-created');
