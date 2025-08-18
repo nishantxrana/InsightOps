@@ -79,6 +79,32 @@ export default function WorkItems() {
     }
   }
 
+  // Helper function to construct work item URL
+  const getWorkItemUrl = (item) => {
+    // Use webUrl if available from backend (preferred)
+    if (item.webUrl) {
+      return item.webUrl
+    }
+    
+    // Fallback: try to extract from API URL if available
+    if (item.url) {
+      // Azure DevOps API URL format: https://dev.azure.com/{org}/{project}/_apis/wit/workItems/{id}
+      // Convert to web URL: https://dev.azure.com/{org}/{project}/_workitems/edit/{id}
+      const apiUrl = item.url
+      const match = apiUrl.match(/https:\/\/dev\.azure\.com\/([^\/]+)\/([^\/]+)\/_apis\/wit\/workItems\/(\d+)/)
+      if (match) {
+        const [, org, project, id] = match
+        const encodedProject = encodeURIComponent(decodeURIComponent(project))
+        return `https://dev.azure.com/${org}/${encodedProject}/_workitems/edit/${id}`
+      }
+    }
+    
+    // Last resort: construct with available info (may not work without org info)
+    const project = item.fields?.['System.TeamProject'] || 'Unknown'
+    const encodedProject = encodeURIComponent(project)
+    return `#${item.id}` // Just show the ID if we can't construct a proper URL
+  }
+
   const getWorkItemTypeIcon = (type) => {
     switch (type?.toLowerCase()) {
       case 'bug':
@@ -365,7 +391,26 @@ export default function WorkItems() {
                         <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
                       </div>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-gray-400 hover:text-blue-600 cursor-pointer" />
+                    {(() => {
+                      const workItemUrl = getWorkItemUrl(item)
+                      const isValidUrl = workItemUrl.startsWith('http')
+                      
+                      return isValidUrl ? (
+                        <a 
+                          href={workItemUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Open in Azure DevOps"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-1 text-gray-400" title="Work Item URL not available">
+                          <ExternalLink className="h-4 w-4" />
+                        </span>
+                      )
+                    })()}
                   </div>
 
                   {description && (

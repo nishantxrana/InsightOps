@@ -1,4 +1,6 @@
 
+import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
+
 class MarkdownFormatter {
   formatWorkItemCreated(workItem, aiSummary = null) {
     const title = workItem.fields?.['System.Title'] || 'No title';
@@ -15,6 +17,7 @@ class MarkdownFormatter {
     message += `- **Assigned To**: ${assignedTo}\n`;
     message += `- **Created By**: ${createdBy}\n`;
     message += `- **Priority**: ${priority}\n`;
+    message += `- **Work Item URL**: ${workItem.webUrl || azureDevOpsClient.constructWorkItemWebUrl(workItem)}\n`;
 
     if (aiSummary) {
       message += `\n*🤖 AI Summary* \n${aiSummary}\n`;
@@ -36,6 +39,7 @@ class MarkdownFormatter {
     message += `- **Assigned To**: ${assignedTo}\n`;
     message += `- **Updated By**: ${changedBy}\n`;
     message += `- **Updated**: ${new Date().toLocaleString()}\n`;
+    message += `- **Work Item URL**: ${workItem.webUrl || azureDevOpsClient.constructWorkItemWebUrl(workItem)}\n`;
 
     return message;
   }
@@ -197,7 +201,7 @@ class MarkdownFormatter {
       if (dueDate && daysPastDue > 0) {
         message += `- *Days Overdue:* ${daysPastDue} days\n`;
       }
-      message += `- *Work Item Url:* <${item.url || `https://dev.azure.com/${item.fields?.['System.TeamProject']}/_workitems/edit/${item.id}`}|Open Work Item>\n\n`;
+      message += `- *Work Item Url:* <${item.webUrl || azureDevOpsClient.constructWorkItemWebUrl(item)}|Open Work Item>\n\n`;
     });
 
     message += `Please review and update the status of these items to keep the project on track.\n`;
