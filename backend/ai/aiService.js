@@ -183,11 +183,6 @@ Summarize what needs to be done, why it's important, and any key technical or bu
       
       try {
         if (build.definition?.id) {
-          logger.info('Fetching build definition for enhanced analysis', {
-            definitionId: build.definition.id,
-            buildName
-          });
-          
           const { azureDevOpsClient } = await import('../devops/azureDevOpsClient.js');
           const definition = await azureDevOpsClient.getBuildDefinition(build.definition.id);
           
@@ -202,113 +197,136 @@ Summarize what needs to be done, why it's important, and any key technical or bu
                 const yamlFile = await azureDevOpsClient.getRepositoryFile(repositoryId, yamlPath, sourceBranch);
                 pipelineContent = yamlFile.content || '';
                 
-                if (pipelineContent) {
-                  logger.info('YAML pipeline content retrieved for analysis', {
-                    yamlPath,
-                    contentLength: pipelineContent.length
-                  });
-                } else {
-                  logger.warn('YAML file exists but has no content');
+                if (!pipelineContent) {
                   pipelineAnalysisNote = 'YAML pipeline file was found but appears to be empty.';
                 }
               } catch (yamlError) {
-                logger.warn('Failed to fetch YAML pipeline content', {
-                  error: yamlError.message,
-                  yamlPath
-                });
-                pipelineAnalysisNote = `Unable to fetch YAML pipeline file (${yamlPath}) from repository. This may be due to permissions or the file may not exist on branch ${sourceBranch}.`;
+                pipelineAnalysisNote = `Unable to fetch YAML pipeline file (${yamlPath}).`;
               }
             } else {
-              pipelineAnalysisNote = 'YAML pipeline detected but missing repository or file path information.';
+              pipelineAnalysisNote = 'YAML pipeline detected but missing repository information.';
             }
-          } else if (definition.process?.type === 1) {
-            pipelineAnalysisNote = 'Classic pipeline detected - configuration is managed through Azure DevOps UI.';
-          } else {
-            pipelineAnalysisNote = `Unknown pipeline type (process type: ${definition.process?.type}). Analysis limited to timeline data.`;
           }
-        } else {
-          pipelineAnalysisNote = 'Build definition ID not available - cannot determine pipeline type or fetch configuration.';
         }
       } catch (definitionError) {
-        logger.warn('Failed to fetch build definition, using timeline data only', {
-          error: definitionError.message,
-          definitionId: build.definition?.id
-        });
-        pipelineAnalysisNote = `Unable to fetch build definition (ID: ${build.definition?.id}). Analysis limited to timeline error data only.`;
+        pipelineAnalysisNote = `Unable to fetch build definition. Analysis limited to timeline data.`;
       }
 
-      // Construct AI prompt based on pipeline type and available data
-      const systemPrompt = `You are an expert DevOps build failure analyzer. Your job is to provide comprehensive, actionable analysis for development teams.
+      // Create focused prompts based on pipeline type
+      let systemPrompt, userPrompt;
 
-RESPONSE FORMAT:
-- Write in plain text with selective *bold* emphasis for key terms only
-- Use *bold* ONLY for: error types, file names, task names, or critical actions
-- Structure your response with clear sections if needed
-- Length: Provide as much detail as necessary (3-6 sentences for simple issues, more for complex ones)
+      if (pipelineType === 'classic') {
+        // Classic pipeline: Focus only on timeline errors with general solutions
+        systemPrompt = `You are a DevOps build failure analyzer for classic Azure DevOps pipelines.
 
-ANALYSIS APPROACH:
-1. Identify the root cause from timeline errors
-2. ${pipelineContent ? 'Cross-reference with pipeline configuration to understand what was intended' : 'Analyze based on available timeline and build information'}
-3. Provide specific, actionable solutions
-4. Include exact file names, line numbers, or configuration changes when possible
-5. Prioritize the most likely fix first
-6. ${pipelineAnalysisNote ? 'Note any limitations in available data for analysis' : ''}
+CRITICAL GOOGLE CHAT FORMATTING RULES:
+- ONLY use *text* for bold (NEVER **text** - this will break formatting)
+- Use _text_ for italic
+- Use ~text~ for strikethrough
+- Use \`code\` for inline code
+- Use \`\`\`code block\`\`\` for code blocks
+- Use - for bullet points
+- NEVER use **text** or # headers or ### - they don't work in Google Chat
+- Do NOT create section headers - write in flowing paragraphs
 
-CONTEXT UNDERSTANDING:
-- Timeline data shows what actually failed during execution
-- ${pipelineContent ? 'Pipeline YAML shows the intended configuration and tasks' : 'Pipeline configuration details may be limited'}
-- Focus on practical solutions that developers can implement immediately`;
+RESPONSE RULES:
+- Focus ONLY on the timeline error data provided
+- Provide 2-3 sentences explaining the likely cause
+- Give general troubleshooting steps that apply to classic pipelines
+- Use *bold* sparingly only for error types, task names, or key actions
+- Do NOT speculate about YAML configuration or specific file paths
+- Keep response concise and actionable
+- Write in natural paragraphs, not sections with headers
 
-      let userPrompt = `Please analyze this build failure and provide a comprehensive diagnosis with actionable solutions:
+CONTEXT: Classic pipelines are configured through Azure DevOps UI, not YAML files.`;
 
-=== BUILD INFORMATION ===
+        userPrompt = `Analyze this classic pipeline build failure:
+
 Build: ${buildName} #${buildNumber}
 Branch: ${sourceBranch}
-Result: ${result}
-Pipeline Type: ${pipelineType.toUpperCase()}`;
+Timeline Errors: ${errorMessages || 'No specific error details available from timeline'}
 
-      // Add analysis note if there were issues fetching pipeline data
-      if (pipelineAnalysisNote) {
-        userPrompt += `
-Analysis Note: ${pipelineAnalysisNote}`;
-      }
+Explain the likely cause based on the timeline errors and provide general troubleshooting steps for classic pipeline configuration. Write in flowing paragraphs without section headers.`;
 
-      userPrompt += `
+      } else if (pipelineType === 'yaml' && pipelineContent) {
+        // YAML pipeline with content: Use both timeline and YAML for specific solutions
+        systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
 
-=== TIMELINE ERROR DATA ===
-This shows what actually failed during build execution:
-${errorMessages || 'No specific error details available from timeline'}`;
+CRITICAL GOOGLE CHAT FORMATTING RULES:
+- ONLY use *text* for bold (NEVER **text** - this will break formatting)
+- Use _text_ for italic
+- Use ~text~ for strikethrough
+- Use \`code\` for inline code
+- Use \`\`\`yaml for YAML code blocks
+- Use - for bullet points
+- NEVER use **text** or # headers or ### - they don't work in Google Chat
+- Do NOT create section headers like "Issue:" or "YAML Fix:" - write in flowing paragraphs
 
-      // Add YAML content if available with clear separation
-      if (pipelineType === 'yaml' && pipelineContent) {
-        userPrompt += `
+RESPONSE RULES:
+- Analyze BOTH timeline errors AND YAML configuration
+- Identify specific issues in the YAML that caused the timeline errors
+- Provide exact YAML fixes with proper formatting
+- Use *bold* sparingly for task names, file paths, and configuration keys
+- Give 3-4 sentences with specific actionable solutions
+- Focus on YAML configuration corrections
+- Write in natural paragraphs, not sections with headers
 
-=== PIPELINE CONFIGURATION ===
-This is the YAML pipeline configuration that was executed:
+CONTEXT: You have both the execution errors and the YAML pipeline configuration.`;
 
+        userPrompt = `Analyze this YAML pipeline build failure:
+
+Build: ${buildName} #${buildNumber}
+Branch: ${sourceBranch}
+
+TIMELINE ERRORS (what failed):
+${errorMessages || 'No specific error details available'}
+
+YAML PIPELINE CONFIGURATION:
 \`\`\`yaml
 ${pipelineContent}
-\`\`\``;
-      } else if (pipelineType === 'yaml' && !pipelineContent) {
-        userPrompt += `
+\`\`\`
 
-=== PIPELINE CONFIGURATION ===
-YAML pipeline detected but configuration could not be retrieved.
-${pipelineAnalysisNote}`;
+Cross-reference the timeline errors with the YAML configuration to identify the specific issue and provide exact YAML fixes needed. Write in flowing paragraphs without section headers.`;
+
+      } else {
+        // YAML pipeline without content: Timeline errors only with YAML guidance
+        systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
+
+CRITICAL GOOGLE CHAT FORMATTING RULES:
+- ONLY use *text* for bold (NEVER **text** - this will break formatting)
+- Use _text_ for italic
+- Use ~text~ for strikethrough
+- Use \`code\` for inline code
+- Use \`\`\`yaml for YAML code blocks
+- Use - for bullet points
+- NEVER use **text** or # headers or ### - they don't work in Google Chat
+- Do NOT create section headers - write in flowing paragraphs
+
+RESPONSE RULES:
+- Focus on timeline error data (YAML configuration not available)
+- Provide 2-3 sentences explaining the likely cause
+- Give general guidance about checking YAML configuration
+- Use *bold* sparingly for error types and task names
+- Suggest specific YAML sections to review
+- Write in natural paragraphs, not sections with headers
+
+CONTEXT: YAML pipeline detected but configuration could not be retrieved.`;
+
+        userPrompt = `Analyze this YAML pipeline build failure (configuration not available):
+
+Build: ${buildName} #${buildNumber}
+Branch: ${sourceBranch}
+Timeline Errors: ${errorMessages || 'No specific error details available'}
+Note: ${pipelineAnalysisNote}
+
+Explain the likely cause based on timeline errors and suggest what to check in the YAML pipeline configuration. Write in flowing paragraphs without section headers.`;
       }
 
-      userPrompt += `
-
-=== ANALYSIS REQUEST ===
-Based on the ${pipelineContent ? 'timeline errors and pipeline configuration' : 'available timeline and build information'} above:
-
-1. What is the root cause of this failure?
-2. What specific steps should the development team take to fix this?
-3. ${pipelineContent ? 'Are there any configuration issues in the pipeline YAML that need to be corrected?' : 'What should be investigated in the pipeline configuration?'}
-4. What can be done to prevent similar failures in the future?
-
-${!pipelineContent && pipelineType === 'yaml' ? 'Note: Provide analysis based on timeline errors and suggest checking the pipeline YAML configuration manually.' : ''}
-Provide a detailed analysis with specific file names, commands, or configuration changes needed.`;
+      // Log what we're sending to AI
+      logger.info('AI Prompt being sent:', {
+        systemPrompt,
+        userPrompt
+      });
 
       const messages = [
         {
@@ -321,32 +339,23 @@ Provide a detailed analysis with specific file names, commands, or configuration
         }
       ];
 
-      // Dynamic token allocation based on complexity
-      let maxTokens = 200; // Base tokens
-      if (pipelineType === 'yaml' && pipelineContent.length > 0) {
-        maxTokens = 400; // More tokens for YAML analysis
-      }
-      if (failedJobs.length > 2) {
-        maxTokens += 100; // Extra tokens for multiple failures
-      }
-      if (pipelineContent.length > 2000) {
-        maxTokens += 200; // Extra tokens for complex pipelines
-      }
-
       const summary = await this.generateCompletion(messages, { 
-        max_tokens: maxTokens,
+        max_tokens: 1000,
         temperature: 0.1
       });
       
-      logger.info('Generated enhanced build failure summary', {
+      // Log what we got back from AI
+      logger.info('AI Response received:', {
+        response: summary
+      });
+      
+      logger.info('Build failure analysis completed', {
         buildId: build.id,
         buildName,
-        result,
         pipelineType,
         hasYamlContent: pipelineContent.length > 0,
         failedJobsCount: failedJobs.length,
-        summaryLength: summary?.length || 0,
-        tokensUsed: maxTokens
+        analysisSuccess: !!summary
       });
 
       return summary;
