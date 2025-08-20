@@ -276,6 +276,39 @@ class AzureDevOpsClient {
     }
   }
 
+  async getBuildDefinition(definitionId) {
+    try {
+      const response = await this.client.get(`/build/definitions/${definitionId}`, {
+        params: { 'api-version': '7.0' }
+      });
+      return response.data;
+    } catch (error) {
+      logger.error(`Error fetching build definition ${definitionId}:`, error);
+      throw error;
+    }
+  }
+
+  async getRepositoryFile(repositoryId, filePath, branch) {
+    try {
+      // Remove leading slash if present
+      const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+      
+      const response = await this.client.get(`/git/repositories/${repositoryId}/items`, {
+        params: {
+          'api-version': '7.0',
+          'path': `/${cleanPath}`,
+          'versionDescriptor.version': branch,
+          'versionDescriptor.versionType': 'branch',
+          'includeContent': true
+        }
+      });
+      return response.data;
+    } catch (error) {
+      logger.error(`Error fetching repository file ${filePath} from branch ${branch}:`, error);
+      throw error;
+    }
+  }
+
   async getRecentBuilds(top = 10) {
     try {
       const response = await this.client.get('/build/builds', {

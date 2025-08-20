@@ -165,7 +165,7 @@ Summarize what needs to be done, why it's important, and any key technical or bu
       const result = build.result || 'Unknown';
       const sourceBranch = build.sourceBranch?.replace('refs/heads/', '') || 'Unknown';
       
-      // Extract relevant error information from timeline and logs
+      // Extract relevant error information from timeline
       const failedJobs = timeline?.records?.filter(record => 
         record.result === 'failed' || record.result === 'canceled'
       ) || [];
@@ -176,53 +176,186 @@ Summarize what needs to be done, why it's important, and any key technical or bu
         return `${jobName}: ${issues}`;
       }).join('\n');
 
-      const messages = [
-        {
-          role: 'system',
-          content: `You are a DevOps build failure analyzer. Provide clear, actionable analysis for development teams.
+      // Try to get pipeline definition to determine type and fetch YAML if applicable
+      let pipelineContent = '';
+      let pipelineType = 'classic';
+      let pipelineAnalysisNote = '';
+      
+      try {
+        if (build.definition?.id) {
+          logger.info('Fetching build definition for enhanced analysis', {
+            definitionId: build.definition.id,
+            buildName
+          });
+          
+          const { azureDevOpsClient } = await import('../devops/azureDevOpsClient.js');
+          const definition = await azureDevOpsClient.getBuildDefinition(build.definition.id);
+          
+          // Check if it's YAML pipeline (type 2) or classic (type 1)
+          if (definition.process?.type === 2 && definition.process?.yamlFilename) {
+            pipelineType = 'yaml';
+            const yamlPath = definition.process.yamlFilename;
+            const repositoryId = definition.repository?.id;
+            
+            if (repositoryId && yamlPath) {
+              try {
+                const yamlFile = await azureDevOpsClient.getRepositoryFile(repositoryId, yamlPath, sourceBranch);
+                pipelineContent = yamlFile.content || '';
+                
+                if (pipelineContent) {
+                  logger.info('YAML pipeline content retrieved for analysis', {
+                    yamlPath,
+                    contentLength: pipelineContent.length
+                  });
+                } else {
+                  logger.warn('YAML file exists but has no content');
+                  pipelineAnalysisNote = 'YAML pipeline file was found but appears to be empty.';
+                }
+              } catch (yamlError) {
+                logger.warn('Failed to fetch YAML pipeline content', {
+                  error: yamlError.message,
+                  yamlPath
+                });
+                pipelineAnalysisNote = `Unable to fetch YAML pipeline file (${yamlPath}) from repository. This may be due to permissions or the file may not exist on branch ${sourceBranch}.`;
+              }
+            } else {
+              pipelineAnalysisNote = 'YAML pipeline detected but missing repository or file path information.';
+            }
+          } else if (definition.process?.type === 1) {
+            pipelineAnalysisNote = 'Classic pipeline detected - configuration is managed through Azure DevOps UI.';
+          } else {
+            pipelineAnalysisNote = `Unknown pipeline type (process type: ${definition.process?.type}). Analysis limited to timeline data.`;
+          }
+        } else {
+          pipelineAnalysisNote = 'Build definition ID not available - cannot determine pipeline type or fetch configuration.';
+        }
+      } catch (definitionError) {
+        logger.warn('Failed to fetch build definition, using timeline data only', {
+          error: definitionError.message,
+          definitionId: build.definition?.id
+        });
+        pipelineAnalysisNote = `Unable to fetch build definition (ID: ${build.definition?.id}). Analysis limited to timeline error data only.`;
+      }
 
-Formatting Rules:
-- Write in plain text with selective *bold* emphasis only for key terms
-- Use *bold* ONLY for: error types, component names, file names, or critical actions
-- Do NOT make entire sentences or responses bold
-- Write exactly 2-3 sentences
+      // Construct AI prompt based on pipeline type and available data
+      const systemPrompt = `You are an expert DevOps build failure analyzer. Your job is to provide comprehensive, actionable analysis for development teams.
 
-Content Rules:
-- Focus on the most likely cause based on error data
-- Suggest immediate next steps for developers
-- Be specific about technical issues when available
-- No speculation beyond what the error data shows
-- Make it actionable and helpful for debugging`
-        },
-        {
-          role: 'user',
-          content: `Analyze this build failure and provide a 2-3 sentence analysis:
+RESPONSE FORMAT:
+- Write in plain text with selective *bold* emphasis for key terms only
+- Use *bold* ONLY for: error types, file names, task names, or critical actions
+- Structure your response with clear sections if needed
+- Length: Provide as much detail as necessary (3-6 sentences for simple issues, more for complex ones)
 
+ANALYSIS APPROACH:
+1. Identify the root cause from timeline errors
+2. ${pipelineContent ? 'Cross-reference with pipeline configuration to understand what was intended' : 'Analyze based on available timeline and build information'}
+3. Provide specific, actionable solutions
+4. Include exact file names, line numbers, or configuration changes when possible
+5. Prioritize the most likely fix first
+6. ${pipelineAnalysisNote ? 'Note any limitations in available data for analysis' : ''}
+
+CONTEXT UNDERSTANDING:
+- Timeline data shows what actually failed during execution
+- ${pipelineContent ? 'Pipeline YAML shows the intended configuration and tasks' : 'Pipeline configuration details may be limited'}
+- Focus on practical solutions that developers can implement immediately`;
+
+      let userPrompt = `Please analyze this build failure and provide a comprehensive diagnosis with actionable solutions:
+
+=== BUILD INFORMATION ===
 Build: ${buildName} #${buildNumber}
 Branch: ${sourceBranch}
 Result: ${result}
-Failed Jobs & Errors: ${errorMessages || 'No specific error details available'}
+Pipeline Type: ${pipelineType.toUpperCase()}`;
 
-Identify the most likely cause of the failure and suggest what the development team should check first.`
+      // Add analysis note if there were issues fetching pipeline data
+      if (pipelineAnalysisNote) {
+        userPrompt += `
+Analysis Note: ${pipelineAnalysisNote}`;
+      }
+
+      userPrompt += `
+
+=== TIMELINE ERROR DATA ===
+This shows what actually failed during build execution:
+${errorMessages || 'No specific error details available from timeline'}`;
+
+      // Add YAML content if available with clear separation
+      if (pipelineType === 'yaml' && pipelineContent) {
+        userPrompt += `
+
+=== PIPELINE CONFIGURATION ===
+This is the YAML pipeline configuration that was executed:
+
+\`\`\`yaml
+${pipelineContent}
+\`\`\``;
+      } else if (pipelineType === 'yaml' && !pipelineContent) {
+        userPrompt += `
+
+=== PIPELINE CONFIGURATION ===
+YAML pipeline detected but configuration could not be retrieved.
+${pipelineAnalysisNote}`;
+      }
+
+      userPrompt += `
+
+=== ANALYSIS REQUEST ===
+Based on the ${pipelineContent ? 'timeline errors and pipeline configuration' : 'available timeline and build information'} above:
+
+1. What is the root cause of this failure?
+2. What specific steps should the development team take to fix this?
+3. ${pipelineContent ? 'Are there any configuration issues in the pipeline YAML that need to be corrected?' : 'What should be investigated in the pipeline configuration?'}
+4. What can be done to prevent similar failures in the future?
+
+${!pipelineContent && pipelineType === 'yaml' ? 'Note: Provide analysis based on timeline errors and suggest checking the pipeline YAML configuration manually.' : ''}
+Provide a detailed analysis with specific file names, commands, or configuration changes needed.`;
+
+      const messages = [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userPrompt
         }
       ];
 
+      // Dynamic token allocation based on complexity
+      let maxTokens = 200; // Base tokens
+      if (pipelineType === 'yaml' && pipelineContent.length > 0) {
+        maxTokens = 400; // More tokens for YAML analysis
+      }
+      if (failedJobs.length > 2) {
+        maxTokens += 100; // Extra tokens for multiple failures
+      }
+      if (pipelineContent.length > 2000) {
+        maxTokens += 200; // Extra tokens for complex pipelines
+      }
+
       const summary = await this.generateCompletion(messages, { 
-        max_tokens: 150,
+        max_tokens: maxTokens,
         temperature: 0.1
       });
       
-      logger.info('Generated build failure summary', {
+      logger.info('Generated enhanced build failure summary', {
         buildId: build.id,
         buildName,
         result,
+        pipelineType,
+        hasYamlContent: pipelineContent.length > 0,
         failedJobsCount: failedJobs.length,
-        summaryLength: summary.length
+        summaryLength: summary?.length || 0,
+        tokensUsed: maxTokens
       });
 
       return summary;
     } catch (error) {
-      logger.error('Error summarizing build failure:', error);
+      logger.error('Error in build failure analysis:', {
+        error: error.message,
+        buildId: build?.id,
+        buildName: build?.definition?.name
+      });
       return 'Unable to generate AI analysis of build failure at this time.';
     }
   }
@@ -376,7 +509,7 @@ Include key observations about progress, potential blockers, and recommendations
         }
       ];
 
-      const aiInsights = await this.generateCompletion(messages, { max_tokens: 400 });
+      const aiInsights = await this.generateCompletion(messages, { max_tokens: 1000 });
       
       return `## Sprint Summary\n\n${summary}\n\n## AI Insights\n\n${aiInsights}`;
     } catch (error) {
