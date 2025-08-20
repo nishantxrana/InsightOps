@@ -101,9 +101,8 @@ AZURE_DEVOPS_BASE_URL=https://dev.azure.com
 # AI Configuration
 AI_PROVIDER=openai
 OPENAI_API_KEY=your-openai-api-key
-# OR for Groq:
-# AI_PROVIDER=groq
-# GROQ_API_KEY=your-groq-api-key
+GROQ_API_KEY=your-groq-api-key
+GEMINI_API_KEY=your-gemini-api-key
 AI_MODEL=gpt-3.5-turbo
 
 # Notification Configuration
@@ -224,13 +223,24 @@ Create a PAT with the following scopes:
 
 ### AI Provider Setup
 
-**OpenAI:**
+The system supports multiple AI providers. Choose one based on your needs:
+
+**OpenAI (Recommended for quality):**
 1. Get API key from https://platform.openai.com/api-keys
 2. Set `AI_PROVIDER=openai` and `OPENAI_API_KEY=your-key`
+3. Available models: GPT-3.5 Turbo, GPT-4, GPT-4 Turbo
 
-**Groq:**
+**Groq (Recommended for speed):**
 1. Get API key from https://console.groq.com/keys
 2. Set `AI_PROVIDER=groq` and `GROQ_API_KEY=your-key`
+3. Available models: Llama 3 8B/70B, Mixtral 8x7B, Gemma 7B
+
+**Google Gemini (Recommended for latest features):**
+1. Get API key from https://makersuite.google.com/app/apikey
+2. Set `AI_PROVIDER=gemini` and `GEMINI_API_KEY=your-key`
+3. Available models: Gemini Pro, Gemini Pro Vision, Gemini 1.5 Pro/Flash
+
+You can switch between providers anytime from the frontend settings without restarting the application.
 
 ### Notification Setup
 

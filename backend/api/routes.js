@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { configLoader } from '../config/settings.js';
+import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
 
 const router = express.Router();
 
@@ -226,5 +227,81 @@ function groupWorkItemsByAssignee(workItems) {
     return acc;
   }, {});
 }
+
+// AI Configuration endpoints
+router.get('/ai/providers', (req, res) => {
+  try {
+    const providers = [
+      { value: 'openai', label: 'OpenAI', description: 'GPT models from OpenAI' },
+      { value: 'groq', label: 'Groq', description: 'Fast inference with open models' },
+      { value: 'gemini', label: 'Google Gemini', description: 'Google\'s latest AI models' }
+    ];
+    
+    res.json({
+      success: true,
+      providers
+    });
+  } catch (error) {
+    logger.error('Error fetching AI providers:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch AI providers'
+    });
+  }
+});
+
+router.get('/ai/models/:provider', (req, res) => {
+  try {
+    const { provider } = req.params;
+    const models = getModelsForProvider(provider);
+    const defaultModel = getDefaultModel(provider);
+    
+    if (models.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Unsupported provider: ${provider}`
+      });
+    }
+    
+    res.json({
+      success: true,
+      provider,
+      models,
+      defaultModel
+    });
+  } catch (error) {
+    logger.error('Error fetching AI models:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch AI models'
+    });
+  }
+});
+
+router.get('/ai/config', (req, res) => {
+  try {
+    const config = configLoader.getAIConfig();
+    
+    // Don't expose API keys in the response
+    const safeConfig = {
+      provider: config.provider,
+      model: config.model,
+      hasOpenAIKey: !!config.openaiApiKey,
+      hasGroqKey: !!config.groqApiKey,
+      hasGeminiKey: !!config.geminiApiKey
+    };
+    
+    res.json({
+      success: true,
+      config: safeConfig
+    });
+  } catch (error) {
+    logger.error('Error fetching AI config:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch AI configuration'
+    });
+  }
+});
 
 export { router as apiRoutes };
