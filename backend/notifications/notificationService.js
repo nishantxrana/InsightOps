@@ -191,10 +191,6 @@ class NotificationService {
     const message = markdownFormatter.formatOverdueItemsMessage(overdueItems);
     await this.sendNotification(message, 'overdue-reminder');
   }
-
-  async sendSprintSummary(summary) {
-    await this.sendNotification(summary, 'sprint-summary');
-  }
 }
 
 export const notificationService = new NotificationService();

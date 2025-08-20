@@ -230,9 +230,9 @@ class MarkdownFormatter {
       message += `- *PR Url:* <${pullRequest.webUrl || pullRequest.url}|Open Pull Request>\n`;
       message += `- *Description:* ${description}\n\n`;
 
-    // if (aiSummary) {
-    //   message += `\n*🤖 AI Summary* \n${aiSummary}\n`;
-    // }
+    if (aiSummary) {
+      message += `\n*🤖 AI Summary*\n${aiSummary}\n`;
+    }
 
     return message;
   }
