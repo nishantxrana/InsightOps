@@ -165,7 +165,7 @@ Summarize what needs to be done, why it's important, and any key technical or bu
       const result = build.result || 'Unknown';
       const sourceBranch = build.sourceBranch?.replace('refs/heads/', '') || 'Unknown';
       
-      // Extract relevant error information from timeline and logs
+      // Extract relevant error information from timeline
       const failedJobs = timeline?.records?.filter(record => 
         record.result === 'failed' || record.result === 'canceled'
       ) || [];
@@ -176,53 +176,195 @@ Summarize what needs to be done, why it's important, and any key technical or bu
         return `${jobName}: ${issues}`;
       }).join('\n');
 
-      const messages = [
-        {
-          role: 'system',
-          content: `You are a DevOps build failure analyzer. Provide clear, actionable analysis for development teams.
+      // Try to get pipeline definition to determine type and fetch YAML if applicable
+      let pipelineContent = '';
+      let pipelineType = 'classic';
+      let pipelineAnalysisNote = '';
+      
+      try {
+        if (build.definition?.id) {
+          const { azureDevOpsClient } = await import('../devops/azureDevOpsClient.js');
+          const definition = await azureDevOpsClient.getBuildDefinition(build.definition.id);
+          
+          // Check if it's YAML pipeline (type 2) or classic (type 1)
+          if (definition.process?.type === 2 && definition.process?.yamlFilename) {
+            pipelineType = 'yaml';
+            const yamlPath = definition.process.yamlFilename;
+            const repositoryId = definition.repository?.id;
+            
+            if (repositoryId && yamlPath) {
+              try {
+                const yamlFile = await azureDevOpsClient.getRepositoryFile(repositoryId, yamlPath, sourceBranch);
+                pipelineContent = yamlFile.content || '';
+                
+                if (!pipelineContent) {
+                  pipelineAnalysisNote = 'YAML pipeline file was found but appears to be empty.';
+                }
+              } catch (yamlError) {
+                pipelineAnalysisNote = `Unable to fetch YAML pipeline file (${yamlPath}).`;
+              }
+            } else {
+              pipelineAnalysisNote = 'YAML pipeline detected but missing repository information.';
+            }
+          }
+        }
+      } catch (definitionError) {
+        pipelineAnalysisNote = `Unable to fetch build definition. Analysis limited to timeline data.`;
+      }
 
-Formatting Rules:
-- Write in plain text with selective *bold* emphasis only for key terms
-- Use *bold* ONLY for: error types, component names, file names, or critical actions
-- Do NOT make entire sentences or responses bold
-- Write exactly 2-3 sentences
+      // Create focused prompts based on pipeline type
+      let systemPrompt, userPrompt;
 
-Content Rules:
-- Focus on the most likely cause based on error data
-- Suggest immediate next steps for developers
-- Be specific about technical issues when available
-- No speculation beyond what the error data shows
-- Make it actionable and helpful for debugging`
-        },
-        {
-          role: 'user',
-          content: `Analyze this build failure and provide a 2-3 sentence analysis:
+      if (pipelineType === 'classic') {
+        // Classic pipeline: Focus only on timeline errors with general solutions
+        systemPrompt = `You are a DevOps build failure analyzer for classic Azure DevOps pipelines.
+
+CRITICAL GOOGLE CHAT FORMATTING RULES:
+- ONLY use *text* for bold (NEVER **text** - this will break formatting)
+- Use _text_ for italic
+- Use ~text~ for strikethrough
+- Use \`code\` for inline code
+- Use \`\`\`code block\`\`\` for code blocks
+- Use - for bullet points
+- NEVER use **text** or # headers or ### - they don't work in Google Chat
+- Do NOT create section headers - write in flowing paragraphs
+
+RESPONSE RULES:
+- Focus ONLY on the timeline error data provided
+- Provide 2-3 sentences explaining the likely cause
+- Give general troubleshooting steps that apply to classic pipelines
+- Use *bold* sparingly only for error types, task names, or key actions
+- Do NOT speculate about YAML configuration or specific file paths
+- Keep response concise and actionable
+- Write in natural paragraphs, not sections with headers
+
+CONTEXT: Classic pipelines are configured through Azure DevOps UI, not YAML files.`;
+
+        userPrompt = `Analyze this classic pipeline build failure:
 
 Build: ${buildName} #${buildNumber}
 Branch: ${sourceBranch}
-Result: ${result}
-Failed Jobs & Errors: ${errorMessages || 'No specific error details available'}
+Timeline Errors: ${errorMessages || 'No specific error details available from timeline'}
 
-Identify the most likely cause of the failure and suggest what the development team should check first.`
+Explain the likely cause based on the timeline errors and provide general troubleshooting steps for classic pipeline configuration. Write in flowing paragraphs without section headers.`;
+
+      } else if (pipelineType === 'yaml' && pipelineContent) {
+        // YAML pipeline with content: Use both timeline and YAML for specific solutions
+        systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
+
+CRITICAL GOOGLE CHAT FORMATTING RULES:
+- ONLY use *text* for bold (NEVER **text** - this will break formatting)
+- Use _text_ for italic
+- Use ~text~ for strikethrough
+- Use \`code\` for inline code
+- Use \`\`\`yaml for YAML code blocks
+- Use - for bullet points
+- NEVER use **text** or # headers or ### - they don't work in Google Chat
+- Do NOT create section headers like "Issue:" or "YAML Fix:" - write in flowing paragraphs
+
+RESPONSE RULES:
+- Analyze BOTH timeline errors AND YAML configuration
+- Identify specific issues in the YAML that caused the timeline errors
+- Provide exact YAML fixes with proper formatting
+- Use *bold* sparingly for task names, file paths, and configuration keys
+- Give 3-4 sentences with specific actionable solutions
+- Focus on YAML configuration corrections
+- Write in natural paragraphs, not sections with headers
+
+CONTEXT: You have both the execution errors and the YAML pipeline configuration.`;
+
+        userPrompt = `Analyze this YAML pipeline build failure:
+
+Build: ${buildName} #${buildNumber}
+Branch: ${sourceBranch}
+
+TIMELINE ERRORS (what failed):
+${errorMessages || 'No specific error details available'}
+
+YAML PIPELINE CONFIGURATION:
+\`\`\`yaml
+${pipelineContent}
+\`\`\`
+
+Cross-reference the timeline errors with the YAML configuration to identify the specific issue and provide exact YAML fixes needed. Write in flowing paragraphs without section headers.`;
+
+      } else {
+        // YAML pipeline without content: Timeline errors only with YAML guidance
+        systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
+
+CRITICAL GOOGLE CHAT FORMATTING RULES:
+- ONLY use *text* for bold (NEVER **text** - this will break formatting)
+- Use _text_ for italic
+- Use ~text~ for strikethrough
+- Use \`code\` for inline code
+- Use \`\`\`yaml for YAML code blocks
+- Use - for bullet points
+- NEVER use **text** or # headers or ### - they don't work in Google Chat
+- Do NOT create section headers - write in flowing paragraphs
+
+RESPONSE RULES:
+- Focus on timeline error data (YAML configuration not available)
+- Provide 2-3 sentences explaining the likely cause
+- Give general guidance about checking YAML configuration
+- Use *bold* sparingly for error types and task names
+- Suggest specific YAML sections to review
+- Write in natural paragraphs, not sections with headers
+
+CONTEXT: YAML pipeline detected but configuration could not be retrieved.`;
+
+        userPrompt = `Analyze this YAML pipeline build failure (configuration not available):
+
+Build: ${buildName} #${buildNumber}
+Branch: ${sourceBranch}
+Timeline Errors: ${errorMessages || 'No specific error details available'}
+Note: ${pipelineAnalysisNote}
+
+Explain the likely cause based on timeline errors and suggest what to check in the YAML pipeline configuration. Write in flowing paragraphs without section headers.`;
+      }
+
+      // Log what we're sending to AI
+      logger.info('AI Prompt being sent:', {
+        systemPrompt,
+        userPrompt
+      });
+
+      const messages = [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userPrompt
         }
       ];
 
       const summary = await this.generateCompletion(messages, { 
-        max_tokens: 150,
+        max_tokens: 1000,
         temperature: 0.1
       });
       
-      logger.info('Generated build failure summary', {
+      // Log what we got back from AI
+      logger.info('AI Response received:', {
+        response: summary
+      });
+      
+      logger.info('Build failure analysis completed', {
         buildId: build.id,
         buildName,
-        result,
+        pipelineType,
+        hasYamlContent: pipelineContent.length > 0,
         failedJobsCount: failedJobs.length,
-        summaryLength: summary.length
+        analysisSuccess: !!summary
       });
 
       return summary;
     } catch (error) {
-      logger.error('Error summarizing build failure:', error);
+      logger.error('Error in build failure analysis:', {
+        error: error.message,
+        buildId: build?.id,
+        buildName: build?.definition?.name
+      });
       return 'Unable to generate AI analysis of build failure at this time.';
     }
   }
@@ -376,7 +518,7 @@ Include key observations about progress, potential blockers, and recommendations
         }
       ];
 
-      const aiInsights = await this.generateCompletion(messages, { max_tokens: 400 });
+      const aiInsights = await this.generateCompletion(messages, { max_tokens: 1000 });
       
       return `## Sprint Summary\n\n${summary}\n\n## AI Insights\n\n${aiInsights}`;
     } catch (error) {
