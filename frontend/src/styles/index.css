@@ -80,6 +80,20 @@
   .status-dot-info {
     @apply bg-blue-500;
   }
+
+  /* Sidebar Collapse Styles */
+  .sidebar-collapsed-tooltip {
+    @apply absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50;
+  }
+  
+  .sidebar-collapsed-tooltip.show {
+    @apply opacity-100;
+  }
+
+  /* Smooth transitions for sidebar */
+  .sidebar-transition {
+    transition: width 0.3s ease-in-out, padding 0.3s ease-in-out, margin 0.3s ease-in-out;
+  }
   
   /* Enhanced Markdown Styling */
   .markdown-content {
