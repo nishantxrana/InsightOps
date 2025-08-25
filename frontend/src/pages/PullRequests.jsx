@@ -173,10 +173,19 @@ export default function PullRequests() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Pull Requests</h2>
-        <p className="text-gray-600">Active pull requests and review status</p>
+      {/* Header with Refresh Button */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Pull Requests</h2>
+          <p className="text-gray-600">Active pull requests and review status</p>
+        </div>
+        <button
+          onClick={loadPullRequestsData}
+          className="btn btn-secondary"
+          disabled={loading}
+        >
+          {loading ? 'Refreshing...' : 'Refresh Data'}
+        </button>
       </div>
 
       {/* Stats */}
@@ -446,17 +455,6 @@ export default function PullRequests() {
           </p>
         </div>
       )}
-
-      {/* Refresh Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={loadPullRequestsData}
-          className="btn btn-secondary"
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh Data'}
-        </button>
-      </div>
     </div>
   )
 }

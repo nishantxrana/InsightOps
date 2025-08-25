@@ -190,10 +190,19 @@ export default function WorkItems() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Work Items</h2>
-        <p className="text-gray-600">Current sprint status and overdue items</p>
+      {/* Header with Refresh Button */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Work Items</h2>
+          <p className="text-gray-600">Current sprint status and overdue items</p>
+        </div>
+        <button
+          onClick={loadWorkItemsData}
+          className="btn btn-secondary"
+          disabled={loading}
+        >
+          {loading ? 'Refreshing...' : 'Refresh Data'}
+        </button>
       </div>
 
       {/* Enhanced Sprint Summary Stats */}
@@ -592,17 +601,6 @@ export default function WorkItems() {
           </p>
         </div>
       )}
-
-      {/* Refresh Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={loadWorkItemsData}
-          className="btn btn-secondary"
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh Data'}
-        </button>
-      </div>
     </div>
   )
 }

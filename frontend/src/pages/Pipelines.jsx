@@ -178,10 +178,19 @@ export default function Pipelines() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Pipelines</h2>
-        <p className="text-gray-600">Recent build and deployment status</p>
+      {/* Header with Refresh Button */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Pipelines</h2>
+          <p className="text-gray-600">Recent build and deployment status</p>
+        </div>
+        <button
+          onClick={loadPipelinesData}
+          className="btn btn-secondary"
+          disabled={loading}
+        >
+          {loading ? 'Refreshing...' : 'Refresh Data'}
+        </button>
       </div>
 
       {/* Stats */}
@@ -368,17 +377,6 @@ export default function Pipelines() {
           </p>
         </div>
       )}
-
-      {/* Refresh Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={loadPipelinesData}
-          className="btn btn-secondary"
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh Data'}
-        </button>
-      </div>
     </div>
   )
 }

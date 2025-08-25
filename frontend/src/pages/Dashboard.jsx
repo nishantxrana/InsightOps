@@ -141,10 +141,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-600">Overview of your Azure DevOps monitoring</p>
+      {/* Header with Refresh Button */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+          <p className="text-gray-600">Overview of your Azure DevOps monitoring</p>
+        </div>
+        <button
+          onClick={loadDashboardData}
+          className="btn btn-secondary"
+          disabled={loading}
+        >
+          {loading ? 'Refreshing...' : 'Refresh Data'}
+        </button>
       </div>
 
       {/* Stats Grid */}
@@ -290,17 +299,6 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Refresh Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={loadDashboardData}
-          className="btn btn-secondary"
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh Data'}
-        </button>
       </div>
     </div>
   )
