@@ -42,6 +42,7 @@ export default function Settings() {
       provider: 'openai',
       openaiApiKey: '',
       groqApiKey: '',
+      geminiApiKey: '',
       model: 'gpt-3.5-turbo'
     },
     notifications: {
@@ -84,6 +85,9 @@ export default function Settings() {
     }
     if (settings.ai.provider === 'groq' && !settings.ai.groqApiKey.trim()) {
       errors.groqApiKey = 'Groq API Key is required when using Groq'
+    }
+    if (settings.ai.provider === 'gemini' && !settings.ai.geminiApiKey.trim()) {
+      errors.geminiApiKey = 'Gemini API Key is required when using Gemini'
     }
     
     setValidationErrors(errors)
@@ -260,6 +264,7 @@ export default function Settings() {
               >
                 <option value="openai">OpenAI</option>
                 <option value="groq">Groq</option>
+                <option value="gemini">Google Gemini</option>
               </select>
             </div>
             {settings.ai.provider === 'openai' && (
@@ -304,6 +309,31 @@ export default function Settings() {
                     onClick={() => toggleSecretVisibility('groq')}
                   >
                     {showSecrets.groq ? (
+                      <EyeOff className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+            {settings.ai.provider === 'gemini' && (
+              <div>
+                <label className="label">Gemini API Key</label>
+                <div className="relative">
+                  <input
+                    type={showSecrets.gemini ? 'text' : 'password'}
+                    className="input pr-10"
+                    value={settings.ai.geminiApiKey}
+                    onChange={(e) => updateSetting('ai', 'geminiApiKey', e.target.value)}
+                    placeholder="AIza..."
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => toggleSecretVisibility('gemini')}
+                  >
+                    {showSecrets.gemini ? (
                       <EyeOff className="h-4 w-4 text-gray-400" />
                     ) : (
                       <Eye className="h-4 w-4 text-gray-400" />

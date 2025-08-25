@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../utils/logger.js';
 import { configLoader } from '../config/settings.js';
 
@@ -28,6 +29,11 @@ class AIService {
       this.client = new Groq({
         apiKey: this.config.groqApiKey
       });
+    } else if (this.config.provider === 'gemini') {
+      if (!this.config.geminiApiKey) {
+        throw new Error('Gemini API key is required when using Gemini provider');
+      }
+      this.client = new GoogleGenerativeAI(this.config.geminiApiKey);
     } else {
       throw new Error(`Unsupported AI provider: ${this.config.provider}`);
     }
@@ -62,6 +68,25 @@ class AIService {
           messages
         });
         return response.choices[0].message.content;
+      } else if (this.config.provider === 'gemini') {
+        // Gemini uses a different API structure
+        const model = this.client.getGenerativeModel({ model: completionOptions.model });
+        
+        // Convert messages to Gemini format
+        const systemMessage = messages.find(m => m.role === 'system');
+        const userMessage = messages.find(m => m.role === 'user');
+        
+        let prompt = '';
+        if (systemMessage) {
+          prompt += `${systemMessage.content}\n\n`;
+        }
+        if (userMessage) {
+          prompt += userMessage.content;
+        }
+        
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+        return responseText;
       }
     } catch (error) {
       logger.error('Error generating AI completion:', error);
