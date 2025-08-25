@@ -9,7 +9,7 @@ import {
   Settings,
   Menu,
   X,
-  Activity,
+  Zap,
   RefreshCw,
   ChevronLeft,
   ChevronRight
@@ -52,7 +52,7 @@ export default function Layout({ children }) {
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
           <div className="flex h-16 items-center justify-between px-4">
             <div className="flex items-center">
-              <Activity className="h-8 w-8 text-azure-600" />
+              <img src="/icon.svg" alt="DevOps Agent" className="h-8 w-8" />
               <span className="ml-2 text-lg font-semibold text-gray-900">DevOps Agent</span>
             </div>
             <button
@@ -102,7 +102,7 @@ export default function Layout({ children }) {
             'flex h-16 items-center transition-all duration-300',
             sidebarCollapsed ? 'justify-center px-2' : 'px-4'
           )}>
-            <Activity className="h-8 w-8 text-azure-600 flex-shrink-0" />
+            <img src="/icon.svg" alt="DevOps Agent" className="h-8 w-8 flex-shrink-0" />
             {!sidebarCollapsed && (
               <span className="ml-2 text-lg font-semibold text-gray-900 whitespace-nowrap overflow-hidden">
                 DevOps Agent
