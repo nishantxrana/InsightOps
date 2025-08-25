@@ -15,9 +15,10 @@ class ConfigLoader {
       
       // AI Configuration
       ai: {
-        provider: env.AI_PROVIDER || 'openai', // 'openai' or 'groq'
+        provider: env.AI_PROVIDER || 'openai', // 'openai', 'groq', or 'gemini'
         openaiApiKey: env.OPENAI_API_KEY || '',
         groqApiKey: env.GROQ_API_KEY || '',
+        geminiApiKey: env.GEMINI_API_KEY || '',
         model: env.AI_MODEL || 'gpt-3.5-turbo'
       },
       
@@ -63,7 +64,7 @@ class ConfigLoader {
       }).required(),
       
       ai: Joi.object({
-        provider: Joi.string().valid('openai', 'groq').required(),
+        provider: Joi.string().valid('openai', 'groq', 'gemini').required(),
         openaiApiKey: Joi.when('provider', {
           is: 'openai',
           then: Joi.string().min(1).required(),
@@ -71,6 +72,11 @@ class ConfigLoader {
         }),
         groqApiKey: Joi.when('provider', {
           is: 'groq',
+          then: Joi.string().min(1).required(),
+          otherwise: Joi.string().allow('').optional()
+        }),
+        geminiApiKey: Joi.when('provider', {
+          is: 'gemini',
           then: Joi.string().min(1).required(),
           otherwise: Joi.string().allow('').optional()
         }),

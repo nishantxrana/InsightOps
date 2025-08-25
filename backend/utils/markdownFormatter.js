@@ -176,19 +176,36 @@ class MarkdownFormatter {
     const requestedBy = build.requestedBy?.displayName || 'Unknown';
     const startTime = build.startTime ? new Date(build.startTime).toLocaleString() : 'Unknown';
     const finishTime = build.finishTime ? new Date(build.finishTime).toLocaleString() : 'Unknown';
-
-    const emoji = result === 'succeeded' ? '✅' : result === 'failed' ? '❌' : '⚠️';
+    const sourceBranch = build.sourceBranch?.replace('refs/heads/', '') || 'Unknown';
     
-    let message = `## ${emoji} Build ${result.charAt(0).toUpperCase() + result.slice(1)}\n\n`;
-    message += `**${buildName}** #${buildNumber}\n\n`;
-    message += `- **Result**: ${result}\n`;
-    message += `- **Requested By**: ${requestedBy}\n`;
-    message += `- **Started**: ${startTime}\n`;
-    message += `- **Finished**: ${finishTime}\n`;
-
-    if (build.sourceBranch) {
-      message += `- **Branch**: ${build.sourceBranch.replace('refs/heads/', '')}\n`;
+    // Extract additional build information
+    const projectName = build.project?.name || 'Unknown Project';
+    const repositoryName = build.repository?.name || 'Unknown Repository';
+    const sourceVersion = build.sourceVersion ? build.sourceVersion.substring(0, 8) : 'Unknown';
+    
+    // Extract PR information if available
+    let commitInfo = sourceVersion;
+    if (build.triggerInfo && build.triggerInfo['pr.number']) {
+      commitInfo += ` (PR #${build.triggerInfo['pr.number']})`;
+    } else if (build.reason === 'pullRequest' && build.parameters) {
+      // Try to extract PR number from parameters or other sources
+      const prMatch = JSON.stringify(build.parameters).match(/pr[.\s]*(\d+)/i);
+      if (prMatch) {
+        commitInfo += ` (PR #${prMatch[1]})`;
+      }
     }
+
+    const emoji = result === 'succeeded' ? '✅' : result === 'failed' ? '🚨' : '⚠️';
+    
+    let message = `${emoji} *Build ${result.charAt(0).toUpperCase() + result.slice(1)}*\n\n`;
+    message += `*Build Run*: #${buildNumber}\n`;
+    message += `*Pipeline*: ${buildName}\n`;
+    message += `*Project*: ${projectName}\n`;
+    message += `*Repository*: ${repositoryName}\n`;
+    message += `*Branch*: ${sourceBranch}\n`;
+    message += `*Commit*: ${commitInfo}\n`;
+    message += `*Requested By*: ${requestedBy}\n`;
+
 
     return message;
   }
@@ -197,13 +214,12 @@ class MarkdownFormatter {
     let message = this.formatBuildCompleted(build);
 
     if (aiSummary) {
-      message += `\n### 🤖 AI Analysis\n${aiSummary}\n`;
+      message += `\n🤖 *AI Analysis*\n${aiSummary}\n`;
+    } else {
+      message += `\n🤖 *AI Analysis*\nAI analysis not available - please configure AI provider in settings.\n`;
     }
 
-    message += `\n### 🔍 Next Steps\n`;
-    message += `- Check the build logs for detailed error information\n`;
-    message += `- Verify recent code changes in the source branch\n`;
-    message += `- Contact the build owner if the issue persists\n`;
+
 
     return message;
   }
