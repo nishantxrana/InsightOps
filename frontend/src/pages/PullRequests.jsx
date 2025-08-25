@@ -12,7 +12,8 @@ import {
   Activity,
   AlertCircle,
   CheckCircle2,
-  XCircle
+  XCircle,
+  RefreshCw
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -181,10 +182,11 @@ export default function PullRequests() {
         </div>
         <button
           onClick={loadPullRequestsData}
-          className="btn btn-secondary"
           disabled={loading}
+          className="group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gradient-to-r from-gray-50 to-gray-100 border-0 rounded-xl hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-300"
         >
-          {loading ? 'Refreshing...' : 'Refresh Data'}
+          <RefreshCw className={`h-4 w-4 transition-all duration-300 ${loading ? 'animate-spin text-blue-500' : 'group-hover:text-blue-500 group-hover:rotate-180'}`} />
+          <span className="font-medium">{loading ? 'Refreshing...' : 'Refresh'}</span>
         </button>
       </div>
 
