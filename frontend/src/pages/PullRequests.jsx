@@ -12,7 +12,8 @@ import {
   Activity,
   AlertCircle,
   CheckCircle2,
-  XCircle
+  XCircle,
+  RefreshCw
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -173,10 +174,20 @@ export default function PullRequests() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Pull Requests</h2>
-        <p className="text-gray-600">Active pull requests and review status</p>
+      {/* Header with Refresh Button */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Pull Requests</h2>
+          <p className="text-gray-600">Active pull requests and review status</p>
+        </div>
+        <button
+          onClick={loadPullRequestsData}
+          disabled={loading}
+          className="group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gradient-to-r from-gray-50 to-gray-100 border-0 rounded-xl hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-300"
+        >
+          <RefreshCw className={`h-4 w-4 transition-all duration-300 ${loading ? 'animate-spin text-blue-500' : 'group-hover:text-blue-500 group-hover:rotate-180'}`} />
+          <span className="font-medium">{loading ? 'Refreshing...' : 'Refresh'}</span>
+        </button>
       </div>
 
       {/* Stats */}
@@ -446,17 +457,6 @@ export default function PullRequests() {
           </p>
         </div>
       )}
-
-      {/* Refresh Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={loadPullRequestsData}
-          className="btn btn-secondary"
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh Data'}
-        </button>
-      </div>
     </div>
   )
 }

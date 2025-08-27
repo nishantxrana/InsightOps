@@ -19,15 +19,21 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronUp,
-  Eye
+  Eye,
+  RefreshCw
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
+import SkeletonCard, { SkeletonTable } from '../components/SkeletonCard'
 import { format, formatDistanceToNow } from 'date-fns'
 
 export default function WorkItems() {
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [loadingStates, setLoadingStates] = useState({
+    sprintSummary: true,
+    overdueItems: true
+  })
   const [error, setError] = useState(null)
   const [sprintSummary, setSprintSummary] = useState(null)
   const [overdueItems, setOverdueItems] = useState([])
@@ -45,27 +51,42 @@ export default function WorkItems() {
 
   const loadWorkItemsData = async () => {
     try {
-      setLoading(true)
+      setInitialLoading(true)
       setError(null)
+      setLoadingStates({
+        sprintSummary: true,
+        overdueItems: true
+      })
 
-      const [sprintData, overdueData] = await Promise.allSettled([
-        apiService.getCurrentSprintSummary(),
-        apiService.getOverdueItems()
-      ])
-
-      if (sprintData.status === 'fulfilled') {
-        setSprintSummary(sprintData.value)
+      // Phase 1: Load sprint summary first (most important data)
+      try {
+        const sprintData = await apiService.getCurrentSprintSummary()
+        setSprintSummary(sprintData)
+        setLoadingStates(prev => ({ ...prev, sprintSummary: false }))
+        setInitialLoading(false) // Show UI immediately after sprint data loads
+      } catch (err) {
+        console.error('Failed to load sprint summary:', err)
+        setLoadingStates(prev => ({ ...prev, sprintSummary: false }))
       }
 
-      if (overdueData.status === 'fulfilled') {
-        setOverdueItems(overdueData.value.value || [])
+      // Phase 2: Load overdue items in background
+      try {
+        const overdueData = await apiService.getOverdueItems()
+        setOverdueItems(overdueData.value || [])
+        setLoadingStates(prev => ({ ...prev, overdueItems: false }))
+      } catch (err) {
+        console.error('Failed to load overdue items:', err)
+        setLoadingStates(prev => ({ ...prev, overdueItems: false }))
       }
 
     } catch (err) {
       setError('Failed to load work items data')
       console.error('Work items error:', err)
-    } finally {
-      setLoading(false)
+      setInitialLoading(false)
+      setLoadingStates({
+        sprintSummary: false,
+        overdueItems: false
+      })
     }
   }
 
@@ -180,24 +201,41 @@ export default function WorkItems() {
     setVisibleOverdueCount(5)
   }, [overdueItems.length])
 
-  if (loading) {
+  // Only show full loading spinner on initial load with error
+  if (initialLoading && error) {
     return <LoadingSpinner />
   }
 
-  if (error) {
+  if (error && initialLoading) {
     return <ErrorMessage message={error} onRetry={loadWorkItemsData} />
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Work Items</h2>
-        <p className="text-gray-600">Current sprint status and overdue items</p>
+      {/* Header with Refresh Button */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Work Items</h2>
+          <p className="text-gray-600">Current sprint status and overdue items</p>
+        </div>
+        <button
+          onClick={loadWorkItemsData}
+          disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
+          className="group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gradient-to-r from-gray-50 to-gray-100 border-0 rounded-xl hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-300"
+        >
+          <RefreshCw className={`h-4 w-4 transition-all duration-300 ${(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'animate-spin text-blue-500' : 'group-hover:text-blue-500 group-hover:rotate-180'}`} />
+          <span className="font-medium">{(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'Refreshing...' : 'Refresh'}</span>
+        </button>
       </div>
 
       {/* Enhanced Sprint Summary Stats */}
-      {sprintSummary && (
+      {loadingStates.sprintSummary ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SkeletonCard key={index} />
+          ))}
+        </div>
+      ) : sprintSummary && (
         <>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <div className="card">
@@ -380,7 +418,18 @@ export default function WorkItems() {
       )}
 
       {/* Enhanced Overdue Items */}
-      {overdueItems.length > 0 && (
+      {loadingStates.overdueItems ? (
+        <div className="card border-red-200 bg-red-50">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-6 w-6 text-red-600" />
+              <div className="h-6 bg-red-300 rounded w-48 animate-pulse"></div>
+            </div>
+            <div className="h-6 bg-red-300 rounded w-32 animate-pulse"></div>
+          </div>
+          <SkeletonTable rows={3} />
+        </div>
+      ) : overdueItems.length > 0 && (
         <div className="card border-red-200 bg-red-50">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -592,17 +641,6 @@ export default function WorkItems() {
           </p>
         </div>
       )}
-
-      {/* Refresh Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={loadWorkItemsData}
-          className="btn btn-secondary"
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh Data'}
-        </button>
-      </div>
     </div>
   )
 }
