@@ -173,9 +173,9 @@ class AzureDevOpsClient {
     }
   }
 
-  async getCurrentSprintWorkItems() {
+  async getAllCurrentSprintWorkItems() {
     try {
-      // First try to get work items from current iteration
+      // Get all work items without pagination for summary calculations
       const wiql = `
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
@@ -191,6 +191,53 @@ class AzureDevOpsClient {
         return await this.getWorkItems(workItemIds);
       }
       
+      return { count: 0, value: [] };
+    } catch (error) {
+      logger.error('Error fetching all current sprint work items:', error);
+      throw error;
+    }
+  }
+
+  async getCurrentSprintWorkItems(page = 1, limit = 50) {
+    try {
+      logger.info('Fetching current sprint work items', { page, limit });
+      
+      // First try to get work items from current iteration
+      const wiql = `
+        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
+        FROM WorkItems
+        WHERE [System.TeamProject] = '${this.config.project}'
+        AND [System.IterationPath] UNDER @CurrentIteration
+        ORDER BY [System.State] ASC, [System.CreatedDate] DESC
+      `;
+      
+      const queryResult = await this.queryWorkItems(wiql);
+      
+      if (queryResult.workItems && queryResult.workItems.length > 0) {
+        const allWorkItemIds = queryResult.workItems.map(wi => wi.id);
+        
+        // Log total count for monitoring
+        logger.info(`Found ${allWorkItemIds.length} work items in current sprint`);
+        
+        // Apply pagination
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+        const paginatedIds = allWorkItemIds.slice(startIndex, endIndex);
+        
+        const workItems = await this.getWorkItems(paginatedIds);
+        
+        return {
+          ...workItems,
+          pagination: {
+            page,
+            limit,
+            total: allWorkItemIds.length,
+            totalPages: Math.ceil(allWorkItemIds.length / limit),
+            hasMore: endIndex < allWorkItemIds.length
+          }
+        };
+      }
+      
       // If no items in current iteration, try to get recent work items
       logger.warn('No work items found in current iteration, trying recent work items');
       const recentWiql = `
@@ -204,11 +251,38 @@ class AzureDevOpsClient {
       const recentQueryResult = await this.queryWorkItems(recentWiql);
       
       if (recentQueryResult.workItems && recentQueryResult.workItems.length > 0) {
-        const workItemIds = recentQueryResult.workItems.map(wi => wi.id);
-        return await this.getWorkItems(workItemIds);
+        const allWorkItemIds = recentQueryResult.workItems.map(wi => wi.id);
+        
+        // Apply pagination
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+        const paginatedIds = allWorkItemIds.slice(startIndex, endIndex);
+        
+        const workItems = await this.getWorkItems(paginatedIds);
+        
+        return {
+          ...workItems,
+          pagination: {
+            page,
+            limit,
+            total: allWorkItemIds.length,
+            totalPages: Math.ceil(allWorkItemIds.length / limit),
+            hasMore: endIndex < allWorkItemIds.length
+          }
+        };
       }
       
-      return { count: 0, value: [] };
+      return { 
+        count: 0, 
+        value: [],
+        pagination: {
+          page: 1,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasMore: false
+        }
+      };
     } catch (error) {
       logger.error('Error fetching current sprint work items:', error);
       throw error;

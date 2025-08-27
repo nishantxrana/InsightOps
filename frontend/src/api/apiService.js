@@ -27,6 +27,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout - server took too long to respond')
+      throw new Error('Request timeout - please try again')
+    }
+    if (error.response?.status === 504) {
+      throw new Error('Server timeout - please try again')
+    }
     if (error.response?.status === 401) {
       // Handle unauthorized access
       localStorage.removeItem('apiToken')
@@ -69,6 +76,12 @@ export const apiService = {
 
   async getOverdueItems() {
     const response = await api.get('/work-items/overdue')
+    return response.data
+  },
+
+  // AI Summary (separate endpoint for async loading)
+  async getAISummary() {
+    const response = await api.get('/work-items/ai-summary')
     return response.data
   },
 

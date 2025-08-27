@@ -34,10 +34,12 @@ export default function WorkItems() {
   const [initialLoading, setInitialLoading] = useState(true)
   const [loadingStates, setLoadingStates] = useState({
     sprintSummary: true,
+    aiSummary: true,
     overdueItems: true
   })
   const [error, setError] = useState(null)
   const [sprintSummary, setSprintSummary] = useState(null)
+  const [aiSummary, setAiSummary] = useState(null)
   const [overdueItems, setOverdueItems] = useState([])
   
   // Filtering and interaction state
@@ -103,21 +105,23 @@ export default function WorkItems() {
       setError(null)
       setLoadingStates({
         sprintSummary: true,
+        aiSummary: true,
         overdueItems: true
       })
 
-      // Phase 1: Load sprint summary first (most important data)
+      // Phase 1: Load sprint summary first (fast, without AI)
       try {
         const sprintData = await apiService.getCurrentSprintSummary()
         setSprintSummary(sprintData)
         setLoadingStates(prev => ({ ...prev, sprintSummary: false }))
-        setInitialLoading(false) // Show UI immediately after sprint data loads
+        setInitialLoading(false) // Show UI immediately after basic data loads
       } catch (err) {
         console.error('Failed to load sprint summary:', err)
         setLoadingStates(prev => ({ ...prev, sprintSummary: false }))
+        setError('Failed to load sprint data')
       }
 
-      // Phase 2: Load overdue items in background
+      // Phase 2: Load overdue items in parallel
       try {
         const overdueData = await apiService.getOverdueItems()
         setOverdueItems(overdueData.value || [])
@@ -127,12 +131,27 @@ export default function WorkItems() {
         setLoadingStates(prev => ({ ...prev, overdueItems: false }))
       }
 
+      // Phase 3: Load AI summary last (slowest)
+      try {
+        const aiData = await apiService.getAISummary()
+        setAiSummary(aiData)
+        setLoadingStates(prev => ({ ...prev, aiSummary: false }))
+      } catch (err) {
+        console.error('Failed to load AI summary:', err)
+        setLoadingStates(prev => ({ ...prev, aiSummary: false }))
+        setAiSummary({ 
+          summary: 'AI summary temporarily unavailable. Please try refreshing the page.',
+          status: 'error'
+        })
+      }
+
     } catch (err) {
       setError('Failed to load work items data')
       console.error('Work items error:', err)
       setInitialLoading(false)
       setLoadingStates({
         sprintSummary: false,
+        aiSummary: false,
         overdueItems: false
       })
     }
@@ -699,16 +718,32 @@ export default function WorkItems() {
         </div>
       )}
 
-      {/* AI Sprint Insights */}
-      {sprintSummary?.summary && (
-        <div className="card">
-          <div className="flex items-center gap-3 mb-4">
-            <Target className="h-6 w-6 text-blue-600" />
-            <h3 className="text-lg font-medium text-gray-900">AI Sprint Insights</h3>
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-              Powered by AI
-            </span>
+      {/* AI Sprint Insights - Progressive Loading */}
+      <div className="card">
+        <div className="flex items-center gap-3 mb-4">
+          <Target className="h-6 w-6 text-blue-600" />
+          <h3 className="text-lg font-medium text-gray-900">AI Sprint Insights</h3>
+          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+            Powered by AI
+          </span>
+          {loadingStates.aiSummary && (
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="text-xs text-blue-600">Generating insights...</span>
+            </div>
+          )}
+        </div>
+        
+        {loadingStates.aiSummary ? (
+          <div className="space-y-3">
+            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
+            <div className="text-sm text-gray-500 mt-4">
+              🤖 AI is analyzing your sprint data to provide actionable insights...
+            </div>
           </div>
+        ) : aiSummary?.summary ? (
           <div className="prose prose-sm max-w-none">
             <ReactMarkdown
               components={{
@@ -754,11 +789,34 @@ export default function WorkItems() {
                 )
               }}
             >
-              {sprintSummary.summary}
+              {aiSummary.summary}
             </ReactMarkdown>
+            
+            {aiSummary.status === 'disabled_large_dataset' && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                  <span className="text-sm font-medium text-yellow-800">Performance Mode</span>
+                </div>
+                <p className="text-sm text-yellow-700 mt-1">
+                  AI analysis is disabled for large datasets to maintain optimal performance.
+                </p>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <Target className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+            <p>AI insights unavailable</p>
+            <button
+              onClick={loadWorkItemsData}
+              className="mt-2 text-blue-600 hover:text-blue-800 underline text-sm"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Enhanced Overdue Items */}
       {loadingStates.overdueItems ? (
