@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
 import { configLoader } from '../config/settings.js';
+import { getWiqlExcludeCompletedCondition } from '../utils/workItemStates.js';
 
 class AzureDevOpsClient {
   constructor() {
@@ -220,7 +221,7 @@ class AzureDevOpsClient {
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
-        AND [System.State] NOT IN ('Closed', 'Done', 'Resolved')
+        AND ${getWiqlExcludeCompletedCondition()}
         AND [Microsoft.VSTS.Scheduling.DueDate] < @Today
         ORDER BY [Microsoft.VSTS.Scheduling.DueDate] ASC
       `;

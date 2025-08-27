@@ -4,6 +4,7 @@ import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { configLoader } from '../config/settings.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
+import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workItemStates.js';
 
 const router = express.Router();
 
@@ -41,10 +42,14 @@ router.get('/work-items/sprint-summary', async (req, res) => {
     const workItems = await azureDevOpsClient.getCurrentSprintWorkItems();
     const summary = await aiService.summarizeSprintWorkItems(workItems.value || []);
     
+    // Use utility functions for consistent state categorization
+    const activeItems = filterActiveWorkItems(workItems.value || []);
+    const completedItems = filterCompletedWorkItems(workItems.value || []);
+    
     res.json({
       total: workItems.count || 0,
-      active: workItems.value?.filter(wi => wi.fields?.['System.State'] !== 'Closed' && wi.fields?.['System.State'] !== 'Done').length || 0,
-      completed: workItems.value?.filter(wi => wi.fields?.['System.State'] === 'Closed' || wi.fields?.['System.State'] === 'Done').length || 0,
+      active: activeItems.length,
+      completed: completedItems.length,
       summary,
       workItemsByState: groupWorkItemsByState(workItems.value || []),
       workItemsByAssignee: groupWorkItemsByAssignee(workItems.value || [])
