@@ -180,7 +180,7 @@ class AzureDevOpsClient {
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
-        AND [System.IterationPath] UNDER @CurrentIteration
+        AND [System.IterationPath] = @CurrentIteration
         ORDER BY [System.State] ASC, [System.CreatedDate] DESC
       `;
       
@@ -207,7 +207,7 @@ class AzureDevOpsClient {
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
-        AND [System.IterationPath] UNDER @CurrentIteration
+        AND [System.IterationPath] = @CurrentIteration
         ORDER BY [System.State] ASC, [System.CreatedDate] DESC
       `;
       
@@ -295,6 +295,7 @@ class AzureDevOpsClient {
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
+        AND [System.IterationPath] = @CurrentIteration
         AND ${getWiqlExcludeCompletedCondition()}
         AND [Microsoft.VSTS.Scheduling.DueDate] < @Today
         ORDER BY [Microsoft.VSTS.Scheduling.DueDate] ASC

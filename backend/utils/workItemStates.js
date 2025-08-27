@@ -17,13 +17,17 @@ export const NON_ACTIVE_STATES = [
   'Blocked',
   'Paused',
   'Removed',
-  'Released to Production'
+  'Released to Production',
+  'Ready for UAT',
+  'Ready to Release',
+  'Resolved'
 ];
 
 export const COMPLETED_STATES = [
   'Closed',
   'Removed',
-  'Released to Production'
+  'Released to Production',
+  'Resolved'
 ];
 
 /**

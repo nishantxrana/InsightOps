@@ -49,11 +49,21 @@ router.get('/work-items/sprint-summary', async (req, res) => {
     const activeItems = filterActiveWorkItems(allWorkItems.value || []);
     const completedItems = filterCompletedWorkItems(allWorkItems.value || []);
     
+    // Get overdue items count for dashboard
+    let overdueCount = 0;
+    try {
+      const overdueItems = await azureDevOpsClient.getOverdueWorkItems();
+      overdueCount = overdueItems.count || 0;
+    } catch (error) {
+      logger.warn('Failed to fetch overdue items for summary:', error.message);
+    }
+    
     // Prepare immediate response
     const immediateResponse = {
       total: allWorkItems.count || 0,
       active: activeItems.length,
       completed: completedItems.length,
+      overdue: overdueCount, // Add overdue count for dashboard
       workItemsByState: groupWorkItemsByState(allWorkItems.value || []),
       workItemsByAssignee: groupWorkItemsByAssignee(allWorkItems.value || []),
       summary: null, // Will be populated async
