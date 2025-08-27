@@ -572,38 +572,41 @@ export default function WorkItems() {
         </div>
       )}
 
-      {/* AI Sprint Summary */}
+      {/* AI Sprint Insights */}
       {sprintSummary?.summary && (
         <div className="card">
           <div className="flex items-center gap-3 mb-4">
             <Target className="h-6 w-6 text-blue-600" />
-            <h3 className="text-lg font-medium text-gray-900">AI Sprint Analysis</h3>
+            <h3 className="text-lg font-medium text-gray-900">AI Sprint Insights</h3>
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+              Powered by AI
+            </span>
           </div>
           <div className="prose prose-sm max-w-none">
             <ReactMarkdown
               components={{
                 h2: ({children}) => (
-                  <h2 className="text-lg font-medium text-gray-900 mb-4 mt-6 first:mt-0 border-b border-gray-200 pb-2">
+                  <h2 className="text-base font-semibold text-gray-900 mb-3 mt-4 first:mt-0">
                     {children}
                   </h2>
                 ),
                 h3: ({children}) => (
-                  <h3 className="text-base font-medium text-blue-900 mb-2 mt-4">
+                  <h3 className="text-sm font-medium text-blue-900 mb-2 mt-3">
                     {children}
                   </h3>
                 ),
                 p: ({children}) => (
-                  <p className="text-sm text-gray-700 mb-3 leading-relaxed text-justify">
+                  <p className="text-sm text-gray-700 mb-3 leading-relaxed">
                     {children}
                   </p>
                 ),
                 ul: ({children}) => (
-                  <ul className="list-disc list-inside text-sm text-gray-700 mb-4 ml-4 space-y-1 text-justify">
+                  <ul className="list-disc list-inside text-sm text-gray-700 mb-4 ml-2 space-y-1">
                     {children}
                   </ul>
                 ),
                 li: ({children}) => (
-                  <li className="mb-1 text-sm text-gray-700 text-justify">
+                  <li className="mb-1 text-sm text-gray-700">
                     {children}
                   </li>
                 ),
@@ -616,6 +619,11 @@ export default function WorkItems() {
                   <em className="italic text-gray-800">
                     {children}
                   </em>
+                ),
+                code: ({children}) => (
+                  <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
+                    {children}
+                  </code>
                 )
               }}
             >
