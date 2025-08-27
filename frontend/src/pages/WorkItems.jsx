@@ -20,7 +20,9 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Users,
+  Activity
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -37,9 +39,12 @@ export default function WorkItems() {
   const [error, setError] = useState(null)
   const [sprintSummary, setSprintSummary] = useState(null)
   const [overdueItems, setOverdueItems] = useState([])
-  const [searchTerm, setSearchTerm] = useState('')
+  
+  // Filtering and interaction state
   const [selectedState, setSelectedState] = useState('all')
   const [selectedAssignee, setSelectedAssignee] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filteredWorkItems, setFilteredWorkItems] = useState([])
   
   // Progressive disclosure for overdue items
   const [visibleOverdueCount, setVisibleOverdueCount] = useState(5)
@@ -48,6 +53,44 @@ export default function WorkItems() {
   useEffect(() => {
     loadWorkItemsData()
   }, [])
+
+  // Filter work items when selection changes
+  useEffect(() => {
+    if (sprintSummary?.workItemsByState) {
+      let allWorkItems = []
+      
+      // Flatten work items from all states
+      Object.entries(sprintSummary.workItemsByState).forEach(([state, items]) => {
+        items.forEach(item => {
+          allWorkItems.push({
+            ...item,
+            state: state,
+            assignee: getAssigneeForWorkItem(item.id)
+          })
+        })
+      })
+      
+      // Apply filters
+      let filtered = allWorkItems
+      
+      if (selectedState !== 'all') {
+        filtered = filtered.filter(item => item.state === selectedState)
+      }
+      
+      if (selectedAssignee !== 'all') {
+        filtered = filtered.filter(item => item.assignee === selectedAssignee)
+      }
+      
+      if (searchTerm) {
+        filtered = filtered.filter(item => 
+          item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.id.toString().includes(searchTerm)
+        )
+      }
+      
+      setFilteredWorkItems(filtered)
+    }
+  }, [sprintSummary, selectedState, selectedAssignee, searchTerm])
 
   const loadWorkItemsData = async () => {
     try {
@@ -88,6 +131,18 @@ export default function WorkItems() {
         overdueItems: false
       })
     }
+  }
+
+  // Helper function to get assignee for a work item
+  const getAssigneeForWorkItem = (workItemId) => {
+    if (!sprintSummary?.workItemsByAssignee) return 'Unassigned'
+    
+    for (const [assignee, items] of Object.entries(sprintSummary.workItemsByAssignee)) {
+      if (items.some(item => item.id === workItemId)) {
+        return assignee
+      }
+    }
+    return 'Unassigned'
   }
 
   const getStateColor = (state) => {
@@ -216,7 +271,7 @@ export default function WorkItems() {
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Work Items</h2>
-          <p className="text-gray-600">Current sprint status and overdue items</p>
+          <p className="text-gray-600">Current sprint status and team workload</p>
         </div>
         <button
           onClick={loadWorkItemsData}
@@ -228,7 +283,7 @@ export default function WorkItems() {
         </button>
       </div>
 
-      {/* Enhanced Sprint Summary Stats */}
+      {/* Sprint Overview Cards */}
       {loadingStates.sprintSummary ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
@@ -236,141 +291,294 @@ export default function WorkItems() {
           ))}
         </div>
       ) : sprintSummary && (
-        <>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="card">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="p-2 rounded-lg bg-blue-50">
-                    <CheckSquare className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Items</p>
-                    <p className="text-2xl font-semibold text-gray-900">{sprintSummary.total || 0}</p>
-                  </div>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="card">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="p-2 rounded-lg bg-blue-50">
+                  <CheckSquare className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Items</p>
+                  <p className="text-2xl font-semibold text-gray-900">{sprintSummary.total || 0}</p>
                 </div>
               </div>
-              <div className="mt-4">
-                <div className="flex justify-between text-xs text-gray-600 mb-1">
-                  <span>Sprint Progress</span>
-                  <span>{Math.round(((sprintSummary.completed || 0) / (sprintSummary.total || 1)) * 100)}%</span>
+            </div>
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-gray-600 mb-1">
+                <span>Sprint Progress</span>
+                <span>{Math.round(((sprintSummary.completed || 0) / (sprintSummary.total || 1)) * 100)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${Math.round(((sprintSummary.completed || 0) / (sprintSummary.total || 1)) * 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="p-2 rounded-lg bg-yellow-50">
+                <TrendingUp className="h-6 w-6 text-yellow-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Active</p>
+                <p className="text-2xl font-semibold text-gray-900">{sprintSummary.active || 0}</p>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              {sprintSummary.total > 0 ? Math.round(((sprintSummary.active || 0) / sprintSummary.total) * 100) : 0}% of total items
+            </p>
+          </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="p-2 rounded-lg bg-green-50">
+                <CheckSquare className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Completed</p>
+                <p className="text-2xl font-semibold text-gray-900">{sprintSummary.completed || 0}</p>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-green-600 font-medium">
+              ✓ {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
+            </p>
+          </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="p-2 rounded-lg bg-red-50">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Overdue</p>
+                <p className="text-2xl font-semibold text-gray-900">{overdueItems.length}</p>
+              </div>
+            </div>
+            {overdueItems.length > 0 && (
+              <p className="mt-2 text-xs text-red-600 font-medium">
+                ⚠️ Requires immediate attention
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Interactive State Distribution */}
+      {sprintSummary?.workItemsByState && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Activity className="h-6 w-6 text-purple-600" />
+              <h3 className="text-lg font-medium text-gray-900">Work Distribution by State</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-400" />
+              <span className="text-sm text-gray-500">Click to filter</span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+            {Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
+              <button
+                key={state}
+                onClick={() => setSelectedState(selectedState === state ? 'all' : state)}
+                className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                  selectedState === state 
+                    ? 'border-blue-500 bg-blue-50 shadow-md' 
+                    : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs px-2 py-1 rounded-full ${getStateColor(state)}`}>
+                    {state}
+                  </span>
+                  <span className="text-lg font-semibold text-gray-900">{items.length}</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="text-xs text-gray-500">
+                  {Math.round((items.length / sprintSummary.total) * 100)}% of total
+                </div>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
                   <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                    style={{ width: `${Math.round(((sprintSummary.completed || 0) / (sprintSummary.total || 1)) * 100)}%` }}
+                    className="bg-blue-600 h-1 rounded-full transition-all duration-300" 
+                    style={{ width: `${(items.length / sprintSummary.total) * 100}%` }}
                   ></div>
                 </div>
+              </button>
+            ))}
+          </div>
+          
+          {selectedState !== 'all' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-900">
+                  Filtered by: {selectedState}
+                </span>
+                <button
+                  onClick={() => setSelectedState('all')}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  Clear filter
+                </button>
+              </div>
+              <div className="text-xs text-blue-700">
+                Showing {sprintSummary.workItemsByState[selectedState]?.length || 0} items
               </div>
             </div>
+          )}
+        </div>
+      )}
 
-            <div className="card">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-yellow-50">
-                  <TrendingUp className="h-6 w-6 text-yellow-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Active</p>
-                  <p className="text-2xl font-semibold text-gray-900">{sprintSummary.active || 0}</p>
-                </div>
+      {/* Enhanced Work Items with Assignee Filtering */}
+      {sprintSummary && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-medium text-gray-900">Work Items</h3>
+            <div className="flex items-center gap-4">
+              {/* Assignee Filter Dropdown */}
+              <div className="relative">
+                <User className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <select
+                  value={selectedAssignee}
+                  onChange={(e) => setSelectedAssignee(e.target.value)}
+                  className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  <option value="all">All Assignees ({Object.keys(sprintSummary.workItemsByAssignee || {}).length})</option>
+                  {sprintSummary.workItemsByAssignee && Object.entries(sprintSummary.workItemsByAssignee).map(([assignee, items]) => (
+                    <option key={assignee} value={assignee}>
+                      {assignee} ({items.length})
+                    </option>
+                  ))}
+                </select>
               </div>
-              <p className="mt-2 text-xs text-gray-500">
-                {sprintSummary.total > 0 ? Math.round(((sprintSummary.active || 0) / sprintSummary.total) * 100) : 0}% of total items
-              </p>
-            </div>
-
-            <div className="card">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-green-50">
-                  <CheckSquare className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Completed</p>
-                  <p className="text-2xl font-semibold text-gray-900">{sprintSummary.completed || 0}</p>
-                </div>
+              
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by title or ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
-              <p className="mt-2 text-xs text-green-600 font-medium">
-                ✓ {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
-              </p>
-            </div>
-
-            <div className="card">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-red-50">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Overdue</p>
-                  <p className="text-2xl font-semibold text-gray-900">{overdueItems.length}</p>
-                </div>
-              </div>
-              {overdueItems.length > 0 && (
-                <p className="mt-2 text-xs text-red-600 font-medium">
-                  ⚠️ Requires immediate attention
-                </p>
+              
+              {/* Clear Filters */}
+              {(selectedState !== 'all' || selectedAssignee !== 'all' || searchTerm) && (
+                <button
+                  onClick={() => {
+                    setSelectedState('all')
+                    setSelectedAssignee('all')
+                    setSearchTerm('')
+                  }}
+                  className="text-sm text-gray-600 hover:text-gray-800 underline whitespace-nowrap"
+                >
+                  Clear all filters
+                </button>
               )}
             </div>
           </div>
-
-          {/* Sprint Velocity & Burndown Info */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Sprint Velocity</h3>
-                <BarChart3 className="h-5 w-5 text-blue-500" />
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Planned</span>
-                  <span className="text-sm font-medium text-gray-900">{sprintSummary.total || 0} items</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Completed</span>
-                  <span className="text-sm font-medium text-green-600">{sprintSummary.completed || 0} items</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Remaining</span>
-                  <span className="text-sm font-medium text-yellow-600">{(sprintSummary.total || 0) - (sprintSummary.completed || 0)} items</span>
-                </div>
-              </div>
+          
+          {/* Active Filters Display */}
+          {(selectedState !== 'all' || selectedAssignee !== 'all') && (
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <span className="text-sm text-gray-600">Active filters:</span>
+              {selectedState !== 'all' && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                  State: {selectedState}
+                  <button
+                    onClick={() => setSelectedState('all')}
+                    className="hover:bg-blue-200 rounded-full p-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {selectedAssignee !== 'all' && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                  Assignee: {selectedAssignee}
+                  <button
+                    onClick={() => setSelectedAssignee('all')}
+                    className="hover:bg-green-200 rounded-full p-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
             </div>
-
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Work Distribution</h3>
-                <Target className="h-5 w-5 text-purple-500" />
-              </div>
-              <div className="space-y-3">
-                {sprintSummary.workItemsByState && Object.entries(sprintSummary.workItemsByState).slice(0, 3).map(([state, items]) => (
-                  <div key={state} className="flex justify-between items-center">
-                    <span className={`text-xs px-2 py-1 rounded-full ${getStateColor(state)}`}>{state}</span>
-                    <span className="text-sm font-medium text-gray-900">{items.length}</span>
+          )}
+          
+          {/* Work Items List */}
+          {filteredWorkItems.length > 0 ? (
+            <div className="space-y-3">
+              {filteredWorkItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <span className="font-mono text-sm text-gray-600 font-medium">#{item.id}</span>
+                    <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${getStateColor(item.state)}`}>
+                      {item.state}
+                    </span>
+                    <span className="text-sm font-medium text-gray-900 flex-1 truncate">
+                      {item.title}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Team Load</h3>
-                <User className="h-5 w-5 text-green-500" />
-              </div>
-              <div className="space-y-3">
-                {sprintSummary.workItemsByAssignee && Object.entries(sprintSummary.workItemsByAssignee).slice(0, 3).map(([assignee, items]) => (
-                  <div key={assignee} className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600 truncate max-w-24">{assignee}</span>
-                    <span className="text-sm font-medium text-gray-900">{items.length} items</span>
+                  <div className="flex items-center gap-3 ml-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                        {item.assignee.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      </div>
+                      <span className="text-sm text-gray-600 whitespace-nowrap">{item.assignee}</span>
+                    </div>
                   </div>
-                ))}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Filter className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+              <p>No work items match the current filters</p>
+              <button
+                onClick={() => {
+                  setSelectedState('all')
+                  setSelectedAssignee('all')
+                  setSearchTerm('')
+                }}
+                className="mt-2 text-blue-600 hover:text-blue-800 underline text-sm"
+              >
+                Clear filters to see all items
+              </button>
+            </div>
+          )}
+          
+          {/* Results Summary */}
+          {filteredWorkItems.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>
+                  Showing {filteredWorkItems.length} of {sprintSummary.total} work items
+                </span>
+                {(selectedState !== 'all' || selectedAssignee !== 'all' || searchTerm) && (
+                  <span className="text-blue-600">
+                    Filtered results
+                  </span>
+                )}
               </div>
             </div>
-          </div>
-        </>
+          )}
+        </div>
       )}
 
-      {/* Sprint Summary with Professional Markdown Rendering */}
+      {/* AI Sprint Summary */}
       {sprintSummary?.summary && (
         <div className="card">
+          <div className="flex items-center gap-3 mb-4">
+            <Target className="h-6 w-6 text-blue-600" />
+            <h3 className="text-lg font-medium text-gray-900">AI Sprint Analysis</h3>
+          </div>
           <div className="prose prose-sm max-w-none">
             <ReactMarkdown
               components={{
@@ -587,47 +795,6 @@ export default function WorkItems() {
               </div>
             </>
           )}
-        </div>
-      )}
-
-      {/* Work Items by State */}
-      {sprintSummary?.workItemsByState && (
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Items by State</h3>
-          <div className="space-y-3">
-            {Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
-              <div key={state} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <span className={`badge ${getStateColor(state)}`}>{state}</span>
-                  <span className="text-sm text-gray-600">{items.length} items</span>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {items.map(item => `#${item.id}`).join(', ')}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Work Items by Assignee */}
-      {sprintSummary?.workItemsByAssignee && (
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Items by Assignee</h3>
-          <div className="space-y-3">
-            {Object.entries(sprintSummary.workItemsByAssignee).map(([assignee, items]) => (
-              <div key={assignee} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <User className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-900">{assignee}</span>
-                  <span className="text-sm text-gray-600">{items.length} items</span>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {items.map(item => `#${item.id}`).join(', ')}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
