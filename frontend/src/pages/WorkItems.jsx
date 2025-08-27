@@ -47,8 +47,13 @@ export default function WorkItems() {
   const [filteredWorkItems, setFilteredWorkItems] = useState([])
   
   // Progressive disclosure for overdue items
-  const [visibleOverdueCount, setVisibleOverdueCount] = useState(5)
   const [isOverdueExpanded, setIsOverdueExpanded] = useState(true)
+  
+  // Overdue items filtering
+  const [overdueStateFilter, setOverdueStateFilter] = useState('all')
+  const [overdueAssigneeFilter, setOverdueAssigneeFilter] = useState('all')
+  const [overduePriorityFilter, setOverduePriorityFilter] = useState('all')
+  const [filteredOverdueItems, setFilteredOverdueItems] = useState([])
 
   useEffect(() => {
     loadWorkItemsData()
@@ -230,31 +235,119 @@ export default function WorkItems() {
     }
   }
 
-  // Progressive disclosure functions for overdue items
-  const visibleOverdueItems = overdueItems.slice(0, visibleOverdueCount)
-  const hasMoreOverdueItems = visibleOverdueCount < overdueItems.length
-  const remainingOverdueCount = overdueItems.length - visibleOverdueCount
-
-  const showMoreOverdueItems = () => {
-    setVisibleOverdueCount(prev => Math.min(prev + 5, overdueItems.length))
-  }
-
-  const showAllOverdueItems = () => {
-    setVisibleOverdueCount(overdueItems.length)
-  }
-
-  const resetOverdueView = () => {
-    setVisibleOverdueCount(5)
-  }
-
   const toggleOverdueExpanded = () => {
     setIsOverdueExpanded(!isOverdueExpanded)
   }
 
-  // Reset visible count when overdue items change
+  // Filter overdue items when filters change
   useEffect(() => {
-    setVisibleOverdueCount(5)
-  }, [overdueItems.length])
+    let filtered = overdueItems
+
+    if (overdueStateFilter !== 'all') {
+      filtered = filtered.filter(item => item.fields?.['System.State'] === overdueStateFilter)
+    }
+
+    if (overdueAssigneeFilter !== 'all') {
+      filtered = filtered.filter(item => {
+        const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned'
+        return assignee === overdueAssigneeFilter
+      })
+    }
+
+    if (overduePriorityFilter !== 'all') {
+      filtered = filtered.filter(item => {
+        const priority = item.fields?.['Microsoft.VSTS.Common.Priority']?.toString() || 'None'
+        return priority === overduePriorityFilter
+      })
+    }
+
+    setFilteredOverdueItems(filtered)
+  }, [overdueItems, overdueStateFilter, overdueAssigneeFilter, overduePriorityFilter])
+
+  // Reset dependent filters when parent filter changes
+  useEffect(() => {
+    // When state filter changes, check if current assignee is still valid
+    const availableAssignees = getOverdueAssignees()
+    if (overdueAssigneeFilter !== 'all' && !availableAssignees.includes(overdueAssigneeFilter)) {
+      setOverdueAssigneeFilter('all')
+    }
+  }, [overdueStateFilter])
+
+  useEffect(() => {
+    // When state or assignee filter changes, check if current priority is still valid
+    const availablePriorities = getOverduePriorities()
+    if (overduePriorityFilter !== 'all' && !availablePriorities.includes(overduePriorityFilter)) {
+      setOverduePriorityFilter('all')
+    }
+  }, [overdueStateFilter, overdueAssigneeFilter])
+
+  // Get unique values for overdue filters (dynamic based on previous selections)
+  const getOverdueStates = () => {
+    const states = [...new Set(overdueItems.map(item => item.fields?.['System.State']).filter(Boolean))]
+    return states.sort()
+  }
+
+  const getOverdueAssignees = () => {
+    // Filter items based on selected state first
+    let filteredItems = overdueItems
+    if (overdueStateFilter !== 'all') {
+      filteredItems = filteredItems.filter(item => item.fields?.['System.State'] === overdueStateFilter)
+    }
+    
+    const assignees = [...new Set(filteredItems.map(item => item.fields?.['System.AssignedTo']?.displayName || 'Unassigned'))]
+    return assignees.sort()
+  }
+
+  const getOverduePriorities = () => {
+    // Filter items based on selected state and assignee
+    let filteredItems = overdueItems
+    if (overdueStateFilter !== 'all') {
+      filteredItems = filteredItems.filter(item => item.fields?.['System.State'] === overdueStateFilter)
+    }
+    if (overdueAssigneeFilter !== 'all') {
+      filteredItems = filteredItems.filter(item => {
+        const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned'
+        return assignee === overdueAssigneeFilter
+      })
+    }
+    
+    const priorities = [...new Set(filteredItems.map(item => item.fields?.['Microsoft.VSTS.Common.Priority']?.toString() || 'None'))]
+    return priorities.sort((a, b) => {
+      const order = { '1': 0, '2': 1, '3': 2, '4': 3, 'None': 4 }
+      return (order[a] || 5) - (order[b] || 5)
+    })
+  }
+
+  // Get counts for filter options (dynamic based on previous selections)
+  const getOverdueStateCount = (state) => {
+    return overdueItems.filter(item => item.fields?.['System.State'] === state).length
+  }
+
+  const getOverdueAssigneeCount = (assignee) => {
+    let filteredItems = overdueItems
+    if (overdueStateFilter !== 'all') {
+      filteredItems = filteredItems.filter(item => item.fields?.['System.State'] === overdueStateFilter)
+    }
+    return filteredItems.filter(item => 
+      (item.fields?.['System.AssignedTo']?.displayName || 'Unassigned') === assignee
+    ).length
+  }
+
+  const getOverduePriorityCount = (priority) => {
+    let filteredItems = overdueItems
+    if (overdueStateFilter !== 'all') {
+      filteredItems = filteredItems.filter(item => item.fields?.['System.State'] === overdueStateFilter)
+    }
+    if (overdueAssigneeFilter !== 'all') {
+      filteredItems = filteredItems.filter(item => {
+        const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned'
+        return assignee === overdueAssigneeFilter
+      })
+    }
+    return filteredItems.filter(item => 
+      (item.fields?.['Microsoft.VSTS.Common.Priority']?.toString() || 'None') === priority
+    ).length
+  }
 
   // Only show full loading spinner on initial load with error
   if (initialLoading && error) {
@@ -698,135 +791,224 @@ export default function WorkItems() {
               </button>
             </div>
             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-              {overdueItems.length} items need attention
+              {filteredOverdueItems.length} of {overdueItems.length} items
             </span>
           </div>
           
           {isOverdueExpanded && (
             <>
-              {/* Overdue Items List */}
-              <div className="space-y-4">
-                {visibleOverdueItems.map((item) => {
-                  const title = item.fields?.['System.Title'] || 'No title'
-                  const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned'
-                  const state = item.fields?.['System.State'] || 'Unknown'
-                  const workItemType = item.fields?.['System.WorkItemType'] || 'Item'
-                  const priority = item.fields?.['Microsoft.VSTS.Common.Priority']
-                  const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate']
-                  const createdDate = item.fields?.['System.CreatedDate']
-                  const description = item.fields?.['System.Description']
+              {/* Overdue Items Filters */}
+              <div className="flex items-center gap-3 mb-4">
+                {/* State Filter */}
+                <div className="relative">
+                  <Activity className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
+                  <select
+                    value={overdueStateFilter}
+                    onChange={(e) => setOverdueStateFilter(e.target.value)}
+                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                  >
+                    <option value="all">All States ({getOverdueStates().length})</option>
+                    {getOverdueStates().map(state => (
+                      <option key={state} value={state}>
+                        {state} ({getOverdueStateCount(state)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                  return (
-                    <div key={item.id} className="bg-white border border-red-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          {getWorkItemTypeIcon(workItemType)}
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-semibold text-gray-900">#{item.id}</span>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStateColor(state)}`}>
-                                {state}
-                              </span>
-                              {priority && (
-                                <div className="flex items-center gap-1">
-                                  {getPriorityIcon(priority)}
-                                  <span className="text-xs text-gray-600">{getPriorityText(priority)}</span>
-                                </div>
-                              )}
+                {/* Assignee Filter */}
+                <div className="relative">
+                  <User className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
+                  <select
+                    value={overdueAssigneeFilter}
+                    onChange={(e) => setOverdueAssigneeFilter(e.target.value)}
+                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                  >
+                    <option value="all">All Assignees ({getOverdueAssignees().length})</option>
+                    {getOverdueAssignees().map(assignee => (
+                      <option key={assignee} value={assignee}>
+                        {assignee} ({getOverdueAssigneeCount(assignee)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Priority Filter */}
+                <div className="relative">
+                  <ArrowUp className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
+                  <select
+                    value={overduePriorityFilter}
+                    onChange={(e) => setOverduePriorityFilter(e.target.value)}
+                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                  >
+                    <option value="all">All Priorities ({getOverduePriorities().length})</option>
+                    {getOverduePriorities().map(priority => {
+                      const priorityText = priority === 'None' ? 'None' : getPriorityText(priority)
+                      return (
+                        <option key={priority} value={priority}>
+                          {priorityText} ({getOverduePriorityCount(priority)})
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+
+                {/* Clear Filters */}
+                {(overdueStateFilter !== 'all' || overdueAssigneeFilter !== 'all' || overduePriorityFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setOverdueStateFilter('all')
+                      setOverdueAssigneeFilter('all')
+                      setOverduePriorityFilter('all')
+                    }}
+                    className="text-xs text-red-600 hover:text-red-800 underline whitespace-nowrap"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Active Filters Display */}
+              {(overdueStateFilter !== 'all' || overdueAssigneeFilter !== 'all' || overduePriorityFilter !== 'all') && (
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  <span className="text-xs text-red-700">Active filters:</span>
+                  {overdueStateFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                      State: {overdueStateFilter}
+                      <button
+                        onClick={() => setOverdueStateFilter('all')}
+                        className="hover:bg-red-300 rounded-full p-0.5"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  {overdueAssigneeFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                      Assignee: {overdueAssigneeFilter}
+                      <button
+                        onClick={() => setOverdueAssigneeFilter('all')}
+                        className="hover:bg-red-300 rounded-full p-0.5"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  {overduePriorityFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                      Priority: {getPriorityText(overduePriorityFilter)}
+                      <button
+                        onClick={() => setOverduePriorityFilter('all')}
+                        className="hover:bg-red-300 rounded-full p-0.5"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
+              {/* Scrollable Overdue Items List */}
+              <div className="overflow-y-auto border border-red-200 rounded-lg bg-white" style={{ maxHeight: '600px' }}>
+                <div className="space-y-0">
+                  {filteredOverdueItems.map((item, index) => {
+                    const title = item.fields?.['System.Title'] || 'No title'
+                    const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned'
+                    const state = item.fields?.['System.State'] || 'Unknown'
+                    const workItemType = item.fields?.['System.WorkItemType'] || 'Item'
+                    const priority = item.fields?.['Microsoft.VSTS.Common.Priority']
+                    const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate']
+                    const createdDate = item.fields?.['System.CreatedDate']
+                    const description = item.fields?.['System.Description']
+
+                    return (
+                      <div 
+                        key={item.id} 
+                        className={`p-4 hover:bg-gray-50 transition-colors border-red-200 ${
+                          index !== filteredOverdueItems.length - 1 ? 'border-b' : ''
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            {getWorkItemTypeIcon(workItemType)}
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-gray-900">#{item.id}</span>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStateColor(state)}`}>
+                                  {state}
+                                </span>
+                                {priority && (
+                                  <div className="flex items-center gap-1">
+                                    {getPriorityIcon(priority)}
+                                    <span className="text-xs text-gray-600">{getPriorityText(priority)}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
                             </div>
-                            <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
                           </div>
+                          {(() => {
+                            const workItemUrl = getWorkItemUrl(item)
+                            const isValidUrl = workItemUrl.startsWith('http')
+                            
+                            return isValidUrl ? (
+                              <a 
+                                href={workItemUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
+                                title="Open in Azure DevOps"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            ) : (
+                              <span className="flex items-center gap-1 text-gray-400" title="Work Item URL not available">
+                                <ExternalLink className="h-4 w-4" />
+                              </span>
+                            )
+                          })()}
                         </div>
-                        {(() => {
-                          const workItemUrl = getWorkItemUrl(item)
-                          const isValidUrl = workItemUrl.startsWith('http')
-                          
-                          return isValidUrl ? (
-                            <a 
-                              href={workItemUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
-                              title="Open in Azure DevOps"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          ) : (
-                            <span className="flex items-center gap-1 text-gray-400" title="Work Item URL not available">
-                              <ExternalLink className="h-4 w-4" />
-                            </span>
-                          )
-                        })()}
-                      </div>
 
-                      {description && (
-                        <div className="mb-3 p-2 bg-gray-50 rounded text-xs text-gray-700 max-h-16 overflow-hidden">
-                          {description.replace(/<[^>]*>/g, '').substring(0, 150)}...
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between text-xs text-gray-600">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            <span className={assignee === 'Unassigned' ? 'text-red-600 font-medium' : ''}>{assignee}</span>
+                        {description && (
+                          <div className="mb-3 p-2 bg-gray-50 rounded text-xs text-gray-700 max-h-16 overflow-hidden">
+                            {description.replace(/<[^>]*>/g, '').substring(0, 150)}...
                           </div>
-                          {createdDate && (
+                        )}
+
+                        <div className="flex items-center justify-between text-xs text-gray-600">
+                          <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              <span>Created {formatDistanceToNow(new Date(createdDate), { addSuffix: true })}</span>
+                              <User className="h-3 w-3" />
+                              <span className={assignee === 'Unassigned' ? 'text-red-600 font-medium' : ''}>{assignee}</span>
+                            </div>
+                            {createdDate && (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                <span>Created {formatDistanceToNow(new Date(createdDate), { addSuffix: true })}</span>
+                              </div>
+                            )}
+                          </div>
+                          {dueDate && (
+                            <div className="flex items-center gap-1 text-red-600 font-medium">
+                              <Clock className="h-3 w-3" />
+                              <span>Due: {format(new Date(dueDate), 'MMM dd, yyyy')}</span>
                             </div>
                           )}
                         </div>
-                        {dueDate && (
-                          <div className="flex items-center gap-1 text-red-600 font-medium">
-                            <Clock className="h-3 w-3" />
-                            <span>Due: {format(new Date(dueDate), 'MMM dd, yyyy')}</span>
-                          </div>
-                        )}
                       </div>
+                    )
+                  })}
+                </div>
+                
+                {/* Scroll indicator */}
+                {filteredOverdueItems.length > 4 && (
+                  <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent p-2 text-center">
+                    <div className="text-xs text-red-600 flex items-center justify-center gap-1">
+                      <ChevronDown className="h-3 w-3" />
+                      Scroll to see more overdue items
                     </div>
-                  )
-                })}
+                  </div>
+                )}
               </div>
-
-              {/* Progressive Disclosure Controls */}
-              {hasMoreOverdueItems && (
-                <div className="flex items-center justify-center gap-3 mt-6 pt-4 border-t border-red-200">
-                  <div className="text-sm text-red-700">
-                    Showing {visibleOverdueCount} of {overdueItems.length} items
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={showMoreOverdueItems}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50 hover:text-red-800 transition-colors"
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                      Show Next 5
-                    </button>
-                    <button
-                      onClick={showAllOverdueItems}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Show All
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Show "Show Less" option when viewing more than 5 items */}
-              {visibleOverdueCount > 5 && !hasMoreOverdueItems && (
-                <div className="flex items-center justify-center mt-6 pt-4 border-t border-red-200">
-                  <button
-                    onClick={resetOverdueView}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50 hover:text-red-800 transition-colors"
-                  >
-                    <ChevronUp className="h-4 w-4" />
-                    Show Less (Back to top 5)
-                  </button>
-                </div>
-              )}
 
               {/* Action Required Notice */}
               <div className="mt-4 p-3 bg-red-100 rounded-lg">
