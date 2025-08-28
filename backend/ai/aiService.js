@@ -174,6 +174,79 @@ Summarize what needs to be done, why it's important, and any key technical or bu
     return priorityMap[priority] || `Priority ${priority}`;
   }
 
+  async explainWorkItem(workItem) {
+    try {
+      if (!this.initialized) {
+        try {
+          this.initializeClient();
+        } catch (error) {
+          logger.warn('AI service not configured, returning fallback explanation');
+          return 'AI explanation not available - please configure AI provider in settings.';
+        }
+      }
+      
+      const title = workItem.fields?.['System.Title'] || 'No title';
+      const description = workItem.fields?.['System.Description'] || 'No description';
+      const workItemType = workItem.fields?.['System.WorkItemType'] || 'Unknown';
+      const priority = workItem.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
+      const state = workItem.fields?.['System.State'] || 'Unknown';
+      const assignee = workItem.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+      const tags = workItem.fields?.['System.Tags'] || '';
+
+      // Clean HTML from description
+      const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
+
+      const messages = [
+        {
+          role: 'system',
+          content: `You are a DevOps assistant that provides concise, factual work item explanations. Base your response STRICTLY on the provided work item data - no assumptions or speculation.
+
+**Formatting Rules:**
+- Use markdown formatting (**bold**, bullet points)
+- Keep response to 3-4 sentences maximum
+- Use **bold** only for: work item type, key feature names, or critical status
+- Use bullet points only if listing specific items from the data
+
+**Content Rules:**
+- State only facts from the work item fields provided
+- Focus on: what it is, current status, and immediate next action
+- No speculation about business impact or technical details not in the data
+- If description is empty/unclear, acknowledge it directly`
+        },
+        {
+          role: 'user',
+          content: `Explain this work item based ONLY on the provided data:
+
+**Type:** ${workItemType}
+**Title:** ${title}
+**State:** ${state}
+**Priority:** ${this.getPriorityText(priority)}
+**Assigned:** ${assignee}
+**Description:** ${cleanDescription || 'No description provided'}
+
+Provide a concise explanation (3-4 sentences max) based strictly on this data.`
+        }
+      ];
+
+      const explanation = await this.generateCompletion(messages, { 
+        max_tokens: 200,  // Reduced for concise responses
+        temperature: 0.4  // Very low for factual, consistent responses
+      });
+
+      logger.info('Generated work item explanation', {
+        workItemId: workItem.id,
+        workItemType,
+        priority: this.getPriorityText(priority),
+        explanationLength: explanation.length
+      });
+
+      return explanation;
+    } catch (error) {
+      logger.error('Error explaining work item:', error);
+      return 'Unable to generate AI explanation at this time. Please try again later.';
+    }
+  }
+
   async summarizeBuildFailure(build, timeline, logs) {
     try {
       if (!this.initialized) {

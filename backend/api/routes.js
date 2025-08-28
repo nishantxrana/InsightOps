@@ -133,7 +133,41 @@ router.get('/work-items/ai-summary', async (req, res) => {
   }
 });
 
-// Async function to process AI summary
+// Work item AI explanation endpoint 
+router.get('/work-items/:id/explain', async (req, res) => {
+  try {
+    const workItemId = req.params.id;
+    
+    // Get work item details
+    const workItem = await azureDevOpsClient.getWorkItems([workItemId]);
+    
+    if (!workItem.value || workItem.value.length === 0) {
+      return res.status(404).json({ 
+        error: 'Work item not found',
+        details: `Work item ${workItemId} not found`
+      });
+    }
+    
+    const item = workItem.value[0];
+    
+    // Use dedicated AI method for detailed work item explanation
+    const explanation = await aiService.explainWorkItem(item);
+    
+    res.json({
+      workItemId: workItemId,
+      explanation: explanation,
+      status: 'completed'
+    });
+    
+  } catch (error) {
+    logger.error('Error generating work item explanation:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate work item explanation',
+      details: error.message,
+      status: 'error'
+    });
+  }
+});
 async function processAISummaryAsync(workItems) {
   try {
     if (workItems.length > 100) {
@@ -300,7 +334,8 @@ function groupWorkItemsByState(workItems) {
   return workItems.reduce((acc, item) => {
     const state = item.fields?.['System.State'] || 'Unknown';
     if (!acc[state]) acc[state] = [];
-    acc[state].push({ id: item.id, title: item.fields?.['System.Title'] });
+    // Include full work item data for modal
+    acc[state].push(item);
     return acc;
   }, {});
 }
@@ -309,7 +344,8 @@ function groupWorkItemsByAssignee(workItems) {
   return workItems.reduce((acc, item) => {
     const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
     if (!acc[assignee]) acc[assignee] = [];
-    acc[assignee].push({ id: item.id, title: item.fields?.['System.Title'] });
+    // Include full work item data for modal
+    acc[assignee].push(item);
     return acc;
   }, {});
 }

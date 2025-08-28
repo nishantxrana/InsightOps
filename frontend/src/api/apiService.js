@@ -85,6 +85,12 @@ export const apiService = {
     return response.data
   },
 
+  // Work item AI explanation
+  async explainWorkItem(workItemId) {
+    const response = await api.get(`/work-items/${workItemId}/explain`)
+    return response.data
+  },
+
   // Builds/Pipelines
   async getRecentBuilds() {
     const response = await api.get('/builds/recent')

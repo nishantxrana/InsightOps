@@ -28,6 +28,7 @@ import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
 import SkeletonCard, { SkeletonTable } from '../components/SkeletonCard'
+import WorkItemDetailModal from '../components/WorkItemDetailModal'
 import { format, formatDistanceToNow } from 'date-fns'
 
 export default function WorkItems() {
@@ -56,6 +57,10 @@ export default function WorkItems() {
   const [overdueAssigneeFilter, setOverdueAssigneeFilter] = useState('all')
   const [overduePriorityFilter, setOverduePriorityFilter] = useState('all')
   const [filteredOverdueItems, setFilteredOverdueItems] = useState([])
+  
+  // Work item detail modal state
+  const [selectedWorkItem, setSelectedWorkItem] = useState(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     loadWorkItemsData()
@@ -71,6 +76,9 @@ export default function WorkItems() {
         items.forEach(item => {
           allWorkItems.push({
             ...item,
+            // Extract fields for easier access
+            id: item.id,
+            title: item.fields?.['System.Title'] || 'No title',
             state: state,
             assignee: getAssigneeForWorkItem(item.id)
           })
@@ -282,6 +290,17 @@ export default function WorkItems() {
 
     setFilteredOverdueItems(filtered)
   }, [overdueItems, overdueStateFilter, overdueAssigneeFilter, overduePriorityFilter])
+
+  // Modal handlers
+  const openWorkItemModal = (workItem) => {
+    setSelectedWorkItem(workItem)
+    setIsModalOpen(true)
+  }
+
+  const closeWorkItemModal = () => {
+    setSelectedWorkItem(null)
+    setIsModalOpen(false)
+  }
 
   // Reset dependent filters when parent filter changes
   useEffect(() => {
@@ -648,9 +667,11 @@ export default function WorkItems() {
                 {filteredWorkItems.map((item, index) => (
                   <div 
                     key={item.id} 
-                    className={`flex items-center justify-between p-4 hover:bg-gray-100 transition-colors border-gray-200 ${
+                    onClick={() => openWorkItemModal(item)}
+                    className={`flex items-center justify-between p-4 hover:bg-blue-50 transition-colors border-gray-200 cursor-pointer group ${
                       index !== filteredWorkItems.length - 1 ? 'border-b' : ''
                     }`}
+                    title="Click to view details"
                   >
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       <span className="font-mono text-sm text-gray-600 font-medium">#{item.id}</span>
@@ -981,9 +1002,11 @@ export default function WorkItems() {
                     return (
                       <div 
                         key={item.id} 
-                        className={`p-4 hover:bg-gray-50 transition-colors border-red-200 ${
+                        onClick={() => openWorkItemModal(item)}
+                        className={`p-4 hover:bg-red-25 transition-colors border-red-200 cursor-pointer group ${
                           index !== filteredOverdueItems.length - 1 ? 'border-b' : ''
                         }`}
+                        title="Click to view details"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3">
@@ -1090,6 +1113,13 @@ export default function WorkItems() {
           </p>
         </div>
       )}
+
+      {/* Work Item Detail Modal */}
+      <WorkItemDetailModal
+        workItem={selectedWorkItem}
+        isOpen={isModalOpen}
+        onClose={closeWorkItemModal}
+      />
     </div>
   )
 }
