@@ -26,7 +26,7 @@ export default function Dashboard() {
   })
   const [error, setError] = useState(null)
   const [stats, setStats] = useState({
-    workItems: { total: 0, active: 0, overdue: 0 },
+    workItems: { total: 0, active: 0, completed: 0, overdue: 0 },
     builds: { total: 0, succeeded: 0, failed: 0 },
     pullRequests: { total: 0, active: 0, idle: 0 }
   })
@@ -56,6 +56,7 @@ export default function Dashboard() {
           workItems: {
             total: workItems.total || 0,
             active: workItems.active || 0,
+            completed: workItems.completed || 0,
             overdue: workItems.overdue || 0
           }
         }))
@@ -227,12 +228,12 @@ export default function Dashboard() {
                 <div className="mt-3">
                   <div className="flex justify-between text-xs text-gray-600 mb-1">
                     <span>Completion</span>
-                    <span>{Math.round(((stats.workItems.total - stats.workItems.active) / stats.workItems.total) * 100)}%</span>
+                    <span>{Math.round((stats.workItems.completed / stats.workItems.total) * 100)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
                       className="bg-blue-600 h-2 rounded-full transition-all duration-500" 
-                      style={{ width: `${Math.round(((stats.workItems.total - stats.workItems.active) / stats.workItems.total) * 100)}%` }}
+                      style={{ width: `${Math.round((stats.workItems.completed / stats.workItems.total) * 100)}%` }}
                     ></div>
                   </div>
                 </div>

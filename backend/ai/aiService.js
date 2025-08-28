@@ -174,6 +174,79 @@ Summarize what needs to be done, why it's important, and any key technical or bu
     return priorityMap[priority] || `Priority ${priority}`;
   }
 
+  async explainWorkItem(workItem) {
+    try {
+      if (!this.initialized) {
+        try {
+          this.initializeClient();
+        } catch (error) {
+          logger.warn('AI service not configured, returning fallback explanation');
+          return 'AI explanation not available - please configure AI provider in settings.';
+        }
+      }
+      
+      const title = workItem.fields?.['System.Title'] || 'No title';
+      const description = workItem.fields?.['System.Description'] || 'No description';
+      const workItemType = workItem.fields?.['System.WorkItemType'] || 'Unknown';
+      const priority = workItem.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
+      const state = workItem.fields?.['System.State'] || 'Unknown';
+      const assignee = workItem.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+      const tags = workItem.fields?.['System.Tags'] || '';
+
+      // Clean HTML from description
+      const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
+
+      const messages = [
+        {
+          role: 'system',
+          content: `You are a DevOps assistant that provides concise, factual work item explanations. Base your response the provided work item data - no assumptions or speculation.
+
+**Formatting Rules:**
+- Use markdown formatting (**bold**, bullet points)
+- Keep response to 3-5 sentences maximum
+- Use **bold** only for: work item type, key feature names, or critical status
+- Use bullet points only if listing specific items from the data
+
+**Content Rules:**
+- State only facts from the work item fields provided
+- Focus on: what it is, current status, and immediate next action
+- No speculation about business impact or technical details not in the data
+- If description is empty/unclear, acknowledge it directly`
+        },
+        {
+          role: 'user',
+          content: `Explain this work item based on the provided data:
+
+**Type:** ${workItemType}
+**Title:** ${title}
+**State:** ${state}
+**Priority:** ${this.getPriorityText(priority)}
+**Assigned:** ${assignee}
+**Description:** ${cleanDescription || 'No description provided'}
+
+Provide a concise explanation (3-5 sentences max) based on this data.`
+        }
+      ];
+
+      const explanation = await this.generateCompletion(messages, { 
+        max_tokens: 200,  // Reduced for concise responses
+        temperature: 0.4  // Very low for factual, consistent responses
+      });
+
+      logger.info('Generated work item explanation', {
+        workItemId: workItem.id,
+        workItemType,
+        priority: this.getPriorityText(priority),
+        explanationLength: explanation.length
+      });
+
+      return explanation;
+    } catch (error) {
+      logger.error('Error explaining work item:', error);
+      return 'Unable to generate AI explanation at this time. Please try again later.';
+    }
+  }
+
   async summarizeBuildFailure(build, timeline, logs) {
     try {
       if (!this.initialized) {
@@ -473,37 +546,12 @@ Summarize what type of change this is, what specific functionality is affected, 
         try {
           this.initializeClient();
         } catch (error) {
-          logger.warn('AI service not configured, returning basic summary');
-          // Return a basic summary without AI insights
-          const groupedItems = workItems.reduce((acc, item) => {
-            const state = item.fields?.['System.State'] || 'Unknown';
-            const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
-            
-            if (!acc[state]) acc[state] = {};
-            if (!acc[state][assignee]) acc[state][assignee] = [];
-            
-            acc[state][assignee].push({
-              id: item.id,
-              title: item.fields?.['System.Title'] || 'No title',
-              type: item.fields?.['System.WorkItemType'] || 'Unknown'
-            });
-            
-            return acc;
-          }, {});
-
-          const summary = Object.entries(groupedItems).map(([state, assignees]) => {
-            const assigneeSummary = Object.entries(assignees).map(([assignee, items]) => {
-              return `  - ${assignee}: ${items.length} items (${items.map(i => `${i.type} #${i.id}`).join(', ')})`;
-            }).join('\n');
-            
-            return `**${state}** (${Object.values(assignees).flat().length} items):\n${assigneeSummary}`;
-          }).join('\n\n');
-
-          return `## Sprint Summary\n\n${summary}\n\n*AI insights not available - please configure AI provider in settings.*`;
+          logger.warn('AI service not configured, returning fallback message');
+          return 'AI insights not available - please configure AI provider in settings.';
         }
       }
 
-      // Group work items by state and assignee
+      // Group work items by state and assignee for analysis (not for display)
       const groupedItems = workItems.reduce((acc, item) => {
         const state = item.fields?.['System.State'] || 'Unknown';
         const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
@@ -514,41 +562,107 @@ Summarize what type of change this is, what specific functionality is affected, 
         acc[state][assignee].push({
           id: item.id,
           title: item.fields?.['System.Title'] || 'No title',
-          type: item.fields?.['System.WorkItemType'] || 'Unknown'
+          type: item.fields?.['System.WorkItemType'] || 'Unknown',
+          priority: item.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set'
         });
         
         return acc;
       }, {});
 
-      const summary = Object.entries(groupedItems).map(([state, assignees]) => {
+      // Create data summary for AI analysis (internal use only)
+      const dataSummary = Object.entries(groupedItems).map(([state, assignees]) => {
         const assigneeSummary = Object.entries(assignees).map(([assignee, items]) => {
-          return `  - ${assignee}: ${items.length} items (${items.map(i => `${i.type} #${i.id}`).join(', ')})`;
-        }).join('\n');
+          return `${assignee}: ${items.length} items (${items.map(i => `${i.type} #${i.id}`).join(', ')})`;
+        }).join('; ');
         
-        return `**${state}** (${Object.values(assignees).flat().length} items):\n${assigneeSummary}`;
-      }).join('\n\n');
+        return `${state} (${Object.values(assignees).flat().length} items): ${assigneeSummary}`;
+      }).join('\n');
+
+      // Calculate key metrics for AI analysis
+      const totalItems = workItems.length;
+      const completedStates = ['Closed', 'Removed', 'Released to Production'];
+      const activeStates = workItems.filter(item => {
+        const state = item.fields?.['System.State'];
+        return state && !['Defined', 'New', 'Closed', 'Blocked', 'Paused', 'Removed', 'Released to Production'].includes(state);
+      });
+      const unassignedItems = workItems.filter(item => !item.fields?.['System.AssignedTo']?.displayName);
+      
+      // Get unique assignees and their workloads
+      const assigneeWorkloads = {};
+      workItems.forEach(item => {
+        const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+        assigneeWorkloads[assignee] = (assigneeWorkloads[assignee] || 0) + 1;
+      });
 
       const messages = [
         {
           role: 'system',
-          content: 'You are an AI assistant that creates executive summaries of sprint progress. Provide insights and recommendations based on the work item distribution.'
+          content: `You are a sprint analysis expert providing actionable insights for development teams.
+
+FORMATTING RULES:
+- Use markdown formatting for structure
+- Use **bold** for key metrics, names, and important points
+- Use bullet points (-) for lists and recommendations
+- Use proper headings (##, ###) for sections
+- Keep paragraphs concise and focused
+
+CONTENT RULES:
+- Focus ONLY on insights, patterns, and recommendations
+- Do NOT repeat the raw data - assume the team can see work item details elsewhere
+- Analyze team workload balance, sprint progress, and potential risks
+- Provide specific, actionable recommendations
+- Identify blockers, bottlenecks, and opportunities
+- Keep analysis concise but comprehensive (3-4 paragraphs max)
+
+ANALYSIS FOCUS:
+- Sprint velocity and completion trends
+- Team workload distribution and balance
+- Risk identification (overloaded members, unassigned items, blockers)
+- Process improvements and next steps`
         },
         {
           role: 'user',
-          content: `Please provide an executive summary and insights for this sprint status:
+          content: `Analyze this sprint data and provide insights and recommendations:
 
-${summary}
+SPRINT METRICS:
+- Total items: ${totalItems}
+- Active items: ${activeStates.length}
+- Unassigned items: ${unassignedItems.length}
+- Team members: ${Object.keys(assigneeWorkloads).filter(a => a !== 'Unassigned').length}
 
-Include key observations about progress, potential blockers, and recommendations for the team.`
+WORK DISTRIBUTION:
+${dataSummary}
+
+TEAM WORKLOADS:
+${Object.entries(assigneeWorkloads).map(([assignee, count]) => `${assignee}: ${count} items`).join('\n')}
+
+Provide executive insights focusing on:
+1. Sprint progress and velocity assessment
+2. Team workload balance and potential issues
+3. Risk factors and blockers
+4. Specific recommendations for improvement
+
+Do NOT repeat the raw data - focus on analysis and actionable insights only.`
         }
       ];
 
-      const aiInsights = await this.generateCompletion(messages, { max_tokens: 1000 });
+      const aiInsights = await this.generateCompletion(messages, { 
+        max_tokens: 800,
+        temperature: 0.3 
+      });
       
-      return `## Sprint Summary\n\n${summary}\n\n## AI Insights\n\n${aiInsights}`;
+      logger.info('Generated sprint insights', {
+        totalItems,
+        activeItems: activeStates.length,
+        unassignedItems: unassignedItems.length,
+        teamMembers: Object.keys(assigneeWorkloads).filter(a => a !== 'Unassigned').length,
+        insightsLength: aiInsights.length
+      });
+      
+      return aiInsights;
     } catch (error) {
-      logger.error('Error summarizing sprint work items:', error);
-      return 'Unable to generate sprint summary at this time.';
+      logger.error('Error generating sprint insights:', error);
+      return 'Unable to generate sprint insights at this time.';
     }
   }
 }
