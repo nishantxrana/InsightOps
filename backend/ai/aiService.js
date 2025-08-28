@@ -199,11 +199,11 @@ Summarize what needs to be done, why it's important, and any key technical or bu
       const messages = [
         {
           role: 'system',
-          content: `You are a DevOps assistant that provides concise, factual work item explanations. Base your response STRICTLY on the provided work item data - no assumptions or speculation.
+          content: `You are a DevOps assistant that provides concise, factual work item explanations. Base your response the provided work item data - no assumptions or speculation.
 
 **Formatting Rules:**
 - Use markdown formatting (**bold**, bullet points)
-- Keep response to 3-4 sentences maximum
+- Keep response to 3-5 sentences maximum
 - Use **bold** only for: work item type, key feature names, or critical status
 - Use bullet points only if listing specific items from the data
 
@@ -215,7 +215,7 @@ Summarize what needs to be done, why it's important, and any key technical or bu
         },
         {
           role: 'user',
-          content: `Explain this work item based ONLY on the provided data:
+          content: `Explain this work item based on the provided data:
 
 **Type:** ${workItemType}
 **Title:** ${title}
@@ -224,7 +224,7 @@ Summarize what needs to be done, why it's important, and any key technical or bu
 **Assigned:** ${assignee}
 **Description:** ${cleanDescription || 'No description provided'}
 
-Provide a concise explanation (3-4 sentences max) based strictly on this data.`
+Provide a concise explanation (3-5 sentences max) based on this data.`
         }
       ];
 
