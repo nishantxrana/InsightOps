@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
 import { configLoader } from '../config/settings.js';
+import { getWiqlExcludeCompletedCondition } from '../utils/workItemStates.js';
 
 class AzureDevOpsClient {
   constructor() {
@@ -172,14 +173,14 @@ class AzureDevOpsClient {
     }
   }
 
-  async getCurrentSprintWorkItems() {
+  async getAllCurrentSprintWorkItems() {
     try {
-      // First try to get work items from current iteration
+      // Get all work items without pagination for summary calculations
       const wiql = `
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
-        AND [System.IterationPath] UNDER @CurrentIteration
+        AND [System.IterationPath] = @CurrentIteration
         ORDER BY [System.State] ASC, [System.CreatedDate] DESC
       `;
       
@@ -188,6 +189,53 @@ class AzureDevOpsClient {
       if (queryResult.workItems && queryResult.workItems.length > 0) {
         const workItemIds = queryResult.workItems.map(wi => wi.id);
         return await this.getWorkItems(workItemIds);
+      }
+      
+      return { count: 0, value: [] };
+    } catch (error) {
+      logger.error('Error fetching all current sprint work items:', error);
+      throw error;
+    }
+  }
+
+  async getCurrentSprintWorkItems(page = 1, limit = 50) {
+    try {
+      logger.info('Fetching current sprint work items', { page, limit });
+      
+      // First try to get work items from current iteration
+      const wiql = `
+        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
+        FROM WorkItems
+        WHERE [System.TeamProject] = '${this.config.project}'
+        AND [System.IterationPath] = @CurrentIteration
+        ORDER BY [System.State] ASC, [System.CreatedDate] DESC
+      `;
+      
+      const queryResult = await this.queryWorkItems(wiql);
+      
+      if (queryResult.workItems && queryResult.workItems.length > 0) {
+        const allWorkItemIds = queryResult.workItems.map(wi => wi.id);
+        
+        // Log total count for monitoring
+        logger.info(`Found ${allWorkItemIds.length} work items in current sprint`);
+        
+        // Apply pagination
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+        const paginatedIds = allWorkItemIds.slice(startIndex, endIndex);
+        
+        const workItems = await this.getWorkItems(paginatedIds);
+        
+        return {
+          ...workItems,
+          pagination: {
+            page,
+            limit,
+            total: allWorkItemIds.length,
+            totalPages: Math.ceil(allWorkItemIds.length / limit),
+            hasMore: endIndex < allWorkItemIds.length
+          }
+        };
       }
       
       // If no items in current iteration, try to get recent work items
@@ -203,11 +251,38 @@ class AzureDevOpsClient {
       const recentQueryResult = await this.queryWorkItems(recentWiql);
       
       if (recentQueryResult.workItems && recentQueryResult.workItems.length > 0) {
-        const workItemIds = recentQueryResult.workItems.map(wi => wi.id);
-        return await this.getWorkItems(workItemIds);
+        const allWorkItemIds = recentQueryResult.workItems.map(wi => wi.id);
+        
+        // Apply pagination
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+        const paginatedIds = allWorkItemIds.slice(startIndex, endIndex);
+        
+        const workItems = await this.getWorkItems(paginatedIds);
+        
+        return {
+          ...workItems,
+          pagination: {
+            page,
+            limit,
+            total: allWorkItemIds.length,
+            totalPages: Math.ceil(allWorkItemIds.length / limit),
+            hasMore: endIndex < allWorkItemIds.length
+          }
+        };
       }
       
-      return { count: 0, value: [] };
+      return { 
+        count: 0, 
+        value: [],
+        pagination: {
+          page: 1,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasMore: false
+        }
+      };
     } catch (error) {
       logger.error('Error fetching current sprint work items:', error);
       throw error;
@@ -220,7 +295,8 @@ class AzureDevOpsClient {
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
-        AND [System.State] NOT IN ('Closed', 'Done', 'Resolved')
+        AND [System.IterationPath] = @CurrentIteration
+        AND ${getWiqlExcludeCompletedCondition()}
         AND [Microsoft.VSTS.Scheduling.DueDate] < @Today
         ORDER BY [Microsoft.VSTS.Scheduling.DueDate] ASC
       `;

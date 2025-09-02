@@ -4,6 +4,7 @@ import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { configLoader } from '../config/settings.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
+import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workItemStates.js';
 
 const router = express.Router();
 
@@ -20,7 +21,10 @@ router.get('/health', (req, res) => {
 // Work Items endpoints
 router.get('/work-items', async (req, res) => {
   try {
-    const workItems = await azureDevOpsClient.getCurrentSprintWorkItems();
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100); // Max 100 items per page
+    
+    const workItems = await azureDevOpsClient.getCurrentSprintWorkItems(page, limit);
     res.json(workItems);
   } catch (error) {
     logger.error('Error fetching work items:', error);
@@ -38,17 +42,53 @@ router.get('/work-items', async (req, res) => {
 
 router.get('/work-items/sprint-summary', async (req, res) => {
   try {
-    const workItems = await azureDevOpsClient.getCurrentSprintWorkItems();
-    const summary = await aiService.summarizeSprintWorkItems(workItems.value || []);
+    // Get all work items for summary calculations (without pagination)
+    const allWorkItems = await azureDevOpsClient.getAllCurrentSprintWorkItems();
     
-    res.json({
-      total: workItems.count || 0,
-      active: workItems.value?.filter(wi => wi.fields?.['System.State'] !== 'Closed' && wi.fields?.['System.State'] !== 'Done').length || 0,
-      completed: workItems.value?.filter(wi => wi.fields?.['System.State'] === 'Closed' || wi.fields?.['System.State'] === 'Done').length || 0,
-      summary,
-      workItemsByState: groupWorkItemsByState(workItems.value || []),
-      workItemsByAssignee: groupWorkItemsByAssignee(workItems.value || [])
-    });
+    // Use utility functions for consistent state categorization
+    const activeItems = filterActiveWorkItems(allWorkItems.value || []);
+    const completedItems = filterCompletedWorkItems(allWorkItems.value || []);
+    
+    // Get overdue items count for dashboard
+    let overdueCount = 0;
+    try {
+      const overdueItems = await azureDevOpsClient.getOverdueWorkItems();
+      overdueCount = overdueItems.count || 0;
+    } catch (error) {
+      logger.warn('Failed to fetch overdue items for summary:', error.message);
+    }
+    
+    // Prepare immediate response
+    const immediateResponse = {
+      total: allWorkItems.count || 0,
+      active: activeItems.length,
+      completed: completedItems.length,
+      overdue: overdueCount, // Add overdue count for dashboard
+      workItemsByState: groupWorkItemsByState(allWorkItems.value || []),
+      workItemsByAssignee: groupWorkItemsByAssignee(allWorkItems.value || []),
+      summary: null, // Will be populated async
+      summaryStatus: 'processing'
+    };
+    
+    // Send immediate response
+    res.json(immediateResponse);
+    
+    // Process AI summary asynchronously (don't await)
+    if (allWorkItems.value && allWorkItems.value.length > 0) {
+      processAISummaryAsync(allWorkItems.value)
+        .then(summary => {
+          // Store summary in cache or database for later retrieval
+          logger.info('AI summary generated successfully', { 
+            itemCount: allWorkItems.value.length,
+            summaryLength: summary.length 
+          });
+          // TODO: Store summary in cache/database
+        })
+        .catch(error => {
+          logger.error('Error generating AI summary:', error);
+        });
+    }
+    
   } catch (error) {
     logger.error('Error fetching sprint summary:', error);
     const statusCode = error.response?.status || 500;
@@ -62,6 +102,86 @@ router.get('/work-items/sprint-summary', async (req, res) => {
     });
   }
 });
+
+// New endpoint for AI summary
+router.get('/work-items/ai-summary', async (req, res) => {
+  try {
+    const allWorkItems = await azureDevOpsClient.getAllCurrentSprintWorkItems();
+    
+    if (!allWorkItems.value || allWorkItems.value.length === 0) {
+      return res.json({ summary: 'No work items found in current sprint.' });
+    }
+    
+    // Check if dataset is too large for real-time processing
+    if (allWorkItems.value.length > 100) {
+      return res.json({ 
+        summary: `Sprint contains ${allWorkItems.value.length} items. AI analysis is disabled for large datasets to maintain performance. Consider breaking into smaller sprints.`,
+        status: 'disabled_large_dataset'
+      });
+    }
+    
+    const summary = await aiService.summarizeSprintWorkItems(allWorkItems.value);
+    res.json({ summary, status: 'completed' });
+    
+  } catch (error) {
+    logger.error('Error generating AI summary:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate AI summary',
+      details: error.message,
+      status: 'error'
+    });
+  }
+});
+
+// Work item AI explanation endpoint 
+router.get('/work-items/:id/explain', async (req, res) => {
+  try {
+    const workItemId = req.params.id;
+    
+    // Get work item details
+    const workItem = await azureDevOpsClient.getWorkItems([workItemId]);
+    
+    if (!workItem.value || workItem.value.length === 0) {
+      return res.status(404).json({ 
+        error: 'Work item not found',
+        details: `Work item ${workItemId} not found`
+      });
+    }
+    
+    const item = workItem.value[0];
+    
+    // Use dedicated AI method for detailed work item explanation
+    const explanation = await aiService.explainWorkItem(item);
+    
+    res.json({
+      workItemId: workItemId,
+      explanation: explanation,
+      status: 'completed'
+    });
+    
+  } catch (error) {
+    logger.error('Error generating work item explanation:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate work item explanation',
+      details: error.message,
+      status: 'error'
+    });
+  }
+});
+async function processAISummaryAsync(workItems) {
+  try {
+    if (workItems.length > 100) {
+      logger.info('Skipping AI summary for large dataset', { count: workItems.length });
+      return `Sprint contains ${workItems.length} items. AI analysis is disabled for large datasets.`;
+    }
+    
+    const summary = await aiService.summarizeSprintWorkItems(workItems);
+    return summary;
+  } catch (error) {
+    logger.error('Error in async AI processing:', error);
+    throw error;
+  }
+}
 
 router.get('/work-items/overdue', async (req, res) => {
   try {
@@ -214,7 +334,8 @@ function groupWorkItemsByState(workItems) {
   return workItems.reduce((acc, item) => {
     const state = item.fields?.['System.State'] || 'Unknown';
     if (!acc[state]) acc[state] = [];
-    acc[state].push({ id: item.id, title: item.fields?.['System.Title'] });
+    // Include full work item data for modal
+    acc[state].push(item);
     return acc;
   }, {});
 }
@@ -223,7 +344,8 @@ function groupWorkItemsByAssignee(workItems) {
   return workItems.reduce((acc, item) => {
     const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
     if (!acc[assignee]) acc[assignee] = [];
-    acc[assignee].push({ id: item.id, title: item.fields?.['System.Title'] });
+    // Include full work item data for modal
+    acc[assignee].push(item);
     return acc;
   }, {});
 }
