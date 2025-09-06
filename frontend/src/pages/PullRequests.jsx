@@ -177,22 +177,24 @@ export default function PullRequests() {
       {/* Header with Refresh Button */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Pull Requests</h2>
-          <p className="text-gray-600">Active pull requests and review status</p>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Pull Requests</h1>
+          <p className="text-gray-600 text-sm mt-0.5">Active pull requests and review status</p>
         </div>
-        <button
-          onClick={loadPullRequestsData}
-          disabled={loading}
-          className="group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gradient-to-r from-gray-50 to-gray-100 border-0 rounded-xl hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-300"
-        >
-          <RefreshCw className={`h-4 w-4 transition-all duration-300 ${loading ? 'animate-spin text-blue-500' : 'group-hover:text-blue-500 group-hover:rotate-180'}`} />
-          <span className="font-medium">{loading ? 'Refreshing...' : 'Refresh'}</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadPullRequestsData}
+            disabled={loading}
+            className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+            Sync
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center">
             <div className="p-2 rounded-lg bg-blue-50">
               <GitPullRequest className="h-6 w-6 text-blue-600" />
@@ -204,7 +206,7 @@ export default function PullRequests() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center">
             <div className="p-2 rounded-lg bg-green-50">
               <Eye className="h-6 w-6 text-green-600" />
@@ -216,7 +218,7 @@ export default function PullRequests() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center">
             <div className="p-2 rounded-lg bg-purple-50">
               <GitPullRequest className="h-6 w-6 text-purple-600" />
@@ -228,7 +230,7 @@ export default function PullRequests() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center">
             <div className="p-2 rounded-lg bg-yellow-50">
               <Clock className="h-6 w-6 text-yellow-600" />
@@ -243,7 +245,7 @@ export default function PullRequests() {
 
       {/* Idle Pull Requests Alert */}
       {idlePRs.length > 0 && (
-        <div className="card border-yellow-200 bg-yellow-50">
+        <div className="bg-white p-6 rounded-lg border border-yellow-200 shadow-sm bg-yellow-50">
           <div className="flex items-start">
             <Clock className="h-5 w-5 text-yellow-500 mt-0.5" />
             <div className="ml-3">
@@ -269,7 +271,7 @@ export default function PullRequests() {
       )}
 
       {/* Pull Requests List */}
-      <div className="card p-0">
+      <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-0">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">All Pull Requests</h3>
         </div>
@@ -449,7 +451,7 @@ export default function PullRequests() {
 
       {/* No Data State */}
       {pullRequests.length === 0 && (
-        <div className="card text-center py-12">
+        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm text-center py-12">
           <GitPullRequest className="h-12 w-12 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Pull Requests Found</h3>
           <p className="text-gray-600">
