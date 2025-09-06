@@ -502,11 +502,11 @@ export default function WorkItems() {
 
       {/* Interactive State Distribution */}
       {sprintSummary?.workItemsByState && (
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <Activity className="h-6 w-6 text-purple-600" />
-              <h3 className="text-lg font-medium text-gray-900">Work Distribution by State</h3>
+              <Activity className="h-5 w-5 text-purple-600" />
+              <h3 className="font-semibold text-gray-900">Work Distribution by State</h3>
             </div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-400" />
@@ -519,10 +519,10 @@ export default function WorkItems() {
               <button
                 key={state}
                 onClick={() => setSelectedState(selectedState === state ? 'all' : state)}
-                className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                className={`p-4 rounded-lg border-2 transition-all duration-300 text-left hover:-translate-y-1 hover:shadow-md ${
                   selectedState === state 
-                    ? 'border-blue-500 bg-blue-50 shadow-md' 
-                    : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                    ? 'border-blue-500 bg-blue-50 shadow-md transform -translate-y-1' 
+                    : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
