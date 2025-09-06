@@ -519,26 +519,29 @@ export default function WorkItems() {
               <button
                 key={state}
                 onClick={() => setSelectedState(selectedState === state ? 'all' : state)}
-                className={`p-4 rounded-lg border-2 transition-all duration-300 text-left hover:-translate-y-1 hover:shadow-md ${
+                className={`relative p-4 rounded-xl border transition-all duration-200 text-left hover:-translate-y-2 hover:scale-102 group overflow-hidden ${
                   selectedState === state 
-                    ? 'border-blue-500 bg-blue-50 shadow-md transform -translate-y-1' 
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-400 bg-gradient-to-br from-blue-50 via-white to-blue-100 shadow-lg transform -translate-y-2 scale-102 ring-1 ring-blue-200' 
+                    : 'border-gray-200 bg-gradient-to-br from-white to-gray-50 hover:border-blue-300 hover:shadow-xl hover:ring-1 hover:ring-blue-100'
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-xs px-2 py-1 rounded-full ${getStateColor(state)}`}>
-                    {state}
-                  </span>
-                  <span className="text-lg font-semibold text-gray-900">{items.length}</span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {Math.round((items.length / sprintSummary.total) * 100)}% of total
-                </div>
-                <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
-                  <div 
-                    className="bg-blue-600 h-1 rounded-full transition-all duration-300" 
-                    style={{ width: `${(items.length / sprintSummary.total) * 100}%` }}
-                  ></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-600"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full shadow-sm ${getStateColor(state)}`}>
+                      {state}
+                    </span>
+                    <span className="text-xl font-black text-gray-900 group-hover:text-blue-600 transition-all duration-200">{items.length}</span>
+                  </div>
+                  <div className="text-xs text-gray-600 font-medium">
+                    {Math.round((items.length / sprintSummary.total) * 100)}% of total
+                  </div>
+                  <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
+                    <div 
+                      className="bg-blue-600 h-1 rounded-full transition-all duration-300" 
+                      style={{ width: `${(items.length / sprintSummary.total) * 100}%` }}
+                    ></div>
+                  </div>
                 </div>
               </button>
             ))}
