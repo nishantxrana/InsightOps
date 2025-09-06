@@ -570,9 +570,9 @@ export default function WorkItems() {
 
       {/* Enhanced Work Items with State and Assignee Filtering */}
       {sprintSummary && (
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Work Items</h3>
+            <h3 className="font-semibold text-gray-900">Work Items</h3>
             <div className="flex items-center gap-3">
               {/* State Filter Dropdown */}
               <div className="relative">
@@ -668,31 +668,43 @@ export default function WorkItems() {
           {/* Work Items List */}
           {filteredWorkItems.length > 0 ? (
             <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+              {/* Header */}
+              <div className="flex items-center p-4 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                <div className="w-16 flex-shrink-0">ID</div>
+                <div className="w-32 flex-shrink-0">State</div>
+                <div className="flex-1 min-w-0 px-4">Title</div>
+                <div className="w-40 flex-shrink-0">Assignee</div>
+              </div>
+              {/* Items */}
               <div className="space-y-0">
                 {filteredWorkItems.map((item, index) => (
                   <div 
                     key={item.id} 
                     onClick={() => openWorkItemModal(item)}
-                    className={`flex items-center justify-between p-4 hover:bg-blue-50 transition-colors border-gray-200 cursor-pointer group ${
-                      index !== filteredWorkItems.length - 1 ? 'border-b' : ''
+                    className={`flex items-center p-4 hover:bg-blue-50 transition-colors cursor-pointer group ${
+                      index !== filteredWorkItems.length - 1 ? 'border-b border-gray-200' : ''
                     }`}
                     title="Click to view details"
                   >
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-16 flex-shrink-0">
                       <span className="font-mono text-sm text-gray-600 font-medium">#{item.id}</span>
+                    </div>
+                    <div className="w-32 flex-shrink-0">
                       <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${getStateColor(item.state)}`}>
                         {item.state}
                       </span>
-                      <span className="text-sm font-medium text-gray-900 flex-1 truncate">
+                    </div>
+                    <div className="flex-1 min-w-0 px-4">
+                      <span className="text-sm font-medium text-gray-900 truncate block">
                         {item.title}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 ml-4">
+                    <div className="w-40 flex-shrink-0">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                        <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
                           {item.assignee.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-sm text-gray-600 whitespace-nowrap">{item.assignee}</span>
+                        <span className="text-sm text-gray-600 truncate">{item.assignee}</span>
                       </div>
                     </div>
                   </div>
