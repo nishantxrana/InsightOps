@@ -423,7 +423,7 @@ export default function WorkItems() {
         </div>
       ) : sprintSummary && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="card">
+          <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className="p-2 rounded-lg bg-blue-50">
@@ -449,7 +449,7 @@ export default function WorkItems() {
             </div>
           </div>
 
-          <div className="card">
+          <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center">
               <div className="p-2 rounded-lg bg-yellow-50">
                 <TrendingUp className="h-6 w-6 text-yellow-600" />
@@ -464,7 +464,7 @@ export default function WorkItems() {
             </p>
           </div>
 
-          <div className="card">
+          <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center">
               <div className="p-2 rounded-lg bg-green-50">
                 <CheckSquare className="h-6 w-6 text-green-600" />
@@ -479,7 +479,7 @@ export default function WorkItems() {
             </p>
           </div>
 
-          <div className="card">
+          <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center">
               <div className="p-2 rounded-lg bg-red-50">
                 <AlertTriangle className="h-6 w-6 text-red-600" />
