@@ -401,17 +401,19 @@ export default function WorkItems() {
       {/* Header with Refresh Button */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Work Items</h2>
-          <p className="text-gray-600">Current sprint status and team workload</p>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Work Items</h1>
+          <p className="text-gray-600 text-sm mt-0.5">Current sprint status and team workload</p>
         </div>
-        <button
-          onClick={loadWorkItemsData}
-          disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
-          className="group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gradient-to-r from-gray-50 to-gray-100 border-0 rounded-xl hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-300"
-        >
-          <RefreshCw className={`h-4 w-4 transition-all duration-300 ${(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'animate-spin text-blue-500' : 'group-hover:text-blue-500 group-hover:rotate-180'}`} />
-          <span className="font-medium">{(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'Refreshing...' : 'Refresh'}</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadWorkItemsData}
+            disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
+            className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+            Sync
+          </button>
+        </div>
       </div>
 
       {/* Sprint Overview Cards */}
