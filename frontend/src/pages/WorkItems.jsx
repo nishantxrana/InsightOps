@@ -792,72 +792,80 @@ export default function WorkItems() {
       )}
 
       {/* AI Sprint Insights - Progressive Loading */}
-      <div className="card">
-        <div className="flex items-center gap-3 mb-4">
-          <Target className="h-6 w-6 text-blue-600" />
-          <h3 className="text-lg font-medium text-gray-900">AI Sprint Insights</h3>
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-            Powered by AI
-          </span>
-          {loadingStates.aiSummary && (
-            <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-              <span className="text-xs text-blue-600">Generating insights...</span>
-            </div>
-          )}
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.4s'}}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Target className="h-5 w-5 text-purple-600" />
+            <h3 className="text-xl font-semibold text-gray-900">AI Sprint Insights</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 px-3 py-1.5 rounded-full font-medium border border-purple-200">
+              ✨ Powered by AI
+            </span>
+            {loadingStates.aiSummary && (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 border-t-purple-600"></div>
+                <span className="text-xs text-purple-600 font-medium">Analyzing...</span>
+              </div>
+            )}
+          </div>
         </div>
         
         {loadingStates.aiSummary ? (
-          <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
-            <div className="text-sm text-gray-500 mt-4">
-              🤖 AI is analyzing your sprint data to provide actionable insights...
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse w-4/5"></div>
+              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse w-3/5"></div>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-purple-600 bg-purple-50 p-3 rounded-xl border border-purple-100">
+              <div className="animate-pulse">🤖</div>
+              <span>AI is analyzing your sprint data to provide actionable insights...</span>
             </div>
           </div>
         ) : aiSummary?.summary ? (
-          <div className="prose prose-sm max-w-none">
-            <ReactMarkdown
-              components={{
-                h2: ({children}) => (
-                  <h2 className="text-base font-semibold text-gray-900 mb-3 mt-4 first:mt-0">
-                    {children}
-                  </h2>
-                ),
-                h3: ({children}) => (
-                  <h3 className="text-sm font-medium text-blue-900 mb-2 mt-3">
-                    {children}
-                  </h3>
-                ),
-                p: ({children}) => (
-                  <p className="text-sm text-gray-700 mb-3 leading-relaxed">
-                    {children}
-                  </p>
-                ),
-                ul: ({children}) => (
-                  <ul className="list-disc list-inside text-sm text-gray-700 mb-4 ml-2 space-y-1">
-                    {children}
-                  </ul>
-                ),
-                li: ({children}) => (
-                  <li className="mb-1 text-sm text-gray-700">
-                    {children}
-                  </li>
-                ),
-                strong: ({children}) => (
-                  <strong className="font-semibold text-gray-900">
-                    {children}
-                  </strong>
-                ),
-                em: ({children}) => (
-                  <em className="italic text-gray-800">
-                    {children}
-                  </em>
-                ),
-                code: ({children}) => (
-                  <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
-                    {children}
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-4 rounded-xl border border-purple-100">
+            <div className="prose prose-sm max-w-none">
+              <ReactMarkdown
+                components={{
+                  h2: ({children}) => (
+                    <h2 className="text-base font-semibold text-gray-900 mb-3 mt-4 first:mt-0">
+                      {children}
+                    </h2>
+                  ),
+                  h3: ({children}) => (
+                    <h3 className="text-sm font-medium text-purple-900 mb-2 mt-3">
+                      {children}
+                    </h3>
+                  ),
+                  p: ({children}) => (
+                    <p className="text-sm text-gray-700 mb-3 leading-relaxed">
+                      {children}
+                    </p>
+                  ),
+                  ul: ({children}) => (
+                    <ul className="list-disc list-inside text-sm text-gray-700 mb-4 ml-2 space-y-1">
+                      {children}
+                    </ul>
+                  ),
+                  li: ({children}) => (
+                    <li className="mb-1 text-sm text-gray-700">
+                      {children}
+                    </li>
+                  ),
+                  strong: ({children}) => (
+                    <strong className="font-semibold text-gray-900">
+                      {children}
+                    </strong>
+                  ),
+                  em: ({children}) => (
+                    <em className="italic text-purple-800">
+                      {children}
+                    </em>
+                  ),
+                  code: ({children}) => (
+                    <code className="bg-white text-purple-800 px-2 py-1 rounded text-xs font-mono border border-purple-200">
+                      {children}
                   </code>
                 )
               }}
@@ -876,6 +884,7 @@ export default function WorkItems() {
                 </p>
               </div>
             )}
+          </div>
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
