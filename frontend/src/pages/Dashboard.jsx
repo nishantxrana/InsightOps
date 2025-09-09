@@ -64,6 +64,10 @@ export default function Dashboard() {
         setInitialLoading(false)
       } catch (err) {
         console.error('Failed to load work items:', err)
+        setStats(prev => ({
+          ...prev,
+          workItems: { total: 0, active: 0, completed: 0, overdue: 0 }
+        }))
         setLoadingStates(prev => ({ ...prev, workItems: false }))
       }
 
@@ -83,6 +87,11 @@ export default function Dashboard() {
             failed: buildsData.value?.filter(b => b.result === 'failed').length || 0
           }
         }))
+      } else {
+        setStats(prev => ({
+          ...prev,
+          builds: { total: 0, succeeded: 0, failed: 0 }
+        }))
       }
       setLoadingStates(prev => ({ ...prev, builds: false }))
 
@@ -96,11 +105,18 @@ export default function Dashboard() {
             idle: prData.idle || 0
           }
         }))
+      } else {
+        setStats(prev => ({
+          ...prev,
+          pullRequests: { total: 0, active: 0, idle: 0 }
+        }))
       }
       setLoadingStates(prev => ({ ...prev, pullRequests: false }))
 
       if (logs.status === 'fulfilled') {
         setRecentActivity(logs.value.logs || [])
+      } else {
+        setRecentActivity([])
       }
       setLoadingStates(prev => ({ ...prev, logs: false }))
 
@@ -108,6 +124,13 @@ export default function Dashboard() {
       setError('Failed to load dashboard data')
       console.error('Dashboard error:', err)
       setInitialLoading(false)
+      // Reset stats to show empty state
+      setStats({
+        workItems: { total: 0, active: 0, completed: 0, overdue: 0 },
+        builds: { total: 0, succeeded: 0, failed: 0 },
+        pullRequests: { total: 0, active: 0, idle: 0 }
+      })
+      setRecentActivity([])
       setLoadingStates({
         workItems: false,
         builds: false,

@@ -387,13 +387,14 @@ export default function WorkItems() {
     ).length
   }
 
-  // Only show full loading spinner on initial load with error
-  if (initialLoading && error) {
-    return <LoadingSpinner />
-  }
-
+  // Show error message if initial load failed
   if (error && initialLoading) {
     return <ErrorMessage message={error} onRetry={loadWorkItemsData} />
+  }
+
+  // Show loading spinner only when loading without error
+  if (initialLoading && !error) {
+    return <LoadingSpinner text="Loading work items..." />
   }
 
   return (
