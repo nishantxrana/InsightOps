@@ -417,33 +417,57 @@ export default function WorkItems() {
     return <ErrorMessage message={error} onRetry={loadWorkItemsData} />
   }
 
-  // Show loading spinner only when loading without error
-  if (initialLoading && !error) {
-    return <LoadingSpinner text="Loading work items..." />
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header with Refresh Button */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Work Items</h1>
-          <p className="text-gray-600 text-sm mt-0.5">Current sprint status and team workload</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSync}
-            disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
-            className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
-            Sync
-          </button>
+      <style jsx>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.6s ease-out;
+        }
+      `}</style>
+      
+      {/* Header with Refresh Button - Always visible */}
+      <div className="animate-slide-up">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Work Items</h1>
+            <p className="text-gray-600 text-sm mt-0.5">Current sprint status and team workload</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSync}
+              disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
+              className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+              Sync
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Sprint Overview Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+      {/* Sprint Overview Cards - Dynamic Loading */}
+      {loadingStates.sprintSummary ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse" style={{animationDelay: `${index * 0.1}s`}}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                  <div className="w-12 h-4 bg-gray-200 rounded-full"></div>
+                </div>
+                <div className="w-8 h-8 bg-gray-200 rounded mb-0.5"></div>
+                <div className="w-20 h-3 bg-gray-200 rounded"></div>
+                <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
         {loadingStates.sprintSummary ? (
           <>
             {Array.from({ length: 4 }).map((_, index) => (
@@ -541,6 +565,7 @@ export default function WorkItems() {
           </>
         )}
       </div>
+      )}
 
       {/* Interactive State Distribution */}
       {sprintSummary?.workItemsByState && (
