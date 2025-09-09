@@ -32,11 +32,18 @@ export default function Dashboard() {
     pullRequests: { total: 0, active: 0, idle: 0 }
   })
   const [recentActivity, setRecentActivity] = useState([])
-  const { isConnected, isChecking, healthData } = useHealth()
+  const { isConnected, isChecking, healthData, checkConnection } = useHealth()
 
   useEffect(() => {
     loadDashboardData()
   }, [])
+
+  const handleSync = async () => {
+    await Promise.all([
+      checkConnection(),
+      loadDashboardData()
+    ])
+  }
 
   const loadDashboardData = async () => {
     try {
@@ -205,7 +212,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={loadDashboardData}
+              onClick={handleSync}
               disabled={Object.values(loadingStates).some(loading => loading)}
               className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
             >
