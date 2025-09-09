@@ -22,7 +22,8 @@ import {
   Eye,
   RefreshCw,
   Users,
-  Activity
+  Activity,
+  X
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -184,6 +185,21 @@ export default function WorkItems() {
       }
     }
     return 'Unassigned'
+  }
+
+  const getAssigneeColor = (assignee) => {
+    const colors = [
+      'bg-blue-100 text-blue-700',
+      'bg-emerald-100 text-emerald-700', 
+      'bg-purple-100 text-purple-700',
+      'bg-orange-100 text-orange-700',
+      'bg-pink-100 text-pink-700',
+      'bg-indigo-100 text-indigo-700',
+      'bg-teal-100 text-teal-700',
+      'bg-rose-100 text-rose-700'
+    ]
+    const hash = assignee.split('').reduce((a, b) => a + b.charCodeAt(0), 0)
+    return colors[hash % colors.length]
   }
 
   const getStateColor = (state) => {
@@ -408,25 +424,6 @@ export default function WorkItems() {
 
   return (
     <div className="space-y-6">
-      <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.4s ease-out;
-        }
-        .card-hover {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .card-hover:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-        .progress-bar {
-          transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-      `}</style>
       {/* Header with Refresh Button */}
       <div className="flex justify-between items-start">
         <div>
@@ -606,17 +603,20 @@ export default function WorkItems() {
 
       {/* Enhanced Work Items with State and Assignee Filtering */}
       {sprintSummary && (
-        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="font-semibold text-gray-900">Work Items</h3>
             <div className="flex items-center gap-3">
+              <FileText className="h-5 w-5 text-blue-600" />
+              <h3 className="text-xl font-semibold text-gray-900">Work Items</h3>
+            </div>
+            <div className="flex items-center gap-2">
               {/* State Filter Dropdown */}
               <div className="relative">
-                <Activity className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Activity className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <select
                   value={selectedState}
                   onChange={(e) => setSelectedState(e.target.value)}
-                  className="pl-7 pr-6 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent bg-white min-w-0"
+                  className="pl-8 pr-4 py-2 border border-gray-200 rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 bg-white hover:border-gray-300 transition-colors"
                 >
                   <option value="all">All States ({Object.keys(sprintSummary.workItemsByState || {}).length})</option>
                   {sprintSummary.workItemsByState && Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
@@ -629,11 +629,11 @@ export default function WorkItems() {
               
               {/* Assignee Filter Dropdown */}
               <div className="relative">
-                <User className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <User className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <select
                   value={selectedAssignee}
                   onChange={(e) => setSelectedAssignee(e.target.value)}
-                  className="pl-7 pr-6 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent bg-white min-w-0"
+                  className="pl-8 pr-4 py-2 border border-gray-200 rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 bg-white hover:border-gray-300 transition-colors"
                 >
                   <option value="all">All Assignees ({Object.keys(sprintSummary.workItemsByAssignee || {}).length})</option>
                   {sprintSummary.workItemsByAssignee && Object.entries(sprintSummary.workItemsByAssignee).map(([assignee, items]) => (
@@ -646,13 +646,13 @@ export default function WorkItems() {
               
               {/* Search Input */}
               <div className="relative">
-                <Search className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Search className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search items..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-7 pr-3 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent w-32"
+                  className="pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 w-36 hover:border-gray-300 transition-colors"
                 />
               </div>
               
@@ -664,7 +664,7 @@ export default function WorkItems() {
                     setSelectedAssignee('all')
                     setSearchTerm('')
                   }}
-                  className="text-xs text-gray-600 hover:text-gray-800 underline whitespace-nowrap"
+                  className="text-xs text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-full transition-colors"
                 >
                   Clear
                 </button>
@@ -675,26 +675,28 @@ export default function WorkItems() {
           {/* Active Filters Display */}
           {(selectedState !== 'all' || selectedAssignee !== 'all') && (
             <div className="flex items-center gap-2 mb-4 flex-wrap">
-              <span className="text-sm text-gray-600">Active filters:</span>
+              <span className="text-sm text-gray-600">Filtered by:</span>
               {selectedState !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                  State: {selectedState}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
+                  <Activity className="h-3 w-3" />
+                  {selectedState}
                   <button
                     onClick={() => setSelectedState('all')}
-                    className="hover:bg-blue-200 rounded-full p-0.5"
+                    className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
                   >
-                    ×
+                    <X className="h-3 w-3" />
                   </button>
                 </span>
               )}
               {selectedAssignee !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                  Assignee: {selectedAssignee}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium border border-emerald-200">
+                  <User className="h-3 w-3" />
+                  {selectedAssignee}
                   <button
                     onClick={() => setSelectedAssignee('all')}
-                    className="hover:bg-green-200 rounded-full p-0.5"
+                    className="hover:bg-emerald-100 rounded-full p-0.5 transition-colors"
                   >
-                    ×
+                    <X className="h-3 w-3" />
                   </button>
                 </span>
               )}
@@ -703,52 +705,57 @@ export default function WorkItems() {
           
           {/* Work Items List */}
           {filteredWorkItems.length > 0 ? (
-            <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
-              {/* Header */}
-              <div className="flex items-center p-4 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                <div className="w-16 flex-shrink-0">ID</div>
-                <div className="w-32 flex-shrink-0">State</div>
-                <div className="flex-1 min-w-0 px-4">Title</div>
-                <div className="w-40 flex-shrink-0">Assignee</div>
-              </div>
-              {/* Items */}
-              <div className="space-y-0">
-                {filteredWorkItems.map((item, index) => (
-                  <div 
-                    key={item.id} 
-                    onClick={() => openWorkItemModal(item)}
-                    className={`flex items-center p-4 hover:bg-blue-50 transition-colors cursor-pointer group ${
-                      index !== filteredWorkItems.length - 1 ? 'border-b border-gray-200' : ''
-                    }`}
-                    title="Click to view details"
-                  >
-                    <div className="w-16 flex-shrink-0">
-                      <span className="font-mono text-sm text-gray-600 font-medium">#{item.id}</span>
-                    </div>
-                    <div className="w-32 flex-shrink-0">
-                      <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${getStateColor(item.state)}`}>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {filteredWorkItems.map((item, index) => (
+                <div 
+                  key={item.id} 
+                  onClick={() => openWorkItemModal(item)}
+                  className="card-hover bg-white border border-gray-200 rounded-xl p-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-200 group"
+                  title="Click to view details"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+                        #{item.id}
+                      </span>
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStateColor(item.state)}`}>
                         {item.state}
                       </span>
                     </div>
-                    <div className="flex-1 min-w-0 px-4">
-                      <span className="text-sm font-medium text-gray-900 truncate block">
-                        {item.title}
+                    <div className="flex items-center gap-2">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
+                        item.assignee === 'Unassigned' 
+                          ? 'bg-gray-200 text-gray-600' 
+                          : getAssigneeColor(item.assignee)
+                      }`}>
+                        {item.assignee === 'Unassigned' 
+                          ? '?' 
+                          : item.assignee.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                        }
+                      </div>
+                      <span className="text-sm text-gray-600 font-medium max-w-24 truncate">
+                        {item.assignee}
                       </span>
                     </div>
-                    <div className="w-40 flex-shrink-0">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                          {item.assignee.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-sm text-gray-600 truncate">{item.assignee}</span>
-                      </div>
-                    </div>
                   </div>
-                ))}
-              </div>
+                  
+                  <div className="mb-2">
+                    <h4 className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors line-clamp-2">
+                      {item.title}
+                    </h4>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>Work Item</span>
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600">
+                      Click to view →
+                    </span>
+                  </div>
+                </div>
+              ))}
               
               {/* Scroll indicator */}
-              {filteredWorkItems.length > 6 && (
+              {filteredWorkItems.length > 4 && (
                 <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent p-2 text-center">
                   <div className="text-xs text-gray-500 flex items-center justify-center gap-1">
                     <ChevronDown className="h-3 w-3" />
