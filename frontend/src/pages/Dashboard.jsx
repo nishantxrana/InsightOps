@@ -181,12 +181,6 @@ export default function Dashboard() {
             <p className="text-gray-600 text-sm mt-0.5">Your development workflow at a glance</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-gray-200 shadow-sm">
-              <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 status-dot' : 'bg-red-500'}`}></div>
-              <span className="text-xs font-medium text-gray-700">
-                {isChecking ? 'Syncing...' : isConnected ? 'Live' : 'Offline'}
-              </span>
-            </div>
             <button
               onClick={loadDashboardData}
               disabled={Object.values(loadingStates).some(loading => loading)}

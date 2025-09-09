@@ -193,25 +193,45 @@ export default function Layout({ children }) {
               </h1>
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <div className="flex items-center space-x-2">
+              <div 
+                onClick={checkConnection}
+                disabled={isChecking}
+                className={clsx(
+                  "group flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-sm cursor-pointer transition-all duration-500 select-none",
+                  isChecking 
+                    ? "bg-blue-50 border-blue-200 cursor-wait" 
+                    : isConnected 
+                      ? "bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:shadow-md" 
+                      : "bg-red-50 border-red-200 hover:bg-red-100 hover:shadow-md"
+                )}
+                title={isChecking ? "Syncing..." : "Click to refresh connection"}
+              >
                 <div className={clsx(
-                  'status-dot',
-                  isChecking ? 'status-dot-warning' : isConnected ? 'status-dot-success' : 'status-dot-error'
+                  "w-1.5 h-1.5 rounded-full transition-all duration-500",
+                  isChecking 
+                    ? "bg-blue-500 animate-pulse" 
+                    : isConnected 
+                      ? "bg-emerald-500 shadow-sm" 
+                      : "bg-red-500 shadow-sm"
                 )}></div>
-                <span className="text-sm text-gray-600">
-                  {isChecking ? 'Checking...' : isConnected ? 'Connected' : 'Disconnected'}
+                <span className={clsx(
+                  "text-xs font-medium transition-colors duration-500",
+                  isChecking 
+                    ? "text-blue-700" 
+                    : isConnected 
+                      ? "text-emerald-700" 
+                      : "text-red-700"
+                )}>
+                  {isChecking ? 'Syncing...' : isConnected ? 'Live' : 'Offline'}
                 </span>
-                <button
-                  onClick={checkConnection}
-                  disabled={isChecking}
-                  className={clsx(
-                    'p-1 rounded-md text-gray-400 hover:text-gray-600 transition-colors',
-                    isChecking && 'animate-spin'
-                  )}
-                  title="Refresh connection status"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </button>
+                <RefreshCw className={clsx(
+                  "h-3 w-3 transition-all duration-300",
+                  isChecking 
+                    ? "text-blue-500 animate-spin" 
+                    : isConnected 
+                      ? "text-emerald-400 group-hover:text-emerald-600 group-hover:rotate-180" 
+                      : "text-red-400 group-hover:text-red-600 group-hover:rotate-180"
+                )} />
               </div>
             </div>
           </div>
