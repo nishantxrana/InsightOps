@@ -902,35 +902,35 @@ export default function WorkItems() {
 
       {/* Enhanced Overdue Items */}
       {loadingStates.overdueItems ? (
-        <div className="card border-red-200 bg-red-50">
+        <div className="bg-white p-6 rounded-2xl border border-amber-200 shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-              <div className="h-6 bg-red-300 rounded w-48 animate-pulse"></div>
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <div className="h-6 bg-amber-200 rounded w-48 animate-pulse"></div>
             </div>
-            <div className="h-6 bg-red-300 rounded w-32 animate-pulse"></div>
+            <div className="h-6 bg-amber-200 rounded-full w-32 animate-pulse"></div>
           </div>
           <SkeletonTable rows={3} />
         </div>
       ) : overdueItems.length > 0 && (
-        <div className="card border-red-200 bg-red-50">
+        <div className="bg-white p-6 rounded-2xl border border-amber-200 shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-              <h3 className="text-lg font-medium text-red-900">Critical: Overdue Items</h3>
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <h3 className="text-xl font-semibold text-amber-900">Critical: Overdue Items</h3>
               <button
                 onClick={toggleOverdueExpanded}
-                className="p-1 hover:bg-red-100 rounded transition-colors"
+                className="card-hover p-2 hover:bg-amber-50 rounded-lg transition-all duration-200"
                 title={isOverdueExpanded ? "Collapse section" : "Expand section"}
               >
                 {isOverdueExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-red-600" />
+                  <ChevronUp className="h-4 w-4 text-amber-600" />
                 ) : (
-                  <ChevronDown className="h-4 w-4 text-red-600" />
+                  <ChevronDown className="h-4 w-4 text-amber-600" />
                 )}
               </button>
             </div>
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200">
               {filteredOverdueItems.length} of {overdueItems.length} items
             </span>
           </div>
@@ -938,14 +938,14 @@ export default function WorkItems() {
           {isOverdueExpanded && (
             <>
               {/* Overdue Items Filters */}
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-2 mb-6">
                 {/* State Filter */}
                 <div className="relative">
-                  <Activity className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
+                  <Activity className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-amber-500" />
                   <select
                     value={overdueStateFilter}
                     onChange={(e) => setOverdueStateFilter(e.target.value)}
-                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                    className="pl-8 pr-4 py-2 border border-amber-200 rounded-full text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300 bg-white hover:border-amber-300 transition-colors"
                   >
                     <option value="all">All States ({getOverdueStates().length})</option>
                     {getOverdueStates().map(state => (
@@ -958,11 +958,11 @@ export default function WorkItems() {
 
                 {/* Assignee Filter */}
                 <div className="relative">
-                  <User className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
+                  <User className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-amber-500" />
                   <select
                     value={overdueAssigneeFilter}
                     onChange={(e) => setOverdueAssigneeFilter(e.target.value)}
-                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                    className="pl-8 pr-4 py-2 border border-amber-200 rounded-full text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300 bg-white hover:border-amber-300 transition-colors"
                   >
                     <option value="all">All Assignees ({getOverdueAssignees().length})</option>
                     {getOverdueAssignees().map(assignee => (
@@ -975,11 +975,11 @@ export default function WorkItems() {
 
                 {/* Priority Filter */}
                 <div className="relative">
-                  <ArrowUp className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
+                  <ArrowUp className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-amber-500" />
                   <select
                     value={overduePriorityFilter}
                     onChange={(e) => setOverduePriorityFilter(e.target.value)}
-                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                    className="pl-8 pr-4 py-2 border border-amber-200 rounded-full text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300 bg-white hover:border-amber-300 transition-colors"
                   >
                     <option value="all">All Priorities ({getOverduePriorities().length})</option>
                     {getOverduePriorities().map(priority => {
@@ -1001,7 +1001,7 @@ export default function WorkItems() {
                       setOverdueAssigneeFilter('all')
                       setOverduePriorityFilter('all')
                     }}
-                    className="text-xs text-red-600 hover:text-red-800 underline whitespace-nowrap"
+                    className="text-xs text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-3 py-2 rounded-full transition-colors font-medium"
                   >
                     Clear
                   </button>
