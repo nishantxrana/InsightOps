@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Search, Filter, Download, RefreshCw } from 'lucide-react'
 import { apiService } from '../api/apiService'
+import { useHealth } from '../contexts/HealthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
 import { format } from 'date-fns'
@@ -13,10 +14,18 @@ export default function Logs() {
   const [searchTerm, setSearchTerm] = useState('')
   const [levelFilter, setLevelFilter] = useState('all')
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const { checkConnection } = useHealth()
 
   useEffect(() => {
     loadLogs()
   }, [])
+
+  const handleSync = async () => {
+    await Promise.all([
+      checkConnection(),
+      loadLogs()
+    ])
+  }
 
   useEffect(() => {
     let interval
@@ -127,12 +136,12 @@ export default function Logs() {
             <span className="ml-2 text-sm text-gray-700">Auto-refresh</span>
           </label>
           <button
-            onClick={loadLogs}
+            onClick={handleSync}
             disabled={loading}
-            className="btn btn-secondary flex items-center space-x-2"
+            className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+            Sync
           </button>
         </div>
       </div>

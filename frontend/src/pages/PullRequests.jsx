@@ -16,6 +16,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
+import { useHealth } from '../contexts/HealthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -31,10 +32,18 @@ export default function PullRequests() {
     completed: 0,
     idle: 0
   })
+  const { checkConnection } = useHealth()
 
   useEffect(() => {
     loadPullRequestsData()
   }, [])
+
+  const handleSync = async () => {
+    await Promise.all([
+      checkConnection(),
+      loadPullRequestsData()
+    ])
+  }
 
   const loadPullRequestsData = async () => {
     try {
@@ -182,7 +191,7 @@ export default function PullRequests() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={loadPullRequestsData}
+            onClick={handleSync}
             disabled={loading}
             className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
           >

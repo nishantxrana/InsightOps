@@ -29,6 +29,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
 import SkeletonCard, { SkeletonTable } from '../components/SkeletonCard'
 import WorkItemDetailModal from '../components/WorkItemDetailModal'
+import { useHealth } from '../contexts/HealthContext'
 import { format, formatDistanceToNow } from 'date-fns'
 
 export default function WorkItems() {
@@ -61,10 +62,18 @@ export default function WorkItems() {
   // Work item detail modal state
   const [selectedWorkItem, setSelectedWorkItem] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const { checkConnection } = useHealth()
 
   useEffect(() => {
     loadWorkItemsData()
   }, [])
+
+  const handleSync = async () => {
+    await Promise.all([
+      checkConnection(),
+      loadWorkItemsData()
+    ])
+  }
 
   // Filter work items when selection changes
   useEffect(() => {
@@ -407,7 +416,7 @@ export default function WorkItems() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={loadWorkItemsData}
+            onClick={handleSync}
             disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
             className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
           >

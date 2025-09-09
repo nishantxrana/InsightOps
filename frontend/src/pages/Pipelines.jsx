@@ -19,6 +19,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
+import { useHealth } from '../contexts/HealthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -33,10 +34,18 @@ export default function Pipelines() {
     failed: 0,
     inProgress: 0
   })
+  const { checkConnection } = useHealth()
 
   useEffect(() => {
     loadPipelinesData()
   }, [])
+
+  const handleSync = async () => {
+    await Promise.all([
+      checkConnection(),
+      loadPipelinesData()
+    ])
+  }
 
   const loadPipelinesData = async () => {
     try {
@@ -186,12 +195,12 @@ export default function Pipelines() {
           <p className="text-gray-600">Recent build and deployment status</p>
         </div>
         <button
-          onClick={loadPipelinesData}
+          onClick={handleSync}
           disabled={loading}
-          className="group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gradient-to-r from-gray-50 to-gray-100 border-0 rounded-xl hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-300"
+          className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
         >
-          <RefreshCw className={`h-4 w-4 transition-all duration-300 ${loading ? 'animate-spin text-blue-500' : 'group-hover:text-blue-500 group-hover:rotate-180'}`} />
-          <span className="font-medium">{loading ? 'Refreshing...' : 'Refresh'}</span>
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+          Sync
         </button>
       </div>
 
