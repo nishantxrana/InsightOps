@@ -643,7 +643,7 @@ export default function WorkItems() {
                   onChange={(e) => setSelectedState(e.target.value)}
                   className="pl-8 pr-4 py-2 border border-gray-200 rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 bg-white hover:border-gray-300 transition-colors"
                 >
-                  <option value="all">All States ({Object.keys(sprintSummary.workItemsByState || {}).length})</option>
+                  <option value="all">All States</option>
                   {sprintSummary.workItemsByState && Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
                     <option key={state} value={state}>
                       {state} ({items.length})
@@ -972,7 +972,7 @@ export default function WorkItems() {
                     onChange={(e) => setOverdueStateFilter(e.target.value)}
                     className="pl-8 pr-4 py-2 border border-amber-200 rounded-full text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300 bg-white hover:border-amber-300 transition-colors"
                   >
-                    <option value="all">All States ({getOverdueStates().length})</option>
+                    <option value="all">All States</option>
                     {getOverdueStates().map(state => (
                       <option key={state} value={state}>
                         {state} ({getOverdueStateCount(state)})
