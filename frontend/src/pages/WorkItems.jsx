@@ -723,17 +723,7 @@ export default function WorkItems() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
-                        item.assignee === 'Unassigned' 
-                          ? 'bg-gray-200 text-gray-600' 
-                          : getAssigneeColor(item.assignee)
-                      }`}>
-                        {item.assignee === 'Unassigned' 
-                          ? '?' 
-                          : item.assignee.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-                        }
-                      </div>
-                      <span className="text-sm text-gray-600 font-medium max-w-24 truncate">
+                      <span className="text-sm text-gray-700 font-medium truncate">
                         {item.assignee}
                       </span>
                     </div>
@@ -746,7 +736,9 @@ export default function WorkItems() {
                   </div>
                   
                   <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Work Item</span>
+                    <span className="capitalize">
+                      {item.fields?.['System.WorkItemType'] || 'Work Item'}
+                    </span>
                     <span className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600">
                       Click to view →
                     </span>
