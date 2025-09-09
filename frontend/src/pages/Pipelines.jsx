@@ -292,86 +292,73 @@ export default function Pipelines() {
       </div>
 
       {/* Recent Builds */}
-      <div className="card p-0">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Recent Builds</h3>
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.2s'}}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Building className="h-5 w-5 text-blue-600" />
+            <h3 className="text-xl font-semibold text-gray-900">Recent Builds</h3>
+          </div>
+          <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+            {builds.length} builds
+          </span>
         </div>
         <div className="max-h-96 overflow-y-auto">
           {builds.length > 0 ? (
-            <div className="divide-y divide-gray-200">
+            <div className="space-y-2">
               {builds.map((build) => (
-                <div key={build.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  {/* Header Row */}
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-start flex-1 min-w-0">
+                <div key={build.id} className="card-hover bg-white border border-gray-200 rounded-lg p-4 transition-all duration-200 group">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       {getBuildStatusIcon(build.result, build.status)}
-                      <div className="ml-2 flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
                           <h4 className="text-sm font-medium text-gray-900 truncate">
                             {build.definition?.name || 'Unknown'}
                           </h4>
+                          <span className="text-xs text-gray-500 font-mono">
+                            #{build.buildNumber}
+                          </span>
                           {build._links?.web?.href && (
                             <a
                               href={build._links.web.href}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex-shrink-0 text-blue-600 hover:text-blue-800 transition-colors"
+                              className="text-blue-600 hover:text-blue-800 transition-colors opacity-0 group-hover:opacity-100"
                               title="Open in Azure DevOps"
                             >
-                              <ExternalLink className="h-4 w-4" />
+                              <ExternalLink className="h-3 w-3" />
                             </a>
                           )}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          #{build.buildNumber}
+                        <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <GitBranch className="h-3 w-3" />
+                            {build.sourceBranch?.replace('refs/heads/', '') || 'N/A'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {build.requestedBy?.displayName || 'Unknown'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Timer className="h-3 w-3" />
+                            {formatDuration(build.startTime, build.finishTime)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {build.startTime ? format(new Date(build.startTime), 'MMM d, HH:mm') : 'N/A'}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 ml-4 flex-shrink-0">
-                      {getBuildStatusBadge(build.result, build.status)}
-                    </div>
-                  </div>
-
-                  {/* All content aligned with title - no indentation */}
-                  <div className="ml-7">
-                    {/* Compact Info Row */}
-                    <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
-                      <div className="flex items-center gap-1">
-                        <GitBranch className="h-3 w-3" />
-                        <span className="font-mono truncate max-w-32">
-                          {build.sourceBranch?.replace('refs/heads/', '') || 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        <span className="truncate max-w-24">{build.requestedBy?.displayName || 'Unknown'}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Timer className="h-3 w-3" />
-                        <span>{formatDuration(build.startTime, build.finishTime)}</span>
-                      </div>
-                    </div>
-
-                    {/* Project Info */}
-                    <div className="flex items-center gap-3 text-xs text-gray-400">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>Started {build.startTime ? format(new Date(build.startTime), 'MMM d, HH:mm') : 'N/A'}</span>
-                      </div>
-                      {build.finishTime && (
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          <span>Finished {format(new Date(build.finishTime), 'MMM d, HH:mm')}</span>
-                        </div>
-                      )}
-                    </div>
+                    {getBuildStatusBadge(build.result, build.status)}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="px-6 py-12 text-center text-gray-500">
-              No builds found
+            <div className="text-center py-12 text-gray-500">
+              <Building className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+              <p>No builds found</p>
             </div>
           )}
         </div>
@@ -379,36 +366,42 @@ export default function Pipelines() {
 
       {/* Build Success Rate */}
       {builds.length > 0 && (
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Build Success Rate</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Success Rate</span>
-              <span className="text-sm font-medium text-gray-900">
-                {stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 100) : 0}%
-              </span>
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="h-5 w-5 text-emerald-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Build Success Rate</h3>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="text-2xl font-bold text-emerald-600">
+              {stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 100) : 0}%
+            </div>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="mb-4">
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
               <div
-                className="bg-green-600 h-2 rounded-full"
+                className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-2 rounded-full transition-all duration-1000 ease-out"
                 style={{
                   width: stats.total > 0 ? `${(stats.succeeded / stats.total) * 100}%` : '0%'
                 }}
               ></div>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-lg font-semibold text-green-600">{stats.succeeded}</div>
-                <div className="text-xs text-gray-600">Succeeded</div>
-              </div>
-              <div>
-                <div className="text-lg font-semibold text-red-600">{stats.failed}</div>
-                <div className="text-xs text-gray-600">Failed</div>
-              </div>
-              <div>
-                <div className="text-lg font-semibold text-blue-600">{stats.inProgress}</div>
-                <div className="text-xs text-gray-600">In Progress</div>
-              </div>
+          </div>
+          
+          {/* Compact Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-emerald-600">{stats.succeeded}</div>
+              <div className="text-xs text-emerald-700">Succeeded</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-red-600">{stats.failed}</div>
+              <div className="text-xs text-red-700">Failed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-600">{stats.inProgress}</div>
+              <div className="text-xs text-blue-700">In Progress</div>
             </div>
           </div>
         </div>
