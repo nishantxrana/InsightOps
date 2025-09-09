@@ -419,7 +419,7 @@ export default function WorkItems() {
 
   return (
     <div className="space-y-6">
-      <style jsx>{`
+      <style>{`
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
@@ -574,8 +574,40 @@ export default function WorkItems() {
       </div>
       )}
 
-      {/* Interactive State Distribution */}
-      {sprintSummary?.workItemsByState && (
+      {/* Interactive State Distribution - Show skeleton while loading */}
+      {loadingStates.sprintSummary ? (
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.2s'}}>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-6 bg-gray-200 rounded w-48 animate-pulse"></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={index}
+                className="px-2.5 py-1.5 rounded-full border border-gray-200 bg-gray-50 animate-pulse"
+                style={{animationDelay: `${0.3 + index * 0.1}s`}}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-4 bg-gray-200 rounded-full w-16"></div>
+                  <div className="flex items-center gap-1.5 ml-1.5">
+                    <div className="h-4 bg-gray-200 rounded w-6"></div>
+                    <div className="h-4 bg-gray-200 rounded-full w-8"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        sprintSummary?.workItemsByState && (
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.2s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -631,10 +663,48 @@ export default function WorkItems() {
             </div>
           )}
         </div>
+        )
       )}
 
-      {/* Enhanced Work Items with State and Assignee Filtering */}
-      {sprintSummary && (
+      {/* Enhanced Work Items with State and Assignee Filtering - Show skeleton while loading */}
+      {loadingStates.sprintSummary ? (
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-6 bg-gray-200 rounded w-24 animate-pulse"></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-8 bg-gray-200 rounded w-20 animate-pulse"></div>
+              <div className="h-8 bg-gray-200 rounded w-24 animate-pulse"></div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="bg-gray-50 border border-gray-200 rounded-xl p-4 animate-pulse"
+                style={{animationDelay: `${0.4 + index * 0.1}s`}}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
+                    <div className="h-5 bg-gray-200 rounded w-48"></div>
+                  </div>
+                  <div className="h-5 bg-gray-200 rounded-full w-16"></div>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        sprintSummary && (
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -821,6 +891,7 @@ export default function WorkItems() {
             </div>
           )}
         </div>
+        )
       )}
 
       {/* AI Sprint Insights - Progressive Loading */}
