@@ -549,7 +549,7 @@ export default function WorkItems() {
                 <div className="text-sm text-gray-600">Completed</div>
               </div>
               <div className="text-xs text-emerald-600 font-medium">
-                ✓ {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
+                 {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
               </div>
             </div>
 

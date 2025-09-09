@@ -30,7 +30,7 @@ export default function PullRequests() {
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
-    completed: 0,
+    unassigned: 0,
     idle: 0
   })
   const { checkConnection } = useHealth()
@@ -63,8 +63,8 @@ export default function PullRequests() {
         // Calculate stats
         const stats = {
           total: prsList.length,
-          active: prsList.filter(pr => pr.status === 'active').length,
-          completed: prsList.filter(pr => pr.status === 'completed').length,
+          active: prsList.filter(pr => pr.status === 'active' && pr.reviewers && pr.reviewers.length > 0).length,
+          unassigned: prsList.filter(pr => pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)).length,
           idle: 0
         }
         setStats(prev => ({ ...prev, ...stats }))
@@ -222,53 +222,73 @@ export default function PullRequests() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-          <div className="flex items-center">
-            <div className="p-2 rounded-lg bg-blue-50">
-              <GitPullRequest className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total PRs</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
-            </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+        {/* Total PRs */}
+        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <GitPullRequest className="h-5 w-5 text-blue-600" />
+            <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+              Total
+            </span>
+          </div>
+          <div className="mb-3">
+            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.total}</div>
+            <div className="text-sm text-gray-600">Pull Requests</div>
+          </div>
+          <div className="text-xs text-blue-600">
+            All repositories
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-          <div className="flex items-center">
-            <div className="p-2 rounded-lg bg-green-50">
-              <Eye className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.active}</p>
-            </div>
+        {/* Active PRs */}
+        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <Activity className="h-5 w-5 text-green-600" />
+            <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+              Active
+            </span>
+          </div>
+          <div className="mb-3">
+            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.active}</div>
+            <div className="text-sm text-gray-600">Under Review</div>
+          </div>
+          <div className="text-xs text-green-600">
+            {stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% of total
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-          <div className="flex items-center">
-            <div className="p-2 rounded-lg bg-purple-50">
-              <GitPullRequest className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Completed</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.completed}</p>
-            </div>
+        {/* Unassigned PRs */}
+        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <User className="h-5 w-5 text-orange-600" />
+            <span className="text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">
+              Unassigned
+            </span>
+          </div>
+          <div className="mb-3">
+            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.unassigned}</div>
+            <div className="text-sm text-gray-600">Need Reviewers</div>
+          </div>
+          <div className="text-xs text-orange-600">
+            {stats.unassigned > 0 ? 'Assign reviewers' : 'All assigned'}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-          <div className="flex items-center">
-            <div className="p-2 rounded-lg bg-yellow-50">
-              <Clock className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Idle (48h+)</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.idle}</p>
-            </div>
+        {/* Idle PRs */}
+        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <Clock className="h-5 w-5 text-yellow-600" />
+            <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
+              Idle
+            </span>
+          </div>
+          <div className="mb-3">
+            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.idle}</div>
+            <div className="text-sm text-gray-600">Stale (48h+)</div>
+          </div>
+          <div className="text-xs text-yellow-600">
+            {stats.idle > 0 ? 'Needs attention' : 'All active'}
           </div>
         </div>
       </div>
