@@ -23,6 +23,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 
 export default function PullRequests() {
   const [loading, setLoading] = useState(true)
+  const [initialLoad, setInitialLoad] = useState(true)
   const [error, setError] = useState(null)
   const [pullRequests, setPullRequests] = useState([])
   const [idlePRs, setIdlePRs] = useState([])
@@ -80,6 +81,7 @@ export default function PullRequests() {
       console.error('Pull requests error:', err)
     } finally {
       setLoading(false)
+      setInitialLoad(false)
     }
   }
 
@@ -183,21 +185,40 @@ export default function PullRequests() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Refresh Button */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Pull Requests</h1>
-          <p className="text-gray-600 text-sm mt-0.5">Active pull requests and review status</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSync}
-            disabled={loading}
-            className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
-            Sync
-          </button>
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.6s ease-out;
+        }
+        .card-hover {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+      `}</style>
+      
+      {/* Header - Always visible with slideUp animation */}
+      <div className={initialLoad ? "animate-slide-up" : ""}>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Pull Requests</h1>
+            <p className="text-gray-600 text-sm mt-0.5">Active pull requests and review status</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSync}
+              disabled={loading}
+              className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+              Sync
+            </button>
+          </div>
         </div>
       </div>
 
