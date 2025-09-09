@@ -236,9 +236,6 @@ export default function PullRequests() {
             <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.total}</div>
             <div className="text-sm text-gray-600">Pull Requests</div>
           </div>
-          <div className="text-xs text-blue-600">
-            All repositories
-          </div>
         </div>
 
         {/* Active PRs */}
@@ -252,9 +249,6 @@ export default function PullRequests() {
           <div className="mb-3">
             <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.active}</div>
             <div className="text-sm text-gray-600">Under Review</div>
-          </div>
-          <div className="text-xs text-green-600">
-            {stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% of total
           </div>
         </div>
 
@@ -270,9 +264,6 @@ export default function PullRequests() {
             <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.unassigned}</div>
             <div className="text-sm text-gray-600">Need Reviewers</div>
           </div>
-          <div className="text-xs text-orange-600">
-            {stats.unassigned > 0 ? 'Assign reviewers' : 'All assigned'}
-          </div>
         </div>
 
         {/* Idle PRs */}
@@ -286,9 +277,6 @@ export default function PullRequests() {
           <div className="mb-3">
             <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.idle}</div>
             <div className="text-sm text-gray-600">Stale (48h+)</div>
-          </div>
-          <div className="text-xs text-yellow-600">
-            {stats.idle > 0 ? 'Needs attention' : 'All active'}
           </div>
         </div>
       </div>

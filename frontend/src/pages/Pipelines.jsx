@@ -253,13 +253,6 @@ export default function Pipelines() {
               </div>
               <div className="text-sm text-gray-600">Succeeded</div>
             </div>
-            <div className="text-xs text-emerald-600 font-medium">
-              ✓{" "}
-              {stats.total > 0
-                ? Math.round((stats.succeeded / stats.total) * 100)
-                : 0}
-              % success rate
-            </div>
           </div>
 
           <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
@@ -275,9 +268,6 @@ export default function Pipelines() {
               </div>
               <div className="text-sm text-gray-600">Failed</div>
             </div>
-            <div className="text-xs text-red-600">
-              {stats.failed > 0 ? "Needs attention" : "All good"}
-            </div>
           </div>
 
           <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
@@ -292,9 +282,6 @@ export default function Pipelines() {
                 {stats.inProgress}
               </div>
               <div className="text-sm text-gray-600">In Progress</div>
-            </div>
-            <div className="text-xs text-yellow-600">
-              {stats.inProgress > 0 ? "Building now" : "No active builds"}
             </div>
           </div>
         </div>
