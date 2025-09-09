@@ -427,6 +427,13 @@ export default function WorkItems() {
         .animate-slide-up {
           animation: slideUp 0.6s ease-out;
         }
+        .card-hover {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
       `}</style>
       
       {/* Header with Refresh Button - Always visible */}
