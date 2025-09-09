@@ -26,6 +26,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 
 export default function Pipelines() {
   const [loading, setLoading] = useState(true)
+  const [initialLoad, setInitialLoad] = useState(true)
   const [error, setError] = useState(null)
   const [builds, setBuilds] = useState([])
   const [stats, setStats] = useState({
@@ -71,6 +72,7 @@ export default function Pipelines() {
       console.error('Pipelines error:', err)
     } finally {
       setLoading(false)
+      setInitialLoad(false)
     }
   }
 
@@ -188,69 +190,103 @@ export default function Pipelines() {
 
   return (
     <div className="space-y-6">
+      <style jsx>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.6s ease-out;
+        }
+        .card-hover {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+      `}</style>
+      
       {/* Header with Refresh Button */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Pipelines</h2>
-          <p className="text-gray-600">Recent build and deployment status</p>
+      <div className={initialLoad ? "animate-slide-up" : ""}>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Pipelines</h1>
+            <p className="text-gray-600 text-sm mt-0.5">Recent build and deployment status</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSync}
+              disabled={loading}
+              className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+              Sync
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={loading}
-          className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
-          Sync
-        </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 rounded-lg bg-blue-50">
-              <GitBranch className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Builds</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
-            </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <GitBranch className="h-5 w-5 text-blue-600" />
+            <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+              Total
+            </span>
+          </div>
+          <div className="mb-3">
+            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.total}</div>
+            <div className="text-sm text-gray-600">Total Builds</div>
           </div>
         </div>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 rounded-lg bg-green-50">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Succeeded</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.succeeded}</p>
-            </div>
+        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <CheckCircle className="h-5 w-5 text-emerald-600" />
+            <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              Success
+            </span>
+          </div>
+          <div className="mb-3">
+            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.succeeded}</div>
+            <div className="text-sm text-gray-600">Succeeded</div>
+          </div>
+          <div className="text-xs text-emerald-600 font-medium">
+            ✓ {stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 100) : 0}% success rate
           </div>
         </div>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 rounded-lg bg-red-50">
-              <XCircle className="h-6 w-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Failed</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.failed}</p>
-            </div>
+        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <XCircle className="h-5 w-5 text-red-600" />
+            <span className="text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+              Failed
+            </span>
+          </div>
+          <div className="mb-3">
+            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.failed}</div>
+            <div className="text-sm text-gray-600">Failed</div>
+          </div>
+          <div className="text-xs text-red-600">
+            {stats.failed > 0 ? 'Needs attention' : 'All good'}
           </div>
         </div>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 rounded-lg bg-yellow-50">
-              <Clock className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">In Progress</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.inProgress}</p>
-            </div>
+        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <Clock className="h-5 w-5 text-yellow-600" />
+            <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
+              Active
+            </span>
+          </div>
+          <div className="mb-3">
+            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.inProgress}</div>
+            <div className="text-sm text-gray-600">In Progress</div>
+          </div>
+          <div className="text-xs text-yellow-600">
+            {stats.inProgress > 0 ? 'Building now' : 'No active builds'}
           </div>
         </div>
       </div>
