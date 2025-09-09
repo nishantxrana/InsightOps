@@ -408,6 +408,25 @@ export default function WorkItems() {
 
   return (
     <div className="space-y-6">
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.4s ease-out;
+        }
+        .card-hover {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .progress-bar {
+          transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+      `}</style>
       {/* Header with Refresh Button */}
       <div className="flex justify-between items-start">
         <div>
@@ -427,88 +446,104 @@ export default function WorkItems() {
       </div>
 
       {/* Sprint Overview Cards */}
-      {loadingStates.sprintSummary ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <SkeletonCard key={index} />
-          ))}
-        </div>
-      ) : sprintSummary && (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-blue-50">
-                  <CheckSquare className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Items</p>
-                  <p className="text-2xl font-semibold text-gray-900">{sprintSummary.total || 0}</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+        {loadingStates.sprintSummary ? (
+          <>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                    <div className="w-12 h-4 bg-gray-200 rounded-full"></div>
+                  </div>
+                  <div className="w-8 h-8 bg-gray-200 rounded mb-0.5"></div>
+                  <div className="w-20 h-3 bg-gray-200 rounded"></div>
+                  <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2"></div>
                 </div>
               </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex justify-between text-xs text-gray-600 mb-1">
-                <span>Sprint Progress</span>
-                <span>{Math.round(((sprintSummary.completed || 0) / (sprintSummary.total || 1)) * 100)}%</span>
+            ))}
+          </>
+        ) : sprintSummary && (
+          <>
+            {/* Total Items */}
+            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <CheckSquare className="w-5 h-5 text-blue-600" />
+                <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+                  Sprint
+                </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                  style={{ width: `${Math.round(((sprintSummary.completed || 0) / (sprintSummary.total || 1)) * 100)}%` }}
-                ></div>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.total || 0}</div>
+                <div className="text-sm text-gray-600">Work Items</div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Progress</span>
+                  <span className="font-medium">{sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}%</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                  <div 
+                    className="progress-bar bg-blue-600 h-1.5 rounded-full"
+                    style={{ width: `${sprintSummary.total > 0 ? ((sprintSummary.completed || 0) / sprintSummary.total) * 100 : 0}%` }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-yellow-50">
-                <TrendingUp className="h-6 w-6 text-yellow-600" />
+            {/* Active Items */}
+            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <Activity className="w-5 h-5 text-yellow-600" />
+                <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
+                  Active
+                </span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active</p>
-                <p className="text-2xl font-semibold text-gray-900">{sprintSummary.active || 0}</p>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.active || 0}</div>
+                <div className="text-sm text-gray-600">In Progress</div>
+              </div>
+              <div className="text-xs text-gray-500">
+                {sprintSummary.total > 0 ? Math.round(((sprintSummary.active || 0) / sprintSummary.total) * 100) : 0}% of total items
               </div>
             </div>
-            <p className="mt-2 text-xs text-gray-500">
-              {sprintSummary.total > 0 ? Math.round(((sprintSummary.active || 0) / sprintSummary.total) * 100) : 0}% of total items
-            </p>
-          </div>
 
-          <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-green-50">
-                <CheckSquare className="h-6 w-6 text-green-600" />
+            {/* Completed Items */}
+            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <CheckSquare className="w-5 h-5 text-emerald-600" />
+                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Done
+                </span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Completed</p>
-                <p className="text-2xl font-semibold text-gray-900">{sprintSummary.completed || 0}</p>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.completed || 0}</div>
+                <div className="text-sm text-gray-600">Completed</div>
+              </div>
+              <div className="text-xs text-emerald-600 font-medium">
+                ✓ {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
               </div>
             </div>
-            <p className="mt-2 text-xs text-green-600 font-medium">
-              ✓ {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
-            </p>
-          </div>
 
-          <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-red-50">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
+            {/* Overdue Items */}
+            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <span className="text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+                  Overdue
+                </span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Overdue</p>
-                <p className="text-2xl font-semibold text-gray-900">{overdueItems.length}</p>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.overdue || 0}</div>
+                <div className="text-sm text-gray-600">Past Due</div>
+              </div>
+              <div className="text-xs text-red-600">
+                {(sprintSummary.overdue || 0) > 0 ? 'Needs attention' : 'All on track'}
               </div>
             </div>
-            {overdueItems.length > 0 && (
-              <p className="mt-2 text-xs text-red-600 font-medium">
-                ⚠️ Requires immediate attention
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       {/* Interactive State Distribution */}
       {sprintSummary?.workItemsByState && (
