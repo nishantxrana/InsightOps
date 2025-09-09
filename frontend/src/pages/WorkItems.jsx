@@ -547,11 +547,11 @@ export default function WorkItems() {
 
       {/* Interactive State Distribution */}
       {sprintSummary?.workItemsByState && (
-        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.2s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Activity className="h-5 w-5 text-purple-600" />
-              <h3 className="font-semibold text-gray-900">Work Distribution by State</h3>
+              <h3 className="text-xl font-semibold text-gray-900">Work Distribution by State</h3>
             </div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-400" />
@@ -559,53 +559,50 @@ export default function WorkItems() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
               <button
                 key={state}
                 onClick={() => setSelectedState(selectedState === state ? 'all' : state)}
-                className={`relative p-4 rounded-xl border transition-all duration-200 text-left hover:-translate-y-2 hover:scale-102 group overflow-hidden ${
+                className={`card-hover p-4 rounded-xl border text-left transition-all duration-200 ${
                   selectedState === state 
-                    ? 'border-blue-400 bg-gradient-to-br from-blue-50 via-white to-blue-100 shadow-lg transform -translate-y-2 scale-102 ring-1 ring-blue-200' 
-                    : 'border-gray-200 bg-gradient-to-br from-white to-gray-50 hover:border-blue-300 hover:shadow-xl hover:ring-1 hover:ring-blue-100'
+                    ? 'border-purple-200 bg-purple-50 ring-1 ring-purple-200' 
+                    : 'border-gray-200 bg-gradient-to-br from-white to-gray-50 hover:border-purple-200 hover:shadow-md'
                 }`}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-600"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-full shadow-sm ${getStateColor(state)}`}>
-                      {state}
-                    </span>
-                    <span className="text-xl font-black text-gray-900 group-hover:text-blue-600 transition-all duration-200">{items.length}</span>
-                  </div>
-                  <div className="text-xs text-gray-600 font-medium">
-                    {Math.round((items.length / sprintSummary.total) * 100)}% of total
-                  </div>
-                  <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
-                    <div 
-                      className="bg-blue-600 h-1 rounded-full transition-all duration-300" 
-                      style={{ width: `${(items.length / sprintSummary.total) * 100}%` }}
-                    ></div>
-                  </div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getStateColor(state)}`}>
+                    {state}
+                  </span>
+                  <span className="text-lg font-bold text-gray-900">{items.length}</span>
+                </div>
+                <div className="text-xs text-gray-600 mb-2">
+                  {Math.round((items.length / sprintSummary.total) * 100)}% of total
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1">
+                  <div 
+                    className="progress-bar bg-purple-500 h-1 rounded-full"
+                    style={{ width: `${(items.length / sprintSummary.total) * 100}%` }}
+                  />
                 </div>
               </button>
             ))}
           </div>
           
           {selectedState !== 'all' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="mt-4 bg-purple-50 border border-purple-200 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-900">
+                <span className="text-sm font-medium text-purple-900">
                   Filtered by: {selectedState}
                 </span>
                 <button
                   onClick={() => setSelectedState('all')}
-                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  className="text-xs text-purple-600 hover:text-purple-800 underline"
                 >
                   Clear filter
                 </button>
               </div>
-              <div className="text-xs text-blue-700">
+              <div className="text-xs text-purple-700">
                 Showing {sprintSummary.workItemsByState[selectedState]?.length || 0} items
               </div>
             </div>
