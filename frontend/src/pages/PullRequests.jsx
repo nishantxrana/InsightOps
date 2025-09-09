@@ -293,33 +293,6 @@ export default function PullRequests() {
         </div>
       </div>
 
-      {/* Idle Pull Requests Alert */}
-      {idlePRs.length > 0 && (
-        <div className="bg-white p-6 rounded-lg border border-yellow-200 shadow-sm bg-yellow-50">
-          <div className="flex items-start">
-            <Clock className="h-5 w-5 text-yellow-500 mt-0.5" />
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">
-                {idlePRs.length} Pull Request{idlePRs.length > 1 ? 's' : ''} Need Attention
-              </h3>
-              <p className="text-sm text-yellow-700 mt-1">
-                The following pull requests have been inactive for more than 48 hours:
-              </p>
-              <ul className="mt-2 text-sm text-yellow-700">
-                {idlePRs.slice(0, 3).map(pr => (
-                  <li key={pr.pullRequestId}>
-                    #{pr.pullRequestId}: {pr.title} (by {pr.createdBy?.displayName})
-                  </li>
-                ))}
-                {idlePRs.length > 3 && (
-                  <li>...and {idlePRs.length - 3} more</li>
-                )}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Pull Requests List */}
       <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-0">
         <div className="px-6 py-4 border-b border-gray-200">
