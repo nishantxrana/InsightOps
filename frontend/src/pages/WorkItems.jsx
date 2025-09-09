@@ -564,18 +564,18 @@ export default function WorkItems() {
               <button
                 key={state}
                 onClick={() => setSelectedState(selectedState === state ? 'all' : state)}
-                className={`card-hover px-2.5 py-1.5 rounded-full border transition-all duration-200 flex items-center justify-between text-left ${
+                className={`card-hover px-2.5 py-1.5 rounded-full border transition-all duration-200 flex items-center justify-between text-left hover:scale-105 ${
                   selectedState === state 
-                    ? 'border-purple-200 bg-purple-50 ring-1 ring-purple-200' 
-                    : 'border-gray-200 bg-gradient-to-r from-white to-gray-50 hover:border-purple-200 hover:shadow-md'
+                    ? 'border-purple-200 bg-purple-50 ring-1 ring-purple-200 shadow-md' 
+                    : 'border-gray-200 bg-gradient-to-r from-white to-gray-50 hover:border-purple-200 hover:shadow-lg'
                 }`}
               >
                 <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${getStateColor(state)}`}>
                   {state}
                 </span>
-                <div className="flex items-center gap-1 ml-1.5">
-                  <span className="text-sm font-bold text-gray-900">{items.length}</span>
-                  <span className="text-xs text-gray-500">
+                <div className="flex items-center gap-1.5 ml-1.5">
+                  <span className="text-base font-bold text-gray-900">{items.length}</span>
+                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-1 rounded-full flex items-center">
                     {Math.round((items.length / sprintSummary.total) * 100)}%
                   </span>
                 </div>
