@@ -559,31 +559,25 @@ export default function WorkItems() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             {Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
               <button
                 key={state}
                 onClick={() => setSelectedState(selectedState === state ? 'all' : state)}
-                className={`card-hover p-4 rounded-xl border text-left transition-all duration-200 ${
+                className={`card-hover px-2.5 py-1.5 rounded-full border transition-all duration-200 flex items-center justify-between text-left ${
                   selectedState === state 
                     ? 'border-purple-200 bg-purple-50 ring-1 ring-purple-200' 
-                    : 'border-gray-200 bg-gradient-to-br from-white to-gray-50 hover:border-purple-200 hover:shadow-md'
+                    : 'border-gray-200 bg-gradient-to-r from-white to-gray-50 hover:border-purple-200 hover:shadow-md'
                 }`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getStateColor(state)}`}>
-                    {state}
+                <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${getStateColor(state)}`}>
+                  {state}
+                </span>
+                <div className="flex items-center gap-1 ml-1.5">
+                  <span className="text-sm font-bold text-gray-900">{items.length}</span>
+                  <span className="text-xs text-gray-500">
+                    {Math.round((items.length / sprintSummary.total) * 100)}%
                   </span>
-                  <span className="text-lg font-bold text-gray-900">{items.length}</span>
-                </div>
-                <div className="text-xs text-gray-600 mb-2">
-                  {Math.round((items.length / sprintSummary.total) * 100)}% of total
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-1">
-                  <div 
-                    className="progress-bar bg-purple-500 h-1 rounded-full"
-                    style={{ width: `${(items.length / sprintSummary.total) * 100}%` }}
-                  />
                 </div>
               </button>
             ))}
