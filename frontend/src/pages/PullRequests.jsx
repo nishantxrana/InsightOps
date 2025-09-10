@@ -240,6 +240,26 @@ export default function PullRequests() {
           transform: translateY(-2px);
           box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
+        
+        /* Custom Scrollbar - Refined */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.4);
+          border-radius: 6px;
+          transition: all 0.2s ease;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(148, 163, 184, 0.7);
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+        }
       `}</style>
       
       {/* Header - Always visible with slideUp animation */}
@@ -397,20 +417,38 @@ export default function PullRequests() {
       </div>
 
       {/* Pull Requests List */}
-      <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-0">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900">All Pull Requests</h3>
-            <span className="text-sm text-gray-500">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+        <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-blue-50">
+              <GitPullRequest className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900">All Pull Requests</h3>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {filter === 'all' ? 'Showing all pull requests' : `Filtered results`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
               {filter === 'all' ? pullRequests.length : getFilteredAndSortedPRs().length} of {pullRequests.length}
             </span>
+            {getFilteredAndSortedPRs().length !== pullRequests.length && (
+              <button
+                onClick={() => setFilter('all')}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         </div>
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-[55vh] overflow-y-auto custom-scrollbar">
           {getFilteredAndSortedPRs().length > 0 ? (
             <div className="divide-y divide-gray-200">
               {getFilteredAndSortedPRs().map((pr) => (
-                <div key={pr.pullRequestId} className="p-4 hover:bg-gray-50 transition-colors">
+                <div key={pr.pullRequestId} className="px-6 py-4 hover:bg-gray-50 transition-colors">
                   {/* Header Row */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center flex-1 min-w-0">
