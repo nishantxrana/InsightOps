@@ -424,8 +424,17 @@ export default function WorkItems() {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes shimmer {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
         .animate-slide-up {
           animation: slideUp 0.6s ease-out;
+        }
+        .shimmer {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200px 100%;
+          animation: shimmer 1.5s infinite;
         }
         .card-hover {
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -483,12 +492,12 @@ export default function WorkItems() {
             <div key={index} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse" style={{animationDelay: `${index * 0.1}s`}}>
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="w-5 h-5 bg-gray-200 rounded"></div>
-                  <div className="w-12 h-4 bg-gray-200 rounded-full"></div>
+                  <div className="w-5 h-5 shimmer rounded"></div>
+                  <div className="w-12 h-4 shimmer rounded-full"></div>
                 </div>
-                <div className="w-8 h-8 bg-gray-200 rounded mb-0.5"></div>
-                <div className="w-20 h-3 bg-gray-200 rounded"></div>
-                <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2"></div>
+                <div className="w-8 h-8 shimmer rounded mb-0.5"></div>
+                <div className="w-20 h-3 shimmer rounded"></div>
+                <div className="w-full h-1.5 shimmer rounded-full mt-2"></div>
               </div>
             </div>
           ))}
@@ -594,109 +603,17 @@ export default function WorkItems() {
       </div>
       )}
 
-      {/* Interactive State Distribution - Show skeleton while loading */}
-      {loadingStates.sprintSummary ? (
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.2s'}}>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-6 bg-gray-200 rounded w-48 animate-pulse"></div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <div
-                key={index}
-                className="px-2.5 py-1.5 rounded-full border border-gray-200 bg-gray-50 animate-pulse"
-                style={{animationDelay: `${0.3 + index * 0.1}s`}}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="h-4 bg-gray-200 rounded-full w-16"></div>
-                  <div className="flex items-center gap-1.5 ml-1.5">
-                    <div className="h-4 bg-gray-200 rounded w-6"></div>
-                    <div className="h-4 bg-gray-200 rounded-full w-8"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        sprintSummary?.workItemsByState && (
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.2s'}}>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Activity className="h-5 w-5 text-purple-600" />
-              <h3 className="text-xl font-semibold text-gray-900">Work Distribution by State</h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-500">Click to filter</span>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-            {Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
-              <button
-                key={state}
-                onClick={() => setSelectedState(selectedState === state ? 'all' : state)}
-                className={`card-hover px-2.5 py-1.5 rounded-full border transition-all duration-200 flex items-center justify-between text-left hover:scale-105 ${
-                  selectedState === state 
-                    ? 'border-purple-200 bg-purple-50 ring-1 ring-purple-200 shadow-md' 
-                    : 'border-gray-200 bg-gradient-to-r from-white to-gray-50 hover:border-purple-200 hover:shadow-lg'
-                }`}
-              >
-                <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${getStateColor(state)}`}>
-                  {state}
-                </span>
-                <div className="flex items-center gap-1.5 ml-1.5">
-                  <span className="text-base font-bold text-gray-900">{items.length}</span>
-                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-1 rounded-full flex items-center">
-                    {Math.round((items.length / sprintSummary.total) * 100)}%
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-          
-          {selectedState !== 'all' && (
-            <div className="mt-4 bg-purple-50 border border-purple-200 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-purple-900">
-                  Filtered by: {selectedState}
-                </span>
-                <button
-                  onClick={() => setSelectedState('all')}
-                  className="text-xs text-purple-600 hover:text-purple-800 underline"
-                >
-                  Clear filter
-                </button>
-              </div>
-              <div className="text-xs text-purple-700">
-                Showing {sprintSummary.workItemsByState[selectedState]?.length || 0} items
-              </div>
-            </div>
-          )}
-        </div>
-        )
-      )}
-
       {/* Enhanced Work Items with State and Assignee Filtering - Show skeleton while loading */}
       {loadingStates.sprintSummary ? (
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-6 bg-gray-200 rounded w-24 animate-pulse"></div>
+              <div className="w-5 h-5 shimmer rounded animate-pulse"></div>
+              <div className="h-6 shimmer rounded w-24 animate-pulse"></div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-8 bg-gray-200 rounded w-20 animate-pulse"></div>
-              <div className="h-8 bg-gray-200 rounded w-24 animate-pulse"></div>
+              <div className="h-8 shimmer rounded w-20 animate-pulse"></div>
+              <div className="h-8 shimmer rounded w-24 animate-pulse"></div>
             </div>
           </div>
           
@@ -709,15 +626,15 @@ export default function WorkItems() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                    <div className="h-5 bg-gray-200 rounded w-48"></div>
+                    <div className="w-4 h-4 shimmer rounded"></div>
+                    <div className="h-5 shimmer rounded w-48"></div>
                   </div>
-                  <div className="h-5 bg-gray-200 rounded-full w-16"></div>
+                  <div className="h-5 shimmer rounded-full w-16"></div>
                 </div>
                 <div className="flex items-center gap-4 text-sm">
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
-                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                  <div className="h-4 shimmer rounded w-20"></div>
+                  <div className="h-4 shimmer rounded w-16"></div>
+                  <div className="h-4 shimmer rounded w-24"></div>
                 </div>
               </div>
             ))}
@@ -827,7 +744,7 @@ export default function WorkItems() {
           
           {/* Work Items List */}
           {filteredWorkItems.length > 0 ? (
-            <div className="space-y-0 max-h-96 overflow-y-auto custom-scrollbar border border-gray-200 rounded-xl bg-white">
+            <div className="space-y-0 max-h-[40vh] overflow-y-auto custom-scrollbar border border-gray-200 rounded-xl bg-white">
               <div className="divide-y divide-gray-200">
                 {filteredWorkItems.map((item, index) => (
                   <div 
@@ -1189,7 +1106,7 @@ export default function WorkItems() {
                       <div 
                         key={item.id} 
                         onClick={() => openWorkItemModal(item)}
-                        className={`p-4 hover:bg-red-25 transition-colors border-red-200 cursor-pointer group ${
+                        className={`p-4 hover:bg-gray-50 transition-colors border-red-200 cursor-pointer group ${
                           index !== filteredOverdueItems.length - 1 ? 'border-b' : ''
                         }`}
                         title="Click to view details"

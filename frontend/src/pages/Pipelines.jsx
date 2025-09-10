@@ -161,8 +161,17 @@ export default function Pipelines() {
             transform: translateY(0);
           }
         }
+        @keyframes shimmer {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
         .animate-slide-up {
           animation: slideUp 0.6s ease-out;
+        }
+        .shimmer {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200px 100%;
+          animation: shimmer 1.5s infinite;
         }
         .card-hover {
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -230,12 +239,12 @@ export default function Pipelines() {
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="w-5 h-5 bg-gray-200 rounded" />
-                  <div className="w-12 h-4 bg-gray-200 rounded-full" />
+                  <div className="w-5 h-5 shimmer rounded" />
+                  <div className="w-12 h-4 shimmer rounded-full" />
                 </div>
-                <div className="w-8 h-8 bg-gray-200 rounded mb-0.5" />
-                <div className="w-20 h-3 bg-gray-200 rounded" />
-                <div className="w-16 h-3 bg-gray-200 rounded" />
+                <div className="w-8 h-8 shimmer rounded mb-0.5" />
+                <div className="w-20 h-3 shimmer rounded" />
+                <div className="w-16 h-3 shimmer rounded" />
               </div>
             </div>
           ))}
@@ -316,10 +325,10 @@ export default function Pipelines() {
         >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-6 bg-gray-200 rounded w-32 animate-pulse"></div>
+              <div className="w-5 h-5 shimmer rounded animate-pulse"></div>
+              <div className="h-6 shimmer rounded w-32 animate-pulse"></div>
             </div>
-            <div className="h-5 bg-gray-200 rounded-full w-20 animate-pulse"></div>
+            <div className="h-5 shimmer rounded-full w-20 animate-pulse"></div>
           </div>
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, index) => (
@@ -329,20 +338,20 @@ export default function Pipelines() {
                 style={{ animationDelay: `${0.3 + index * 0.1}s` }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 bg-gray-200 rounded-full"></div>
+                  <div className="w-4 h-4 shimmer rounded-full"></div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="h-4 bg-gray-200 rounded w-32"></div>
-                      <div className="h-4 bg-gray-200 rounded w-16"></div>
+                      <div className="h-4 shimmer rounded w-32"></div>
+                      <div className="h-4 shimmer rounded w-16"></div>
                     </div>
                     <div className="flex items-center gap-4">
-                      <div className="h-3 bg-gray-200 rounded w-20"></div>
-                      <div className="h-3 bg-gray-200 rounded w-16"></div>
-                      <div className="h-3 bg-gray-200 rounded w-12"></div>
-                      <div className="h-3 bg-gray-200 rounded w-24"></div>
+                      <div className="h-3 shimmer rounded w-20"></div>
+                      <div className="h-3 shimmer rounded w-16"></div>
+                      <div className="h-3 shimmer rounded w-12"></div>
+                      <div className="h-3 shimmer rounded w-24"></div>
                     </div>
                   </div>
-                  <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                  <div className="h-6 shimmer rounded-full w-16"></div>
                 </div>
               </div>
             ))}
@@ -446,19 +455,19 @@ export default function Pipelines() {
         >
           <div className="flex items-center justify-between mb-4 animate-pulse">
             <div className="flex items-center gap-3">
-              <div className="w-5 h-5 bg-gray-200 rounded"></div>
-              <div className="h-5 bg-gray-200 rounded w-32"></div>
+              <div className="w-5 h-5 shimmer rounded"></div>
+              <div className="h-5 shimmer rounded w-32"></div>
             </div>
-            <div className="h-8 bg-gray-200 rounded w-12"></div>
+            <div className="h-8 shimmer rounded w-12"></div>
           </div>
           <div className="mb-4">
-            <div className="w-full bg-gray-200 rounded-full h-2 animate-pulse"></div>
+            <div className="w-full shimmer rounded-full h-2 animate-pulse"></div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {Array.from({ length: 3 }).map((_, index) => (
               <div key={index} className="text-center animate-pulse">
-                <div className="h-6 bg-gray-200 rounded w-8 mx-auto mb-1"></div>
-                <div className="h-3 bg-gray-200 rounded w-16 mx-auto"></div>
+                <div className="h-6 shimmer rounded w-8 mx-auto mb-1"></div>
+                <div className="h-3 shimmer rounded w-16 mx-auto"></div>
               </div>
             ))}
           </div>
