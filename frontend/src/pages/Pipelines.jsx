@@ -58,12 +58,13 @@ export default function Pipelines() {
         inProgress: buildsList.filter((b) => b.status === "inProgress").length,
       };
       setStats(newStats);
+      setLoading(false);
+      setInitialLoad(false);
     } catch (err) {
       setError("Failed to load pipelines data");
       console.error("Pipelines error:", err);
-    } finally {
       setLoading(false);
-      setInitialLoad(false);
+      // Don't set initialLoad to false on error so error page shows
     }
   };
 
@@ -139,7 +140,7 @@ export default function Pipelines() {
     return `${hours}h ${minutes}m`;
   };
 
-  if (error && loading) {
+  if (error && initialLoad) {
     return <ErrorMessage message={error} onRetry={loadPipelinesData} />;
   }
 

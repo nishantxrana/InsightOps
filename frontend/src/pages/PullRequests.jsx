@@ -77,12 +77,15 @@ export default function PullRequests() {
         }
         setStats(prev => ({ ...prev, ...newStats }))
         setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
-        setInitialLoading(false)
+        // Don't set initialLoading false here - wait for all APIs or error
       } catch (err) {
         console.error('Failed to load pull requests:', err)
         setPullRequests([])
         setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
         setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
+        // Set error and return early to show error page
+        setError('Failed to load pull requests data')
+        return
       }
 
       // Load idle PRs separately
@@ -99,10 +102,13 @@ export default function PullRequests() {
         setLoadingStates(prev => ({ ...prev, idlePRs: false }))
       }
 
+      // Set initialLoading false only after all APIs complete successfully
+      setInitialLoading(false)
+
     } catch (err) {
       setError('Failed to load pull requests data')
       console.error('Pull requests error:', err)
-      setInitialLoading(false)
+      // Don't set initialLoading to false on error so error page shows
       setPullRequests([])
       setIdlePRs([])
       setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
@@ -240,10 +246,6 @@ export default function PullRequests() {
     }
 
     return filtered
-  }
-
-  if (initialLoading && error) {
-    return <LoadingSpinner />
   }
 
   if (error && initialLoading) {
