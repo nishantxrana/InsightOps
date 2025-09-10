@@ -22,8 +22,12 @@ import ErrorMessage from '../components/ErrorMessage'
 import { format, formatDistanceToNow } from 'date-fns'
 
 export default function PullRequests() {
-  const [loading, setLoading] = useState(true)
-  const [initialLoad, setInitialLoad] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [loadingStates, setLoadingStates] = useState({
+    pullRequests: true,
+    idlePRs: true,
+    stats: true
+  })
   const [error, setError] = useState(null)
   const [pullRequests, setPullRequests] = useState([])
   const [idlePRs, setIdlePRs] = useState([])
@@ -50,40 +54,63 @@ export default function PullRequests() {
 
   const loadPullRequestsData = async () => {
     try {
-      setLoading(true)
+      setInitialLoading(true)
       setError(null)
+      setLoadingStates({
+        pullRequests: true,
+        idlePRs: true,
+        stats: true
+      })
 
-      const [prsData, idleData] = await Promise.allSettled([
-        apiService.getPullRequests(),
-        apiService.getIdlePullRequests()
-      ])
-
-      if (prsData.status === 'fulfilled') {
-        const prsList = prsData.value.value || []
+      // Load pull requests first
+      try {
+        const prsData = await apiService.getPullRequests()
+        const prsList = prsData.value || []
         setPullRequests(prsList)
         
         // Calculate stats
-        const stats = {
+        const newStats = {
           total: prsList.length,
           active: prsList.filter(pr => pr.status === 'active' && pr.reviewers && pr.reviewers.length > 0).length,
           unassigned: prsList.filter(pr => pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)).length,
           idle: 0
         }
-        setStats(prev => ({ ...prev, ...stats }))
+        setStats(prev => ({ ...prev, ...newStats }))
+        setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
+        setInitialLoading(false)
+      } catch (err) {
+        console.error('Failed to load pull requests:', err)
+        setPullRequests([])
+        setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
+        setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
       }
 
-      if (idleData.status === 'fulfilled') {
-        const idleList = idleData.value.value || []
+      // Load idle PRs separately
+      try {
+        const idleData = await apiService.getIdlePullRequests()
+        const idleList = idleData.value || []
         setIdlePRs(idleList)
         setStats(prev => ({ ...prev, idle: idleList.length }))
+        setLoadingStates(prev => ({ ...prev, idlePRs: false }))
+      } catch (err) {
+        console.error('Failed to load idle PRs:', err)
+        setIdlePRs([])
+        setStats(prev => ({ ...prev, idle: 0 }))
+        setLoadingStates(prev => ({ ...prev, idlePRs: false }))
       }
 
     } catch (err) {
       setError('Failed to load pull requests data')
       console.error('Pull requests error:', err)
-    } finally {
-      setLoading(false)
-      setInitialLoad(false)
+      setInitialLoading(false)
+      setPullRequests([])
+      setIdlePRs([])
+      setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
+      setLoadingStates({
+        pullRequests: false,
+        idlePRs: false,
+        stats: false
+      })
     }
   }
 
@@ -215,23 +242,39 @@ export default function PullRequests() {
     return filtered
   }
 
-  if (loading) {
+  if (initialLoading && error) {
     return <LoadingSpinner />
   }
 
-  if (error) {
+  if (error && initialLoading) {
     return <ErrorMessage message={error} onRetry={loadPullRequestsData} />
   }
 
   return (
     <div className="space-y-6">
-      <style>{`
+      <style jsx>{`
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
         .animate-slide-up {
           animation: slideUp 0.6s ease-out;
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.4s ease-out;
+        }
+        .shimmer {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200px 100%;
+          animation: shimmer 1.5s infinite;
         }
         .card-hover {
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -262,9 +305,9 @@ export default function PullRequests() {
         }
       `}</style>
       
-      {/* Header - Always visible with slideUp animation */}
-      <div className={initialLoad ? "animate-slide-up" : ""}>
-        <div className="flex justify-between items-start">
+      {/* Header */}
+      <div className="animate-slide-up">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Pull Requests</h1>
             <p className="text-gray-600 text-sm mt-0.5">Active pull requests and review status</p>
@@ -272,10 +315,10 @@ export default function PullRequests() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleSync}
-              disabled={loading}
+              disabled={Object.values(loadingStates).some(loading => loading)}
               className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${Object.values(loadingStates).some(loading => loading) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
               Sync
             </button>
           </div>
@@ -286,58 +329,98 @@ export default function PullRequests() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
         {/* Total PRs */}
         <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <GitPullRequest className="h-5 w-5 text-blue-600" />
-            <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-              Total
-            </span>
-          </div>
-          <div className="mb-3">
-            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.total}</div>
-            <div className="text-sm text-gray-600">Pull Requests</div>
-          </div>
+          {loadingStates.stats ? (
+            <div className="space-y-3">
+              <div className="shimmer h-4 rounded w-16"></div>
+              <div className="shimmer h-8 rounded w-12"></div>
+              <div className="shimmer h-2 rounded w-full"></div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <GitPullRequest className="h-5 w-5 text-blue-600" />
+                <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                  Total
+                </span>
+              </div>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.total}</div>
+                <div className="text-sm text-gray-600">Pull Requests</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Active PRs */}
         <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <Activity className="h-5 w-5 text-green-600" />
-            <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-              Active
-            </span>
-          </div>
-          <div className="mb-3">
-            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.active}</div>
-            <div className="text-sm text-gray-600">Under Review</div>
-          </div>
+          {loadingStates.stats ? (
+            <div className="space-y-3">
+              <div className="shimmer h-4 rounded w-16"></div>
+              <div className="shimmer h-8 rounded w-12"></div>
+              <div className="shimmer h-2 rounded w-full"></div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <Activity className="h-5 w-5 text-green-600" />
+                <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                  Active
+                </span>
+              </div>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.active}</div>
+                <div className="text-sm text-gray-600">Under Review</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Unassigned PRs */}
         <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <User className="h-5 w-5 text-orange-600" />
-            <span className="text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">
-              Unassigned
-            </span>
-          </div>
-          <div className="mb-3">
-            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.unassigned}</div>
-            <div className="text-sm text-gray-600">Need Reviewers</div>
-          </div>
+          {loadingStates.stats ? (
+            <div className="space-y-3">
+              <div className="shimmer h-4 rounded w-16"></div>
+              <div className="shimmer h-8 rounded w-12"></div>
+              <div className="shimmer h-2 rounded w-full"></div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <User className="h-5 w-5 text-orange-600" />
+                <span className="text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">
+                  Unassigned
+                </span>
+              </div>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.unassigned}</div>
+                <div className="text-sm text-gray-600">Need Reviewers</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Idle PRs */}
         <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <Clock className="h-5 w-5 text-yellow-600" />
-            <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
-              Idle
-            </span>
-          </div>
-          <div className="mb-3">
-            <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.idle}</div>
-            <div className="text-sm text-gray-600">Stale (48h+)</div>
-          </div>
+          {loadingStates.idlePRs ? (
+            <div className="space-y-3">
+              <div className="shimmer h-4 rounded w-16"></div>
+              <div className="shimmer h-8 rounded w-12"></div>
+              <div className="shimmer h-2 rounded w-full"></div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <Clock className="h-5 w-5 text-yellow-600" />
+                <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
+                  Idle
+                </span>
+              </div>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.idle}</div>
+                <div className="text-sm text-gray-600">Stale (48h+)</div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -445,7 +528,39 @@ export default function PullRequests() {
           </div>
         </div>
         <div className="max-h-[55vh] overflow-y-auto custom-scrollbar">
-          {getFilteredAndSortedPRs().length > 0 ? (
+          {loadingStates.pullRequests ? (
+            <div className="divide-y divide-gray-200">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="px-6 py-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center flex-1 min-w-0">
+                      <div className="shimmer w-5 h-5 rounded"></div>
+                      <div className="ml-2 flex-1 min-w-0">
+                        <div className="shimmer h-4 rounded w-3/4 mb-1"></div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                      <div className="shimmer h-6 rounded-full w-16"></div>
+                      <div className="shimmer h-6 rounded-full w-16"></div>
+                    </div>
+                  </div>
+                  <div className="ml-7">
+                    <div className="flex items-center gap-4 mb-2">
+                      <div className="shimmer h-3 rounded w-20"></div>
+                      <div className="shimmer h-3 rounded w-16"></div>
+                      <div className="shimmer h-3 rounded w-24"></div>
+                    </div>
+                    <div className="shimmer h-3 rounded w-1/2 mb-2"></div>
+                    <div className="flex items-center gap-3">
+                      <div className="shimmer h-3 rounded w-16"></div>
+                      <div className="shimmer h-3 rounded w-20"></div>
+                      <div className="shimmer h-3 rounded w-12"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : getFilteredAndSortedPRs().length > 0 ? (
             <div className="divide-y divide-gray-200">
               {getFilteredAndSortedPRs().map((pr) => (
                 <div key={pr.pullRequestId} className="px-6 py-4 hover:bg-gray-50 transition-colors">
