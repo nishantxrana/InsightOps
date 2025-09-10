@@ -434,6 +434,26 @@ export default function WorkItems() {
           transform: translateY(-2px);
           box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
+        
+        /* Custom Scrollbar - Refined */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.4);
+          border-radius: 6px;
+          transition: all 0.2s ease;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(148, 163, 184, 0.7);
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+        }
       `}</style>
       
       {/* Header with Refresh Button - Always visible */}
@@ -807,7 +827,7 @@ export default function WorkItems() {
           
           {/* Work Items List */}
           {filteredWorkItems.length > 0 ? (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
               {filteredWorkItems.map((item, index) => (
                 <div 
                   key={item.id} 
@@ -1151,7 +1171,7 @@ export default function WorkItems() {
                 </div>
               )}
               {/* Scrollable Overdue Items List */}
-              <div className="overflow-y-auto border border-red-200 rounded-lg bg-white" style={{ maxHeight: '600px' }}>
+              <div className="overflow-y-auto border border-red-200 rounded-lg bg-white custom-scrollbar" style={{ maxHeight: '600px' }}>
                 <div className="space-y-0">
                   {filteredOverdueItems.map((item, index) => {
                     const title = item.fields?.['System.Title'] || 'No title'
