@@ -32,7 +32,30 @@ export default function Dashboard() {
     pullRequests: { total: 0, active: 0, idle: 0 }
   })
   const [recentActivity, setRecentActivity] = useState([])
+  const [liveUptime, setLiveUptime] = useState(0)
   const { isConnected, isChecking, healthData, checkConnection } = useHealth()
+
+  // Live uptime counter that updates every second
+  useEffect(() => {
+    if (isConnected && healthData?.uptime) {
+      setLiveUptime(Math.floor(healthData.uptime)) // Convert to integer seconds
+      
+      const interval = setInterval(() => {
+        setLiveUptime(prev => prev + 1)
+      }, 1000)
+      
+      return () => clearInterval(interval)
+    }
+  }, [isConnected, healthData?.uptime])
+
+  // Format uptime to show hours, minutes, and seconds
+  const formatUptime = (totalSeconds) => {
+    const seconds = Math.floor(totalSeconds) // Ensure integer
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    return `${hours}h ${minutes}m ${secs}s`
+  }
 
   useEffect(() => {
     loadDashboardData()
@@ -78,9 +101,10 @@ export default function Dashboard() {
         setLoadingStates(prev => ({ ...prev, workItems: false }))
       }
 
-      const [builds, pullRequests, logs] = await Promise.allSettled([
+      const [builds, pullRequests, idlePRs, logs] = await Promise.allSettled([
         apiService.getRecentBuilds(),
         apiService.getPullRequests(),
+        apiService.getIdlePullRequests(),
         apiService.getLogs({ limit: 10 })
       ])
 
@@ -104,12 +128,13 @@ export default function Dashboard() {
 
       if (pullRequests.status === 'fulfilled') {
         const prData = pullRequests.value
+        const idleCount = idlePRs.status === 'fulfilled' ? (idlePRs.value.value?.length || 0) : 0
         setStats(prev => ({
           ...prev,
           pullRequests: {
             total: prData.count || 0,
             active: prData.value?.filter(pr => pr.status === 'active').length || 0,
-            idle: prData.idle || 0
+            idle: idleCount
           }
         }))
       } else {
@@ -341,7 +366,7 @@ export default function Dashboard() {
           </div>
           <div className="mb-3">
             <div className="text-2xl font-bold text-gray-900 mb-0.5">
-              {isConnected ? (healthData?.uptime ? Math.floor(healthData.uptime / 3600) : '0') + 'h' : '—'}
+              {isConnected ? formatUptime(liveUptime) : '—'}
             </div>
             <div className="text-sm text-gray-600">Uptime</div>
           </div>
