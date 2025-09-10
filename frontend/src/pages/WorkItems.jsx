@@ -63,10 +63,33 @@ export default function WorkItems() {
   // Work item detail modal state
   const [selectedWorkItem, setSelectedWorkItem] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  // Dropdown states for custom dropdowns
+  const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false)
+  const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false)
+  const [isOverdueStateDropdownOpen, setIsOverdueStateDropdownOpen] = useState(false)
+  const [isOverdueAssigneeDropdownOpen, setIsOverdueAssigneeDropdownOpen] = useState(false)
+  const [isOverduePriorityDropdownOpen, setIsOverduePriorityDropdownOpen] = useState(false)
+  
   const { checkConnection } = useHealth()
 
   useEffect(() => {
     loadWorkItemsData()
+  }, [])
+
+  // Close dropdowns when clicking outside or opening another dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.relative')) {
+        setIsStateDropdownOpen(false)
+        setIsAssigneeDropdownOpen(false)
+        setIsOverdueStateDropdownOpen(false)
+        setIsOverdueAssigneeDropdownOpen(false)
+        setIsOverduePriorityDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const handleSync = async () => {
@@ -651,36 +674,106 @@ export default function WorkItems() {
             <div className="flex items-center gap-2">
               {/* State Filter Dropdown */}
               <div className="relative">
-                <Activity className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <select
-                  value={selectedState}
-                  onChange={(e) => setSelectedState(e.target.value)}
-                  className="pl-8 pr-4 py-2 border border-gray-200 rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 bg-white hover:border-gray-300 transition-colors"
+                <button
+                  onClick={() => {
+                    setIsStateDropdownOpen(!isStateDropdownOpen)
+                    setIsAssigneeDropdownOpen(false)
+                    setIsOverdueStateDropdownOpen(false)
+                    setIsOverdueAssigneeDropdownOpen(false)
+                    setIsOverduePriorityDropdownOpen(false)
+                  }}
+                  className="flex items-center gap-2 pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-1 focus:ring-gray-100 focus:border-gray-300 bg-white hover:border-gray-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
                 >
-                  <option value="all">All States</option>
-                  {sprintSummary.workItemsByState && Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
-                    <option key={state} value={state}>
-                      {state} ({items.length})
-                    </option>
-                  ))}
-                </select>
+                  <Activity className="h-3 w-3 absolute left-2.5 text-gray-400" />
+                  <span className="flex-1 text-left">
+                    {selectedState === 'all' ? 'All States' : selectedState}
+                  </span>
+                  <svg className={`h-3 w-3 text-gray-400 transition-transform ${isStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {isStateDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+                    <button
+                      onClick={() => {
+                        setSelectedState('all');
+                        setIsStateDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                        selectedState === 'all' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                      }`}
+                    >
+                      All States
+                    </button>
+                    {sprintSummary.workItemsByState && Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
+                      <button
+                        key={state}
+                        onClick={() => {
+                          setSelectedState(state);
+                          setIsStateDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                          selectedState === state ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                        }`}
+                      >
+                        {state} ({items.length})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               
               {/* Assignee Filter Dropdown */}
               <div className="relative">
-                <User className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <select
-                  value={selectedAssignee}
-                  onChange={(e) => setSelectedAssignee(e.target.value)}
-                  className="pl-8 pr-4 py-2 border border-gray-200 rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 bg-white hover:border-gray-300 transition-colors"
+                <button
+                  onClick={() => {
+                    setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)
+                    setIsStateDropdownOpen(false)
+                    setIsOverdueStateDropdownOpen(false)
+                    setIsOverdueAssigneeDropdownOpen(false)
+                    setIsOverduePriorityDropdownOpen(false)
+                  }}
+                  className="flex items-center gap-2 pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-1 focus:ring-gray-100 focus:border-gray-300 bg-white hover:border-gray-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
                 >
-                  <option value="all">All Assignees ({Object.keys(sprintSummary.workItemsByAssignee || {}).length})</option>
-                  {sprintSummary.workItemsByAssignee && Object.entries(sprintSummary.workItemsByAssignee).map(([assignee, items]) => (
-                    <option key={assignee} value={assignee}>
-                      {assignee} ({items.length})
-                    </option>
-                  ))}
-                </select>
+                  <User className="h-3 w-3 absolute left-2.5 text-gray-400" />
+                  <span className="flex-1 text-left">
+                    {selectedAssignee === 'all' ? 'All Assignees' : selectedAssignee}
+                  </span>
+                  <svg className={`h-3 w-3 text-gray-400 transition-transform ${isAssigneeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {isAssigneeDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
+                    <button
+                      onClick={() => {
+                        setSelectedAssignee('all');
+                        setIsAssigneeDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                        selectedAssignee === 'all' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                      }`}
+                    >
+                      All Assignees ({Object.keys(sprintSummary.workItemsByAssignee || {}).length})
+                    </button>
+                    {sprintSummary.workItemsByAssignee && Object.entries(sprintSummary.workItemsByAssignee).map(([assignee, items]) => (
+                      <button
+                        key={assignee}
+                        onClick={() => {
+                          setSelectedAssignee(assignee);
+                          setIsAssigneeDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                          selectedAssignee === assignee ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                        }`}
+                      >
+                        {assignee} ({items.length})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               
               {/* Search Input */}
@@ -983,56 +1076,162 @@ export default function WorkItems() {
               <div className="flex items-center gap-2 mb-6">
                 {/* State Filter */}
                 <div className="relative">
-                  <Activity className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-amber-500" />
-                  <select
-                    value={overdueStateFilter}
-                    onChange={(e) => setOverdueStateFilter(e.target.value)}
-                    className="pl-8 pr-4 py-2 border border-amber-200 rounded-full text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300 bg-white hover:border-amber-300 transition-colors"
+                  <button
+                    onClick={() => {
+                      setIsOverdueStateDropdownOpen(!isOverdueStateDropdownOpen)
+                      setIsOverdueAssigneeDropdownOpen(false)
+                      setIsOverduePriorityDropdownOpen(false)
+                      setIsStateDropdownOpen(false)
+                      setIsAssigneeDropdownOpen(false)
+                    }}
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
                   >
-                    <option value="all">All States</option>
-                    {getOverdueStates().map(state => (
-                      <option key={state} value={state}>
-                        {state} ({getOverdueStateCount(state)})
-                      </option>
-                    ))}
-                  </select>
+                    <Activity className="h-3 w-3 absolute left-2.5 text-amber-500" />
+                    <span className="flex-1 text-left">
+                      {overdueStateFilter === 'all' ? 'All States' : overdueStateFilter}
+                    </span>
+                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverdueStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {isOverdueStateDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+                      <button
+                        onClick={() => {
+                          setOverdueStateFilter('all');
+                          setIsOverdueStateDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                          overdueStateFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        }`}
+                      >
+                        All States
+                      </button>
+                      {getOverdueStates().map(state => (
+                        <button
+                          key={state}
+                          onClick={() => {
+                            setOverdueStateFilter(state);
+                            setIsOverdueStateDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                            overdueStateFilter === state ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                          }`}
+                        >
+                          {state} ({getOverdueStateCount(state)})
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Assignee Filter */}
                 <div className="relative">
-                  <User className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-amber-500" />
-                  <select
-                    value={overdueAssigneeFilter}
-                    onChange={(e) => setOverdueAssigneeFilter(e.target.value)}
-                    className="pl-8 pr-4 py-2 border border-amber-200 rounded-full text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300 bg-white hover:border-amber-300 transition-colors"
+                  <button
+                    onClick={() => {
+                      setIsOverdueAssigneeDropdownOpen(!isOverdueAssigneeDropdownOpen)
+                      setIsOverdueStateDropdownOpen(false)
+                      setIsOverduePriorityDropdownOpen(false)
+                      setIsStateDropdownOpen(false)
+                      setIsAssigneeDropdownOpen(false)
+                    }}
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
                   >
-                    <option value="all">All Assignees ({getOverdueAssignees().length})</option>
-                    {getOverdueAssignees().map(assignee => (
-                      <option key={assignee} value={assignee}>
-                        {assignee} ({getOverdueAssigneeCount(assignee)})
-                      </option>
-                    ))}
-                  </select>
+                    <User className="h-3 w-3 absolute left-2.5 text-amber-500" />
+                    <span className="flex-1 text-left">
+                      {overdueAssigneeFilter === 'all' ? 'All Assignees' : overdueAssigneeFilter}
+                    </span>
+                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverdueAssigneeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {isOverdueAssigneeDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
+                      <button
+                        onClick={() => {
+                          setOverdueAssigneeFilter('all');
+                          setIsOverdueAssigneeDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                          overdueAssigneeFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        }`}
+                      >
+                        All Assignees ({getOverdueAssignees().length})
+                      </button>
+                      {getOverdueAssignees().map(assignee => (
+                        <button
+                          key={assignee}
+                          onClick={() => {
+                            setOverdueAssigneeFilter(assignee);
+                            setIsOverdueAssigneeDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                            overdueAssigneeFilter === assignee ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                          }`}
+                        >
+                          {assignee} ({getOverdueAssigneeCount(assignee)})
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Priority Filter */}
                 <div className="relative">
-                  <ArrowUp className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-amber-500" />
-                  <select
-                    value={overduePriorityFilter}
-                    onChange={(e) => setOverduePriorityFilter(e.target.value)}
-                    className="pl-8 pr-4 py-2 border border-amber-200 rounded-full text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300 bg-white hover:border-amber-300 transition-colors"
+                  <button
+                    onClick={() => {
+                      setIsOverduePriorityDropdownOpen(!isOverduePriorityDropdownOpen)
+                      setIsOverdueStateDropdownOpen(false)
+                      setIsOverdueAssigneeDropdownOpen(false)
+                      setIsStateDropdownOpen(false)
+                      setIsAssigneeDropdownOpen(false)
+                    }}
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[110px]"
                   >
-                    <option value="all">All Priorities ({getOverduePriorities().length})</option>
-                    {getOverduePriorities().map(priority => {
-                      const priorityText = priority === 'None' ? 'None' : getPriorityText(priority)
-                      return (
-                        <option key={priority} value={priority}>
-                          {priorityText} ({getOverduePriorityCount(priority)})
-                        </option>
-                      )
-                    })}
-                  </select>
+                    <ArrowUp className="h-3 w-3 absolute left-2.5 text-amber-500" />
+                    <span className="flex-1 text-left">
+                      {overduePriorityFilter === 'all' ? 'All Priorities' : 
+                       overduePriorityFilter === 'None' ? 'None' : getPriorityText(overduePriorityFilter)}
+                    </span>
+                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverduePriorityDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {isOverduePriorityDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[150px]">
+                      <button
+                        onClick={() => {
+                          setOverduePriorityFilter('all');
+                          setIsOverduePriorityDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                          overduePriorityFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        }`}
+                      >
+                        All Priorities ({getOverduePriorities().length})
+                      </button>
+                      {getOverduePriorities().map(priority => {
+                        const priorityText = priority === 'None' ? 'None' : getPriorityText(priority)
+                        return (
+                          <button
+                            key={priority}
+                            onClick={() => {
+                              setOverduePriorityFilter(priority);
+                              setIsOverduePriorityDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                              overduePriorityFilter === priority ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                            }`}
+                          >
+                            {priorityText} ({getOverduePriorityCount(priority)})
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Clear Filters */}

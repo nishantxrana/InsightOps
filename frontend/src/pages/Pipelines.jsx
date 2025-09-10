@@ -18,6 +18,7 @@ import {
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
 import ErrorMessage from "../components/ErrorMessage";
+import FilterDropdown from "../components/FilterDropdown";
 import { format } from "date-fns";
 
 export default function Pipelines() {
@@ -35,7 +36,6 @@ export default function Pipelines() {
   
   // Filter states
   const [statusFilter, setStatusFilter] = useState('all');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const { checkConnection } = useHealth();
 
   // Filter builds when filters change
@@ -59,17 +59,6 @@ export default function Pipelines() {
     loadPipelinesData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (isDropdownOpen && !event.target.closest('.relative')) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDropdownOpen]);
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadPipelinesData()]);
@@ -404,49 +393,20 @@ export default function Pipelines() {
             </h3>
           </div>
           <div className="flex items-center gap-2">
-            {/* Status Filter */}
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-2 pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-1 focus:ring-gray-100 focus:border-gray-300 bg-white hover:border-gray-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
-              >
-                <Filter className="h-3 w-3 absolute left-2.5 text-gray-400" />
-                <span className="flex-1 text-left">
-                  {statusFilter === 'all' ? 'All Status' : 
-                   statusFilter === 'succeeded' ? 'Succeeded' :
-                   statusFilter === 'failed' ? 'Failed' :
-                   statusFilter === 'inProgress' ? 'In Progress' : 'Canceled'}
-                </span>
-                <svg className={`h-3 w-3 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              
-              {isDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-                  {[
-                    { value: 'all', label: 'All Status' },
-                    { value: 'succeeded', label: 'Succeeded' },
-                    { value: 'failed', label: 'Failed' },
-                    { value: 'inProgress', label: 'In Progress' },
-                    { value: 'canceled', label: 'Canceled' }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setStatusFilter(option.value);
-                        setIsDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
-                        statusFilter === option.value ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <FilterDropdown
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'succeeded', label: 'Succeeded' },
+                { value: 'failed', label: 'Failed' },
+                { value: 'inProgress', label: 'In Progress' },
+                { value: 'canceled', label: 'Canceled' }
+              ]}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              icon={Filter}
+              placeholder="All Status"
+              minWidth="120px"
+            />
 
             <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
               {filteredBuilds.length} builds
