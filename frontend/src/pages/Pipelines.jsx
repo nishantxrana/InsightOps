@@ -374,7 +374,7 @@ export default function Pipelines() {
           </span>
         </div>
 
-        <div className="max-h-96 overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg bg-white">
+        <div className="max-h-[45vh] overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg bg-white">
           {builds.length > 0 ? (
             <div className="divide-y divide-gray-200">
               {builds.map((build) => (

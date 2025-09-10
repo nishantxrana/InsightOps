@@ -252,108 +252,114 @@ export default function Dashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
         {/* Work Items */}
-        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          {loadingStates.workItems ? (
-            <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <CheckSquare className="w-5 h-5 text-blue-600" />
-                <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-                  Sprint
-                </span>
+        <Link to="/work-items" className="block">
+          <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm cursor-pointer">
+            {loadingStates.workItems ? (
+              <div className="space-y-3">
+                <div className="shimmer h-4 rounded w-16"></div>
+                <div className="shimmer h-8 rounded w-12"></div>
+                <div className="shimmer h-2 rounded w-full"></div>
               </div>
-              <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.workItems.total}</div>
-                <div className="text-sm text-gray-600">Work Items</div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Progress</span>
-                  <span className="font-medium">{stats.workItems.total > 0 ? Math.round((stats.workItems.completed / stats.workItems.total) * 100) : 0}%</span>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <CheckSquare className="w-5 h-5 text-blue-600" />
+                  <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+                    Sprint
+                  </span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-1.5">
-                  <div 
-                    className="progress-bar bg-blue-600 h-1.5 rounded-full"
-                    style={{ width: `${stats.workItems.total > 0 ? (stats.workItems.completed / stats.workItems.total) * 100 : 0}%` }}
-                  />
+                <div className="mb-3">
+                  <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.workItems.total}</div>
+                  <div className="text-sm text-gray-600">Work Items</div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Progress</span>
+                    <span className="font-medium">{stats.workItems.total > 0 ? Math.round((stats.workItems.completed / stats.workItems.total) * 100) : 0}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5">
+                    <div 
+                      className="progress-bar bg-blue-600 h-1.5 rounded-full"
+                      style={{ width: `${stats.workItems.total > 0 ? (stats.workItems.completed / stats.workItems.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </Link>
 
         {/* Builds */}
-        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          {loadingStates.builds ? (
-            <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <GitBranch className={`w-5 h-5 ${stats.builds.failed > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  stats.builds.failed > 0 ? 'text-red-700 bg-red-50' : 'text-emerald-700 bg-emerald-50'
-                }`}>
-                  {stats.builds.failed > 0 ? 'Issues' : 'Healthy'}
-                </span>
+        <Link to="/pipelines" className="block">
+          <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm cursor-pointer">
+            {loadingStates.builds ? (
+              <div className="space-y-3">
+                <div className="shimmer h-4 rounded w-16"></div>
+                <div className="shimmer h-8 rounded w-12"></div>
+                <div className="shimmer h-2 rounded w-full"></div>
               </div>
-              <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">
-                  {stats.builds.total > 0 ? `${Math.round((stats.builds.succeeded / stats.builds.total) * 100)}%` : '0%'}
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <GitBranch className={`w-5 h-5 ${stats.builds.failed > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    stats.builds.failed > 0 ? 'text-red-700 bg-red-50' : 'text-emerald-700 bg-emerald-50'
+                  }`}>
+                    {stats.builds.failed > 0 ? 'Issues' : 'Healthy'}
+                  </span>
                 </div>
-                <div className="text-sm text-gray-600">Success Rate</div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">{stats.builds.succeeded} passed</span>
-                  <span className="text-gray-500">{stats.builds.failed} failed</span>
+                <div className="mb-3">
+                  <div className="text-2xl font-bold text-gray-900 mb-0.5">
+                    {stats.builds.total > 0 ? `${Math.round((stats.builds.succeeded / stats.builds.total) * 100)}%` : '0%'}
+                  </div>
+                  <div className="text-sm text-gray-600">Success Rate</div>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-1.5">
-                  <div 
-                    className={`progress-bar h-1.5 rounded-full ${stats.builds.failed > 0 ? 'bg-red-500' : 'bg-emerald-500'}`}
-                    style={{ width: `${stats.builds.total > 0 ? (stats.builds.succeeded / stats.builds.total) * 100 : 0}%` }}
-                  />
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">{stats.builds.succeeded} passed</span>
+                    <span className="text-gray-500">{stats.builds.failed} failed</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5">
+                    <div 
+                      className={`progress-bar h-1.5 rounded-full ${stats.builds.failed > 0 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${stats.builds.total > 0 ? (stats.builds.succeeded / stats.builds.total) * 100 : 0}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
+              </>
+            )}
+          </div>
+        </Link>
 
         {/* Pull Requests */}
-        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          {loadingStates.pullRequests ? (
-            <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <GitPullRequest className="w-5 h-5 text-purple-600" />
-                <span className="text-xs font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
-                  Active
-                </span>
+        <Link to="/pull-requests" className="block">
+          <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm cursor-pointer">
+            {loadingStates.pullRequests ? (
+              <div className="space-y-3">
+                <div className="shimmer h-4 rounded w-16"></div>
+                <div className="shimmer h-8 rounded w-12"></div>
+                <div className="shimmer h-2 rounded w-full"></div>
               </div>
-              <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.pullRequests.total}</div>
-                <div className="text-sm text-gray-600">Pull Requests</div>
-              </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>{stats.pullRequests.active} active</span>
-                <span>{stats.pullRequests.idle} idle</span>
-              </div>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <GitPullRequest className="w-5 h-5 text-purple-600" />
+                  <span className="text-xs font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
+                    Active
+                  </span>
+                </div>
+                <div className="mb-3">
+                  <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.pullRequests.total}</div>
+                  <div className="text-sm text-gray-600">Pull Requests</div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>{stats.pullRequests.active} active</span>
+                  <span>{stats.pullRequests.idle} idle</span>
+                </div>
+              </>
+            )}
+          </div>
+        </Link>
 
         {/* System */}
         <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
