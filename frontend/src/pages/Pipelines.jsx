@@ -365,13 +365,13 @@ export default function Pipelines() {
           </span>
         </div>
 
-        <div className="max-h-96 overflow-y-auto custom-scrollbar">
+        <div className="max-h-96 overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg bg-white">
           {builds.length > 0 ? (
-            <div className="space-y-2">
+            <div className="divide-y divide-gray-200">
               {builds.map((build) => (
                 <div
                   key={build.id}
-                  className="card-hover bg-white border border-gray-200 rounded-lg p-4 transition-all duration-200 group"
+                  className="px-6 py-4 hover:bg-gray-50 transition-colors group"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1 min-w-0">

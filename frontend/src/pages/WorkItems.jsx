@@ -827,14 +827,15 @@ export default function WorkItems() {
           
           {/* Work Items List */}
           {filteredWorkItems.length > 0 ? (
-            <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
-              {filteredWorkItems.map((item, index) => (
-                <div 
-                  key={item.id} 
-                  onClick={() => openWorkItemModal(item)}
-                  className="card-hover bg-white border border-gray-200 rounded-xl p-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-200 group"
-                  title="Click to view details"
-                >
+            <div className="space-y-0 max-h-96 overflow-y-auto custom-scrollbar border border-gray-200 rounded-xl bg-white">
+              <div className="divide-y divide-gray-200">
+                {filteredWorkItems.map((item, index) => (
+                  <div 
+                    key={item.id} 
+                    onClick={() => openWorkItemModal(item)}
+                    className="px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group"
+                    title="Click to view details"
+                  >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
@@ -865,8 +866,9 @@ export default function WorkItems() {
                       Click to view →
                     </span>
                   </div>
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
               
               {/* Scroll indicator */}
               {filteredWorkItems.length > 4 && (
