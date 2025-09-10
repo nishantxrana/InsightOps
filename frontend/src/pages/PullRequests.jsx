@@ -254,7 +254,7 @@ export default function PullRequests() {
 
   return (
     <div className="space-y-6">
-      <style jsx>{`
+      <style>{`
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }

@@ -12,10 +12,23 @@ import {
   Zap,
   RefreshCw,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  User,
+  Bell
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useHealth } from '../contexts/HealthContext'
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
@@ -178,21 +191,41 @@ export default function Layout({ children }) {
       )}>
         {/* Top bar */}
         <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
-          <button
-            type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu className="h-6 w-6" />
-          </button>
+            <Menu className="h-5 w-5" />
+          </Button>
 
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+            {/* Left Section - Breadcrumbs */}
             <div className="flex flex-1 items-center">
-              <h1 className="text-lg font-semibold text-gray-900">
-                {navigation.find(item => item.href === location.pathname)?.name || 'Dashboard'}
-              </h1>
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link to="/" className="flex items-center gap-1">
+                        <Home className="h-4 w-4" />
+                        Home
+                      </Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="font-semibold">
+                      {navigation.find(item => item.href === location.pathname)?.name || 'Dashboard'}
+                    </BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
             </div>
-            <div className="flex items-center gap-x-4 lg:gap-x-6">
+
+            {/* Right Section - Actions & User */}
+            <div className="flex items-center gap-x-3">
+              {/* Live/Offline Indicator - Original Design */}
               <div 
                 onClick={checkConnection}
                 disabled={isChecking}
@@ -232,6 +265,19 @@ export default function Layout({ children }) {
                       ? "text-emerald-400 group-hover:text-emerald-600 group-hover:rotate-180" 
                       : "text-red-400 group-hover:text-red-600 group-hover:rotate-180"
                 )} />
+              </div>
+
+              {/* User Profile */}
+              <div className="flex items-center gap-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-blue-600 text-white text-sm">
+                    A
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden sm:block">
+                  <div className="text-sm font-medium text-gray-900">Admin</div>
+                  <div className="text-xs text-gray-500">admin@company.com</div>
+                </div>
               </div>
             </div>
           </div>
