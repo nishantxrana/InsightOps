@@ -13,6 +13,7 @@ import {
   Timer,
   Building,
   RefreshCw,
+  Filter,
 } from "lucide-react";
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
@@ -24,18 +25,51 @@ export default function Pipelines() {
   const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState(null);
   const [builds, setBuilds] = useState([]);
+  const [filteredBuilds, setFilteredBuilds] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
     succeeded: 0,
     failed: 0,
     inProgress: 0,
   });
+  
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const { checkConnection } = useHealth();
+
+  // Filter builds when filters change
+  useEffect(() => {
+    let filtered = builds;
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(build => {
+        if (statusFilter === 'succeeded') return build.result === 'succeeded';
+        if (statusFilter === 'failed') return build.result === 'failed';
+        if (statusFilter === 'inProgress') return build.status === 'inProgress';
+        if (statusFilter === 'canceled') return build.result === 'canceled';
+        return true;
+      });
+    }
+
+    setFilteredBuilds(filtered);
+  }, [builds, statusFilter]);
 
   useEffect(() => {
     loadPipelinesData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isDropdownOpen && !event.target.closest('.relative')) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDropdownOpen]);
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadPipelinesData()]);
@@ -150,7 +184,7 @@ export default function Pipelines() {
 
   return (
     <div className="space-y-6">
-      <style jsx>{`
+      <style>{`
         @keyframes slideUp {
           from {
             opacity: 0;
@@ -369,15 +403,61 @@ export default function Pipelines() {
               Recent Builds
             </h3>
           </div>
-          <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-            {builds.length} builds
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Status Filter */}
+            <div className="relative">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center gap-2 pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-1 focus:ring-gray-100 focus:border-gray-300 bg-white hover:border-gray-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
+              >
+                <Filter className="h-3 w-3 absolute left-2.5 text-gray-400" />
+                <span className="flex-1 text-left">
+                  {statusFilter === 'all' ? 'All Status' : 
+                   statusFilter === 'succeeded' ? 'Succeeded' :
+                   statusFilter === 'failed' ? 'Failed' :
+                   statusFilter === 'inProgress' ? 'In Progress' : 'Canceled'}
+                </span>
+                <svg className={`h-3 w-3 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {isDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                  {[
+                    { value: 'all', label: 'All Status' },
+                    { value: 'succeeded', label: 'Succeeded' },
+                    { value: 'failed', label: 'Failed' },
+                    { value: 'inProgress', label: 'In Progress' },
+                    { value: 'canceled', label: 'Canceled' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setStatusFilter(option.value);
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                        statusFilter === option.value ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+              {filteredBuilds.length} builds
+            </span>
+          </div>
         </div>
 
         <div className="max-h-[45vh] overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg bg-white">
-          {builds.length > 0 ? (
+          {filteredBuilds.length > 0 ? (
             <div className="divide-y divide-gray-200">
-              {builds.map((build) => (
+              {filteredBuilds.map((build) => (
                 <div
                   key={build.id}
                   className="px-6 py-4 hover:bg-gray-50 transition-colors group"
@@ -440,7 +520,15 @@ export default function Pipelines() {
           ) : (
             <div className="text-center py-12 text-gray-500">
               <Building className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-              <p>No builds found</p>
+              <p>{statusFilter !== 'all' ? 'No builds match your filter' : 'No builds found'}</p>
+              {statusFilter !== 'all' && (
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className="mt-2 text-blue-600 hover:text-blue-800 underline text-sm"
+                >
+                  Clear filter to see all builds
+                </button>
+              )}
             </div>
           )}
         </div>
