@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { 
   CheckSquare, 
   GitBranch, 
@@ -405,7 +406,7 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {stats.workItems.overdue > 0 && (
-                  <div className="group flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-100 hover:bg-red-100 transition-colors cursor-pointer">
+                  <Link to="/work-items" className="group flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-100 hover:bg-red-100 transition-colors cursor-pointer">
                     <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
                       <Clock className="w-4 h-4 text-red-600" />
                     </div>
@@ -414,10 +415,10 @@ export default function Dashboard() {
                       <div className="text-xs text-red-700">Need immediate attention</div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-red-400 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
+                  </Link>
                 )}
                 {stats.builds.failed > 0 && (
-                  <div className="group flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-100 hover:bg-red-100 transition-colors cursor-pointer">
+                  <Link to="/pipelines" className="group flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-100 hover:bg-red-100 transition-colors cursor-pointer">
                     <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
                       <GitBranch className="w-4 h-4 text-red-600" />
                     </div>
@@ -426,10 +427,10 @@ export default function Dashboard() {
                       <div className="text-xs text-red-700">Check pipeline logs</div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-red-400 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
+                  </Link>
                 )}
                 {stats.pullRequests.idle > 0 && (
-                  <div className="group flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100 hover:bg-amber-100 transition-colors cursor-pointer">
+                  <Link to="/pull-requests?filter=idle" className="group flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100 hover:bg-amber-100 transition-colors cursor-pointer">
                     <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
                       <GitPullRequest className="w-4 h-4 text-amber-600" />
                     </div>
@@ -438,7 +439,7 @@ export default function Dashboard() {
                       <div className="text-xs text-amber-700">No activity for 48h+</div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
+                  </Link>
                 )}
                 {stats.workItems.overdue === 0 && stats.builds.failed === 0 && stats.pullRequests.idle === 0 && (
                   <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
