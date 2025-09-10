@@ -27,6 +27,8 @@ export default function PullRequests() {
   const [error, setError] = useState(null)
   const [pullRequests, setPullRequests] = useState([])
   const [idlePRs, setIdlePRs] = useState([])
+  const [filter, setFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('newest')
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -175,6 +177,44 @@ export default function PullRequests() {
     return 'Unknown'
   }
 
+  // Filter and sort PRs
+  const getFilteredAndSortedPRs = () => {
+    let filtered = [...pullRequests]
+
+    // Apply filter
+    switch (filter) {
+      case 'under-review':
+        filtered = filtered.filter(pr => pr.status === 'active' && pr.reviewers && pr.reviewers.length > 0)
+        break
+      case 'unassigned':
+        filtered = filtered.filter(pr => pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0))
+        break
+      case 'idle':
+        filtered = filtered.filter(pr => idlePRs.some(idle => idle.pullRequestId === pr.pullRequestId))
+        break
+      case 'all':
+      default:
+        // No filter
+        break
+    }
+
+    // Apply sort
+    switch (sortBy) {
+      case 'oldest':
+        filtered.sort((a, b) => new Date(a.creationDate) - new Date(b.creationDate))
+        break
+      case 'title':
+        filtered.sort((a, b) => a.title.localeCompare(b.title))
+        break
+      case 'newest':
+      default:
+        filtered.sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate))
+        break
+    }
+
+    return filtered
+  }
+
   if (loading) {
     return <LoadingSpinner />
   }
@@ -281,15 +321,95 @@ export default function PullRequests() {
         </div>
       </div>
 
+
+      {/* Filter and Sort Controls */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.25s'}}>
+        <div className="p-4 space-y-4 lg:space-y-0 lg:flex lg:items-center lg:justify-between">
+          {/* Filter Section */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Filter
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'all', label: 'All', count: pullRequests.length },
+                { value: 'under-review', label: 'Under Review', count: stats.active },
+                { value: 'unassigned', label: 'Unassigned', count: stats.unassigned },
+                { value: 'idle', label: 'Idle', count: stats.idle }
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setFilter(option.value)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+                    filter === option.value
+                      ? 'bg-blue-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                  }`}
+                >
+                  <span>{option.label}</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                    filter === option.value
+                      ? 'bg-white/20 text-white'
+                      : 'bg-white text-gray-500'
+                  }`}>
+                    {option.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="hidden lg:block w-px h-8 bg-gray-200"></div>
+
+          {/* Sort Section */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              Sort
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'newest', label: 'Newest' },
+                { value: 'oldest', label: 'Oldest' },
+                { value: 'title', label: 'A-Z' }
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setSortBy(option.value)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+                    sortBy === option.value
+                      ? 'bg-purple-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Pull Requests List */}
       <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-0">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">All Pull Requests</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-gray-900">All Pull Requests</h3>
+            <span className="text-sm text-gray-500">
+              {filter === 'all' ? pullRequests.length : getFilteredAndSortedPRs().length} of {pullRequests.length}
+            </span>
+          </div>
         </div>
         <div className="max-h-96 overflow-y-auto">
-          {pullRequests.length > 0 ? (
+          {getFilteredAndSortedPRs().length > 0 ? (
             <div className="divide-y divide-gray-200">
-              {pullRequests.map((pr) => (
+              {getFilteredAndSortedPRs().map((pr) => (
                 <div key={pr.pullRequestId} className="p-4 hover:bg-gray-50 transition-colors">
                   {/* Header Row */}
                   <div className="flex items-center justify-between mb-2">
@@ -399,66 +519,6 @@ export default function PullRequests() {
           )}
         </div>
       </div>
-
-      {/* Review Status Summary */}
-      {pullRequests.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="card">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Review Status</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Needs Review</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {pullRequests.filter(pr => pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)).length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Under Review</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {pullRequests.filter(pr => pr.status === 'active' && pr.reviewers && pr.reviewers.length > 0).length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Completed</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {pullRequests.filter(pr => pr.status === 'completed').length}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Activity Summary</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Created Today</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {pullRequests.filter(pr => {
-                    const today = new Date()
-                    const created = new Date(pr.creationDate)
-                    return created.toDateString() === today.toDateString()
-                  }).length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Idle (48h+)</span>
-                <span className="text-sm font-medium text-gray-900">{stats.idle}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Average Age</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {pullRequests.length > 0 ? Math.round(
-                    pullRequests.reduce((acc, pr) => {
-                      const age = (new Date() - new Date(pr.creationDate)) / (1000 * 60 * 60 * 24)
-                      return acc + age
-                    }, 0) / pullRequests.length
-                  ) : 0} days
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* No Data State */}
       {pullRequests.length === 0 && (
