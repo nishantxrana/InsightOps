@@ -182,7 +182,7 @@ export default function Logs() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Logs */}
         <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           {loading ? (
@@ -283,7 +283,7 @@ export default function Logs() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.2s'}}>
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
@@ -324,7 +324,7 @@ export default function Logs() {
       </div>
 
       {/* Logs Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

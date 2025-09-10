@@ -352,9 +352,12 @@ export default function Dashboard() {
                   <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.pullRequests.total}</div>
                   <div className="text-sm text-gray-600">Pull Requests</div>
                 </div>
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>{stats.pullRequests.active} active</span>
-                  <span>{stats.pullRequests.idle} idle</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">{stats.pullRequests.active} active</span>
+                    <span className="text-gray-500">{stats.pullRequests.idle} idle</span>
+                  </div>
+                  <div className="h-1.5"></div>
                 </div>
               </>
             )}

@@ -244,7 +244,7 @@ export default function Settings() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Azure DevOps Configuration */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.2s'}}>
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Database className="h-5 w-5 text-blue-600" />
             Azure DevOps Configuration
