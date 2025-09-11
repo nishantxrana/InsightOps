@@ -25,20 +25,20 @@ export default function FilterDropdown({
 
   const themeClasses = {
     blue: {
-      button: 'border-gray-200 focus:ring-gray-100 focus:border-gray-300 hover:border-gray-300',
-      dropdown: 'border-gray-200',
-      icon: 'text-gray-400',
-      chevron: 'text-gray-400',
-      option: 'hover:bg-gray-50',
-      activeOption: 'bg-blue-50 text-blue-700'
+      button: 'border-border dark:border-[#1a1a1a] focus:ring-muted focus:border-border hover:border-muted-foreground',
+      dropdown: 'border-border dark:border-[#1a1a1a]',
+      icon: 'text-muted-foreground',
+      chevron: 'text-muted-foreground',
+      option: 'hover:bg-muted',
+      activeOption: 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
     },
     amber: {
-      button: 'border-amber-200 focus:ring-amber-100 focus:border-amber-300 hover:border-amber-300',
-      dropdown: 'border-amber-200',
-      icon: 'text-amber-500',
-      chevron: 'text-amber-500',
-      option: 'hover:bg-amber-50',
-      activeOption: 'bg-amber-50 text-amber-700'
+      button: 'border-border dark:border-[#1a1a1a] focus:ring-muted focus:border-border hover:border-muted-foreground',
+      dropdown: 'border-border dark:border-[#1a1a1a]',
+      icon: 'text-muted-foreground',
+      chevron: 'text-muted-foreground',
+      option: 'hover:bg-muted',
+      activeOption: 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300'
     }
   }
 
@@ -50,11 +50,11 @@ export default function FilterDropdown({
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 pl-8 pr-3 py-2 border rounded-full text-xs focus:ring-1 bg-white transition-all cursor-pointer shadow-sm hover:shadow-sm ${currentTheme.button}`}
+        className={`flex items-center gap-2 pl-8 pr-3 py-2 border rounded-full text-xs focus:ring-1 bg-card dark:bg-[#111111] transition-all cursor-pointer shadow-sm hover:shadow-sm ${currentTheme.button}`}
         style={{ minWidth }}
       >
         {Icon && <Icon className={`h-3 w-3 absolute left-2.5 ${currentTheme.icon}`} />}
-        <span className="flex-1 text-left">
+        <span className="flex-1 text-left text-foreground">
           {displayText}
         </span>
         <svg 
@@ -68,7 +68,7 @@ export default function FilterDropdown({
       </button>
       
       {isOpen && (
-        <div className={`absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 py-1 min-w-[140px] ${currentTheme.dropdown}`}>
+        <div className={`absolute top-full left-0 right-0 mt-1 bg-card dark:bg-[#111111] border rounded-lg shadow-lg z-50 py-1 min-w-[140px] ${currentTheme.dropdown}`}>
           {options.map((option) => (
             <button
               key={option.value}
@@ -77,7 +77,7 @@ export default function FilterDropdown({
                 setIsOpen(false)
               }}
               className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                value === option.value ? currentTheme.activeOption : `text-gray-700 ${currentTheme.option}`
+                value === option.value ? currentTheme.activeOption : `text-foreground ${currentTheme.option}`
               }`}
             >
               {option.label}

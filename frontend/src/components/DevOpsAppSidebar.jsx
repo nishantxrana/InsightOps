@@ -76,7 +76,7 @@ export function DevOpsAppSidebar({ ...props }) {
       <SidebarHeader>
         <div className="flex items-center gap-2 pl-1 pr-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           <img src="/icon.svg" alt="Agent" className="h-8 w-8 flex-shrink-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10" />
-          <span className="text-lg font-semibold text-gray-900 group-data-[collapsible=icon]:hidden">
+          <span className="text-lg font-semibold text-foreground group-data-[collapsible=icon]:hidden">
             Agent
           </span>
         </div>

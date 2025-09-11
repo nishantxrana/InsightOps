@@ -200,14 +200,14 @@ export default function Settings() {
       <div className="animate-slide-up">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Settings</h1>
-            <p className="text-gray-600 text-sm mt-0.5">Configure your Azure DevOps monitoring agent</p>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Settings</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Configure your Azure DevOps monitoring agent</p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={handleTestConnection}
               disabled={testing}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50 transition-colors"
             >
               <TestTube className="h-4 w-4" />
               <span>{testing ? 'Testing...' : 'Test Connection'}</span>
@@ -215,7 +215,7 @@ export default function Settings() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-colors"
             >
               <Save className="h-4 w-4" />
               <span>{saving ? 'Saving...' : 'Save Settings'}</span>
@@ -226,17 +226,17 @@ export default function Settings() {
 
       {/* Test Result */}
       {testResult && (
-        <div className={`bg-white p-4 rounded-2xl border shadow-sm flex items-center gap-3 animate-fade-in ${
+        <div className={`bg-card dark:bg-[#111111] p-4 rounded-2xl border shadow-sm flex items-center gap-3 animate-fade-in ${
           testResult.success 
-            ? 'border-green-200 bg-green-50' 
-            : 'border-red-200 bg-red-50'
+            ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/50' 
+            : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50'
         }`} style={{animationDelay: '0.1s'}}>
           {testResult.success ? (
-            <CheckCircle className="h-5 w-5 text-green-600" />
+            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
           ) : (
-            <XCircle className="h-5 w-5 text-red-600" />
+            <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
           )}
-          <span className={testResult.success ? 'text-green-800' : 'text-red-800'}>
+          <span className={testResult.success ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}>
             {testResult.message}
           </span>
         </div>
@@ -244,69 +244,69 @@ export default function Settings() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Azure DevOps Configuration */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Database className="h-5 w-5 text-blue-600" />
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             Azure DevOps Configuration
           </h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Organization</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Organization</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.azureDevOps.organization}
                 onChange={(e) => updateSetting('azureDevOps', 'organization', e.target.value)}
                 placeholder="your-organization"
               />
               {validationErrors.organization && (
-                <p className="text-red-600 text-xs mt-1">{validationErrors.organization}</p>
+                <p className="text-red-600 dark:text-red-400 text-xs mt-1">{validationErrors.organization}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Project</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.azureDevOps.project}
                 onChange={(e) => updateSetting('azureDevOps', 'project', e.target.value)}
                 placeholder="your-project"
               />
               {validationErrors.project && (
-                <p className="text-red-600 text-xs mt-1">{validationErrors.project}</p>
+                <p className="text-red-600 dark:text-red-400 text-xs mt-1">{validationErrors.project}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Personal Access Token</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Personal Access Token</label>
               <div className="relative">
                 <input
                   type={showSecrets.pat ? 'text' : 'password'}
-                  className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full px-3 py-2 pr-10 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                   value={settings.azureDevOps.personalAccessToken}
                   onChange={(e) => updateSetting('azureDevOps', 'personalAccessToken', e.target.value)}
                   placeholder="your-personal-access-token"
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600 transition-colors"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-muted-foreground transition-colors"
                   onClick={() => toggleSecretVisibility('pat')}
                 >
                   {showSecrets.pat ? (
-                    <EyeOff className="h-4 w-4 text-gray-400" />
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
                   ) : (
-                    <Eye className="h-4 w-4 text-gray-400" />
+                    <Eye className="h-4 w-4 text-muted-foreground" />
                   )}
                 </button>
               </div>
               {validationErrors.personalAccessToken && (
-                <p className="text-red-600 text-xs mt-1">{validationErrors.personalAccessToken}</p>
+                <p className="text-red-600 dark:text-red-400 text-xs mt-1">{validationErrors.personalAccessToken}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Base URL</label>
               <input
                 type="url"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.azureDevOps.baseUrl}
                 onChange={(e) => updateSetting('azureDevOps', 'baseUrl', e.target.value)}
                 placeholder="https://dev.azure.com"
@@ -316,13 +316,13 @@ export default function Settings() {
         </div>
 
         {/* AI Configuration */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">AI Configuration</h3>
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+          <h3 className="text-lg font-medium text-foreground mb-4">AI Configuration</h3>
           <div className="space-y-4">
             <div>
-              <label className="label">AI Provider</label>
+              <label className="block text-sm font-medium text-foreground mb-1">AI Provider</label>
               <select
-                className="input"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground"
                 value={settings.ai.provider}
                 onChange={(e) => updateSetting('ai', 'provider', e.target.value)}
               >
@@ -333,11 +333,11 @@ export default function Settings() {
             </div>
             {settings.ai.provider === 'openai' && (
               <div>
-                <label className="label">OpenAI API Key</label>
+                <label className="block text-sm font-medium text-foreground mb-1">OpenAI API Key</label>
                 <div className="relative">
                   <input
                     type={showSecrets.openai ? 'text' : 'password'}
-                    className="input pr-10"
+                    className="w-full px-3 py-2 pr-10 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                     value={settings.ai.openaiApiKey}
                     onChange={(e) => updateSetting('ai', 'openaiApiKey', e.target.value)}
                     placeholder="sk-..."
@@ -348,9 +348,9 @@ export default function Settings() {
                     onClick={() => toggleSecretVisibility('openai')}
                   >
                     {showSecrets.openai ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
+                      <Eye className="h-4 w-4 text-muted-foreground" />
                     )}
                   </button>
                 </div>
@@ -358,11 +358,11 @@ export default function Settings() {
             )}
             {settings.ai.provider === 'groq' && (
               <div>
-                <label className="label">Groq API Key</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Groq API Key</label>
                 <div className="relative">
                   <input
                     type={showSecrets.groq ? 'text' : 'password'}
-                    className="input pr-10"
+                    className="w-full px-3 py-2 pr-10 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                     value={settings.ai.groqApiKey}
                     onChange={(e) => updateSetting('ai', 'groqApiKey', e.target.value)}
                     placeholder="gsk_..."
@@ -373,9 +373,9 @@ export default function Settings() {
                     onClick={() => toggleSecretVisibility('groq')}
                   >
                     {showSecrets.groq ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
+                      <Eye className="h-4 w-4 text-muted-foreground" />
                     )}
                   </button>
                 </div>
@@ -383,11 +383,11 @@ export default function Settings() {
             )}
             {settings.ai.provider === 'gemini' && (
               <div>
-                <label className="label">Gemini API Key</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Gemini API Key</label>
                 <div className="relative">
                   <input
                     type={showSecrets.gemini ? 'text' : 'password'}
-                    className="input pr-10"
+                    className="w-full px-3 py-2 pr-10 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                     value={settings.ai.geminiApiKey}
                     onChange={(e) => updateSetting('ai', 'geminiApiKey', e.target.value)}
                     placeholder="AIza..."
@@ -398,19 +398,19 @@ export default function Settings() {
                     onClick={() => toggleSecretVisibility('gemini')}
                   >
                     {showSecrets.gemini ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
+                      <Eye className="h-4 w-4 text-muted-foreground" />
                     )}
                   </button>
                 </div>
               </div>
             )}
             <div>
-              <label className="label">Model</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Model</label>
               <input
                 type="text"
-                className="input"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.ai.model}
                 onChange={(e) => updateSetting('ai', 'model', e.target.value)}
                 placeholder="gpt-3.5-turbo"
@@ -420,36 +420,36 @@ export default function Settings() {
         </div>
 
         {/* Notification Configuration */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Notifications</h3>
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+          <h3 className="text-lg font-medium text-foreground mb-4">Notifications</h3>
           <div className="space-y-4">
             <div className="flex items-center">
               <input
                 type="checkbox"
                 id="notifications-enabled"
-                className="h-4 w-4 text-azure-600 focus:ring-azure-500 border-gray-300 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
                 checked={settings.notifications.enabled}
                 onChange={(e) => updateSetting('notifications', 'enabled', e.target.checked)}
               />
-              <label htmlFor="notifications-enabled" className="ml-2 text-sm text-gray-900">
+              <label htmlFor="notifications-enabled" className="ml-2 text-sm text-foreground">
                 Enable notifications
               </label>
             </div>
             <div>
-              <label className="label">Microsoft Teams Webhook URL</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Microsoft Teams Webhook URL</label>
               <input
                 type="url"
-                className="input"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.notifications.teamsWebhookUrl}
                 onChange={(e) => updateSetting('notifications', 'teamsWebhookUrl', e.target.value)}
                 placeholder="https://outlook.office.com/webhook/..."
               />
             </div>
             <div>
-              <label className="label">Slack Webhook URL</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Slack Webhook URL</label>
               <input
                 type="url"
-                className="input"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.notifications.slackWebhookUrl}
                 onChange={(e) => updateSetting('notifications', 'slackWebhookUrl', e.target.value)}
                 placeholder="https://hooks.slack.com/services/..."
@@ -459,52 +459,52 @@ export default function Settings() {
         </div>
 
         {/* Polling Configuration */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Polling Intervals</h3>
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+          <h3 className="text-lg font-medium text-foreground mb-4">Polling Intervals</h3>
           <div className="space-y-4">
             <div>
-              <label className="label">Work Items (cron expression)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Work Items (cron expression)</label>
               <input
                 type="text"
-                className="input"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.polling.workItemsInterval}
                 onChange={(e) => updateSetting('polling', 'workItemsInterval', e.target.value)}
                 placeholder="*/15 * * * *"
               />
-              <p className="text-xs text-gray-500 mt-1">Every 15 minutes</p>
+              <p className="text-xs text-muted-foreground mt-1">Every 15 minutes</p>
             </div>
             <div>
-              <label className="label">Pipelines (cron expression)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Pipelines (cron expression)</label>
               <input
                 type="text"
-                className="input"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.polling.pipelineInterval}
                 onChange={(e) => updateSetting('polling', 'pipelineInterval', e.target.value)}
                 placeholder="*/10 * * * *"
               />
-              <p className="text-xs text-gray-500 mt-1">Every 10 minutes</p>
+              <p className="text-xs text-muted-foreground mt-1">Every 10 minutes</p>
             </div>
             <div>
-              <label className="label">Pull Requests (cron expression)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Pull Requests (cron expression)</label>
               <input
                 type="text"
-                className="input"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.polling.pullRequestInterval}
                 onChange={(e) => updateSetting('polling', 'pullRequestInterval', e.target.value)}
                 placeholder="0 */2 * * *"
               />
-              <p className="text-xs text-gray-500 mt-1">Every 2 hours</p>
+              <p className="text-xs text-muted-foreground mt-1">Every 2 hours</p>
             </div>
             <div>
-              <label className="label">Overdue Check (cron expression)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Overdue Check (cron expression)</label>
               <input
                 type="text"
-                className="input"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.polling.overdueCheckInterval}
                 onChange={(e) => updateSetting('polling', 'overdueCheckInterval', e.target.value)}
                 placeholder="0 9 * * *"
               />
-              <p className="text-xs text-gray-500 mt-1">Daily at 9 AM</p>
+              <p className="text-xs text-muted-foreground mt-1">Daily at 9 AM</p>
             </div>
           </div>
         </div>

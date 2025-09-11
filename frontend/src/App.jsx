@@ -8,21 +8,24 @@ import WorkItems from './pages/WorkItems'
 import Pipelines from './pages/Pipelines'
 import PullRequests from './pages/PullRequests'
 import { HealthProvider } from './contexts/HealthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 
 function App() {
   return (
-    <HealthProvider>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/work-items" element={<WorkItems />} />
-          <Route path="/pipelines" element={<Pipelines />} />
-          <Route path="/pull-requests" element={<PullRequests />} />
-          <Route path="/logs" element={<Logs />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </Layout>
-    </HealthProvider>
+    <ThemeProvider>
+      <HealthProvider>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/work-items" element={<WorkItems />} />
+            <Route path="/pipelines" element={<Pipelines />} />
+            <Route path="/pull-requests" element={<PullRequests />} />
+            <Route path="/logs" element={<Logs />} />
+            <Route path="/settings" element={<Settings />} />
+          </Routes>
+        </Layout>
+      </HealthProvider>
+    </ThemeProvider>
   )
 }
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Moon, Sun } from 'lucide-react'
 import { useHealth } from '../contexts/HealthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import { DevOpsAppSidebar } from './DevOpsAppSidebar'
 import {
   Breadcrumb,
@@ -36,6 +37,7 @@ const breadcrumbMap = {
 export default function Layout({ children }) {
   const location = useLocation()
   const { isConnected, isChecking, checkConnection } = useHealth()
+  const { theme, toggleTheme } = useTheme()
 
   const currentPageName = breadcrumbMap[location.pathname] || 'Page'
 
@@ -63,8 +65,30 @@ export default function Layout({ children }) {
               </Breadcrumb>
             </div>
             
-            {/* Right Section - Status */}
-            <div className="ml-auto flex items-center gap-2 px-10">
+            {/* Right Section - Status & Theme */}
+            <div className="ml-auto flex items-center gap-3 px-10">
+              {/* Theme Toggle */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={toggleTheme}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-accent transition-colors"
+                  >
+                    {theme === 'dark' ? (
+                      <Sun className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
+                    ) : (
+                      <Moon className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-sm">
+                    Switch to {theme === 'dark' ? 'light' : 'dark'} mode
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Status Indicator */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div 

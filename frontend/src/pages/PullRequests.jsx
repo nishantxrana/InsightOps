@@ -124,28 +124,28 @@ export default function PullRequests() {
     switch (status) {
       case 'active':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200">
             <Activity className="h-3 w-3" />
             Active
           </span>
         )
       case 'completed':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200">
             <CheckCircle2 className="h-3 w-3" />
             Completed
           </span>
         )
       case 'abandoned':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
             <XCircle className="h-3 w-3" />
             Abandoned
           </span>
         )
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
             <AlertCircle className="h-3 w-3" />
             {status}
           </span>
@@ -157,28 +157,28 @@ export default function PullRequests() {
     switch (mergeStatus) {
       case 'succeeded':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200">
             <CheckCircle2 className="h-3 w-3" />
             Ready
           </span>
         )
       case 'conflicts':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200">
             <AlertCircle className="h-3 w-3" />
             Conflicts
           </span>
         )
       case 'queued':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200">
             <Clock className="h-3 w-3" />
             Queued
           </span>
         )
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
             <AlertCircle className="h-3 w-3" />
             {mergeStatus || 'Unknown'}
           </span>
@@ -189,13 +189,13 @@ export default function PullRequests() {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'active':
-        return <GitPullRequest className="h-5 w-5 text-blue-500" />
+        return <GitPullRequest className="h-5 w-5 text-blue-500 dark:text-blue-400" />
       case 'completed':
-        return <GitPullRequest className="h-5 w-5 text-green-500" />
+        return <GitPullRequest className="h-5 w-5 text-green-500 dark:text-green-400" />
       case 'abandoned':
-        return <GitPullRequest className="h-5 w-5 text-gray-500" />
+        return <GitPullRequest className="h-5 w-5 text-muted-foreground" />
       default:
-        return <GitPullRequest className="h-5 w-5 text-gray-400" />
+        return <GitPullRequest className="h-5 w-5 text-muted-foreground" />
     }
   }
 
@@ -311,14 +311,14 @@ export default function PullRequests() {
       <div className="animate-slide-up">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Pull Requests</h1>
-            <p className="text-gray-600 text-sm mt-0.5">Active pull requests and review status</p>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Pull Requests</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Active pull requests and review status</p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={handleSync}
               disabled={Object.values(loadingStates).some(loading => loading)}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+              className="group flex items-center gap-2 px-3 py-1.5 bg-foreground text-background text-sm font-medium rounded-full hover:bg-foreground/90 disabled:opacity-60 transition-all duration-200"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${Object.values(loadingStates).some(loading => loading) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
               Sync
@@ -330,7 +330,7 @@ export default function PullRequests() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
         {/* Total PRs */}
-        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
               <div className="shimmer h-4 rounded w-16"></div>
@@ -340,21 +340,21 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <GitPullRequest className="h-5 w-5 text-blue-600" />
-                <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                <GitPullRequest className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full">
                   Total
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.total}</div>
-                <div className="text-sm text-gray-600">Pull Requests</div>
+                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.total}</div>
+                <div className="text-sm text-muted-foreground">Pull Requests</div>
               </div>
             </>
           )}
         </div>
 
         {/* Active PRs */}
-        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
               <div className="shimmer h-4 rounded w-16"></div>
@@ -364,21 +364,21 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <Activity className="h-5 w-5 text-green-600" />
-                <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                <Activity className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <span className="text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-full">
                   Active
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.active}</div>
-                <div className="text-sm text-gray-600">Under Review</div>
+                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.active}</div>
+                <div className="text-sm text-muted-foreground">Under Review</div>
               </div>
             </>
           )}
         </div>
 
         {/* Unassigned PRs */}
-        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
               <div className="shimmer h-4 rounded w-16"></div>
@@ -388,21 +388,21 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <User className="h-5 w-5 text-orange-600" />
-                <span className="text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">
+                <User className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                <span className="text-xs font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 px-2 py-0.5 rounded-full">
                   Unassigned
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.unassigned}</div>
-                <div className="text-sm text-gray-600">Need Reviewers</div>
+                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.unassigned}</div>
+                <div className="text-sm text-muted-foreground">Need Reviewers</div>
               </div>
             </>
           )}
         </div>
 
         {/* Idle PRs */}
-        <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.idlePRs ? (
             <div className="space-y-3">
               <div className="shimmer h-4 rounded w-16"></div>
@@ -412,14 +412,14 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <Clock className="h-5 w-5 text-yellow-600" />
-                <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
+                <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
                   Idle
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{stats.idle}</div>
-                <div className="text-sm text-gray-600">Stale (48h+)</div>
+                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.idle}</div>
+                <div className="text-sm text-muted-foreground">Stale (48h+)</div>
               </div>
             </>
           )}
@@ -428,12 +428,12 @@ export default function PullRequests() {
 
 
       {/* Filter and Sort Controls */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.25s'}}>
+      <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.25s'}}>
         <div className="p-4 space-y-4 lg:space-y-0 lg:flex lg:items-center lg:justify-between">
           {/* Filter Section */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span className="text-sm font-medium text-foreground flex items-center gap-2">
+              <svg className="w-4 h-4 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
               Filter
@@ -451,14 +451,14 @@ export default function PullRequests() {
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                     filter === option.value
                       ? 'bg-blue-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   }`}
                 >
                   <span>{option.label}</span>
                   <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
                     filter === option.value
                       ? 'bg-white/20 text-white'
-                      : 'bg-white text-gray-500'
+                      : 'bg-background text-muted-foreground'
                   }`}>
                     {option.count}
                   </span>
@@ -468,12 +468,12 @@ export default function PullRequests() {
           </div>
 
           {/* Divider */}
-          <div className="hidden lg:block w-px h-8 bg-gray-200"></div>
+          <div className="hidden lg:block w-px h-8 bg-border dark:bg-[#1a1a1a]"></div>
 
           {/* Sort Section */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span className="text-sm font-medium text-foreground flex items-center gap-2">
+              <svg className="w-4 h-4 text-purple-500 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
               </svg>
               Sort
@@ -490,7 +490,7 @@ export default function PullRequests() {
                   className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                     sortBy === option.value
                       ? 'bg-purple-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   }`}
                 >
                   {option.label}
@@ -502,27 +502,27 @@ export default function PullRequests() {
       </div>
 
       {/* Pull Requests List */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
-        <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100">
+      <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+        <div className="flex items-center justify-between px-5 py-5 border-b border-border dark:border-[#1a1a1a]">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-blue-50">
-              <GitPullRequest className="h-5 w-5 text-blue-600" />
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50">
+              <GitPullRequest className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h3 className="text-xl font-semibold text-gray-900">All Pull Requests</h3>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <h3 className="text-xl font-semibold text-foreground">All Pull Requests</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
                 {filter === 'all' ? 'Showing all pull requests' : `Filtered results`}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-muted text-foreground">
               {filter === 'all' ? pullRequests.length : getFilteredAndSortedPRs().length} of {pullRequests.length}
             </span>
             {getFilteredAndSortedPRs().length !== pullRequests.length && (
               <button
                 onClick={() => setFilter('all')}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium transition-colors"
               >
                 Clear filters
               </button>
@@ -531,7 +531,7 @@ export default function PullRequests() {
         </div>
         <div className="max-h-[55vh] overflow-y-auto custom-scrollbar">
           {loadingStates.pullRequests ? (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-border dark:divide-[#1a1a1a]">
               {[1, 2, 3, 4, 5].map(i => (
                 <div key={i} className="px-6 py-4">
                   <div className="flex items-center justify-between mb-2">
@@ -563,16 +563,16 @@ export default function PullRequests() {
               ))}
             </div>
           ) : getFilteredAndSortedPRs().length > 0 ? (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-border dark:divide-[#1a1a1a]">
               {getFilteredAndSortedPRs().map((pr) => (
-                <div key={pr.pullRequestId} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                <div key={pr.pullRequestId} className="px-6 py-4 hover:bg-muted/50 transition-colors">
                   {/* Header Row */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center flex-1 min-w-0">
                       {getStatusIcon(pr.status)}
                       <div className="ml-2 flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-medium text-gray-900 truncate">
+                          <h4 className="text-sm font-medium text-foreground truncate">
                             #{pr.pullRequestId}: {pr.title}
                           </h4>
                           {pr.webUrl && (
@@ -580,7 +580,7 @@ export default function PullRequests() {
                               href={pr.webUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex-shrink-0 text-blue-600 hover:text-blue-800 transition-colors"
+                              className="flex-shrink-0 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                               title="Open in Azure DevOps"
                             >
                               <ExternalLink className="h-4 w-4" />
@@ -598,7 +598,7 @@ export default function PullRequests() {
                   {/* All content aligned with title - no indentation */}
                   <div className="ml-7">
                     {/* Compact Info Row */}
-                    <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
                       <div className="flex items-center gap-1">
                         <User className="h-3 w-3" />
                         <span className="truncate max-w-24">{pr.createdBy?.displayName || 'Unknown'}</span>
@@ -619,20 +619,20 @@ export default function PullRequests() {
                     {pr.reviewers && pr.reviewers.length > 0 && (
                       <div className="mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                          <span className="text-xs font-medium text-foreground bg-muted px-2 py-1 rounded">
                             Reviewers
                           </span>
                           <div className="flex flex-wrap gap-1">
                             {pr.reviewers.slice(0, 3).map((reviewer, index) => (
                               <span
                                 key={index}
-                                className="inline-block px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 border border-blue-200"
+                                className="inline-block px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
                               >
                                 {reviewer.displayName}
                               </span>
                             ))}
                             {pr.reviewers.length > 3 && (
-                              <span className="text-xs text-gray-500 px-2 py-1">
+                              <span className="text-xs text-muted-foreground px-2 py-1">
                                 +{pr.reviewers.length - 3} more
                               </span>
                             )}
@@ -643,13 +643,13 @@ export default function PullRequests() {
 
                     {/* Description - Only show if present */}
                     {pr.description && (
-                      <p className="text-xs text-gray-500 mb-2 line-clamp-1">
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
                         {pr.description}
                       </p>
                     )}
 
                     {/* Project Info */}
-                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground/70">
                       <div className="flex items-center gap-1">
                         <Building className="h-3 w-3" />
                         <span className="truncate">{pr.repository?.project?.name || 'Unknown'}</span>
@@ -668,7 +668,7 @@ export default function PullRequests() {
               ))}
             </div>
           ) : (
-            <div className="px-6 py-12 text-center text-gray-500">
+            <div className="px-6 py-12 text-center text-muted-foreground">
               No pull requests found
             </div>
           )}
@@ -677,10 +677,10 @@ export default function PullRequests() {
 
       {/* No Data State */}
       {pullRequests.length === 0 && (
-        <div className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm text-center py-12">
-          <GitPullRequest className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Pull Requests Found</h3>
-          <p className="text-gray-600">
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-lg border border-border dark:border-[#1a1a1a] shadow-sm text-center py-12">
+          <GitPullRequest className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">No Pull Requests Found</h3>
+          <p className="text-muted-foreground">
             No pull requests found. Check your Azure DevOps configuration or create a pull request.
           </p>
         </div>
