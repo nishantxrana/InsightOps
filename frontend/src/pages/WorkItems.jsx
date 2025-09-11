@@ -1385,7 +1385,7 @@ export default function WorkItems() {
                 {/* Scroll indicator */}
                 {filteredOverdueItems.length > 4 && (
                   <div className="sticky bottom-0 bg-gradient-to-t from-card dark:from-[#111111] via-card dark:via-[#111111] to-transparent p-2 text-center">
-                    <div className="text-xs text-red-600 dark:text-red-400 flex items-center justify-center gap-1">
+                    <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                       <ChevronDown className="h-3 w-3" />
                       Scroll to see more overdue items
                     </div>
