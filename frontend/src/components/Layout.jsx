@@ -38,8 +38,52 @@ export default function Layout({ children }) {
   const location = useLocation()
   const { isConnected, isChecking, checkConnection } = useHealth()
   const { theme, toggleTheme } = useTheme()
+  const [isAnimating, setIsAnimating] = useState(false)
 
   const currentPageName = breadcrumbMap[location.pathname] || 'Page'
+
+  const handleThemeToggle = (event) => {
+    if (isAnimating) return
+    setIsAnimating(true)
+    
+    const button = event.currentTarget
+    const rect = button.getBoundingClientRect()
+    const x = rect.left + rect.width / 2
+    const y = rect.top + rect.height / 2
+    
+    // Create simple ripple element
+    const ripple = document.createElement('div')
+    ripple.className = 'theme-ripple'
+    ripple.style.cssText = `
+      top: ${y}px;
+      left: ${x}px;
+      width: 20px;
+      height: 20px;
+      color: ${theme === 'dark' ? '#ffffff' : '#0f172a'};
+    `
+    
+    // Add transition class to body
+    document.body.classList.add('theme-transitioning')
+    document.body.appendChild(ripple)
+    
+    // Button press feedback
+    button.style.transform = 'scale(0.95)'
+    setTimeout(() => {
+      button.style.transform = ''
+    }, 150)
+    
+    // Toggle theme at perfect moment
+    setTimeout(() => {
+      toggleTheme()
+    }, 200)
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(ripple)
+      document.body.classList.remove('theme-transitioning')
+      setIsAnimating(false)
+    }, 800)
+  }
 
   return (
     <TooltipProvider>
@@ -71,8 +115,9 @@ export default function Layout({ children }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={toggleTheme}
-                    className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-accent transition-colors"
+                    onClick={handleThemeToggle}
+                    disabled={isAnimating}
+                    className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-muted transition-all duration-200 disabled:opacity-50"
                   >
                     {theme === 'dark' ? (
                       <Sun className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
