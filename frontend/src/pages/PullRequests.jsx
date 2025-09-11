@@ -274,7 +274,11 @@ export default function PullRequests() {
           animation: fadeIn 0.4s ease-out;
         }
         .shimmer {
-          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background: linear-gradient(90deg, 
+            hsl(var(--muted)) 25%, 
+            hsl(var(--muted) / 0.5) 50%, 
+            hsl(var(--muted)) 75%
+          );
           background-size: 200px 100%;
           animation: shimmer 1.5s infinite;
         }
