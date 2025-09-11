@@ -64,19 +64,30 @@ export default function Layout({ children }) {
             </div>
             
             {/* Right Section - Status */}
-            <div className="ml-auto flex items-center gap-2 px-4">
+            <div className="ml-auto flex items-center gap-2 px-10">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div 
                     onClick={checkConnection}
-                    className={`w-2 h-2 rounded-full cursor-pointer transition-all duration-300 ${
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
                       isChecking 
                         ? "bg-blue-500 animate-pulse" 
                         : isConnected 
                           ? "bg-emerald-500" 
                           : "bg-red-500"
-                    }`}
-                  />
+                    }`} />
+                    <span className={`text-xs font-medium transition-colors duration-300 ${
+                      isChecking 
+                        ? "text-blue-600" 
+                        : isConnected 
+                          ? "text-emerald-600" 
+                          : "text-red-600"
+                    }`}>
+                      {isChecking ? "Sync" : isConnected ? "Live" : "Offline"}
+                    </span>
+                  </div>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p className="text-sm">
