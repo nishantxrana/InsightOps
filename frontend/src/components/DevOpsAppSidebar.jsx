@@ -23,7 +23,7 @@ const data = {
   user: {
     name: "Admin User",
     email: "admin@company.com",
-    avatar: "", // Empty for now, will use initials
+    avatar: "", // Avatar URL (string). If empty, initials will be displayed. TODO: Integrate with user profile service
   },
   navMain: [
     {

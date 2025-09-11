@@ -75,12 +75,12 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
 
   // Get priority text
   const getPriorityText = (priority) => {
-    switch (priority) {
-      case 1: return 'Critical'
-      case 2: return 'High'
-      case 3: return 'Medium'
-      case 4: return 'Low'
-      default: return 'Unknown'
+    switch (priority?.toString()) {
+      case '1': return 'Critical'
+      case '2': return 'High'
+      case '3': return 'Medium'
+      case '4': return 'Low'
+      default: return 'None'
     }
   }
 

@@ -59,7 +59,7 @@ export default function Layout({ children }) {
       left: ${x}px;
       width: 20px;
       height: 20px;
-      color: ${theme === 'dark' ? '#ffffff' : '#0f172a'};
+      color: ${theme === 'dark' ? '#f8fafc' : '#1e293b'};
     `
     
     // Add transition class to body
