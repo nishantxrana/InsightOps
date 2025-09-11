@@ -1252,35 +1252,35 @@ export default function WorkItems() {
               {/* Active Filters Display */}
               {(overdueStateFilter !== 'all' || overdueAssigneeFilter !== 'all' || overduePriorityFilter !== 'all') && (
                 <div className="flex items-center gap-2 mb-4 flex-wrap">
-                  <span className="text-xs text-red-700">Active filters:</span>
+                  <span className="text-xs text-muted-foreground">Active filters:</span>
                   {overdueStateFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted text-foreground rounded-full text-xs">
                       State: {overdueStateFilter}
                       <button
                         onClick={() => setOverdueStateFilter('all')}
-                        className="hover:bg-red-300 rounded-full p-0.5"
+                        className="hover:bg-muted/80 rounded-full p-0.5"
                       >
                         ×
                       </button>
                     </span>
                   )}
                   {overdueAssigneeFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted text-foreground rounded-full text-xs">
                       Assignee: {overdueAssigneeFilter}
                       <button
                         onClick={() => setOverdueAssigneeFilter('all')}
-                        className="hover:bg-red-300 rounded-full p-0.5"
+                        className="hover:bg-muted/80 rounded-full p-0.5"
                       >
                         ×
                       </button>
                     </span>
                   )}
                   {overduePriorityFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted text-foreground rounded-full text-xs">
                       Priority: {getPriorityText(overduePriorityFilter)}
                       <button
                         onClick={() => setOverduePriorityFilter('all')}
-                        className="hover:bg-red-300 rounded-full p-0.5"
+                        className="hover:bg-muted/80 rounded-full p-0.5"
                       >
                         ×
                       </button>
