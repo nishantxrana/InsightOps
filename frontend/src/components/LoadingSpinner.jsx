@@ -9,8 +9,8 @@ export default function LoadingSpinner({ size = 'md', text = 'Loading...' }) {
 
   return (
     <div className="flex flex-col items-center justify-center py-12">
-      <div className={`animate-spin rounded-full border-2 border-gray-300 border-t-azure-600 ${sizeClasses[size]}`}></div>
-      {text && <p className="mt-4 text-sm text-gray-600">{text}</p>}
+      <div className={`animate-spin rounded-full border-2 border-muted border-t-primary ${sizeClasses[size]}`}></div>
+      {text && <p className="mt-4 text-sm text-muted-foreground">{text}</p>}
     </div>
   )
 }

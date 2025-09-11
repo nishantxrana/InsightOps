@@ -212,14 +212,14 @@ export default function WorkItems() {
 
   const getAssigneeColor = (assignee) => {
     const colors = [
-      'bg-blue-100 text-blue-700',
-      'bg-emerald-100 text-emerald-700', 
-      'bg-purple-100 text-purple-700',
-      'bg-orange-100 text-orange-700',
-      'bg-pink-100 text-pink-700',
-      'bg-indigo-100 text-indigo-700',
-      'bg-teal-100 text-teal-700',
-      'bg-rose-100 text-rose-700'
+      'bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300',
+      'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300', 
+      'bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300',
+      'bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300',
+      'bg-pink-100 dark:bg-pink-950/50 text-pink-700 dark:text-pink-300',
+      'bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300',
+      'bg-teal-100 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300',
+      'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300'
     ]
     const hash = assignee.split('').reduce((a, b) => a + b.charCodeAt(0), 0)
     return colors[hash % colors.length]
@@ -228,17 +228,17 @@ export default function WorkItems() {
   const getStateColor = (state) => {
     switch (state?.toLowerCase()) {
       case 'new':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200'
       case 'active':
       case 'in progress':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200'
       case 'resolved':
       case 'done':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200'
       case 'closed':
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-muted text-muted-foreground'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-muted text-muted-foreground'
     }
   }
 
@@ -271,32 +271,32 @@ export default function WorkItems() {
   const getWorkItemTypeIcon = (type) => {
     switch (type?.toLowerCase()) {
       case 'bug':
-        return <Bug className="h-4 w-4 text-red-500" />
+        return <Bug className="h-4 w-4 text-red-500 dark:text-red-400" />
       case 'user story':
-        return <BookOpen className="h-4 w-4 text-blue-500" />
+        return <BookOpen className="h-4 w-4 text-blue-500 dark:text-blue-400" />
       case 'task':
-        return <CheckSquare className="h-4 w-4 text-green-500" />
+        return <CheckSquare className="h-4 w-4 text-green-500 dark:text-green-400" />
       case 'feature':
-        return <Star className="h-4 w-4 text-purple-500" />
+        return <Star className="h-4 w-4 text-purple-500 dark:text-purple-400" />
       case 'epic':
-        return <Target className="h-4 w-4 text-orange-500" />
+        return <Target className="h-4 w-4 text-orange-500 dark:text-orange-400" />
       default:
-        return <FileText className="h-4 w-4 text-gray-500" />
+        return <FileText className="h-4 w-4 text-muted-foreground" />
     }
   }
 
   const getPriorityIcon = (priority) => {
     switch (priority?.toString()) {
       case '1':
-        return <ArrowUp className="h-4 w-4 text-red-600" />
+        return <ArrowUp className="h-4 w-4 text-red-600 dark:text-red-400" />
       case '2':
-        return <ArrowUp className="h-4 w-4 text-orange-500" />
+        return <ArrowUp className="h-4 w-4 text-orange-500 dark:text-orange-400" />
       case '3':
-        return <ArrowUp className="h-4 w-4 text-yellow-500" />
+        return <ArrowUp className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
       case '4':
-        return <ArrowUp className="h-4 w-4 text-blue-500" />
+        return <ArrowUp className="h-4 w-4 text-blue-500 dark:text-blue-400" />
       default:
-        return <ArrowUp className="h-4 w-4 text-gray-400" />
+        return <ArrowUp className="h-4 w-4 text-muted-foreground" />
     }
   }
 
@@ -455,7 +455,7 @@ export default function WorkItems() {
           animation: slideUp 0.6s ease-out;
         }
         .shimmer {
-          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.1) 50%, hsl(var(--muted)) 75%);
           background-size: 200px 100%;
           animation: shimmer 1.5s infinite;
         }
@@ -475,16 +475,16 @@ export default function WorkItems() {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(148, 163, 184, 0.4);
+          background: hsl(var(--muted-foreground) / 0.4);
           border-radius: 6px;
           transition: all 0.2s ease;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(148, 163, 184, 0.7);
+          background: hsl(var(--muted-foreground) / 0.7);
         }
         .custom-scrollbar {
           scrollbar-width: thin;
-          scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+          scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
         }
       `}</style>
       
@@ -492,14 +492,14 @@ export default function WorkItems() {
       <div className="animate-slide-up">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Work Items</h1>
-            <p className="text-gray-600 text-sm mt-0.5">Current sprint status and team workload</p>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Work Items</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Current sprint status and team workload</p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={handleSync}
               disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+              className="group flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
               Sync
@@ -512,7 +512,7 @@ export default function WorkItems() {
       {loadingStates.sprintSummary ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse" style={{animationDelay: `${index * 0.1}s`}}>
+            <div key={index} className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-pulse" style={{animationDelay: `${index * 0.1}s`}}>
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-3">
                   <div className="w-5 h-5 shimmer rounded"></div>
@@ -546,25 +546,25 @@ export default function WorkItems() {
         ) : sprintSummary && (
           <>
             {/* Total Items */}
-            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <CheckSquare className="w-5 h-5 text-blue-600" />
-                <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+                <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                   Sprint
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.total || 0}</div>
-                <div className="text-sm text-gray-600">Work Items</div>
+                <div className="text-2xl font-bold text-foreground mb-0.5">{sprintSummary.total || 0}</div>
+                <div className="text-sm text-muted-foreground">Work Items</div>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Progress</span>
-                  <span className="font-medium">{sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}%</span>
+                  <span className="text-muted-foreground">Progress</span>
+                  <span className="font-medium text-foreground">{sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}%</span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                <div className="w-full bg-muted rounded-full h-1.5">
                   <div 
-                    className="progress-bar bg-blue-600 h-1.5 rounded-full"
+                    className="progress-bar bg-blue-600 dark:bg-blue-500 h-1.5 rounded-full"
                     style={{ width: `${sprintSummary.total > 0 ? ((sprintSummary.completed || 0) / sprintSummary.total) * 100 : 0}%` }}
                   />
                 </div>
@@ -572,32 +572,32 @@ export default function WorkItems() {
             </div>
 
             {/* Active Items */}
-            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <Activity className="w-5 h-5 text-yellow-600" />
-                <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
+                <Activity className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
                   Active
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.active || 0}</div>
-                <div className="text-sm text-gray-600">In Progress</div>
+                <div className="text-2xl font-bold text-foreground mb-0.5">{sprintSummary.active || 0}</div>
+                <div className="text-sm text-muted-foreground">In Progress</div>
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 {sprintSummary.total > 0 ? Math.round(((sprintSummary.active || 0) / sprintSummary.total) * 100) : 0}% of total items
               </div>
             </div>
 
             {/* Completed Items */}
-            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <CheckSquare className="w-5 h-5 text-emerald-600" />
-                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <CheckSquare className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
                   Done
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.completed || 0}</div>
+                <div className="text-2xl font-bold text-foreground mb-0.5">{sprintSummary.completed || 0}</div>
                 <div className="text-sm text-gray-600">Completed</div>
               </div>
               <div className="text-xs text-emerald-600 font-medium">
@@ -606,18 +606,18 @@ export default function WorkItems() {
             </div>
 
             {/* Overdue Items */}
-            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-                <span className="text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <span className="text-xs font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded-full">
                   Overdue
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.overdue || 0}</div>
-                <div className="text-sm text-gray-600">Past Due</div>
+                <div className="text-2xl font-bold text-foreground mb-0.5">{sprintSummary.overdue || 0}</div>
+                <div className="text-sm text-muted-foreground">Past Due</div>
               </div>
-              <div className="text-xs text-red-600">
+              <div className="text-xs text-red-600 dark:text-red-400">
                 {(sprintSummary.overdue || 0) > 0 ? 'Needs attention' : 'All on track'}
               </div>
             </div>
@@ -628,7 +628,7 @@ export default function WorkItems() {
 
       {/* Enhanced Work Items with State and Assignee Filtering - Show skeleton while loading */}
       {loadingStates.sprintSummary ? (
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-5 h-5 shimmer rounded animate-pulse"></div>
@@ -644,7 +644,7 @@ export default function WorkItems() {
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="bg-gray-50 border border-gray-200 rounded-xl p-4 animate-pulse"
+                className="bg-muted p-4 rounded-xl animate-pulse"
                 style={{animationDelay: `${0.4 + index * 0.1}s`}}
               >
                 <div className="flex items-start justify-between mb-3">
@@ -665,11 +665,11 @@ export default function WorkItems() {
         </div>
       ) : (
         sprintSummary && (
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <FileText className="h-5 w-5 text-blue-600" />
-              <h3 className="text-xl font-semibold text-gray-900">Work Items</h3>
+              <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <h3 className="text-xl font-semibold text-foreground">Work Items</h3>
             </div>
             <div className="flex items-center gap-2">
               {/* State Filter Dropdown */}
@@ -682,26 +682,26 @@ export default function WorkItems() {
                     setIsOverdueAssigneeDropdownOpen(false)
                     setIsOverduePriorityDropdownOpen(false)
                   }}
-                  className="flex items-center gap-2 pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-1 focus:ring-gray-100 focus:border-gray-300 bg-white hover:border-gray-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
+                  className="flex items-center gap-2 pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-1 focus:ring-muted focus:border-border bg-card dark:bg-[#111111] hover:border-muted-foreground transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
                 >
-                  <Activity className="h-3 w-3 absolute left-2.5 text-gray-400" />
-                  <span className="flex-1 text-left">
+                  <Activity className="h-3 w-3 absolute left-2.5 text-muted-foreground" />
+                  <span className="flex-1 text-left text-foreground">
                     {selectedState === 'all' ? 'All States' : selectedState}
                   </span>
-                  <svg className={`h-3 w-3 text-gray-400 transition-transform ${isStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`h-3 w-3 text-muted-foreground transition-transform ${isStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
                 
                 {isStateDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
                     <button
                       onClick={() => {
                         setSelectedState('all');
                         setIsStateDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
-                        selectedState === 'all' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                        selectedState === 'all' ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                       }`}
                     >
                       All States
@@ -713,8 +713,8 @@ export default function WorkItems() {
                           setSelectedState(state);
                           setIsStateDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
-                          selectedState === state ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                          selectedState === state ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                         }`}
                       >
                         {state} ({items.length})
@@ -734,26 +734,26 @@ export default function WorkItems() {
                     setIsOverdueAssigneeDropdownOpen(false)
                     setIsOverduePriorityDropdownOpen(false)
                   }}
-                  className="flex items-center gap-2 pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-1 focus:ring-gray-100 focus:border-gray-300 bg-white hover:border-gray-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
+                  className="flex items-center gap-2 pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-1 focus:ring-muted focus:border-border bg-card dark:bg-[#111111] hover:border-muted-foreground transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
                 >
-                  <User className="h-3 w-3 absolute left-2.5 text-gray-400" />
-                  <span className="flex-1 text-left">
+                  <User className="h-3 w-3 absolute left-2.5 text-muted-foreground" />
+                  <span className="flex-1 text-left text-foreground">
                     {selectedAssignee === 'all' ? 'All Assignees' : selectedAssignee}
                   </span>
-                  <svg className={`h-3 w-3 text-gray-400 transition-transform ${isAssigneeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`h-3 w-3 text-muted-foreground transition-transform ${isAssigneeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
                 
                 {isAssigneeDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
                     <button
                       onClick={() => {
                         setSelectedAssignee('all');
                         setIsAssigneeDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
-                        selectedAssignee === 'all' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                        selectedAssignee === 'all' ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                       }`}
                     >
                       All Assignees ({Object.keys(sprintSummary.workItemsByAssignee || {}).length})
@@ -765,8 +765,8 @@ export default function WorkItems() {
                           setSelectedAssignee(assignee);
                           setIsAssigneeDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
-                          selectedAssignee === assignee ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                          selectedAssignee === assignee ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                         }`}
                       >
                         {assignee} ({items.length})
@@ -778,13 +778,13 @@ export default function WorkItems() {
               
               {/* Search Input */}
               <div className="relative">
-                <Search className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Search className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search items..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 w-36 hover:border-gray-300 transition-colors"
+                  className="pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 dark:focus:border-blue-600 w-36 hover:border-muted-foreground transition-colors bg-card dark:bg-[#111111] text-foreground placeholder:text-muted-foreground"
                 />
               </div>
               
@@ -796,7 +796,7 @@ export default function WorkItems() {
                     setSelectedAssignee('all')
                     setSearchTerm('')
                   }}
-                  className="text-xs text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-full transition-colors"
+                  className="text-xs text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 px-3 py-2 rounded-full transition-colors"
                 >
                   Clear
                 </button>
@@ -837,18 +837,18 @@ export default function WorkItems() {
           
           {/* Work Items List */}
           {filteredWorkItems.length > 0 ? (
-            <div className="space-y-0 max-h-[40vh] overflow-y-auto custom-scrollbar border border-gray-200 rounded-xl bg-white">
-              <div className="divide-y divide-gray-200">
+            <div className="space-y-0 max-h-[40vh] overflow-y-auto custom-scrollbar border border-border dark:border-[#1a1a1a] rounded-xl bg-card dark:bg-[#111111]">
+              <div className="divide-y divide-border dark:divide-[#1a1a1a]">
                 {filteredWorkItems.map((item, index) => (
                   <div 
                     key={item.id} 
                     onClick={() => openWorkItemModal(item)}
-                    className="px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group"
+                    className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group"
                     title="Click to view details"
                   >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+                      <span className="font-mono text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
                         #{item.id}
                       </span>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStateColor(item.state)}`}>
@@ -856,19 +856,19 @@ export default function WorkItems() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-700 font-medium truncate">
+                      <span className="text-sm text-foreground font-medium truncate">
                         {item.assignee}
                       </span>
                     </div>
                   </div>
                   
                   <div className="mb-2">
-                    <h4 className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors line-clamp-2">
+                    <h4 className="text-sm font-semibold text-foreground group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
                       {item.title}
                     </h4>
                   </div>
                   
-                  <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="capitalize">
                       {item.fields?.['System.WorkItemType'] || 'Work Item'}
                     </span>
@@ -882,8 +882,8 @@ export default function WorkItems() {
               
               {/* Scroll indicator */}
               {filteredWorkItems.length > 4 && (
-                <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent p-2 text-center">
-                  <div className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                <div className="sticky bottom-0 bg-gradient-to-t from-card dark:from-[#111111] via-card dark:via-[#111111] to-transparent p-2 text-center">
+                  <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                     <ChevronDown className="h-3 w-3" />
                     Scroll to see more items
                   </div>
@@ -927,20 +927,20 @@ export default function WorkItems() {
       )}
 
       {/* AI Sprint Insights - Progressive Loading */}
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.4s'}}>
+      <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.4s'}}>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Target className="h-5 w-5 text-purple-600" />
-            <h3 className="text-xl font-semibold text-gray-900">AI Sprint Insights</h3>
+            <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            <h3 className="text-xl font-semibold text-foreground">AI Sprint Insights</h3>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 px-3 py-1.5 rounded-full font-medium border border-purple-200">
+            <span className="text-xs bg-gradient-to-r from-purple-100 dark:from-purple-950/50 to-blue-100 dark:to-blue-950/50 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full font-medium border border-purple-200 dark:border-purple-800">
               ✨ Powered by AI
             </span>
             {loadingStates.aiSummary && (
               <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 border-t-purple-600"></div>
-                <span className="text-xs text-purple-600 font-medium">Analyzing...</span>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 dark:border-purple-800 border-t-purple-600 dark:border-t-purple-400"></div>
+                <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">Analyzing...</span>
               </div>
             )}
           </div>
@@ -949,47 +949,47 @@ export default function WorkItems() {
         {loadingStates.aiSummary ? (
           <div className="space-y-4">
             <div className="space-y-3">
-              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse w-4/5"></div>
-              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse w-3/5"></div>
+              <div className="h-4 bg-gradient-to-r from-muted via-muted-foreground/20 to-muted rounded animate-pulse"></div>
+              <div className="h-4 bg-gradient-to-r from-muted via-muted-foreground/20 to-muted rounded animate-pulse w-4/5"></div>
+              <div className="h-4 bg-gradient-to-r from-muted via-muted-foreground/20 to-muted rounded animate-pulse w-3/5"></div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-purple-600 bg-purple-50 p-3 rounded-xl border border-purple-100">
+            <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 p-3 rounded-xl border border-purple-100 dark:border-purple-800">
               <div className="animate-pulse">🤖</div>
               <span>AI is analyzing your sprint data to provide actionable insights...</span>
             </div>
           </div>
         ) : aiSummary?.summary ? (
-          <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-4 rounded-xl border border-purple-100">
+          <div className="bg-gradient-to-br from-purple-50 dark:from-purple-950/30 to-blue-50 dark:to-blue-950/30 p-4 rounded-xl border border-purple-100 dark:border-purple-800">
             <div className="prose prose-sm max-w-none">
               <ReactMarkdown
                 components={{
                   h2: ({children}) => (
-                    <h2 className="text-base font-semibold text-gray-900 mb-3 mt-4 first:mt-0">
+                    <h2 className="text-base font-semibold text-foreground mb-3 mt-4 first:mt-0">
                       {children}
                     </h2>
                   ),
                   h3: ({children}) => (
-                    <h3 className="text-sm font-medium text-purple-900 mb-2 mt-3">
+                    <h3 className="text-sm font-medium text-purple-900 dark:text-purple-200 mb-2 mt-3">
                       {children}
                     </h3>
                   ),
                   p: ({children}) => (
-                    <p className="text-sm text-gray-700 mb-3 leading-relaxed">
+                    <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
                       {children}
                     </p>
                   ),
                   ul: ({children}) => (
-                    <ul className="list-disc list-inside text-sm text-gray-700 mb-4 ml-2 space-y-1">
+                    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 ml-2 space-y-1">
                       {children}
                     </ul>
                   ),
                   li: ({children}) => (
-                    <li className="mb-1 text-sm text-gray-700">
+                    <li className="mb-1 text-sm text-muted-foreground">
                       {children}
                     </li>
                   ),
                   strong: ({children}) => (
-                    <strong className="font-semibold text-gray-900">
+                    <strong className="font-semibold text-foreground">
                       {children}
                     </strong>
                   ),
@@ -1009,12 +1009,12 @@ export default function WorkItems() {
             </ReactMarkdown>
             
             {aiSummary.status === 'disabled_large_dataset' && (
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-950/50 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                  <span className="text-sm font-medium text-yellow-800">Performance Mode</span>
+                  <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                  <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Performance Mode</span>
                 </div>
-                <p className="text-sm text-yellow-700 mt-1">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
                   AI analysis is disabled for large datasets to maintain optimal performance.
                 </p>
               </div>
@@ -1022,12 +1022,12 @@ export default function WorkItems() {
           </div>
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            <Target className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+          <div className="text-center py-8 text-muted-foreground">
+            <Target className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
             <p>AI insights unavailable</p>
             <button
               onClick={loadWorkItemsData}
-              className="mt-2 text-blue-600 hover:text-blue-800 underline text-sm"
+              className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
             >
               Try again
             </button>
@@ -1037,35 +1037,35 @@ export default function WorkItems() {
 
       {/* Enhanced Overdue Items */}
       {loadingStates.overdueItems ? (
-        <div className="bg-white p-6 rounded-2xl border border-amber-200 shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              <div className="h-6 bg-amber-200 rounded w-48 animate-pulse"></div>
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <div className="h-6 bg-amber-200 dark:bg-amber-800/50 rounded w-48 animate-pulse"></div>
             </div>
-            <div className="h-6 bg-amber-200 rounded-full w-32 animate-pulse"></div>
+            <div className="h-6 bg-amber-200 dark:bg-amber-800/50 rounded-full w-32 animate-pulse"></div>
           </div>
           <SkeletonTable rows={3} />
         </div>
       ) : overdueItems.length > 0 && (
-        <div className="bg-white p-6 rounded-2xl border border-amber-200 shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              <h3 className="text-xl font-semibold text-amber-900">Critical: Overdue Items</h3>
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <h3 className="text-xl font-semibold text-foreground">Critical: Overdue Items</h3>
               <button
                 onClick={toggleOverdueExpanded}
-                className="card-hover p-2 hover:bg-amber-50 rounded-lg transition-all duration-200"
+                className="card-hover p-2 hover:bg-muted rounded-lg transition-all duration-200"
                 title={isOverdueExpanded ? "Collapse section" : "Expand section"}
               >
                 {isOverdueExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-amber-600" />
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
                 ) : (
-                  <ChevronDown className="h-4 w-4 text-amber-600" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 )}
               </button>
             </div>
-            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-muted text-foreground border border-border">
               {filteredOverdueItems.length} of {overdueItems.length} items
             </span>
           </div>
@@ -1084,26 +1084,26 @@ export default function WorkItems() {
                       setIsStateDropdownOpen(false)
                       setIsAssigneeDropdownOpen(false)
                     }}
-                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-1 focus:ring-muted focus:border-border bg-card dark:bg-[#111111] hover:border-muted-foreground transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
                   >
-                    <Activity className="h-3 w-3 absolute left-2.5 text-amber-500" />
-                    <span className="flex-1 text-left">
+                    <Activity className="h-3 w-3 absolute left-2.5 text-muted-foreground" />
+                    <span className="flex-1 text-left text-foreground">
                       {overdueStateFilter === 'all' ? 'All States' : overdueStateFilter}
                     </span>
-                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverdueStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`h-3 w-3 text-muted-foreground transition-transform ${isOverdueStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   
                   {isOverdueStateDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
                       <button
                         onClick={() => {
                           setOverdueStateFilter('all');
                           setIsOverdueStateDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
-                          overdueStateFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                          overdueStateFilter === 'all' ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                         }`}
                       >
                         All States
@@ -1115,8 +1115,8 @@ export default function WorkItems() {
                             setOverdueStateFilter(state);
                             setIsOverdueStateDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
-                            overdueStateFilter === state ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                            overdueStateFilter === state ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                           }`}
                         >
                           {state} ({getOverdueStateCount(state)})
@@ -1136,26 +1136,26 @@ export default function WorkItems() {
                       setIsStateDropdownOpen(false)
                       setIsAssigneeDropdownOpen(false)
                     }}
-                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-1 focus:ring-muted focus:border-border bg-card dark:bg-[#111111] hover:border-muted-foreground transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
                   >
-                    <User className="h-3 w-3 absolute left-2.5 text-amber-500" />
-                    <span className="flex-1 text-left">
+                    <User className="h-3 w-3 absolute left-2.5 text-muted-foreground" />
+                    <span className="flex-1 text-left text-foreground">
                       {overdueAssigneeFilter === 'all' ? 'All Assignees' : overdueAssigneeFilter}
                     </span>
-                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverdueAssigneeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`h-3 w-3 text-muted-foreground transition-transform ${isOverdueAssigneeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   
                   {isOverdueAssigneeDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
                       <button
                         onClick={() => {
                           setOverdueAssigneeFilter('all');
                           setIsOverdueAssigneeDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
-                          overdueAssigneeFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                          overdueAssigneeFilter === 'all' ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                         }`}
                       >
                         All Assignees ({getOverdueAssignees().length})
@@ -1167,8 +1167,8 @@ export default function WorkItems() {
                             setOverdueAssigneeFilter(assignee);
                             setIsOverdueAssigneeDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
-                            overdueAssigneeFilter === assignee ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                            overdueAssigneeFilter === assignee ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                           }`}
                         >
                           {assignee} ({getOverdueAssigneeCount(assignee)})
@@ -1188,27 +1188,27 @@ export default function WorkItems() {
                       setIsStateDropdownOpen(false)
                       setIsAssigneeDropdownOpen(false)
                     }}
-                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[110px]"
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-1 focus:ring-muted focus:border-border bg-card dark:bg-[#111111] hover:border-muted-foreground transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[110px]"
                   >
-                    <ArrowUp className="h-3 w-3 absolute left-2.5 text-amber-500" />
-                    <span className="flex-1 text-left">
+                    <ArrowUp className="h-3 w-3 absolute left-2.5 text-muted-foreground" />
+                    <span className="flex-1 text-left text-foreground">
                       {overduePriorityFilter === 'all' ? 'All Priorities' : 
                        overduePriorityFilter === 'None' ? 'None' : getPriorityText(overduePriorityFilter)}
                     </span>
-                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverduePriorityDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`h-3 w-3 text-muted-foreground transition-transform ${isOverduePriorityDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   
                   {isOverduePriorityDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[150px]">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-lg shadow-lg z-50 py-1 min-w-[150px]">
                       <button
                         onClick={() => {
                           setOverduePriorityFilter('all');
                           setIsOverduePriorityDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
-                          overduePriorityFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                          overduePriorityFilter === 'all' ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                         }`}
                       >
                         All Priorities ({getOverduePriorities().length})
@@ -1222,8 +1222,8 @@ export default function WorkItems() {
                               setOverduePriorityFilter(priority);
                               setIsOverduePriorityDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
-                              overduePriorityFilter === priority ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
+                              overduePriorityFilter === priority ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
                             }`}
                           >
                             {priorityText} ({getOverduePriorityCount(priority)})
@@ -1242,7 +1242,7 @@ export default function WorkItems() {
                       setOverdueAssigneeFilter('all')
                       setOverduePriorityFilter('all')
                     }}
-                    className="text-xs text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-3 py-2 rounded-full transition-colors font-medium"
+                    className="text-xs text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 px-3 py-2 rounded-full transition-colors font-medium"
                   >
                     Clear
                   </button>
@@ -1252,35 +1252,35 @@ export default function WorkItems() {
               {/* Active Filters Display */}
               {(overdueStateFilter !== 'all' || overdueAssigneeFilter !== 'all' || overduePriorityFilter !== 'all') && (
                 <div className="flex items-center gap-2 mb-4 flex-wrap">
-                  <span className="text-xs text-red-700">Active filters:</span>
+                  <span className="text-xs text-muted-foreground">Active filters:</span>
                   {overdueStateFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted text-foreground rounded-full text-xs">
                       State: {overdueStateFilter}
                       <button
                         onClick={() => setOverdueStateFilter('all')}
-                        className="hover:bg-red-300 rounded-full p-0.5"
+                        className="hover:bg-muted/80 rounded-full p-0.5"
                       >
                         ×
                       </button>
                     </span>
                   )}
                   {overdueAssigneeFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted text-foreground rounded-full text-xs">
                       Assignee: {overdueAssigneeFilter}
                       <button
                         onClick={() => setOverdueAssigneeFilter('all')}
-                        className="hover:bg-red-300 rounded-full p-0.5"
+                        className="hover:bg-muted/80 rounded-full p-0.5"
                       >
                         ×
                       </button>
                     </span>
                   )}
                   {overduePriorityFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted text-foreground rounded-full text-xs">
                       Priority: {getPriorityText(overduePriorityFilter)}
                       <button
                         onClick={() => setOverduePriorityFilter('all')}
-                        className="hover:bg-red-300 rounded-full p-0.5"
+                        className="hover:bg-muted/80 rounded-full p-0.5"
                       >
                         ×
                       </button>
@@ -1289,7 +1289,7 @@ export default function WorkItems() {
                 </div>
               )}
               {/* Scrollable Overdue Items List */}
-              <div className="overflow-y-auto border border-red-200 rounded-lg bg-white custom-scrollbar" style={{ maxHeight: '600px' }}>
+              <div className="overflow-y-auto border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111] custom-scrollbar" style={{ maxHeight: '600px' }}>
                 <div className="space-y-0">
                   {filteredOverdueItems.map((item, index) => {
                     const title = item.fields?.['System.Title'] || 'No title'
@@ -1305,7 +1305,7 @@ export default function WorkItems() {
                       <div 
                         key={item.id} 
                         onClick={() => openWorkItemModal(item)}
-                        className={`p-4 hover:bg-gray-50 transition-colors border-red-200 cursor-pointer group ${
+                        className={`p-4 hover:bg-muted/50 transition-colors border-border dark:border-[#1a1a1a] cursor-pointer group ${
                           index !== filteredOverdueItems.length - 1 ? 'border-b' : ''
                         }`}
                         title="Click to view details"
@@ -1315,18 +1315,18 @@ export default function WorkItems() {
                             {getWorkItemTypeIcon(workItemType)}
                             <div>
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="font-semibold text-gray-900">#{item.id}</span>
+                                <span className="font-semibold text-foreground">#{item.id}</span>
                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStateColor(state)}`}>
                                   {state}
                                 </span>
                                 {priority && (
                                   <div className="flex items-center gap-1">
                                     {getPriorityIcon(priority)}
-                                    <span className="text-xs text-gray-600">{getPriorityText(priority)}</span>
+                                    <span className="text-xs text-muted-foreground">{getPriorityText(priority)}</span>
                                   </div>
                                 )}
                               </div>
-                              <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
+                              <h4 className="text-sm font-medium text-foreground mb-2">{title}</h4>
                             </div>
                           </div>
                           {(() => {
@@ -1338,13 +1338,13 @@ export default function WorkItems() {
                                 href={workItemUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
+                                className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                                 title="Open in Azure DevOps"
                               >
                                 <ExternalLink className="h-4 w-4" />
                               </a>
                             ) : (
-                              <span className="flex items-center gap-1 text-gray-400" title="Work Item URL not available">
+                              <span className="flex items-center gap-1 text-muted-foreground" title="Work Item URL not available">
                                 <ExternalLink className="h-4 w-4" />
                               </span>
                             )
@@ -1352,16 +1352,16 @@ export default function WorkItems() {
                         </div>
 
                         {description && (
-                          <div className="mb-3 p-2 bg-gray-50 rounded text-xs text-gray-700 max-h-16 overflow-hidden">
+                          <div className="mb-3 p-2 bg-muted rounded text-xs text-muted-foreground max-h-16 overflow-hidden">
                             {description.replace(/<[^>]*>/g, '').substring(0, 150)}...
                           </div>
                         )}
 
-                        <div className="flex items-center justify-between text-xs text-gray-600">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1">
                               <User className="h-3 w-3" />
-                              <span className={assignee === 'Unassigned' ? 'text-red-600 font-medium' : ''}>{assignee}</span>
+                              <span className={assignee === 'Unassigned' ? 'text-orange-600 dark:text-orange-400 font-medium' : ''}>{assignee}</span>
                             </div>
                             {createdDate && (
                               <div className="flex items-center gap-1">
@@ -1371,7 +1371,7 @@ export default function WorkItems() {
                             )}
                           </div>
                           {dueDate && (
-                            <div className="flex items-center gap-1 text-red-600 font-medium">
+                            <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-medium">
                               <Clock className="h-3 w-3" />
                               <span>Due: {format(new Date(dueDate), 'MMM dd, yyyy')}</span>
                             </div>
@@ -1384,8 +1384,8 @@ export default function WorkItems() {
                 
                 {/* Scroll indicator */}
                 {filteredOverdueItems.length > 4 && (
-                  <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent p-2 text-center">
-                    <div className="text-xs text-red-600 flex items-center justify-center gap-1">
+                  <div className="sticky bottom-0 bg-gradient-to-t from-card dark:from-[#111111] via-card dark:via-[#111111] to-transparent p-2 text-center">
+                    <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                       <ChevronDown className="h-3 w-3" />
                       Scroll to see more overdue items
                     </div>
@@ -1394,8 +1394,8 @@ export default function WorkItems() {
               </div>
 
               {/* Action Required Notice */}
-              <div className="mt-4 p-3 bg-red-100 rounded-lg">
-                <p className="text-sm text-red-800">
+              <div className="mt-4 p-3 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">
                   <strong>Action Required:</strong> These items are past their due date and may impact sprint goals. 
                   Consider reassigning, updating priorities, or extending deadlines.
                 </p>

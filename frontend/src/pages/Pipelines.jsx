@@ -93,26 +93,26 @@ export default function Pipelines() {
 
   const getBuildStatusIcon = (result, status) => {
     if (status === "inProgress") {
-      return <Building className="h-5 w-5 text-blue-500 animate-pulse" />;
+      return <Building className="h-5 w-5 text-blue-500 dark:text-blue-400 animate-pulse" />;
     }
     switch (result) {
       case "succeeded":
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />;
       case "failed":
-        return <XCircle className="h-5 w-5 text-red-500" />;
+        return <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
       case "canceled":
-        return <Pause className="h-5 w-5 text-gray-500" />;
+        return <Pause className="h-5 w-5 text-muted-foreground" />;
       case "partiallySucceeded":
-        return <AlertCircle className="h-5 w-5 text-yellow-500" />;
+        return <AlertCircle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />;
       default:
-        return <Clock className="h-5 w-5 text-gray-400" />;
+        return <Clock className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
   const getBuildStatusBadge = (result, status) => {
     if (status === "inProgress") {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200">
           <Building className="h-3 w-3 animate-pulse" /> In Progress
         </span>
       );
@@ -120,31 +120,31 @@ export default function Pipelines() {
     switch (result) {
       case "succeeded":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200">
             <CheckCircle className="h-3 w-3" /> Succeeded
           </span>
         );
       case "failed":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200">
             <XCircle className="h-3 w-3" /> Failed
           </span>
         );
       case "canceled":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
             <Pause className="h-3 w-3" /> Canceled
           </span>
         );
       case "partiallySucceeded":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200">
             <AlertCircle className="h-3 w-3" /> Partial
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
             <Clock className="h-3 w-3" /> {status || "Unknown"}
           </span>
         );
@@ -192,7 +192,11 @@ export default function Pipelines() {
           animation: slideUp 0.6s ease-out;
         }
         .shimmer {
-          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background: linear-gradient(90deg, 
+            hsl(var(--muted)) 25%, 
+            hsl(var(--muted) / 0.5) 50%, 
+            hsl(var(--muted)) 75%
+          );
           background-size: 200px 100%;
           animation: shimmer 1.5s infinite;
         }
@@ -229,10 +233,10 @@ export default function Pipelines() {
       <div className={initialLoad ? "animate-slide-up" : ""}>
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
               Pipelines
             </h1>
-            <p className="text-gray-600 text-sm mt-0.5">
+            <p className="text-muted-foreground text-sm mt-0.5">
               Recent build and deployment status
             </p>
           </div>
@@ -240,7 +244,7 @@ export default function Pipelines() {
             <button
               onClick={handleSync}
               disabled={loading}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+              className="group flex items-center gap-2 px-3 py-1.5 bg-foreground text-background text-sm font-medium rounded-full hover:bg-foreground/90 disabled:opacity-60 transition-all duration-200"
             >
               <RefreshCw className={refreshIconClass} />
               Sync
@@ -257,7 +261,7 @@ export default function Pipelines() {
           {Array.from({ length: 4 }).map((_, idx) => (
             <div
               key={idx}
-              className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse"
+              className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-pulse"
               style={{ animationDelay: `${idx * 0.1}s` }}
             >
               <div className="space-y-3">
@@ -278,63 +282,63 @@ export default function Pipelines() {
           style={{ animationDelay: "0.1s" }}
         >
           {/* Total, Succeeded, Failed, InProgress cards (same structure as before) */}
-          <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <GitBranch className="h-5 w-5 text-blue-600" />
-              <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+              <GitBranch className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                 Total
               </span>
             </div>
             <div className="mb-3">
-              <div className="text-2xl font-bold text-gray-900 mb-0.5">
+              <div className="text-2xl font-bold text-foreground mb-0.5">
                 {stats.total}
               </div>
-              <div className="text-sm text-gray-600">Total Builds</div>
+              <div className="text-sm text-muted-foreground">Total Builds</div>
             </div>
           </div>
 
-          <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <CheckCircle className="h-5 w-5 text-emerald-600" />
-              <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
                 Success
               </span>
             </div>
             <div className="mb-3">
-              <div className="text-2xl font-bold text-gray-900 mb-0.5">
+              <div className="text-2xl font-bold text-foreground mb-0.5">
                 {stats.succeeded}
               </div>
-              <div className="text-sm text-gray-600">Succeeded</div>
+              <div className="text-sm text-muted-foreground">Succeeded</div>
             </div>
           </div>
 
-          <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <XCircle className="h-5 w-5 text-red-600" />
-              <span className="text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+              <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <span className="text-xs font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded-full">
                 Failed
               </span>
             </div>
             <div className="mb-3">
-              <div className="text-2xl font-bold text-gray-900 mb-0.5">
+              <div className="text-2xl font-bold text-foreground mb-0.5">
                 {stats.failed}
               </div>
-              <div className="text-sm text-gray-600">Failed</div>
+              <div className="text-sm text-muted-foreground">Failed</div>
             </div>
           </div>
 
-          <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <Clock className="h-5 w-5 text-yellow-600" />
-              <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
+              <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+              <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
                 Active
               </span>
             </div>
             <div className="mb-3">
-              <div className="text-2xl font-bold text-gray-900 mb-0.5">
+              <div className="text-2xl font-bold text-foreground mb-0.5">
                 {stats.inProgress}
               </div>
-              <div className="text-sm text-gray-600">In Progress</div>
+              <div className="text-sm text-muted-foreground">In Progress</div>
             </div>
           </div>
         </div>
@@ -343,7 +347,7 @@ export default function Pipelines() {
       {/* Recent Builds - Show skeleton while loading */}
       {loading ? (
         <div
-          className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in"
+          className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
           style={{ animationDelay: "0.2s" }}
         >
           <div className="flex items-center justify-between mb-6">
@@ -357,7 +361,7 @@ export default function Pipelines() {
             {Array.from({ length: 3 }).map((_, index) => (
               <div
                 key={index}
-                className="bg-gray-50 border border-gray-200 rounded-lg p-4 animate-pulse"
+                className="bg-muted border border-border rounded-lg p-4 animate-pulse"
                 style={{ animationDelay: `${0.3 + index * 0.1}s` }}
               >
                 <div className="flex items-center gap-3">
@@ -382,13 +386,13 @@ export default function Pipelines() {
         </div>
       ) : (
         <div
-          className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in"
+          className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
           style={{ animationDelay: "0.2s" }}
         >
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Building className="h-5 w-5 text-blue-600" />
-            <h3 className="text-xl font-semibold text-gray-900">
+            <Building className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h3 className="text-xl font-semibold text-foreground">
               Recent Builds
             </h3>
           </div>
@@ -408,29 +412,29 @@ export default function Pipelines() {
               minWidth="120px"
             />
 
-            <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
               {filteredBuilds.length} builds
             </span>
           </div>
         </div>
 
-        <div className="max-h-[45vh] overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg bg-white">
+        <div className="max-h-[45vh] overflow-y-auto custom-scrollbar border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
           {filteredBuilds.length > 0 ? (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-border dark:divide-[#1a1a1a]">
               {filteredBuilds.map((build) => (
                 <div
                   key={build.id}
-                  className="px-6 py-4 hover:bg-gray-50 transition-colors group"
+                  className="px-6 py-4 hover:bg-muted/50 transition-colors group"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {getBuildStatusIcon(build.result, build.status)}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-medium text-gray-900 truncate">
+                          <h4 className="text-sm font-medium text-foreground truncate">
                             {build.definition?.name || "Unknown"}
                           </h4>
-                          <span className="text-xs text-gray-500 font-mono">
+                          <span className="text-xs text-muted-foreground font-mono">
                             #{build.buildNumber}
                           </span>
                           {build._links?.web?.href && (
@@ -438,7 +442,7 @@ export default function Pipelines() {
                               href={build._links.web.href}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 transition-colors opacity-0 group-hover:opacity-100"
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors opacity-0 group-hover:opacity-100"
                               title="Open in Azure DevOps"
                             >
                               <ExternalLink className="h-3 w-3" />
@@ -446,7 +450,7 @@ export default function Pipelines() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                        <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <GitBranch className="h-3 w-3" />
                             {build.sourceBranch?.replace("refs/heads/", "") ||
@@ -478,13 +482,13 @@ export default function Pipelines() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <Building className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+            <div className="text-center py-12 text-muted-foreground">
+              <Building className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
               <p>{statusFilter !== 'all' ? 'No builds match your filter' : 'No builds found'}</p>
               {statusFilter !== 'all' && (
                 <button
                   onClick={() => setStatusFilter('all')}
-                  className="mt-2 text-blue-600 hover:text-blue-800 underline text-sm"
+                  className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
                 >
                   Clear filter to see all builds
                 </button>
@@ -498,7 +502,7 @@ export default function Pipelines() {
       {/* Build Success Rate - Show skeleton while loading */}
       {loading ? (
         <div
-          className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-fade-in"
+          className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
           style={{ animationDelay: "0.3s" }}
         >
           <div className="flex items-center justify-between mb-4 animate-pulse">
@@ -523,17 +527,17 @@ export default function Pipelines() {
       ) : (
         builds.length > 0 && (
         <div
-          className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-fade-in"
+          className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
           style={{ animationDelay: "0.3s" }}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <TrendingUp className="h-5 w-5 text-emerald-600" />
-              <h3 className="text-lg font-semibold text-gray-900">
+              <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="text-lg font-semibold text-foreground">
                 Build Success Rate
               </h3>
             </div>
-            <div className="text-2xl font-bold text-emerald-600">
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
               {stats.total > 0
                 ? Math.round((stats.succeeded / stats.total) * 100)
                 : 0}
@@ -542,7 +546,7 @@ export default function Pipelines() {
           </div>
 
           <div className="mb-4">
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
               <div
                 className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-2 rounded-full transition-all duration-1000 ease-out"
                 style={{
@@ -557,22 +561,22 @@ export default function Pipelines() {
 
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
-              <div className="text-lg font-bold text-emerald-600">
+              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                 {stats.succeeded}
               </div>
-              <div className="text-xs text-emerald-700">Succeeded</div>
+              <div className="text-xs text-emerald-700 dark:text-emerald-300">Succeeded</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-red-600">
+              <div className="text-lg font-bold text-red-600 dark:text-red-400">
                 {stats.failed}
               </div>
-              <div className="text-xs text-red-700">Failed</div>
+              <div className="text-xs text-red-700 dark:text-red-300">Failed</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-blue-600">
+              <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                 {stats.inProgress}
               </div>
-              <div className="text-xs text-blue-700">In Progress</div>
+              <div className="text-xs text-blue-700 dark:text-blue-300">In Progress</div>
             </div>
           </div>
         </div>
@@ -581,11 +585,11 @@ export default function Pipelines() {
 
       {builds.length === 0 && !loading && (
         <div className="card text-center py-12">
-          <GitBranch className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <GitBranch className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">
             No Builds Found
           </h3>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             No recent builds found. Check your Azure DevOps configuration or
             trigger a build.
           </p>
