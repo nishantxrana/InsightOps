@@ -170,64 +170,125 @@ export default function Settings() {
 
   return (
     <div className="space-y-6">
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.6s ease-out;
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.4s ease-out;
+        }
+        .shimmer {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200px 100%;
+          animation: shimmer 1.5s infinite;
+        }
+      `}</style>
+      
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
-        <p className="text-gray-600">Configure your Azure DevOps monitoring agent</p>
+      <div className="animate-slide-up">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Settings</h1>
+            <p className="text-gray-600 text-sm mt-0.5">Configure your Azure DevOps monitoring agent</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleTestConnection}
+              disabled={testing}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+            >
+              <TestTube className="h-4 w-4" />
+              <span>{testing ? 'Testing...' : 'Test Connection'}</span>
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              <Save className="h-4 w-4" />
+              <span>{saving ? 'Saving...' : 'Save Settings'}</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Test Result */}
       {testResult && (
-        <div className={`p-4 rounded-lg flex items-center space-x-2 ${
-          testResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-        }`}>
+        <div className={`bg-white p-4 rounded-2xl border shadow-sm flex items-center gap-3 animate-fade-in ${
+          testResult.success 
+            ? 'border-green-200 bg-green-50' 
+            : 'border-red-200 bg-red-50'
+        }`} style={{animationDelay: '0.1s'}}>
           {testResult.success ? (
-            <CheckCircle className="h-5 w-5" />
+            <CheckCircle className="h-5 w-5 text-green-600" />
           ) : (
-            <XCircle className="h-5 w-5" />
+            <XCircle className="h-5 w-5 text-red-600" />
           )}
-          <span>{testResult.message}</span>
+          <span className={testResult.success ? 'text-green-800' : 'text-red-800'}>
+            {testResult.message}
+          </span>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Azure DevOps Configuration */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Azure DevOps Configuration</h3>
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Database className="h-5 w-5 text-blue-600" />
+            Azure DevOps Configuration
+          </h3>
           <div className="space-y-4">
             <div>
-              <label className="label">Organization</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Organization</label>
               <input
                 type="text"
-                className="input"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 value={settings.azureDevOps.organization}
                 onChange={(e) => updateSetting('azureDevOps', 'organization', e.target.value)}
                 placeholder="your-organization"
               />
+              {validationErrors.organization && (
+                <p className="text-red-600 text-xs mt-1">{validationErrors.organization}</p>
+              )}
             </div>
             <div>
-              <label className="label">Project</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
               <input
                 type="text"
-                className="input"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 value={settings.azureDevOps.project}
                 onChange={(e) => updateSetting('azureDevOps', 'project', e.target.value)}
                 placeholder="your-project"
               />
+              {validationErrors.project && (
+                <p className="text-red-600 text-xs mt-1">{validationErrors.project}</p>
+              )}
             </div>
             <div>
-              <label className="label">Personal Access Token</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Personal Access Token</label>
               <div className="relative">
                 <input
                   type={showSecrets.pat ? 'text' : 'password'}
-                  className="input pr-10"
+                  className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   value={settings.azureDevOps.personalAccessToken}
                   onChange={(e) => updateSetting('azureDevOps', 'personalAccessToken', e.target.value)}
                   placeholder="your-personal-access-token"
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600 transition-colors"
                   onClick={() => toggleSecretVisibility('pat')}
                 >
                   {showSecrets.pat ? (
@@ -237,12 +298,15 @@ export default function Settings() {
                   )}
                 </button>
               </div>
+              {validationErrors.personalAccessToken && (
+                <p className="text-red-600 text-xs mt-1">{validationErrors.personalAccessToken}</p>
+              )}
             </div>
             <div>
-              <label className="label">Base URL</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
               <input
                 type="url"
-                className="input"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 value={settings.azureDevOps.baseUrl}
                 onChange={(e) => updateSetting('azureDevOps', 'baseUrl', e.target.value)}
                 placeholder="https://dev.azure.com"
@@ -444,26 +508,6 @@ export default function Settings() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex justify-end space-x-4">
-        <button
-          onClick={handleTestConnection}
-          disabled={testing}
-          className="btn btn-secondary flex items-center space-x-2"
-        >
-          <TestTube className="h-4 w-4" />
-          <span>{testing ? 'Testing...' : 'Test Connection'}</span>
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn btn-primary flex items-center space-x-2"
-        >
-          <Save className="h-4 w-4" />
-          <span>{saving ? 'Saving...' : 'Save Settings'}</span>
-        </button>
       </div>
     </div>
   )

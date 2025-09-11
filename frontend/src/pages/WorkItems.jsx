@@ -22,13 +22,15 @@ import {
   Eye,
   RefreshCw,
   Users,
-  Activity
+  Activity,
+  X
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
 import SkeletonCard, { SkeletonTable } from '../components/SkeletonCard'
 import WorkItemDetailModal from '../components/WorkItemDetailModal'
+import { useHealth } from '../contexts/HealthContext'
 import { format, formatDistanceToNow } from 'date-fns'
 
 export default function WorkItems() {
@@ -61,10 +63,41 @@ export default function WorkItems() {
   // Work item detail modal state
   const [selectedWorkItem, setSelectedWorkItem] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  // Dropdown states for custom dropdowns
+  const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false)
+  const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false)
+  const [isOverdueStateDropdownOpen, setIsOverdueStateDropdownOpen] = useState(false)
+  const [isOverdueAssigneeDropdownOpen, setIsOverdueAssigneeDropdownOpen] = useState(false)
+  const [isOverduePriorityDropdownOpen, setIsOverduePriorityDropdownOpen] = useState(false)
+  
+  const { checkConnection } = useHealth()
 
   useEffect(() => {
     loadWorkItemsData()
   }, [])
+
+  // Close dropdowns when clicking outside or opening another dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.relative')) {
+        setIsStateDropdownOpen(false)
+        setIsAssigneeDropdownOpen(false)
+        setIsOverdueStateDropdownOpen(false)
+        setIsOverdueAssigneeDropdownOpen(false)
+        setIsOverduePriorityDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSync = async () => {
+    await Promise.all([
+      checkConnection(),
+      loadWorkItemsData()
+    ])
+  }
 
   // Filter work items when selection changes
   useEffect(() => {
@@ -175,6 +208,21 @@ export default function WorkItems() {
       }
     }
     return 'Unassigned'
+  }
+
+  const getAssigneeColor = (assignee) => {
+    const colors = [
+      'bg-blue-100 text-blue-700',
+      'bg-emerald-100 text-emerald-700', 
+      'bg-purple-100 text-purple-700',
+      'bg-orange-100 text-orange-700',
+      'bg-pink-100 text-pink-700',
+      'bg-indigo-100 text-indigo-700',
+      'bg-teal-100 text-teal-700',
+      'bg-rose-100 text-rose-700'
+    ]
+    const hash = assignee.split('').reduce((a, b) => a + b.charCodeAt(0), 0)
+    return colors[hash % colors.length]
   }
 
   const getStateColor = (state) => {
@@ -387,231 +435,356 @@ export default function WorkItems() {
     ).length
   }
 
-  // Only show full loading spinner on initial load with error
-  if (initialLoading && error) {
-    return <LoadingSpinner />
-  }
-
+  // Show error message if initial load failed
   if (error && initialLoading) {
     return <ErrorMessage message={error} onRetry={loadWorkItemsData} />
   }
 
   return (
     <div className="space-y-6">
-      {/* Header with Refresh Button */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Work Items</h2>
-          <p className="text-gray-600">Current sprint status and team workload</p>
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.6s ease-out;
+        }
+        .shimmer {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200px 100%;
+          animation: shimmer 1.5s infinite;
+        }
+        .card-hover {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        /* Custom Scrollbar - Refined */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.4);
+          border-radius: 6px;
+          transition: all 0.2s ease;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(148, 163, 184, 0.7);
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+        }
+      `}</style>
+      
+      {/* Header with Refresh Button - Always visible */}
+      <div className="animate-slide-up">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Work Items</h1>
+            <p className="text-gray-600 text-sm mt-0.5">Current sprint status and team workload</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSync}
+              disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
+              className="group flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 disabled:opacity-60 transition-all duration-200"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
+              Sync
+            </button>
+          </div>
         </div>
-        <button
-          onClick={loadWorkItemsData}
-          disabled={initialLoading || Object.values(loadingStates).some(loading => loading)}
-          className="group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gradient-to-r from-gray-50 to-gray-100 border-0 rounded-xl hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-300"
-        >
-          <RefreshCw className={`h-4 w-4 transition-all duration-300 ${(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'animate-spin text-blue-500' : 'group-hover:text-blue-500 group-hover:rotate-180'}`} />
-          <span className="font-medium">{(initialLoading || Object.values(loadingStates).some(loading => loading)) ? 'Refreshing...' : 'Refresh'}</span>
-        </button>
       </div>
 
-      {/* Sprint Overview Cards */}
+      {/* Sprint Overview Cards - Dynamic Loading */}
       {loadingStates.sprintSummary ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <SkeletonCard key={index} />
+            <div key={index} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse" style={{animationDelay: `${index * 0.1}s`}}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-5 h-5 shimmer rounded"></div>
+                  <div className="w-12 h-4 shimmer rounded-full"></div>
+                </div>
+                <div className="w-8 h-8 shimmer rounded mb-0.5"></div>
+                <div className="w-20 h-3 shimmer rounded"></div>
+                <div className="w-full h-1.5 shimmer rounded-full mt-2"></div>
+              </div>
+            </div>
           ))}
         </div>
-      ) : sprintSummary && (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-blue-50">
-                  <CheckSquare className="h-6 w-6 text-blue-600" />
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+        {loadingStates.sprintSummary ? (
+          <>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                    <div className="w-12 h-4 bg-gray-200 rounded-full"></div>
+                  </div>
+                  <div className="w-8 h-8 bg-gray-200 rounded mb-0.5"></div>
+                  <div className="w-20 h-3 bg-gray-200 rounded"></div>
+                  <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2"></div>
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Items</p>
-                  <p className="text-2xl font-semibold text-gray-900">{sprintSummary.total || 0}</p>
+              </div>
+            ))}
+          </>
+        ) : sprintSummary && (
+          <>
+            {/* Total Items */}
+            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <CheckSquare className="w-5 h-5 text-blue-600" />
+                <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+                  Sprint
+                </span>
+              </div>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.total || 0}</div>
+                <div className="text-sm text-gray-600">Work Items</div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Progress</span>
+                  <span className="font-medium">{sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}%</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                  <div 
+                    className="progress-bar bg-blue-600 h-1.5 rounded-full"
+                    style={{ width: `${sprintSummary.total > 0 ? ((sprintSummary.completed || 0) / sprintSummary.total) * 100 : 0}%` }}
+                  />
                 </div>
               </div>
             </div>
-            <div className="mt-4">
-              <div className="flex justify-between text-xs text-gray-600 mb-1">
-                <span>Sprint Progress</span>
-                <span>{Math.round(((sprintSummary.completed || 0) / (sprintSummary.total || 1)) * 100)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                  style={{ width: `${Math.round(((sprintSummary.completed || 0) / (sprintSummary.total || 1)) * 100)}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
 
-          <div className="card">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-yellow-50">
-                <TrendingUp className="h-6 w-6 text-yellow-600" />
+            {/* Active Items */}
+            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <Activity className="w-5 h-5 text-yellow-600" />
+                <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">
+                  Active
+                </span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active</p>
-                <p className="text-2xl font-semibold text-gray-900">{sprintSummary.active || 0}</p>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.active || 0}</div>
+                <div className="text-sm text-gray-600">In Progress</div>
+              </div>
+              <div className="text-xs text-gray-500">
+                {sprintSummary.total > 0 ? Math.round(((sprintSummary.active || 0) / sprintSummary.total) * 100) : 0}% of total items
               </div>
             </div>
-            <p className="mt-2 text-xs text-gray-500">
-              {sprintSummary.total > 0 ? Math.round(((sprintSummary.active || 0) / sprintSummary.total) * 100) : 0}% of total items
-            </p>
-          </div>
 
-          <div className="card">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-green-50">
-                <CheckSquare className="h-6 w-6 text-green-600" />
+            {/* Completed Items */}
+            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <CheckSquare className="w-5 h-5 text-emerald-600" />
+                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Done
+                </span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Completed</p>
-                <p className="text-2xl font-semibold text-gray-900">{sprintSummary.completed || 0}</p>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.completed || 0}</div>
+                <div className="text-sm text-gray-600">Completed</div>
+              </div>
+              <div className="text-xs text-emerald-600 font-medium">
+                 {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
               </div>
             </div>
-            <p className="mt-2 text-xs text-green-600 font-medium">
-              ✓ {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
-            </p>
-          </div>
 
-          <div className="card">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-red-50">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
+            {/* Overdue Items */}
+            <div className="card-hover bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <span className="text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+                  Overdue
+                </span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Overdue</p>
-                <p className="text-2xl font-semibold text-gray-900">{overdueItems.length}</p>
+              <div className="mb-3">
+                <div className="text-2xl font-bold text-gray-900 mb-0.5">{sprintSummary.overdue || 0}</div>
+                <div className="text-sm text-gray-600">Past Due</div>
+              </div>
+              <div className="text-xs text-red-600">
+                {(sprintSummary.overdue || 0) > 0 ? 'Needs attention' : 'All on track'}
               </div>
             </div>
-            {overdueItems.length > 0 && (
-              <p className="mt-2 text-xs text-red-600 font-medium">
-                ⚠️ Requires immediate attention
-              </p>
-            )}
-          </div>
-        </div>
+          </>
+        )}
+      </div>
       )}
 
-      {/* Interactive State Distribution */}
-      {sprintSummary?.workItemsByState && (
-        <div className="card">
+      {/* Enhanced Work Items with State and Assignee Filtering - Show skeleton while loading */}
+      {loadingStates.sprintSummary ? (
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <Activity className="h-6 w-6 text-purple-600" />
-              <h3 className="text-lg font-medium text-gray-900">Work Distribution by State</h3>
+              <div className="w-5 h-5 shimmer rounded animate-pulse"></div>
+              <div className="h-6 shimmer rounded w-24 animate-pulse"></div>
             </div>
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-500">Click to filter</span>
+              <div className="h-8 shimmer rounded w-20 animate-pulse"></div>
+              <div className="h-8 shimmer rounded w-24 animate-pulse"></div>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-            {Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
-              <button
-                key={state}
-                onClick={() => setSelectedState(selectedState === state ? 'all' : state)}
-                className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
-                  selectedState === state 
-                    ? 'border-blue-500 bg-blue-50 shadow-md' 
-                    : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                }`}
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="bg-gray-50 border border-gray-200 rounded-xl p-4 animate-pulse"
+                style={{animationDelay: `${0.4 + index * 0.1}s`}}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-xs px-2 py-1 rounded-full ${getStateColor(state)}`}>
-                    {state}
-                  </span>
-                  <span className="text-lg font-semibold text-gray-900">{items.length}</span>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 shimmer rounded"></div>
+                    <div className="h-5 shimmer rounded w-48"></div>
+                  </div>
+                  <div className="h-5 shimmer rounded-full w-16"></div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  {Math.round((items.length / sprintSummary.total) * 100)}% of total
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="h-4 shimmer rounded w-20"></div>
+                  <div className="h-4 shimmer rounded w-16"></div>
+                  <div className="h-4 shimmer rounded w-24"></div>
                 </div>
-                <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
-                  <div 
-                    className="bg-blue-600 h-1 rounded-full transition-all duration-300" 
-                    style={{ width: `${(items.length / sprintSummary.total) * 100}%` }}
-                  ></div>
-                </div>
-              </button>
+              </div>
             ))}
           </div>
-          
-          {selectedState !== 'all' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-900">
-                  Filtered by: {selectedState}
-                </span>
-                <button
-                  onClick={() => setSelectedState('all')}
-                  className="text-xs text-blue-600 hover:text-blue-800 underline"
-                >
-                  Clear filter
-                </button>
-              </div>
-              <div className="text-xs text-blue-700">
-                Showing {sprintSummary.workItemsByState[selectedState]?.length || 0} items
-              </div>
-            </div>
-          )}
         </div>
-      )}
-
-      {/* Enhanced Work Items with State and Assignee Filtering */}
-      {sprintSummary && (
-        <div className="card">
+      ) : (
+        sprintSummary && (
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Work Items</h3>
             <div className="flex items-center gap-3">
+              <FileText className="h-5 w-5 text-blue-600" />
+              <h3 className="text-xl font-semibold text-gray-900">Work Items</h3>
+            </div>
+            <div className="flex items-center gap-2">
               {/* State Filter Dropdown */}
               <div className="relative">
-                <Activity className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <select
-                  value={selectedState}
-                  onChange={(e) => setSelectedState(e.target.value)}
-                  className="pl-7 pr-6 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent bg-white min-w-0"
+                <button
+                  onClick={() => {
+                    setIsStateDropdownOpen(!isStateDropdownOpen)
+                    setIsAssigneeDropdownOpen(false)
+                    setIsOverdueStateDropdownOpen(false)
+                    setIsOverdueAssigneeDropdownOpen(false)
+                    setIsOverduePriorityDropdownOpen(false)
+                  }}
+                  className="flex items-center gap-2 pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-1 focus:ring-gray-100 focus:border-gray-300 bg-white hover:border-gray-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
                 >
-                  <option value="all">All States ({Object.keys(sprintSummary.workItemsByState || {}).length})</option>
-                  {sprintSummary.workItemsByState && Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
-                    <option key={state} value={state}>
-                      {state} ({items.length})
-                    </option>
-                  ))}
-                </select>
+                  <Activity className="h-3 w-3 absolute left-2.5 text-gray-400" />
+                  <span className="flex-1 text-left">
+                    {selectedState === 'all' ? 'All States' : selectedState}
+                  </span>
+                  <svg className={`h-3 w-3 text-gray-400 transition-transform ${isStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {isStateDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+                    <button
+                      onClick={() => {
+                        setSelectedState('all');
+                        setIsStateDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                        selectedState === 'all' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                      }`}
+                    >
+                      All States
+                    </button>
+                    {sprintSummary.workItemsByState && Object.entries(sprintSummary.workItemsByState).map(([state, items]) => (
+                      <button
+                        key={state}
+                        onClick={() => {
+                          setSelectedState(state);
+                          setIsStateDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                          selectedState === state ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                        }`}
+                      >
+                        {state} ({items.length})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               
               {/* Assignee Filter Dropdown */}
               <div className="relative">
-                <User className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <select
-                  value={selectedAssignee}
-                  onChange={(e) => setSelectedAssignee(e.target.value)}
-                  className="pl-7 pr-6 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent bg-white min-w-0"
+                <button
+                  onClick={() => {
+                    setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)
+                    setIsStateDropdownOpen(false)
+                    setIsOverdueStateDropdownOpen(false)
+                    setIsOverdueAssigneeDropdownOpen(false)
+                    setIsOverduePriorityDropdownOpen(false)
+                  }}
+                  className="flex items-center gap-2 pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-1 focus:ring-gray-100 focus:border-gray-300 bg-white hover:border-gray-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
                 >
-                  <option value="all">All Assignees ({Object.keys(sprintSummary.workItemsByAssignee || {}).length})</option>
-                  {sprintSummary.workItemsByAssignee && Object.entries(sprintSummary.workItemsByAssignee).map(([assignee, items]) => (
-                    <option key={assignee} value={assignee}>
-                      {assignee} ({items.length})
-                    </option>
-                  ))}
-                </select>
+                  <User className="h-3 w-3 absolute left-2.5 text-gray-400" />
+                  <span className="flex-1 text-left">
+                    {selectedAssignee === 'all' ? 'All Assignees' : selectedAssignee}
+                  </span>
+                  <svg className={`h-3 w-3 text-gray-400 transition-transform ${isAssigneeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {isAssigneeDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
+                    <button
+                      onClick={() => {
+                        setSelectedAssignee('all');
+                        setIsAssigneeDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                        selectedAssignee === 'all' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                      }`}
+                    >
+                      All Assignees ({Object.keys(sprintSummary.workItemsByAssignee || {}).length})
+                    </button>
+                    {sprintSummary.workItemsByAssignee && Object.entries(sprintSummary.workItemsByAssignee).map(([assignee, items]) => (
+                      <button
+                        key={assignee}
+                        onClick={() => {
+                          setSelectedAssignee(assignee);
+                          setIsAssigneeDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                          selectedAssignee === assignee ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                        }`}
+                      >
+                        {assignee} ({items.length})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               
               {/* Search Input */}
               <div className="relative">
-                <Search className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Search className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search items..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-7 pr-3 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent w-32"
+                  className="pl-8 pr-3 py-2 border border-gray-200 rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 w-36 hover:border-gray-300 transition-colors"
                 />
               </div>
               
@@ -623,7 +796,7 @@ export default function WorkItems() {
                     setSelectedAssignee('all')
                     setSearchTerm('')
                   }}
-                  className="text-xs text-gray-600 hover:text-gray-800 underline whitespace-nowrap"
+                  className="text-xs text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-full transition-colors"
                 >
                   Clear
                 </button>
@@ -634,26 +807,28 @@ export default function WorkItems() {
           {/* Active Filters Display */}
           {(selectedState !== 'all' || selectedAssignee !== 'all') && (
             <div className="flex items-center gap-2 mb-4 flex-wrap">
-              <span className="text-sm text-gray-600">Active filters:</span>
+              <span className="text-sm text-gray-600">Filtered by:</span>
               {selectedState !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                  State: {selectedState}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
+                  <Activity className="h-3 w-3" />
+                  {selectedState}
                   <button
                     onClick={() => setSelectedState('all')}
-                    className="hover:bg-blue-200 rounded-full p-0.5"
+                    className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
                   >
-                    ×
+                    <X className="h-3 w-3" />
                   </button>
                 </span>
               )}
               {selectedAssignee !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                  Assignee: {selectedAssignee}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium border border-emerald-200">
+                  <User className="h-3 w-3" />
+                  {selectedAssignee}
                   <button
                     onClick={() => setSelectedAssignee('all')}
-                    className="hover:bg-green-200 rounded-full p-0.5"
+                    className="hover:bg-emerald-100 rounded-full p-0.5 transition-colors"
                   >
-                    ×
+                    <X className="h-3 w-3" />
                   </button>
                 </span>
               )}
@@ -662,40 +837,51 @@ export default function WorkItems() {
           
           {/* Work Items List */}
           {filteredWorkItems.length > 0 ? (
-            <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
-              <div className="space-y-0">
+            <div className="space-y-0 max-h-[40vh] overflow-y-auto custom-scrollbar border border-gray-200 rounded-xl bg-white">
+              <div className="divide-y divide-gray-200">
                 {filteredWorkItems.map((item, index) => (
                   <div 
                     key={item.id} 
                     onClick={() => openWorkItemModal(item)}
-                    className={`flex items-center justify-between p-4 hover:bg-blue-50 transition-colors border-gray-200 cursor-pointer group ${
-                      index !== filteredWorkItems.length - 1 ? 'border-b' : ''
-                    }`}
+                    className="px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group"
                     title="Click to view details"
                   >
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <span className="font-mono text-sm text-gray-600 font-medium">#{item.id}</span>
-                      <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${getStateColor(item.state)}`}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+                        #{item.id}
+                      </span>
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStateColor(item.state)}`}>
                         {item.state}
                       </span>
-                      <span className="text-sm font-medium text-gray-900 flex-1 truncate">
-                        {item.title}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-700 font-medium truncate">
+                        {item.assignee}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 ml-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
-                          {item.assignee.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-sm text-gray-600 whitespace-nowrap">{item.assignee}</span>
-                      </div>
-                    </div>
+                  </div>
+                  
+                  <div className="mb-2">
+                    <h4 className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors line-clamp-2">
+                      {item.title}
+                    </h4>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span className="capitalize">
+                      {item.fields?.['System.WorkItemType'] || 'Work Item'}
+                    </span>
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600">
+                      Click to view →
+                    </span>
+                  </div>
                   </div>
                 ))}
               </div>
               
               {/* Scroll indicator */}
-              {filteredWorkItems.length > 6 && (
+              {filteredWorkItems.length > 4 && (
                 <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent p-2 text-center">
                   <div className="text-xs text-gray-500 flex items-center justify-center gap-1">
                     <ChevronDown className="h-3 w-3" />
@@ -737,75 +923,84 @@ export default function WorkItems() {
             </div>
           )}
         </div>
+        )
       )}
 
       {/* AI Sprint Insights - Progressive Loading */}
-      <div className="card">
-        <div className="flex items-center gap-3 mb-4">
-          <Target className="h-6 w-6 text-blue-600" />
-          <h3 className="text-lg font-medium text-gray-900">AI Sprint Insights</h3>
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-            Powered by AI
-          </span>
-          {loadingStates.aiSummary && (
-            <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-              <span className="text-xs text-blue-600">Generating insights...</span>
-            </div>
-          )}
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in" style={{animationDelay: '0.4s'}}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Target className="h-5 w-5 text-purple-600" />
+            <h3 className="text-xl font-semibold text-gray-900">AI Sprint Insights</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 px-3 py-1.5 rounded-full font-medium border border-purple-200">
+              ✨ Powered by AI
+            </span>
+            {loadingStates.aiSummary && (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 border-t-purple-600"></div>
+                <span className="text-xs text-purple-600 font-medium">Analyzing...</span>
+              </div>
+            )}
+          </div>
         </div>
         
         {loadingStates.aiSummary ? (
-          <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
-            <div className="text-sm text-gray-500 mt-4">
-              🤖 AI is analyzing your sprint data to provide actionable insights...
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse w-4/5"></div>
+              <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse w-3/5"></div>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-purple-600 bg-purple-50 p-3 rounded-xl border border-purple-100">
+              <div className="animate-pulse">🤖</div>
+              <span>AI is analyzing your sprint data to provide actionable insights...</span>
             </div>
           </div>
         ) : aiSummary?.summary ? (
-          <div className="prose prose-sm max-w-none">
-            <ReactMarkdown
-              components={{
-                h2: ({children}) => (
-                  <h2 className="text-base font-semibold text-gray-900 mb-3 mt-4 first:mt-0">
-                    {children}
-                  </h2>
-                ),
-                h3: ({children}) => (
-                  <h3 className="text-sm font-medium text-blue-900 mb-2 mt-3">
-                    {children}
-                  </h3>
-                ),
-                p: ({children}) => (
-                  <p className="text-sm text-gray-700 mb-3 leading-relaxed">
-                    {children}
-                  </p>
-                ),
-                ul: ({children}) => (
-                  <ul className="list-disc list-inside text-sm text-gray-700 mb-4 ml-2 space-y-1">
-                    {children}
-                  </ul>
-                ),
-                li: ({children}) => (
-                  <li className="mb-1 text-sm text-gray-700">
-                    {children}
-                  </li>
-                ),
-                strong: ({children}) => (
-                  <strong className="font-semibold text-gray-900">
-                    {children}
-                  </strong>
-                ),
-                em: ({children}) => (
-                  <em className="italic text-gray-800">
-                    {children}
-                  </em>
-                ),
-                code: ({children}) => (
-                  <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
-                    {children}
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-4 rounded-xl border border-purple-100">
+            <div className="prose prose-sm max-w-none">
+              <ReactMarkdown
+                components={{
+                  h2: ({children}) => (
+                    <h2 className="text-base font-semibold text-gray-900 mb-3 mt-4 first:mt-0">
+                      {children}
+                    </h2>
+                  ),
+                  h3: ({children}) => (
+                    <h3 className="text-sm font-medium text-purple-900 mb-2 mt-3">
+                      {children}
+                    </h3>
+                  ),
+                  p: ({children}) => (
+                    <p className="text-sm text-gray-700 mb-3 leading-relaxed">
+                      {children}
+                    </p>
+                  ),
+                  ul: ({children}) => (
+                    <ul className="list-disc list-inside text-sm text-gray-700 mb-4 ml-2 space-y-1">
+                      {children}
+                    </ul>
+                  ),
+                  li: ({children}) => (
+                    <li className="mb-1 text-sm text-gray-700">
+                      {children}
+                    </li>
+                  ),
+                  strong: ({children}) => (
+                    <strong className="font-semibold text-gray-900">
+                      {children}
+                    </strong>
+                  ),
+                  em: ({children}) => (
+                    <em className="italic text-purple-800">
+                      {children}
+                    </em>
+                  ),
+                  code: ({children}) => (
+                    <code className="bg-white text-purple-800 px-2 py-1 rounded text-xs font-mono border border-purple-200">
+                      {children}
                   </code>
                 )
               }}
@@ -825,6 +1020,7 @@ export default function WorkItems() {
               </div>
             )}
           </div>
+          </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
             <Target className="h-8 w-8 mx-auto mb-2 text-gray-300" />
@@ -841,35 +1037,35 @@ export default function WorkItems() {
 
       {/* Enhanced Overdue Items */}
       {loadingStates.overdueItems ? (
-        <div className="card border-red-200 bg-red-50">
+        <div className="bg-white p-6 rounded-2xl border border-amber-200 shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-              <div className="h-6 bg-red-300 rounded w-48 animate-pulse"></div>
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <div className="h-6 bg-amber-200 rounded w-48 animate-pulse"></div>
             </div>
-            <div className="h-6 bg-red-300 rounded w-32 animate-pulse"></div>
+            <div className="h-6 bg-amber-200 rounded-full w-32 animate-pulse"></div>
           </div>
           <SkeletonTable rows={3} />
         </div>
       ) : overdueItems.length > 0 && (
-        <div className="card border-red-200 bg-red-50">
+        <div className="bg-white p-6 rounded-2xl border border-amber-200 shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-              <h3 className="text-lg font-medium text-red-900">Critical: Overdue Items</h3>
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <h3 className="text-xl font-semibold text-amber-900">Critical: Overdue Items</h3>
               <button
                 onClick={toggleOverdueExpanded}
-                className="p-1 hover:bg-red-100 rounded transition-colors"
+                className="card-hover p-2 hover:bg-amber-50 rounded-lg transition-all duration-200"
                 title={isOverdueExpanded ? "Collapse section" : "Expand section"}
               >
                 {isOverdueExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-red-600" />
+                  <ChevronUp className="h-4 w-4 text-amber-600" />
                 ) : (
-                  <ChevronDown className="h-4 w-4 text-red-600" />
+                  <ChevronDown className="h-4 w-4 text-amber-600" />
                 )}
               </button>
             </div>
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200">
               {filteredOverdueItems.length} of {overdueItems.length} items
             </span>
           </div>
@@ -877,59 +1073,165 @@ export default function WorkItems() {
           {isOverdueExpanded && (
             <>
               {/* Overdue Items Filters */}
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-2 mb-6">
                 {/* State Filter */}
                 <div className="relative">
-                  <Activity className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
-                  <select
-                    value={overdueStateFilter}
-                    onChange={(e) => setOverdueStateFilter(e.target.value)}
-                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                  <button
+                    onClick={() => {
+                      setIsOverdueStateDropdownOpen(!isOverdueStateDropdownOpen)
+                      setIsOverdueAssigneeDropdownOpen(false)
+                      setIsOverduePriorityDropdownOpen(false)
+                      setIsStateDropdownOpen(false)
+                      setIsAssigneeDropdownOpen(false)
+                    }}
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
                   >
-                    <option value="all">All States ({getOverdueStates().length})</option>
-                    {getOverdueStates().map(state => (
-                      <option key={state} value={state}>
-                        {state} ({getOverdueStateCount(state)})
-                      </option>
-                    ))}
-                  </select>
+                    <Activity className="h-3 w-3 absolute left-2.5 text-amber-500" />
+                    <span className="flex-1 text-left">
+                      {overdueStateFilter === 'all' ? 'All States' : overdueStateFilter}
+                    </span>
+                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverdueStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {isOverdueStateDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+                      <button
+                        onClick={() => {
+                          setOverdueStateFilter('all');
+                          setIsOverdueStateDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                          overdueStateFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        }`}
+                      >
+                        All States
+                      </button>
+                      {getOverdueStates().map(state => (
+                        <button
+                          key={state}
+                          onClick={() => {
+                            setOverdueStateFilter(state);
+                            setIsOverdueStateDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                            overdueStateFilter === state ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                          }`}
+                        >
+                          {state} ({getOverdueStateCount(state)})
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Assignee Filter */}
                 <div className="relative">
-                  <User className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
-                  <select
-                    value={overdueAssigneeFilter}
-                    onChange={(e) => setOverdueAssigneeFilter(e.target.value)}
-                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                  <button
+                    onClick={() => {
+                      setIsOverdueAssigneeDropdownOpen(!isOverdueAssigneeDropdownOpen)
+                      setIsOverdueStateDropdownOpen(false)
+                      setIsOverduePriorityDropdownOpen(false)
+                      setIsStateDropdownOpen(false)
+                      setIsAssigneeDropdownOpen(false)
+                    }}
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[120px]"
                   >
-                    <option value="all">All Assignees ({getOverdueAssignees().length})</option>
-                    {getOverdueAssignees().map(assignee => (
-                      <option key={assignee} value={assignee}>
-                        {assignee} ({getOverdueAssigneeCount(assignee)})
-                      </option>
-                    ))}
-                  </select>
+                    <User className="h-3 w-3 absolute left-2.5 text-amber-500" />
+                    <span className="flex-1 text-left">
+                      {overdueAssigneeFilter === 'all' ? 'All Assignees' : overdueAssigneeFilter}
+                    </span>
+                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverdueAssigneeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {isOverdueAssigneeDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
+                      <button
+                        onClick={() => {
+                          setOverdueAssigneeFilter('all');
+                          setIsOverdueAssigneeDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                          overdueAssigneeFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        }`}
+                      >
+                        All Assignees ({getOverdueAssignees().length})
+                      </button>
+                      {getOverdueAssignees().map(assignee => (
+                        <button
+                          key={assignee}
+                          onClick={() => {
+                            setOverdueAssigneeFilter(assignee);
+                            setIsOverdueAssigneeDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                            overdueAssigneeFilter === assignee ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                          }`}
+                        >
+                          {assignee} ({getOverdueAssigneeCount(assignee)})
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Priority Filter */}
                 <div className="relative">
-                  <ArrowUp className="h-3 w-3 absolute left-2 top-1/2 transform -translate-y-1/2 text-red-400" />
-                  <select
-                    value={overduePriorityFilter}
-                    onChange={(e) => setOverduePriorityFilter(e.target.value)}
-                    className="pl-7 pr-6 py-1.5 border border-red-300 rounded-md text-xs focus:ring-1 focus:ring-red-500 focus:border-transparent bg-white min-w-0"
+                  <button
+                    onClick={() => {
+                      setIsOverduePriorityDropdownOpen(!isOverduePriorityDropdownOpen)
+                      setIsOverdueStateDropdownOpen(false)
+                      setIsOverdueAssigneeDropdownOpen(false)
+                      setIsStateDropdownOpen(false)
+                      setIsAssigneeDropdownOpen(false)
+                    }}
+                    className="flex items-center gap-2 pl-8 pr-3 py-2 border border-amber-200 rounded-full text-xs focus:ring-1 focus:ring-amber-100 focus:border-amber-300 bg-white hover:border-amber-300 transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[110px]"
                   >
-                    <option value="all">All Priorities ({getOverduePriorities().length})</option>
-                    {getOverduePriorities().map(priority => {
-                      const priorityText = priority === 'None' ? 'None' : getPriorityText(priority)
-                      return (
-                        <option key={priority} value={priority}>
-                          {priorityText} ({getOverduePriorityCount(priority)})
-                        </option>
-                      )
-                    })}
-                  </select>
+                    <ArrowUp className="h-3 w-3 absolute left-2.5 text-amber-500" />
+                    <span className="flex-1 text-left">
+                      {overduePriorityFilter === 'all' ? 'All Priorities' : 
+                       overduePriorityFilter === 'None' ? 'None' : getPriorityText(overduePriorityFilter)}
+                    </span>
+                    <svg className={`h-3 w-3 text-amber-500 transition-transform ${isOverduePriorityDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {isOverduePriorityDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-amber-200 rounded-lg shadow-lg z-50 py-1 min-w-[150px]">
+                      <button
+                        onClick={() => {
+                          setOverduePriorityFilter('all');
+                          setIsOverduePriorityDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                          overduePriorityFilter === 'all' ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                        }`}
+                      >
+                        All Priorities ({getOverduePriorities().length})
+                      </button>
+                      {getOverduePriorities().map(priority => {
+                        const priorityText = priority === 'None' ? 'None' : getPriorityText(priority)
+                        return (
+                          <button
+                            key={priority}
+                            onClick={() => {
+                              setOverduePriorityFilter(priority);
+                              setIsOverduePriorityDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${
+                              overduePriorityFilter === priority ? 'bg-amber-50 text-amber-700' : 'text-gray-700'
+                            }`}
+                          >
+                            {priorityText} ({getOverduePriorityCount(priority)})
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Clear Filters */}
@@ -940,7 +1242,7 @@ export default function WorkItems() {
                       setOverdueAssigneeFilter('all')
                       setOverduePriorityFilter('all')
                     }}
-                    className="text-xs text-red-600 hover:text-red-800 underline whitespace-nowrap"
+                    className="text-xs text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-3 py-2 rounded-full transition-colors font-medium"
                   >
                     Clear
                   </button>
@@ -987,7 +1289,7 @@ export default function WorkItems() {
                 </div>
               )}
               {/* Scrollable Overdue Items List */}
-              <div className="overflow-y-auto border border-red-200 rounded-lg bg-white" style={{ maxHeight: '600px' }}>
+              <div className="overflow-y-auto border border-red-200 rounded-lg bg-white custom-scrollbar" style={{ maxHeight: '600px' }}>
                 <div className="space-y-0">
                   {filteredOverdueItems.map((item, index) => {
                     const title = item.fields?.['System.Title'] || 'No title'
@@ -1003,7 +1305,7 @@ export default function WorkItems() {
                       <div 
                         key={item.id} 
                         onClick={() => openWorkItemModal(item)}
-                        className={`p-4 hover:bg-red-25 transition-colors border-red-200 cursor-pointer group ${
+                        className={`p-4 hover:bg-gray-50 transition-colors border-red-200 cursor-pointer group ${
                           index !== filteredOverdueItems.length - 1 ? 'border-b' : ''
                         }`}
                         title="Click to view details"
