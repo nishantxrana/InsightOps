@@ -4,6 +4,7 @@ import { apiService } from '../api/apiService'
 import { useHealth } from '../contexts/HealthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
+import { Checkbox } from '../components/ui/checkbox'
 import { format } from 'date-fns'
 
 export default function Logs() {
@@ -160,15 +161,19 @@ export default function Logs() {
             <p className="text-muted-foreground text-sm mt-0.5">Real-time application logs and webhook activity</p>
           </div>
           <div className="flex items-center gap-3">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="auto-refresh"
                 checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
+                onCheckedChange={setAutoRefresh}
               />
-              <span className="ml-2 text-sm text-foreground">Auto-refresh</span>
-            </label>
+              <label 
+                htmlFor="auto-refresh"
+                className="text-sm text-foreground cursor-pointer"
+              >
+                Auto-refresh
+              </label>
+            </div>
             <button
               onClick={handleSync}
               disabled={loading}
