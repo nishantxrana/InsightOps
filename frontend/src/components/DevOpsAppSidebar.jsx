@@ -23,7 +23,7 @@ const data = {
   user: {
     name: "Admin User",
     email: "admin@company.com",
-    avatar: "/icon.svg",
+    avatar: "", // Empty for now, will use initials
   },
   navMain: [
     {
@@ -64,11 +64,6 @@ const data = {
           title: "Logs",
           url: "/logs",
           icon: FileText,
-        },
-        {
-          title: "Settings",
-          url: "/settings",
-          icon: Settings,
         },
       ],
     },
