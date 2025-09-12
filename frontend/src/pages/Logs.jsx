@@ -192,9 +192,9 @@ export default function Logs() {
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loading ? (
             <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
+              <div className="h-4 bg-muted animate-pulse rounded w-16"></div>
+              <div className="h-8 bg-muted animate-pulse rounded w-12"></div>
+              <div className="h-2 bg-muted animate-pulse rounded w-full"></div>
             </div>
           ) : (
             <>
@@ -215,9 +215,9 @@ export default function Logs() {
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loading ? (
             <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
+              <div className="h-4 bg-muted animate-pulse rounded w-16"></div>
+              <div className="h-8 bg-muted animate-pulse rounded w-12"></div>
+              <div className="h-2 bg-muted animate-pulse rounded w-full"></div>
             </div>
           ) : (
             <>
@@ -240,9 +240,9 @@ export default function Logs() {
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loading ? (
             <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
+              <div className="h-4 bg-muted animate-pulse rounded w-16"></div>
+              <div className="h-8 bg-muted animate-pulse rounded w-12"></div>
+              <div className="h-2 bg-muted animate-pulse rounded w-full"></div>
             </div>
           ) : (
             <>
@@ -265,9 +265,9 @@ export default function Logs() {
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loading ? (
             <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
+              <div className="h-4 bg-muted animate-pulse rounded w-16"></div>
+              <div className="h-8 bg-muted animate-pulse rounded w-12"></div>
+              <div className="h-2 bg-muted animate-pulse rounded w-full"></div>
             </div>
           ) : (
             <>
