@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Filter,
 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
 import ErrorMessage from "../components/ErrorMessage";
@@ -418,7 +419,7 @@ export default function Pipelines() {
           </div>
         </div>
 
-        <div className="max-h-[45vh] overflow-y-auto custom-scrollbar border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
+        <ScrollArea className="h-[45vh] border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
           {filteredBuilds.length > 0 ? (
             <div className="divide-y divide-border dark:divide-[#1a1a1a]">
               {filteredBuilds.map((build) => (
@@ -495,7 +496,7 @@ export default function Pipelines() {
               )}
             </div>
           )}
-        </div>
+        </ScrollArea>
       </div>
       )}
 

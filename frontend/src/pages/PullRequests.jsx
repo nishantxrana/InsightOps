@@ -15,6 +15,7 @@ import {
   XCircle,
   RefreshCw
 } from 'lucide-react'
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { apiService } from '../api/apiService'
 import { useHealth } from '../contexts/HealthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -533,7 +534,7 @@ export default function PullRequests() {
             )}
           </div>
         </div>
-        <div className="max-h-[55vh] overflow-y-auto custom-scrollbar">
+        <ScrollArea className="h-[55vh]">
           {loadingStates.pullRequests ? (
             <div className="divide-y divide-border dark:divide-[#1a1a1a]">
               {[1, 2, 3, 4, 5].map(i => (
@@ -676,7 +677,7 @@ export default function PullRequests() {
               No pull requests found
             </div>
           )}
-        </div>
+        </ScrollArea>
       </div>
 
       {/* No Data State */}

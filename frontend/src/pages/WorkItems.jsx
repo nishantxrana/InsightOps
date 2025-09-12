@@ -25,6 +25,7 @@ import {
   Activity,
   X
 } from 'lucide-react'
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { apiService } from '../api/apiService'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
@@ -837,7 +838,7 @@ export default function WorkItems() {
           
           {/* Work Items List */}
           {filteredWorkItems.length > 0 ? (
-            <div className="space-y-0 max-h-[40vh] overflow-y-auto custom-scrollbar border border-border dark:border-[#1a1a1a] rounded-xl bg-card dark:bg-[#111111]">
+            <ScrollArea className="h-[40vh] border border-border dark:border-[#1a1a1a] rounded-xl bg-card dark:bg-[#111111]">
               <div className="divide-y divide-border dark:divide-[#1a1a1a]">
                 {filteredWorkItems.map((item, index) => (
                   <div 
@@ -879,17 +880,7 @@ export default function WorkItems() {
                   </div>
                 ))}
               </div>
-              
-              {/* Scroll indicator */}
-              {filteredWorkItems.length > 4 && (
-                <div className="sticky bottom-0 bg-gradient-to-t from-card dark:from-[#111111] via-card dark:via-[#111111] to-transparent p-2 text-center">
-                  <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                    <ChevronDown className="h-3 w-3" />
-                    Scroll to see more items
-                  </div>
-                </div>
-              )}
-            </div>
+            </ScrollArea>
           ) : (
             <div className="text-center py-8 text-gray-500">
               <Filter className="h-8 w-8 mx-auto mb-2 text-gray-300" />
@@ -1289,7 +1280,7 @@ export default function WorkItems() {
                 </div>
               )}
               {/* Scrollable Overdue Items List */}
-              <div className="overflow-y-auto border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111] custom-scrollbar" style={{ maxHeight: '600px' }}>
+              <ScrollArea className="h-[600px] border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
                 <div className="space-y-0">
                   {filteredOverdueItems.map((item, index) => {
                     const title = item.fields?.['System.Title'] || 'No title'
@@ -1391,7 +1382,7 @@ export default function WorkItems() {
                     </div>
                   </div>
                 )}
-              </div>
+              </ScrollArea>
 
               {/* Action Required Notice */}
               <div className="mt-4 p-3 bg-muted rounded-lg">
