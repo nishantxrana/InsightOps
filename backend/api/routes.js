@@ -243,6 +243,112 @@ router.get('/pull-requests/idle', async (req, res) => {
   }
 });
 
+// Pull Request AI explanation endpoint
+router.get('/pull-requests/:id/explain', async (req, res) => {
+  try {
+    const pullRequestId = req.params.id;
+    
+    // Get PR details
+    const pullRequest = await azureDevOpsClient.getPullRequestDetails(pullRequestId);
+    
+    if (!pullRequest) {
+      return res.status(404).json({ 
+        error: 'Pull request not found',
+        details: `Pull request ${pullRequestId} not found`
+      });
+    }
+
+    // Get PR changes and commits for better analysis (don't fail if unavailable)
+    let changes = null;
+    let commits = null;
+    
+    try {
+      changes = await azureDevOpsClient.getPullRequestIterationChanges(pullRequestId);
+    } catch (error) {
+      logger.warn('Failed to fetch PR changes:', error.message);
+    }
+
+    try {
+      commits = await azureDevOpsClient.getPullRequestCommits(pullRequestId);
+    } catch (error) {
+      logger.warn('Failed to fetch PR commits:', error.message);
+    }
+
+    // Generate AI explanation
+    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits);
+    
+    res.json({
+      pullRequestId: pullRequestId,
+      explanation: explanation,
+      changes: changes,
+      commits: commits,
+      status: 'completed'
+    });
+    
+  } catch (error) {
+    logger.error('Error generating pull request explanation:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate pull request explanation',
+      details: error.message,
+      status: 'error'
+    });
+  }
+});
+
+// Get PR changes with diffs
+router.get('/pull-requests/:id/changes', async (req, res) => {
+  try {
+    const pullRequestId = req.params.id;
+    
+    // Try to get changes with actual file content
+    let changes;
+    try {
+      changes = await azureDevOpsClient.getPullRequestIterationChanges(pullRequestId);
+    } catch (error) {
+      logger.warn('Failed to get iteration changes, trying diffs API:', error.message);
+      
+      // Fallback to diffs API
+      try {
+        const diffs = await azureDevOpsClient.getPullRequestDiffs(pullRequestId);
+        changes = {
+          changeEntries: diffs.changes?.map(change => ({
+            path: change.item?.path || 'unknown',
+            changeType: change.changeType || 'edit',
+            isFolder: false,
+            originalContent: change.originalContent || null,
+            content: change.modifiedContent || null
+          })) || []
+        };
+      } catch (diffError) {
+        logger.warn('Diffs API also failed:', diffError.message);
+        changes = {
+          changeEntries: [{
+            path: 'File changes not available',
+            changeType: 'info',
+            isFolder: false,
+            originalContent: null,
+            content: null
+          }]
+        };
+      }
+    }
+    
+    res.json(changes);
+  } catch (error) {
+    logger.error('Error fetching PR changes:', error);
+    // Return empty changes instead of error
+    res.json({ 
+      changeEntries: [{
+        path: 'File changes not available',
+        changeType: 'info',
+        isFolder: false,
+        originalContent: null,
+        content: null
+      }]
+    });
+  }
+});
+
 // Logs endpoint
 router.get('/logs', async (req, res) => {
   try {
