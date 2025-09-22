@@ -29,6 +29,7 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('overview')
   const [changes, setChanges] = useState(null)
   const [loadingChanges, setLoadingChanges] = useState(false)
+  const [expandedFiles, setExpandedFiles] = useState(new Set())
 
   // Get PR details
   const title = pullRequest?.title || 'No title'
