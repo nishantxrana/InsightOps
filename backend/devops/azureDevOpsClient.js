@@ -582,26 +582,13 @@ class AzureDevOpsClient {
 
   async getPullRequestChanges(pullRequestId) {
     try {
-      // Try the standard changes endpoint first
-      const response = await this.client.get(`/git/pullrequests/${pullRequestId}/iterations/1/changes`, {
+      const response = await this.client.get(`/git/pullrequests/${pullRequestId}/changes`, {
         params: { 'api-version': '7.0' }
       });
       return response.data;
     } catch (error) {
-      // If that fails, try alternative endpoint
-      try {
-        logger.warn(`Standard changes endpoint failed for PR ${pullRequestId}, trying alternative`);
-        const response = await this.client.get(`/git/pullrequests/${pullRequestId}`, {
-          params: { 
-            'api-version': '7.0',
-            '$expand': 'iterations'
-          }
-        });
-        return { changeEntries: [] }; // Return empty changes if we can't get them
-      } catch (altError) {
-        logger.error(`Error fetching PR ${pullRequestId} changes:`, error);
-        throw error;
-      }
+      logger.error(`Error fetching PR ${pullRequestId} changes:`, error);
+      return { changeEntries: [] };
     }
   }
 
@@ -643,11 +630,14 @@ class AzureDevOpsClient {
       const changesResponse = await this.client.get(`/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/iterations/${iterationId}/changes`, {
         params: { 
           'api-version': '7.0',
-          '$top': 100
+          '$top': 1000, // Increase limit to get all changes
+          'includeContent': false // We don't need content, just the list
         }
       });
       
-      // Process changes to extract useful information
+      logger.info(`Fetched ${changesResponse.data.changeEntries?.length || 0} changes for PR ${pullRequestId}`);
+      
+      // Process ALL changes to extract useful information
       const processedChanges = (changesResponse.data.changeEntries || []).map(change => {
         const filePath = change.item?.path || 'unknown';
         const changeType = change.changeType || 'edit';
@@ -656,6 +646,13 @@ class AzureDevOpsClient {
         // Extract file extension and type
         const fileExtension = filePath.split('.').pop()?.toLowerCase() || '';
         const fileType = this.getFileType(fileExtension);
+        
+        logger.debug(`Processing change: ${changeType} - ${filePath}`, {
+          changeType,
+          filePath,
+          isFolder,
+          fileType
+        });
         
         return {
           path: filePath,
@@ -667,23 +664,32 @@ class AzureDevOpsClient {
         };
       });
       
+      // Calculate summary statistics
+      const summary = {
+        totalFiles: processedChanges.filter(c => !c.isFolder).length,
+        addedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'add').length,
+        modifiedFiles: processedChanges.filter(c => !c.isFolder && (c.changeType === 'edit' || c.changeType === 'rename')).length,
+        deletedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'delete').length,
+        renamedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'rename').length,
+        fileTypes: this.groupFilesByType(processedChanges)
+      };
+      
+      logger.info('PR changes summary', {
+        pullRequestId,
+        ...summary
+      });
+      
       return {
         ...changesResponse.data,
         changeEntries: processedChanges,
-        summary: {
-          totalFiles: processedChanges.length,
-          addedFiles: processedChanges.filter(c => c.changeType === 'add').length,
-          modifiedFiles: processedChanges.filter(c => c.changeType === 'edit').length,
-          deletedFiles: processedChanges.filter(c => c.changeType === 'delete').length,
-          fileTypes: this.groupFilesByType(processedChanges)
-        }
+        summary: summary
       };
       
     } catch (error) {
       logger.error(`Error fetching PR ${pullRequestId} iteration changes:`, error);
       return {
         changeEntries: [],
-        summary: { totalFiles: 0, addedFiles: 0, modifiedFiles: 0, deletedFiles: 0, fileTypes: {} }
+        summary: { totalFiles: 0, addedFiles: 0, modifiedFiles: 0, deletedFiles: 0, renamedFiles: 0, fileTypes: {} }
       };
     }
   }

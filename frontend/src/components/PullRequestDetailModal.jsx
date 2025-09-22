@@ -12,11 +12,7 @@ import {
   Bot,
   Loader2,
   Eye,
-  FileText,
-  Plus,
-  Minus,
-  Edit3,
-  Code2
+  FileText
 } from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
@@ -26,10 +22,6 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
   const [aiExplanation, setAiExplanation] = useState(null)
   const [loadingAI, setLoadingAI] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
-  const [changes, setChanges] = useState(null)
-  const [loadingChanges, setLoadingChanges] = useState(false)
-  const [expandedFiles, setExpandedFiles] = useState(new Set())
 
   // Get PR details
   const title = pullRequest?.title || 'No title'
@@ -56,85 +48,6 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
   }
 
   // Get change type icon and color
-  const getChangeTypeIcon = (changeType) => {
-    switch (changeType?.toLowerCase()) {
-      case 'add':
-        return <Plus className="h-4 w-4 text-green-600 dark:text-green-400" />
-      case 'delete':
-        return <Minus className="h-4 w-4 text-red-600 dark:text-red-400" />
-      case 'edit':
-        return <Edit3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-      default:
-        return <FileText className="h-4 w-4 text-muted-foreground" />
-    }
-  }
-
-  // Simple diff renderer
-  const renderDiff = (originalContent, newContent, path) => {
-    if (!originalContent && !newContent) return null
-    
-    const original = (originalContent || '').split('\n')
-    const modified = (newContent || '').split('\n')
-    
-    // Simple line-by-line diff
-    const maxLines = Math.max(original.length, modified.length)
-    const diffLines = []
-    
-    for (let i = 0; i < maxLines; i++) {
-      const oldLine = original[i]
-      const newLine = modified[i]
-      
-      if (oldLine === undefined) {
-        // Added line
-        diffLines.push({ type: 'add', content: newLine, lineNum: i + 1 })
-      } else if (newLine === undefined) {
-        // Deleted line
-        diffLines.push({ type: 'delete', content: oldLine, lineNum: i + 1 })
-      } else if (oldLine !== newLine) {
-        // Modified line
-        diffLines.push({ type: 'delete', content: oldLine, lineNum: i + 1 })
-        diffLines.push({ type: 'add', content: newLine, lineNum: i + 1 })
-      } else {
-        // Unchanged line
-        diffLines.push({ type: 'context', content: oldLine, lineNum: i + 1 })
-      }
-    }
-    
-    return (
-      <div className="font-mono text-sm bg-muted/30 rounded border">
-        {diffLines.slice(0, 50).map((line, index) => (
-          <div
-            key={index}
-            className={`flex ${
-              line.type === 'add' ? 'bg-green-50 dark:bg-green-950/20' :
-              line.type === 'delete' ? 'bg-red-50 dark:bg-red-950/20' :
-              'bg-transparent'
-            }`}
-          >
-            <span className="w-12 px-2 py-1 text-xs text-muted-foreground border-r">
-              {line.lineNum}
-            </span>
-            <span className={`w-4 text-center ${
-              line.type === 'add' ? 'text-green-600 dark:text-green-400' :
-              line.type === 'delete' ? 'text-red-600 dark:text-red-400' :
-              'text-muted-foreground'
-            }`}>
-              {line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' '}
-            </span>
-            <span className="flex-1 px-2 py-1 whitespace-pre-wrap break-all">
-              {line.content}
-            </span>
-          </div>
-        ))}
-        {diffLines.length > 50 && (
-          <div className="px-4 py-2 text-xs text-muted-foreground border-t">
-            ... {diffLines.length - 50} more lines
-          </div>
-        )}
-      </div>
-    )
-  }
-
   // Get PR URL
   const getPRUrl = (pr) => {
     return pr?.webUrl || pr?.url || '#'
@@ -148,43 +61,12 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
     try {
       const response = await apiService.explainPullRequest(pullRequest.pullRequestId)
       setAiExplanation(response.explanation)
-      
-      // Also set changes if returned
-      if (response.changes) {
-        setChanges(response.changes)
-      }
     } catch (error) {
       console.error('Failed to load AI explanation:', error)
       setAiExplanation('AI explanation temporarily unavailable. Please try again later.')
     } finally {
       setLoadingAI(false)
     }
-  }
-
-  // Load changes
-  const loadChanges = async () => {
-    if (!pullRequest || loadingChanges || changes) return
-    
-    setLoadingChanges(true)
-    try {
-      const changesData = await apiService.getPullRequestChanges(pullRequest.pullRequestId)
-      setChanges(changesData)
-    } catch (error) {
-      console.error('Failed to load changes:', error)
-    } finally {
-      setLoadingChanges(false)
-    }
-  }
-
-  // Toggle file expansion
-  const toggleFileExpansion = (path) => {
-    const newExpanded = new Set(expandedFiles)
-    if (newExpanded.has(path)) {
-      newExpanded.delete(path)
-    } else {
-      newExpanded.add(path)
-    }
-    setExpandedFiles(newExpanded)
   }
 
   // Copy PR link
@@ -205,19 +87,8 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
       setAiExplanation(null)
       setLoadingAI(false)
       setCopied(false)
-      setActiveTab('overview')
-      setChanges(null)
-      setLoadingChanges(false)
-      setExpandedFiles(new Set())
     }
   }, [isOpen, pullRequest])
-
-  // Load changes when Files tab is selected
-  useEffect(() => {
-    if (activeTab === 'files' && !changes && !loadingChanges) {
-      loadChanges()
-    }
-  }, [activeTab])
 
   // Handle backdrop click
   const handleBackdropClick = (e) => {
@@ -300,39 +171,15 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
         {/* Tabs */}
         <div className="flex border-b border-border dark:border-[#1a1a1a]">
           <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'overview'
-                ? 'text-foreground border-b-2 border-blue-500'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className="px-6 py-3 text-sm font-medium transition-colors text-foreground border-b-2 border-blue-500"
           >
             Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('files')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'files'
-                ? 'text-foreground border-b-2 border-blue-500'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Code2 className="h-4 w-4" />
-              Files Changed
-              {changes?.changeEntries && (
-                <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs">
-                  {changes.changeEntries.length}
-                </span>
-              )}
-            </div>
           </button>
         </div>
 
         {/* Content */}
         <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
-          {activeTab === 'overview' && (
-            <div className="p-6 space-y-6">
+          <div className="p-6 space-y-6">
               {/* Title and Metadata */}
               <div>
                 <h3 className="text-lg font-medium text-foreground mb-2">{title}</h3>
@@ -401,7 +248,7 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
                 )}
                 
                 {aiExplanation && (
-                  <div className="prose prose-sm max-w-none text-blue-800 dark:text-blue-200 prose-strong:text-blue-900 dark:prose-strong:text-blue-50">
+                  <div className="prose prose-sm max-w-none text-blue-800 dark:text-blue-200 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-900 dark:prose-code:text-blue-100 prose-code:bg-blue-100 dark:prose-code:bg-blue-900/30">
                     <ReactMarkdown>{aiExplanation}</ReactMarkdown>
                   </div>
                 )}
@@ -423,105 +270,6 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
                 </div>
               )}
             </div>
-          )}
-
-          {activeTab === 'files' && (
-            <div className="p-6">
-              {loadingChanges && (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-muted-foreground">Loading file changes...</span>
-                </div>
-              )}
-
-              {changes?.changeEntries && changes.changeEntries.length > 0 && (
-                <div className="space-y-4">
-                  {/* File Summary */}
-                  {changes.summary && (
-                    <div className="bg-muted/30 rounded-lg p-4 mb-4">
-                      <h4 className="font-medium mb-2">Changes Summary</h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-foreground">{changes.summary.totalFiles}</div>
-                          <div className="text-muted-foreground">Total Files</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-green-600">{changes.summary.addedFiles}</div>
-                          <div className="text-muted-foreground">Added</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-blue-600">{changes.summary.modifiedFiles}</div>
-                          <div className="text-muted-foreground">Modified</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-red-600">{changes.summary.deletedFiles}</div>
-                          <div className="text-muted-foreground">Deleted</div>
-                        </div>
-                      </div>
-                      
-                      {/* File Types */}
-                      {changes.summary.fileTypes && Object.keys(changes.summary.fileTypes).length > 0 && (
-                        <div className="mt-4">
-                          <div className="text-sm font-medium mb-2">File Types:</div>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(changes.summary.fileTypes).map(([type, count]) => (
-                              <span key={type} className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200">
-                                {type}: {count}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* File List */}
-                  <div className="space-y-2">
-                    {changes.changeEntries
-                      .filter(change => !change.isFolder && change.changeType !== 'info')
-                      .map((change, index) => (
-                      <div key={index} className="flex items-center gap-3 p-3 bg-muted/20 rounded-lg">
-                        <div className="flex-shrink-0">
-                          {getChangeTypeIcon(change.changeType)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-mono text-sm truncate">{change.path}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                              {change.changeType}
-                            </span>
-                            {change.fileType && (
-                              <span className="text-xs text-muted-foreground">
-                                {change.fileType}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Info message about diffs */}
-                  <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800/30">
-                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                      <FileText className="h-5 w-5" />
-                      <span className="text-sm">
-                        File diffs are not available through Azure DevOps API. Use the "Open in Azure DevOps" link above to view detailed changes.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!loadingChanges && (!changes?.changeEntries || changes.changeEntries.length === 0) && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Code2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">No File Changes</h3>
-                  <p>No file changes found for this pull request.</p>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
