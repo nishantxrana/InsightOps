@@ -119,6 +119,12 @@ export const apiService = {
     return response.data
   },
 
+  // Build analysis
+  async analyzeBuild(buildId) {
+    const response = await api.post(`/builds/${buildId}/analyze`)
+    return response.data
+  },
+
   // Pull request changes/diffs
   async getPullRequestChanges(pullRequestId) {
     const response = await api.get(`/pull-requests/${pullRequestId}/changes`)

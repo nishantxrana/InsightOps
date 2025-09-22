@@ -222,6 +222,46 @@ router.get('/builds/:buildId', async (req, res) => {
   }
 });
 
+// Build analysis endpoint
+router.post('/builds/:buildId/analyze', async (req, res) => {
+  try {
+    const buildId = req.params.buildId;
+    
+    // Get build details
+    const build = await azureDevOpsClient.getBuild(buildId);
+    
+    if (!build) {
+      return res.status(404).json({ 
+        error: 'Build not found',
+        details: `Build ${buildId} not found`
+      });
+    }
+    
+    // Get timeline and logs for analysis
+    const [timeline, logs] = await Promise.all([
+      azureDevOpsClient.getBuildTimeline(buildId),
+      azureDevOpsClient.getBuildLogs(buildId)
+    ]);
+    
+    // Generate AI analysis
+    const analysis = await aiService.summarizeBuildFailure(build, timeline, logs);
+    
+    res.json({
+      buildId: buildId,
+      analysis: analysis,
+      status: 'completed'
+    });
+    
+  } catch (error) {
+    logger.error('Error analyzing build:', error);
+    res.status(500).json({ 
+      error: 'Failed to analyze build',
+      details: error.message,
+      status: 'error'
+    });
+  }
+});
+
 // Pull Requests endpoints
 router.get('/pull-requests', async (req, res) => {
   try {
