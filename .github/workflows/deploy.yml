@@ -28,7 +28,7 @@ jobs:
     - name: Move frontend build to backend public folder
       run: |
         mkdir -p backend/public
-        cp -r frontend/dist/* backend/public/
+        cp -r frontend/dist/. backend/public/
     
     - name: Deploy backend to Azure App Service
       uses: azure/webapps-deploy@v2
