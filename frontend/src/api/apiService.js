@@ -113,6 +113,24 @@ export const apiService = {
     return response.data
   },
 
+  // Pull request AI explanation
+  async explainPullRequest(pullRequestId) {
+    const response = await api.get(`/pull-requests/${pullRequestId}/explain`)
+    return response.data
+  },
+
+  // Build analysis
+  async analyzeBuild(buildId) {
+    const response = await api.post(`/builds/${buildId}/analyze`)
+    return response.data
+  },
+
+  // Pull request changes/diffs
+  async getPullRequestChanges(pullRequestId) {
+    const response = await api.get(`/pull-requests/${pullRequestId}/changes`)
+    return response.data
+  },
+
   // Logs
   async getLogs(params = {}) {
     const response = await api.get('/logs', { params })

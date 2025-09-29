@@ -21,8 +21,8 @@ import {
 // Azure DevOps navigation data
 const data = {
   user: {
-    name: "Admin User",
-    email: "admin@company.com",
+    name: "Nishant Rana",
+    email: "nishantrana@example.com",
     avatar: "", // Avatar URL (string). If empty, initials will be displayed. TODO: Integrate with user profile service
   },
   navMain: [

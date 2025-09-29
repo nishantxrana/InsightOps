@@ -247,6 +247,140 @@ Provide a concise explanation (3-5 sentences max) based on this data.`
     }
   }
 
+  async explainPullRequest(pullRequest, changes = null, commits = null) {
+    try {
+      if (!this.initialized) {
+        try {
+          this.initializeClient();
+        } catch (error) {
+          logger.warn('AI service not configured, returning fallback explanation');
+          return 'AI analysis not available - please configure AI provider in settings.';
+        }
+      }
+
+      const title = pullRequest.title || 'No title';
+      const description = pullRequest.description || 'No description provided';
+      const sourceBranch = pullRequest.sourceRefName?.replace('refs/heads/', '') || 'Unknown';
+      const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'Unknown';
+      const status = pullRequest.status || 'Unknown';
+      const createdBy = pullRequest.createdBy?.displayName || 'Unknown';
+      const isDraft = pullRequest.isDraft || false;
+      const reviewers = pullRequest.reviewers || [];
+      const workItemRefs = pullRequest.workItemRefs || [];
+
+      // Format changes summary with file analysis
+      let changesSummary = 'No file changes available';
+      let fileAnalysis = '';
+      
+      if (changes?.changeEntries && changes.changeEntries.length > 0) {
+        const summary = changes.summary || {};
+        
+        // Create detailed file analysis
+        const filesByType = summary.fileTypes || {};
+        const fileTypeAnalysis = Object.entries(filesByType)
+          .map(([type, count]) => `${count} ${type} file${count !== 1 ? 's' : ''}`)
+          .join(', ');
+        
+        changesSummary = `${summary.totalFiles || 0} files changed:
+- ${summary.addedFiles || 0} added
+- ${summary.modifiedFiles || 0} modified  
+- ${summary.deletedFiles || 0} deleted
+
+File types: ${fileTypeAnalysis || 'Mixed files'}`;
+
+        // List key files for context
+        const keyFiles = changes.changeEntries
+          .filter(c => !c.isFolder)
+          .slice(0, 10)
+          .map(c => `${c.changeType}: ${c.path}`)
+          .join('\n');
+        
+        if (keyFiles) {
+          fileAnalysis = `\n\nKey file changes:\n${keyFiles}`;
+        }
+      }
+
+      // Format commits summary
+      let commitsSummary = 'No commit information available';
+      if (commits?.value && commits.value.length > 0) {
+        const commitMessages = commits.value
+          .slice(0, 5)
+          .map(commit => commit.comment || 'No commit message')
+          .join('\n');
+        
+        commitsSummary = `${commits.value.length} commit${commits.value.length !== 1 ? 's' : ''}:\n${commitMessages}`;
+      }
+
+      // Format reviewers info
+      let reviewerInfo = '';
+      if (reviewers.length > 0) {
+        const reviewerNames = reviewers.map(r => r.displayName).join(', ');
+        reviewerInfo = `\nReviewers: ${reviewerNames}`;
+      }
+
+      // Format work items info
+      let workItemInfo = '';
+      if (workItemRefs.length > 0) {
+        workItemInfo = `\nLinked work items: ${workItemRefs.length} item${workItemRefs.length !== 1 ? 's' : ''}`;
+      }
+
+      const messages = [
+        {
+          role: 'system',
+          content: `You are a senior code reviewer analyzing pull requests. Provide clear, actionable insights.
+
+**Formatting Rules:**
+- Use markdown formatting (**bold**, bullet points)
+- Keep response to 6-8 sentences maximum
+- Use **bold** for: PR purpose, key technologies, important changes
+- Use bullet points for specific technical details
+
+**Analysis Focus:**
+- Explain the PR's purpose and scope based on title, description, and file changes
+- Identify the type of change (feature, bugfix, refactor, etc.)
+- Highlight key technical areas affected
+- Mention review considerations based on file types and changes
+- Note any patterns in the changes that suggest the implementation approach`
+        },
+        {
+          role: 'user',
+          content: `Analyze this pull request:
+
+**Title:** ${title}
+**Description:** ${description}
+**Branch:** ${sourceBranch} → ${targetBranch}
+**Status:** ${status}${isDraft ? ' (Draft)' : ''}
+**Author:** ${createdBy}${reviewerInfo}${workItemInfo}
+
+**File Changes:**
+${changesSummary}${fileAnalysis}
+
+**Commits:**
+${commitsSummary}
+
+Provide a comprehensive analysis of what this PR accomplishes, the technical approach, and what reviewers should focus on.`
+        }
+      ];
+
+      const explanation = await this.generateCompletion(messages, { 
+        max_tokens: 500,
+        temperature: 0.3
+      });
+
+      logger.info('Generated PR explanation', {
+        pullRequestId: pullRequest.pullRequestId,
+        title,
+        filesChanged: changes?.summary?.totalFiles || 0,
+        explanationLength: explanation.length
+      });
+
+      return explanation;
+    } catch (error) {
+      logger.error('Error explaining pull request:', error);
+      return 'Unable to generate AI explanation at this time. Please try again later.';
+    }
+  }
+
   async summarizeBuildFailure(build, timeline, logs) {
     try {
       if (!this.initialized) {

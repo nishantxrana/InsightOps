@@ -222,6 +222,46 @@ router.get('/builds/:buildId', async (req, res) => {
   }
 });
 
+// Build analysis endpoint
+router.post('/builds/:buildId/analyze', async (req, res) => {
+  try {
+    const buildId = req.params.buildId;
+    
+    // Get build details
+    const build = await azureDevOpsClient.getBuild(buildId);
+    
+    if (!build) {
+      return res.status(404).json({ 
+        error: 'Build not found',
+        details: `Build ${buildId} not found`
+      });
+    }
+    
+    // Get timeline and logs for analysis
+    const [timeline, logs] = await Promise.all([
+      azureDevOpsClient.getBuildTimeline(buildId),
+      azureDevOpsClient.getBuildLogs(buildId)
+    ]);
+    
+    // Generate AI analysis
+    const analysis = await aiService.summarizeBuildFailure(build, timeline, logs);
+    
+    res.json({
+      buildId: buildId,
+      analysis: analysis,
+      status: 'completed'
+    });
+    
+  } catch (error) {
+    logger.error('Error analyzing build:', error);
+    res.status(500).json({ 
+      error: 'Failed to analyze build',
+      details: error.message,
+      status: 'error'
+    });
+  }
+});
+
 // Pull Requests endpoints
 router.get('/pull-requests', async (req, res) => {
   try {
@@ -243,6 +283,59 @@ router.get('/pull-requests/idle', async (req, res) => {
   }
 });
 
+// Pull Request AI explanation endpoint
+router.get('/pull-requests/:id/explain', async (req, res) => {
+  try {
+    const pullRequestId = req.params.id;
+    
+    // Get PR details
+    const pullRequest = await azureDevOpsClient.getPullRequestDetails(pullRequestId);
+    
+    if (!pullRequest) {
+      return res.status(404).json({ 
+        error: 'Pull request not found',
+        details: `Pull request ${pullRequestId} not found`
+      });
+    }
+
+    // Get PR changes and commits for better analysis (don't fail if unavailable)
+    let changes = null;
+    let commits = null;
+    
+    try {
+      changes = await azureDevOpsClient.getPullRequestIterationChanges(pullRequestId);
+    } catch (error) {
+      logger.warn('Failed to fetch PR changes:', error.message);
+    }
+
+    try {
+      commits = await azureDevOpsClient.getPullRequestCommits(pullRequestId);
+    } catch (error) {
+      logger.warn('Failed to fetch PR commits:', error.message);
+    }
+
+    // Generate AI explanation
+    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits);
+    
+    res.json({
+      pullRequestId: pullRequestId,
+      explanation: explanation,
+      changes: changes,
+      commits: commits,
+      status: 'completed'
+    });
+    
+  } catch (error) {
+    logger.error('Error generating pull request explanation:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate pull request explanation',
+      details: error.message,
+      status: 'error'
+    });
+  }
+});
+
+// Get PR changes with diffs
 // Logs endpoint
 router.get('/logs', async (req, res) => {
   try {

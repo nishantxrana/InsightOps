@@ -490,7 +490,11 @@ class AzureDevOpsClient {
   async getPullRequestDetails(pullRequestId) {
     try {
       const response = await this.client.get(`/git/pullrequests/${pullRequestId}`, {
-        params: { 'api-version': '7.0' }
+        params: { 
+          'api-version': '7.0',
+          'includeCommits': true,
+          'includeWorkItemRefs': true
+        }
       });
       
       // Add web URL to the pull request details
@@ -575,6 +579,171 @@ class AzureDevOpsClient {
     throw error;
   }
 }
+
+  async getPullRequestChanges(pullRequestId) {
+    try {
+      const response = await this.client.get(`/git/pullrequests/${pullRequestId}/changes`, {
+        params: { 'api-version': '7.0' }
+      });
+      return response.data;
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} changes:`, error);
+      return { changeEntries: [] };
+    }
+  }
+
+  async getPullRequestCommits(pullRequestId) {
+    try {
+      // Try repository-specific endpoint
+      const prDetails = await this.getPullRequestDetails(pullRequestId);
+      const repositoryId = prDetails.repository?.id;
+      
+      if (repositoryId) {
+        const response = await this.client.get(`/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/commits`, {
+          params: { 'api-version': '7.0' }
+        });
+        return response.data;
+      } else {
+        // Fallback to project-level endpoint
+        const response = await this.client.get(`/git/pullrequests/${pullRequestId}/commits`, {
+          params: { 'api-version': '7.0' }
+        });
+        return response.data;
+      }
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} commits:`, error);
+      // Return empty commits instead of throwing
+      return { value: [] };
+    }
+  }
+
+  async getPullRequestIterationChanges(pullRequestId, iterationId = 1) {
+    try {
+      const prDetails = await this.getPullRequestDetails(pullRequestId);
+      const repositoryId = prDetails.repository?.id;
+      
+      if (!repositoryId) {
+        throw new Error('Repository ID not found');
+      }
+
+      // Get the changes list - this gives us file paths and change types
+      const changesResponse = await this.client.get(`/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/iterations/${iterationId}/changes`, {
+        params: { 
+          'api-version': '7.0',
+          '$top': 1000, // Increase limit to get all changes
+          'includeContent': false // We don't need content, just the list
+        }
+      });
+      
+      logger.info(`Fetched ${changesResponse.data.changeEntries?.length || 0} changes for PR ${pullRequestId}`);
+      
+      // Process ALL changes to extract useful information
+      const processedChanges = (changesResponse.data.changeEntries || []).map(change => {
+        const filePath = change.item?.path || 'unknown';
+        const changeType = change.changeType || 'edit';
+        const isFolder = change.item?.isFolder || false;
+        
+        // Extract file extension and type
+        const fileExtension = filePath.split('.').pop()?.toLowerCase() || '';
+        const fileType = this.getFileType(fileExtension);
+        
+        logger.debug(`Processing change: ${changeType} - ${filePath}`, {
+          changeType,
+          filePath,
+          isFolder,
+          fileType
+        });
+        
+        return {
+          path: filePath,
+          changeType: changeType,
+          isFolder: isFolder,
+          fileExtension: fileExtension,
+          fileType: fileType,
+          url: change.item?.url
+        };
+      });
+      
+      // Calculate summary statistics
+      const summary = {
+        totalFiles: processedChanges.filter(c => !c.isFolder).length,
+        addedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'add').length,
+        modifiedFiles: processedChanges.filter(c => !c.isFolder && (c.changeType === 'edit' || c.changeType === 'rename')).length,
+        deletedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'delete').length,
+        renamedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'rename').length,
+        fileTypes: this.groupFilesByType(processedChanges)
+      };
+      
+      logger.info('PR changes summary', {
+        pullRequestId,
+        ...summary
+      });
+      
+      return {
+        ...changesResponse.data,
+        changeEntries: processedChanges,
+        summary: summary
+      };
+      
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} iteration changes:`, error);
+      return {
+        changeEntries: [],
+        summary: { totalFiles: 0, addedFiles: 0, modifiedFiles: 0, deletedFiles: 0, renamedFiles: 0, fileTypes: {} }
+      };
+    }
+  }
+
+  getFileType(extension) {
+    const typeMap = {
+      'js': 'JavaScript', 'jsx': 'React', 'ts': 'TypeScript', 'tsx': 'React TypeScript',
+      'py': 'Python', 'java': 'Java', 'cs': 'C#', 'cpp': 'C++', 'c': 'C',
+      'html': 'HTML', 'css': 'CSS', 'scss': 'SCSS', 'json': 'JSON',
+      'xml': 'XML', 'yml': 'YAML', 'yaml': 'YAML', 'md': 'Markdown',
+      'sql': 'SQL', 'txt': 'Text', 'sh': 'Shell', 'bat': 'Batch',
+      'dockerfile': 'Docker', 'gitignore': 'Git', 'env': 'Environment'
+    };
+    return typeMap[extension] || 'Other';
+  }
+
+  groupFilesByType(changes) {
+    return changes.reduce((acc, change) => {
+      if (!change.isFolder) {
+        const type = change.fileType;
+        acc[type] = (acc[type] || 0) + 1;
+      }
+      return acc;
+    }, {});
+  }
+
+  // Alternative method using diffs API
+  async getPullRequestDiffs(pullRequestId) {
+    try {
+      const prDetails = await this.getPullRequestDetails(pullRequestId);
+      const repositoryId = prDetails.repository?.id;
+      
+      if (!repositoryId) {
+        throw new Error('Repository ID not found');
+      }
+
+      // Get diffs using the diffs API
+      const diffsResponse = await this.client.get(`/git/repositories/${repositoryId}/diffs/commits`, {
+        params: {
+          'api-version': '7.0',
+          'baseVersionDescriptor.version': prDetails.targetRefName,
+          'baseVersionDescriptor.versionType': 'branch',
+          'targetVersionDescriptor.version': prDetails.sourceRefName,
+          'targetVersionDescriptor.versionType': 'branch',
+          '$top': 100
+        }
+      });
+
+      return diffsResponse.data;
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} diffs:`, error);
+      throw error;
+    }
+  }
 
   // Repository API
   async getRepositories() {

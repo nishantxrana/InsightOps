@@ -20,6 +20,7 @@ import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
 import ErrorMessage from "../components/ErrorMessage";
 import FilterDropdown from "../components/FilterDropdown";
+import BuildDetailModal from "../components/BuildDetailModal";
 import { format } from "date-fns";
 
 export default function Pipelines() {
@@ -28,6 +29,8 @@ export default function Pipelines() {
   const [error, setError] = useState(null);
   const [builds, setBuilds] = useState([]);
   const [filteredBuilds, setFilteredBuilds] = useState([]);
+  const [selectedBuild, setSelectedBuild] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     succeeded: 0,
@@ -425,7 +428,11 @@ export default function Pipelines() {
               {filteredBuilds.map((build) => (
                 <div
                   key={build.id}
-                  className="px-6 py-4 hover:bg-muted/50 transition-colors group"
+                  className="px-6 py-4 hover:bg-muted/50 transition-colors group cursor-pointer"
+                  onClick={() => {
+                    setSelectedBuild(build);
+                    setIsModalOpen(true);
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -445,6 +452,7 @@ export default function Pipelines() {
                               rel="noopener noreferrer"
                               className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors opacity-0 group-hover:opacity-100"
                               title="Open in Azure DevOps"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <ExternalLink className="h-3 w-3" />
                             </a>
@@ -596,6 +604,16 @@ export default function Pipelines() {
           </p>
         </div>
       )}
+
+      {/* Build Detail Modal */}
+      <BuildDetailModal
+        build={selectedBuild}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedBuild(null);
+        }}
+      />
     </div>
   );
 }
