@@ -46,12 +46,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from public folder
-app.use(express.static(path.join(process.cwd(), 'public')));
-
-// API Routes
+// API Routes (BEFORE static files)
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api', apiRoutes);
+
+// Serve static files from public folder
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 // Serve React app for all non-API routes
 app.get('*', (req, res) => {
