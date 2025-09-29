@@ -44,8 +44,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from frontend build
-app.use(express.static(path.join(process.cwd(), '../frontend/dist')));
+// Serve static files from public folder
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 // API Routes
 app.use('/api/webhooks', webhookRoutes);
@@ -54,7 +54,7 @@ app.use('/api', apiRoutes);
 // Serve React app for all non-API routes
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(process.cwd(), '../frontend/dist/index.html'));
+    res.sendFile(path.join(process.cwd(), 'public/index.html'));
   } else {
     res.status(404).json({ error: 'API endpoint not found' });
   }
