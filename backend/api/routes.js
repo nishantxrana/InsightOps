@@ -360,33 +360,42 @@ router.get('/logs', async (req, res) => {
 // Settings endpoints
 router.get('/settings', async (req, res) => {
   try {
-    const config = {
+    const runtimeSettings = configLoader.getRuntimeSettings();
+    
+    // Return settings with sensitive fields masked
+    const maskedSettings = {
       azureDevOps: {
-        organization: configLoader.get('azureDevOps.organization'),
-        project: configLoader.get('azureDevOps.project'),
-        personalAccessToken: '***', // Don't expose the actual token
-        baseUrl: configLoader.get('azureDevOps.baseUrl')
+        organization: runtimeSettings.azureDevOps?.organization || '',
+        project: runtimeSettings.azureDevOps?.project || '',
+        personalAccessToken: (runtimeSettings.azureDevOps?.personalAccessToken && runtimeSettings.azureDevOps.personalAccessToken.length > 0) ? '***' : '',
+        baseUrl: runtimeSettings.azureDevOps?.baseUrl || 'https://dev.azure.com'
       },
       ai: {
-        provider: configLoader.get('ai.provider'),
-        openaiApiKey: configLoader.get('ai.openaiApiKey') ? '***' : '',
-        groqApiKey: configLoader.get('ai.groqApiKey') ? '***' : '',
-        model: configLoader.get('ai.model')
+        provider: runtimeSettings.ai?.provider || 'openai',
+        openaiApiKey: (runtimeSettings.ai?.openaiApiKey && runtimeSettings.ai.openaiApiKey.length > 0) ? '***' : '',
+        groqApiKey: (runtimeSettings.ai?.groqApiKey && runtimeSettings.ai.groqApiKey.length > 0) ? '***' : '',
+        geminiApiKey: (runtimeSettings.ai?.geminiApiKey && runtimeSettings.ai.geminiApiKey.length > 0) ? '***' : '',
+        model: runtimeSettings.ai?.model || 'gpt-3.5-turbo'
       },
       notifications: {
-        teamsWebhookUrl: configLoader.get('notifications.teamsWebhookUrl') ? '***' : '',
-        slackWebhookUrl: configLoader.get('notifications.slackWebhookUrl') ? '***' : '',
-        googleChatWebhookUrl: configLoader.get('notifications.googleChatWebhookUrl') ? '***' : '',
-        enabled: configLoader.get('notifications.enabled')
+        teamsWebhookUrl: runtimeSettings.notifications?.teamsWebhookUrl ? '***' : '',
+        slackWebhookUrl: runtimeSettings.notifications?.slackWebhookUrl ? '***' : '',
+        googleChatWebhookUrl: runtimeSettings.notifications?.googleChatWebhookUrl ? '***' : '',
+        teamsEnabled: runtimeSettings.notifications?.teamsEnabled || false,
+        slackEnabled: runtimeSettings.notifications?.slackEnabled || false,
+        googleChatEnabled: runtimeSettings.notifications?.googleChatEnabled || false,
+        enabled: runtimeSettings.notifications?.enabled || false
       },
       polling: {
-        workItemsInterval: configLoader.get('polling.workItemsInterval'),
-        pipelineInterval: configLoader.get('polling.pipelineInterval'),
-        pullRequestInterval: configLoader.get('polling.pullRequestInterval'),
-        overdueCheckInterval: configLoader.get('polling.overdueCheckInterval')
+        workItemsInterval: runtimeSettings.polling?.workItemsInterval || '0 */1 * * *',
+        pipelineInterval: runtimeSettings.polling?.pipelineInterval || '0 */1 * * *',
+        pullRequestInterval: runtimeSettings.polling?.pullRequestInterval || '0 */1 * * *',
+        overdueCheckInterval: runtimeSettings.polling?.overdueCheckInterval || '0 9 * * *'
       }
     };
-    res.json(config);
+    
+    
+    res.json(maskedSettings);
   } catch (error) {
     logger.error('Error fetching settings:', error);
     res.status(500).json({ error: 'Failed to fetch settings' });
@@ -395,23 +404,106 @@ router.get('/settings', async (req, res) => {
 
 router.put('/settings', async (req, res) => {
   try {
-    // In a real implementation, you'd update the configuration
-    // For now, just return success
-    res.json({ message: 'Settings updated successfully' });
+    const newSettings = req.body;
+    
+    // Get current runtime settings
+    const currentSettings = configLoader.getRuntimeSettings();
+    
+    // Merge new settings with current ones, handling masked values
+    const mergedSettings = {
+      azureDevOps: {
+        ...currentSettings.azureDevOps,
+        ...newSettings.azureDevOps,
+        // Don't overwrite PAT if it's masked
+        personalAccessToken: newSettings.azureDevOps?.personalAccessToken === '***' 
+          ? currentSettings.azureDevOps?.personalAccessToken || ''
+          : newSettings.azureDevOps?.personalAccessToken || ''
+      },
+      ai: {
+        ...currentSettings.ai,
+        ...newSettings.ai,
+        // Don't overwrite API keys if they're masked
+        openaiApiKey: newSettings.ai?.openaiApiKey === '***'
+          ? currentSettings.ai?.openaiApiKey || ''
+          : newSettings.ai?.openaiApiKey || '',
+        groqApiKey: newSettings.ai?.groqApiKey === '***'
+          ? currentSettings.ai?.groqApiKey || ''
+          : newSettings.ai?.groqApiKey || '',
+        geminiApiKey: newSettings.ai?.geminiApiKey === '***'
+          ? currentSettings.ai?.geminiApiKey || ''
+          : newSettings.ai?.geminiApiKey || ''
+      },
+      notifications: {
+        ...currentSettings.notifications,
+        ...newSettings.notifications
+      },
+      polling: {
+        ...currentSettings.polling,
+        ...newSettings.polling
+      }
+    };
+    
+    // Don't update fields that are masked (contain '***')
+    for (const section in newSettings) {
+      for (const field in newSettings[section]) {
+        if (newSettings[section][field] === '***') {
+          // Keep the current value for masked fields
+          if (currentSettings[section] && currentSettings[section][field]) {
+            mergedSettings[section][field] = currentSettings[section][field];
+          }
+        }
+      }
+    }
+    
+    // Update runtime settings (this will encrypt sensitive fields and notify services)
+    await configLoader.updateRuntimeSettings(mergedSettings);
+    
+    res.json({ 
+      message: 'Settings updated successfully',
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     logger.error('Error updating settings:', error);
-    res.status(500).json({ error: 'Failed to update settings' });
+    res.status(500).json({ 
+      error: 'Failed to update settings',
+      details: error.message
+    });
   }
 });
 
 router.post('/settings/test-connection', async (req, res) => {
   try {
-    // Test Azure DevOps connection
-    const result = await azureDevOpsClient.testConnection();
+    const { organization, project, personalAccessToken, baseUrl } = req.body;
+    
+    console.log('Received test request:', {
+      organization: organization || 'EMPTY',
+      project: project || 'EMPTY', 
+      hasToken: !!personalAccessToken,
+      baseUrl: baseUrl || 'EMPTY'
+    });
+    
+    // Validate required fields
+    if (!organization || !project || !personalAccessToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization, project, and personal access token are required'
+      });
+    }
+    
+    logger.info('Testing Azure DevOps connection...');
+    
+    // Test the connection with provided credentials
+    const testResult = await testAzureDevOpsConnection({
+      organization,
+      project, 
+      personalAccessToken,
+      baseUrl: baseUrl || 'https://dev.azure.com'
+    });
+    
     res.json({ 
       success: true, 
       message: 'Connection test successful',
-      details: result.message
+      details: testResult.message
     });
   } catch (error) {
     logger.error('Connection test failed:', error);
@@ -423,6 +515,76 @@ router.post('/settings/test-connection', async (req, res) => {
 });
 
 // Helper functions
+async function testAzureDevOpsConnection(config) {
+  try {
+    const axios = (await import('axios')).default;
+    
+    const org = config.organization.trim();
+    const baseURL = `${config.baseUrl}/${encodeURIComponent(org)}/_apis`;
+    const authHeader = `Basic ${Buffer.from(`:${config.personalAccessToken}`).toString('base64')}`;
+    
+    logger.info('Testing connection to:', { org, baseURL: `${baseURL}/projects` });
+    
+    const response = await axios.get(`${baseURL}/projects`, {
+      headers: {
+        'Authorization': authHeader
+      },
+      params: {
+        'api-version': '7.0'
+      },
+      timeout: 10000
+    });
+    
+    logger.info('API Response:', {
+      status: response.status,
+      dataKeys: Object.keys(response.data || {}),
+      hasValue: !!response.data?.value,
+      valueLength: response.data?.value?.length || 0,
+      rawData: response.data
+    });
+    
+    const projects = response.data.value || [];
+    logger.info(`Found ${projects.length} projects`);
+    
+    if (projects.length === 0) {
+      throw new Error(`No projects found in organization "${org}". Check: 1) Organization name is correct, 2) PAT token has 'Project and Team (read)' permissions, 3) You have access to this organization`);
+    }
+    
+    // Check if project exists (case-insensitive)
+    const projectName = config.project.trim();
+    const projectExists = projects.some(p => 
+      p.name.toLowerCase() === projectName.toLowerCase()
+    );
+    
+    if (!projectExists) {
+      const availableProjects = projects.map(p => p.name).join(', ');
+      throw new Error(`Project "${projectName}" not found. Available projects: ${availableProjects}`);
+    }
+    
+    return {
+      success: true,
+      message: `Connected successfully! Found project "${projectName}" in organization "${org}"`
+    };
+    
+  } catch (error) {
+    logger.error('Connection test error:', error.message);
+    
+    if (error.response?.status === 400) {
+      throw new Error(`Invalid organization "${config.organization}". Check the organization name.`);
+    } else if (error.response?.status === 401) {
+      throw new Error('Invalid PAT token or insufficient permissions. Make sure your PAT has "Project and Team (read)" permissions.');
+    } else if (error.response?.status === 403) {
+      throw new Error(`Access denied to organization "${config.organization}". Check PAT permissions and organization access.`);
+    } else if (error.response?.status === 404) {
+      throw new Error(`Organization "${config.organization}" not found. Verify the organization name.`);
+    } else if (error.code === 'ENOTFOUND') {
+      throw new Error('Unable to connect to Azure DevOps. Check your internet connection.');
+    } else {
+      throw new Error(error.message || 'Connection test failed');
+    }
+  }
+}
+
 function groupWorkItemsByState(workItems) {
   return workItems.reduce((acc, item) => {
     const state = item.fields?.['System.State'] || 'Unknown';

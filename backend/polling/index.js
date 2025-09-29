@@ -8,7 +8,43 @@ import { pullRequestPoller } from './pullRequestPoller.js';
 class PollingManager {
   constructor() {
     this.jobs = new Map();
-    this.config = configLoader.getPollingConfig();
+    this.intervals = new Map(); // For second-based intervals
+  }
+
+  // Convert seconds to cron or use setInterval
+  scheduleJob(name, intervalString, jobFunction) {
+    // Check if it's a number (seconds)
+    const seconds = parseInt(intervalString);
+    if (!isNaN(seconds) && seconds > 0) {
+      // Use setInterval for seconds
+      const intervalId = setInterval(async () => {
+        try {
+          await jobFunction();
+        } catch (error) {
+          logger.error(`Error in ${name} polling:`, error);
+        }
+      }, seconds * 1000);
+      
+      this.intervals.set(name, intervalId);
+      logger.info(`${name} polling job started`, { interval: `${seconds} seconds` });
+      return;
+    }
+
+    // Use cron for standard expressions
+    if (cron.validate(intervalString)) {
+      const job = cron.schedule(intervalString, async () => {
+        try {
+          await jobFunction();
+        } catch (error) {
+          logger.error(`Error in ${name} polling:`, error);
+        }
+      });
+      
+      this.jobs.set(name, job);
+      logger.info(`${name} polling job started`, { interval: intervalString });
+    } else {
+      logger.error(`Invalid interval: ${intervalString}. Use cron expression or seconds (e.g., "10" for 10 seconds)`);
+    }
   }
 
   startPollingJobs() {
@@ -33,7 +69,8 @@ class PollingManager {
   }
 
   startWorkItemPolling() {
-    const job = cron.schedule(this.config.workItemsInterval, async () => {
+    const pollingConfig = configLoader.getPollingConfig();
+    const job = cron.schedule(pollingConfig.workItemsInterval, async () => {
       try {
         logger.debug('Running work items polling job');
         await workItemPoller.pollWorkItems();
@@ -49,12 +86,13 @@ class PollingManager {
     job.start();
     
     logger.info('Work items polling job started', {
-      interval: this.config.workItemsInterval
+      interval: pollingConfig.workItemsInterval
     });
   }
 
   startBuildPolling() {
-    const job = cron.schedule(this.config.pipelineInterval, async () => {
+    const pollingConfig = configLoader.getPollingConfig();
+    const job = cron.schedule(pollingConfig.pipelineInterval, async () => {
       try {
         logger.debug('Running builds polling job');
         await buildPoller.pollBuilds();
@@ -70,12 +108,13 @@ class PollingManager {
     job.start();
     
     logger.info('Builds polling job started', {
-      interval: this.config.pipelineInterval
+      interval: pollingConfig.pipelineInterval
     });
   }
 
   startPullRequestPolling() {
-    const job = cron.schedule(this.config.pullRequestInterval, async () => {
+    const pollingConfig = configLoader.getPollingConfig();
+    const job = cron.schedule(pollingConfig.pullRequestInterval, async () => {
       try {
         logger.debug('Running pull requests polling job');
         await pullRequestPoller.pollPullRequests();
@@ -91,12 +130,13 @@ class PollingManager {
     job.start();
     
     logger.info('Pull requests polling job started', {
-      interval: this.config.pullRequestInterval
+      interval: pollingConfig.pullRequestInterval
     });
   }
 
   startOverdueCheck() {
-    const job = cron.schedule(this.config.overdueCheckInterval, async () => {
+    const pollingConfig = configLoader.getPollingConfig();
+    const job = cron.schedule(pollingConfig.overdueCheckInterval, async () => {
       try {
         logger.debug('Running overdue items check job');
         await workItemPoller.checkOverdueItems();
@@ -112,18 +152,32 @@ class PollingManager {
     job.start();
     
     logger.info('Overdue items check job started', {
-      interval: this.config.overdueCheckInterval
+      interval: pollingConfig.overdueCheckInterval
     });
   }
 
   stopPollingJobs() {
+    // Stop cron jobs
     this.jobs.forEach((job, name) => {
       job.stop();
       logger.info(`Stopped polling job: ${name}`);
     });
     
+    // Stop intervals
+    this.intervals.forEach((intervalId, name) => {
+      clearInterval(intervalId);
+      logger.info(`Stopped polling interval: ${name}`);
+    });
+    
     this.jobs.clear();
+    this.intervals.clear();
     logger.info('All polling jobs stopped');
+  }
+
+  restartPollingJobs() {
+    logger.info('Restarting all polling jobs with new configuration');
+    this.stopPollingJobs();
+    this.startPollingJobs();
   }
 
   getJobStatus() {
@@ -146,6 +200,10 @@ export function startPollingJobs() {
 
 export function stopPollingJobs() {
   pollingManager.stopPollingJobs();
+}
+
+export function restartPollingJobs() {
+  pollingManager.restartPollingJobs();
 }
 
 export function getPollingStatus() {

@@ -17,6 +17,9 @@ class WorkItemPoller {
       
       if (sprintWorkItems.count > 0) {
         logger.info(`Found ${sprintWorkItems.count} work items in current sprint`);
+        
+        // Check for overdue items and send notifications
+        await this.checkOverdueItems();
       } else {
         logger.info('No work items found in current sprint');
       }

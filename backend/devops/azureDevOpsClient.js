@@ -5,6 +5,17 @@ import { getWiqlExcludeCompletedCondition } from '../utils/workItemStates.js';
 
 class AzureDevOpsClient {
   constructor() {
+    this.config = null;
+    this.orgBaseURL = null;
+    this.baseURL = null;
+    this.client = null;
+    this.orgClient = null;
+    this.initialized = false;
+  }
+
+  initializeClient() {
+    if (this.initialized) return;
+    
     this.config = configLoader.getAzureDevOpsConfig();
     this.orgBaseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/_apis`;
     this.baseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/${encodeURIComponent(this.config.project)}/_apis`;
@@ -26,20 +37,23 @@ class AzureDevOpsClient {
         'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000 // 30 seconds timeout
-    });
-    
-    // Create axios instance with default configuration
-    this.client = axios.create({
-      baseURL: this.baseURL,
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000 // 30 seconds timeout
+      timeout: 30000
     });
 
-    // Add request interceptor for logging
+    this.initialized = true;
+    this.setupInterceptors();
+  }
+
+  ensureInitialized() {
+    if (!this.initialized) {
+      this.initializeClient();
+    }
+  }
+
+  // Add request interceptor for logging
+  setupInterceptors() {
+    if (!this.client) return;
+    
     this.client.interceptors.request.use(
       (config) => {
         logger.debug('Azure DevOps API request', {
@@ -91,6 +105,7 @@ class AzureDevOpsClient {
 
   // Add a method to test the connection
   async testConnection() {
+    this.ensureInitialized();
     try {
       logger.info('Testing Azure DevOps connection...');
       // Test organization-level access first
@@ -132,6 +147,7 @@ class AzureDevOpsClient {
 
   // Work Items API
   async getWorkItems(ids, fields = null) {
+    this.ensureInitialized();
     try {
       const params = {
         ids: Array.isArray(ids) ? ids.join(',') : ids,
@@ -160,6 +176,7 @@ class AzureDevOpsClient {
   }
 
   async queryWorkItems(wiql) {
+    this.ensureInitialized();
     try {
       const response = await this.client.post('/wit/wiql', {
         query: wiql
@@ -174,6 +191,7 @@ class AzureDevOpsClient {
   }
 
   async getAllCurrentSprintWorkItems() {
+    this.ensureInitialized();
     try {
       // Get all work items without pagination for summary calculations
       const wiql = `
@@ -202,11 +220,17 @@ class AzureDevOpsClient {
     try {
       logger.info('Fetching current sprint work items', { page, limit });
       
+      // Get fresh config to handle runtime updates
+      const config = configLoader.getAzureDevOpsConfig();
+      if (!config || !config.project) {
+        throw new Error('Azure DevOps configuration not found or incomplete');
+      }
+      
       // First try to get work items from current iteration
       const wiql = `
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
-        WHERE [System.TeamProject] = '${this.config.project}'
+        WHERE [System.TeamProject] = '${config.project}'
         AND [System.IterationPath] = @CurrentIteration
         ORDER BY [System.State] ASC, [System.CreatedDate] DESC
       `;
@@ -290,6 +314,7 @@ class AzureDevOpsClient {
   }
 
   async getOverdueWorkItems() {
+    this.ensureInitialized();
     try {
       const wiql = `
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
@@ -386,6 +411,7 @@ class AzureDevOpsClient {
   }
 
   async getRecentBuilds(top = 10) {
+    this.ensureInitialized();
     try {
       const response = await this.client.get('/build/builds', {
         params: {
@@ -403,6 +429,7 @@ class AzureDevOpsClient {
 
   // Pull Request API
   async getPullRequests(status = 'active') {
+    this.ensureInitialized();
     try {
       const response = await this.client.get('/git/pullrequests', {
         params: {

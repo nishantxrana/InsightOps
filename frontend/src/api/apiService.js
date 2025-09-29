@@ -148,8 +148,8 @@ export const apiService = {
     return response.data
   },
 
-  async testConnection() {
-    const response = await api.post('/settings/test-connection')
+  async testConnection(azureDevOpsConfig) {
+    const response = await api.post('/settings/test-connection', azureDevOpsConfig)
     return response.data
   }
 }
