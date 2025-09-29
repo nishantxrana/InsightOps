@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import { config } from 'dotenv';
 import { logger } from './utils/logger.js';
 import { configLoader } from './config/settings.js';
@@ -43,20 +44,24 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
-app.use('/webhooks', webhookRoutes);
+// Serve static files from frontend build
+app.use(express.static(path.join(process.cwd(), '../frontend/dist')));
+
+// API Routes
+app.use('/api/webhooks', webhookRoutes);
 app.use('/api', apiRoutes);
+
+// Serve React app for all non-API routes
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(process.cwd(), '../frontend/dist/index.html'));
+  } else {
+    res.status(404).json({ error: 'API endpoint not found' });
+  }
+});
 
 // Error handling middleware
 app.use(errorHandler);
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Route not found',
-    path: req.originalUrl
-  });
-});
 
 // Initialize configuration system
 async function initializeApp() {
