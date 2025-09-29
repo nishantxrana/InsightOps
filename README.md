@@ -1,212 +1,254 @@
 # Azure DevOps Monitoring Agent
 
-An AI-powered monitoring and automation platform for Azure DevOps that provides intelligent insights, automated notifications, and enhanced development workflows through multiple AI providers.
+<div align="center">
+
+![Azure DevOps Agent](https://img.shields.io/badge/Azure%20DevOps-Agent-blue?style=for-the-badge&logo=azure-devops)
+![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=for-the-badge&logo=node.js)
+![React](https://img.shields.io/badge/React-18+-blue?style=for-the-badge&logo=react)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+
+**An AI-powered monitoring and automation platform for Azure DevOps with intelligent insights, automated notifications, and enhanced development workflows.**
+
+[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [API](#-api-reference) • [Contributing](#-contributing)
+
+</div>
+
+---
 
 ## 🚀 Features
 
-### Multi-Provider AI Integration
-- **OpenAI GPT Models**: GPT-3.5-turbo, GPT-4, GPT-4-turbo
+### 🤖 Multi-Provider AI Integration
+- **OpenAI GPT Models**: GPT-3.5-turbo, GPT-4, GPT-4o-mini
 - **Groq Models**: Llama-3-8b-instant, Llama-3-70b-versatile, Mixtral-8x7b-32768  
-- **Google Gemini**: Gemini-1.5-pro, Gemini-1.5-flash, Gemini-pro-vision
+- **Google Gemini**: Gemini-1.5-pro, Gemini-1.5-flash, Gemini-2.0-flash
 - Dynamic provider switching from frontend settings
 - Runtime configuration without application restart
 
-### Azure DevOps Integration
+### 🔧 Azure DevOps Integration
 - **Work Items Monitoring**: Current sprint tracking and AI-powered summaries
 - **Build Pipeline Monitoring**: Build status tracking and failure analysis
 - **Pull Request Management**: Active PR monitoring and idle PR detection
 - **Webhook Support**: Real-time notifications for builds, pull requests, and work items
 - **Polling Mechanisms**: Configurable intervals for continuous monitoring
 
-### Multi-Platform Notifications
+### 📢 Multi-Platform Notifications
 - **Microsoft Teams**: Rich card notifications with build status and AI analysis
 - **Google Chat**: Formatted notifications with specific markdown compatibility
 - **Slack**: Comprehensive notification support
 - **Configurable Intervals**: Customizable polling schedules for different resources
 
-### Intelligent Analytics
+### 🧠 Intelligent Analytics
 - **Sprint Summaries**: AI-generated insights on current sprint progress
 - **Work Item Analysis**: Automated categorization and progress tracking
-- **Build Failure Analysis**: Intelligent analysis of pipeline failures
+- **Build Failure Analysis**: Intelligent analysis of pipeline failures with specific fixes
 - **Pull Request Insights**: Idle PR detection and review recommendations
+
+### 🎨 Modern UI/UX
+- **Responsive Design**: Built with React, Tailwind CSS, and shadcn/ui components
+- **Collapsible Sidebar**: Professional navigation with smooth animations
+- **Real-time Status**: Live connection indicators and health monitoring
+- **Dark/Light Mode**: Adaptive theming support
+
+---
 
 ## 🏗️ Architecture
 
-### Backend Components
 ```
-backend/
-├── ai/                     # AI service integration
-│   └── aiService.js       # Multi-provider AI client management
-├── api/                   # REST API endpoints
-│   └── routes.js         # Main API routes
-├── config/               # Configuration management
-│   ├── settings.js       # Application settings and validation
-│   ├── aiModels.js      # AI model configurations
-│   └── env.js           # Environment configuration
-├── devops/              # Azure DevOps integration
-│   └── azureDevOpsClient.js
-├── notifications/       # Multi-platform notifications
-│   └── notificationService.js
-├── polling/            # Resource monitoring
-│   ├── buildPoller.js
-│   ├── workItemPoller.js
-│   ├── pullRequestPoller.js
-│   └── index.js        # Polling orchestration
-├── utils/              # Utility functions
-│   ├── markdownFormatter.js
-│   ├── logger.js
-│   └── errorHandler.js
-├── webhooks/           # Webhook handlers
-│   ├── buildWebhook.js
-│   ├── workItemWebhook.js
-│   ├── pullRequestWebhook.js
-│   └── routes.js       # Webhook routes
-└── main.js            # Application entry point
+├── backend/                    # Node.js/Express API Server
+│   ├── ai/                    # Multi-provider AI integration
+│   ├── api/                   # REST API endpoints
+│   ├── config/                # Configuration management
+│   ├── devops/                # Azure DevOps client
+│   ├── notifications/         # Multi-platform notifications
+│   ├── polling/               # Background monitoring jobs
+│   ├── utils/                 # Utility functions
+│   ├── webhooks/              # Real-time event handlers
+│   └── main.js               # Application entry point
+│
+├── frontend/                   # React/Vite Frontend
+│   ├── src/
+│   │   ├── components/        # React components (shadcn/ui)
+│   │   ├── pages/            # Application pages
+│   │   ├── contexts/         # React contexts
+│   │   ├── hooks/            # Custom React hooks
+│   │   └── api/              # API client functions
+│   └── dist/                 # Production build
+│
+└── docs/                      # Documentation
 ```
 
-### Frontend Components
-```
-frontend/
-├── src/
-│   ├── components/     # React components
-│   ├── contexts/      # React contexts
-│   ├── pages/         # Application pages
-│   ├── api/          # API client functions
-│   ├── styles/       # Tailwind CSS styling
-│   ├── App.jsx       # Main application component
-│   └── main.jsx      # Application entry point
-├── dist/             # Production build
-└── package.json      # Frontend dependencies
-```
+---
 
-## 🛠️ Installation
+## ⚡ Quick Start
 
 ### Prerequisites
-- Node.js 16+ and npm
-- Azure DevOps organization and Personal Access Token
-- At least one AI provider API key (OpenAI, Groq, or Google Gemini)
 
-### Quick Start with Development Script
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd js-devops-agent
-   ```
+- **Node.js** 18+ and npm
+- **Azure DevOps** organization and Personal Access Token
+- **AI Provider API Key** (OpenAI, Groq, or Google Gemini)
 
-2. **Configure environment variables**:
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
+### 🚀 One-Command Setup
 
-3. **Edit `backend/.env` with your configuration**:
-   ```env
-   # Azure DevOps Configuration
-   AZURE_DEVOPS_ORG=your-organization
-   AZURE_DEVOPS_PROJECT=your-project
-   AZURE_DEVOPS_PAT=your-personal-access-token
-   AZURE_DEVOPS_BASE_URL=https://dev.azure.com
+```bash
+# Clone the repository
+git clone https://github.com/your-username/azure-devops-monitoring-agent.git
+cd azure-devops-monitoring-agent
 
-   # AI Configuration
-   AI_PROVIDER=openai
-   OPENAI_API_KEY=your-openai-api-key
-   GROQ_API_KEY=your-groq-api-key
-   GEMINI_API_KEY=your-gemini-api-key
-   AI_MODEL=gpt-3.5-turbo
+# Install dependencies for both backend and frontend
+npm run install:all
 
-   # Notification Configuration
-   TEAMS_WEBHOOK_URL=https://your-teams-webhook-url
-   SLACK_WEBHOOK_URL=https://your-slack-webhook-url
-   GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/SPACE_ID/messages
-   NOTIFICATIONS_ENABLED=true
+# Configure environment variables
+cp backend/.env.example backend/.env
+# Edit backend/.env with your configuration
 
-   # Polling Configuration (cron expressions)
-   WORK_ITEMS_POLL_INTERVAL=*/15 * * * *
-   PIPELINE_POLL_INTERVAL=*/10 * * * *
-   PR_POLL_INTERVAL=0 */2 * * *
-   OVERDUE_CHECK_INTERVAL=0 9 * * *
+# Start development servers
+npm run dev
+```
 
-   # Application Configuration
-   PORT=3001
-   NODE_ENV=development
-   LOG_LEVEL=info
-   FRONTEND_URL=http://localhost:5173
-   ```
+### 📋 Manual Setup
 
-4. **Install dependencies and start the application**:
-   ```bash
-   # Install backend dependencies
-   cd backend && npm install && cd ..
-   
-   # Install frontend dependencies
-   cd frontend && npm install && cd ..
-   
-   # Start both backend and frontend
-   ./start-dev.sh
-   ```
-
-### Manual Setup
-If you prefer to start services manually:
-
-#### Backend Setup
+#### 1. Backend Setup
 ```bash
 cd backend
 npm install
-npm run dev  # Development mode with hot reload
-# or
-npm start    # Production mode
+cp .env.example .env
+# Configure your .env file (see Configuration section)
+npm run dev  # Development with hot reload
 ```
 
-#### Frontend Setup
+#### 2. Frontend Setup
 ```bash
 cd frontend
 npm install
-npm run dev  # Development server
-# or
-npm run build && npm run preview  # Production build
+npm run dev  # Development server on http://localhost:5173
 ```
 
-## 🔧 Configuration
+#### 3. Production Build
+```bash
+# Build frontend for production
+cd frontend && npm run build
+
+# Start production server
+cd backend && npm start
+```
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+Copy `backend/.env.example` to `backend/.env` and configure:
+
+#### Azure DevOps (Required)
+```env
+AZURE_DEVOPS_ORG=your-organization
+AZURE_DEVOPS_PROJECT=your-project
+AZURE_DEVOPS_PAT=your-personal-access-token
+AZURE_DEVOPS_BASE_URL=https://dev.azure.com
+```
+
+#### AI Configuration (Required - Choose One)
+```env
+# OpenAI
+OPENAI_API_KEY=sk-...
+AI_MODEL=gpt-4o-mini
+
+# Groq
+GROQ_API_KEY=gsk_...
+AI_MODEL=llama-3-8b-instant
+
+# Google Gemini
+GEMINI_API_KEY=AI...
+AI_MODEL=gemini-2.0-flash
+```
+
+#### Notifications (Optional)
+```env
+TEAMS_WEBHOOK_URL=https://your-teams-webhook-url
+SLACK_WEBHOOK_URL=https://your-slack-webhook-url
+GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/...
+NOTIFICATIONS_ENABLED=true
+```
+
+#### Polling Configuration
+```env
+# Cron expressions for monitoring intervals
+WORK_ITEMS_POLL_INTERVAL=0 */10 * * *    # Every 10 hours
+PIPELINE_POLL_INTERVAL=0 */10 * * *       # Every 10 hours
+PR_POLL_INTERVAL=0 */10 * * *             # Every 10 hours
+```
+
+### 🔐 Security Configuration
+```env
+WEBHOOK_SECRET=change-me-in-production
+API_TOKEN=change-me-in-production
+ENCRYPTION_KEY=your-32-character-encryption-key
+```
+
+---
+
+## 🔧 Setup Guides
+
+### Azure DevOps Personal Access Token
+
+1. Go to **Azure DevOps** → **User Settings** → **Personal Access Tokens**
+2. Click **New Token**
+3. Set **Scopes**:
+   - ✅ Work Items (Read)
+   - ✅ Build (Read)
+   - ✅ Code (Read)
+   - ✅ Pull Request (Read)
+4. Copy the generated token to `AZURE_DEVOPS_PAT`
 
 ### AI Provider Setup
 
 #### OpenAI
-1. Get API key from [OpenAI Platform](https://platform.openai.com/api-keys)
-2. Add to `.env`: `OPENAI_API_KEY=sk-...`
+1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Create new API key
+3. Add to `.env`: `OPENAI_API_KEY=sk-...`
 
 #### Groq
-1. Get API key from [Groq Console](https://console.groq.com/keys)
-2. Add to `.env`: `GROQ_API_KEY=gsk_...`
+1. Visit [Groq Console](https://console.groq.com/keys)
+2. Create new API key
+3. Add to `.env`: `GROQ_API_KEY=gsk_...`
 
 #### Google Gemini
-1. Get API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Add to `.env`: `GEMINI_API_KEY=AI...`
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create new API key
+3. Add to `.env`: `GEMINI_API_KEY=AI...`
 
-### Azure DevOps Webhooks
-1. **Navigate to Project Settings** → Service Hooks
-2. **Create webhook subscriptions** for:
+### Webhook Configuration
+
+#### Azure DevOps Webhooks
+1. **Project Settings** → **Service Hooks**
+2. **Create Subscription** for:
    - Build completed events
-   - Pull request events
+   - Pull request events  
    - Work item events
-3. **Set webhook URL**: `http://your-server:3000/api/webhooks/azure-devops`
+3. **Webhook URL**: `https://your-domain.com/api/webhooks/azure-devops`
 
-### Notification Channels
+#### Notification Webhooks
 
-#### Microsoft Teams
-1. Create incoming webhook in Teams channel
-2. Add URL to `TEAMS_WEBHOOK_URL` in `.env`
+**Microsoft Teams:**
+1. Teams Channel → **Connectors** → **Incoming Webhook**
+2. Copy webhook URL to `TEAMS_WEBHOOK_URL`
 
-#### Google Chat
-1. Create webhook in Google Chat space
-2. Add URL to `GOOGLE_CHAT_WEBHOOK_URL` in `.env`
+**Google Chat:**
+1. Chat Space → **Manage webhooks** → **Add webhook**
+2. Copy webhook URL to `GOOGLE_CHAT_WEBHOOK_URL`
 
-#### Slack
-1. Create incoming webhook in Slack workspace
-2. Add URL to `SLACK_WEBHOOK_URL` in `.env`
+**Slack:**
+1. Slack App → **Incoming Webhooks** → **Add to Slack**
+2. Copy webhook URL to `SLACK_WEBHOOK_URL`
 
-## 📊 API Endpoints
+---
+
+## 📊 API Reference
 
 ### Health & Status
 - `GET /api/health` - Application health check
+- `GET /api/status` - Detailed system status
 
 ### Work Items
 - `GET /api/work-items` - List current sprint work items
@@ -231,21 +273,17 @@ npm run build && npm run preview  # Production build
 - `PUT /api/settings` - Update application settings
 - `POST /api/settings/test-connection` - Test Azure DevOps connection
 
-### Webhooks
-- `POST /api/webhooks/azure-devops` - Webhook endpoint for Azure DevOps events
-
-### Logs
-- `GET /api/logs` - Get application logs
+---
 
 ## 🤖 AI Analysis Features
 
 ### Build Failure Analysis
-The system provides intelligent analysis of build failures by:
+The system provides intelligent analysis of build failures:
 
-1. **Detecting Pipeline Type**: Automatically identifies Classic vs YAML pipelines
-2. **Extracting Error Context**: Processes timeline data to identify failed jobs and error messages
-3. **Retrieving Configuration**: Fetches YAML pipeline configuration when available
-4. **Generating Solutions**: Provides specific fixes for YAML pipelines or general guidance for Classic pipelines
+- **Pipeline Type Detection**: Automatically identifies Classic vs YAML pipelines
+- **Error Context Extraction**: Processes timeline data to identify failed jobs
+- **Configuration Retrieval**: Fetches YAML pipeline configuration when available
+- **Solution Generation**: Provides specific fixes for common issues
 
 ### Supported Analysis Types
 - **Compilation Errors**: Code syntax and dependency issues
@@ -253,56 +291,120 @@ The system provides intelligent analysis of build failures by:
 - **Deployment Issues**: Infrastructure and configuration problems
 - **Pipeline Configuration**: YAML syntax and structure issues
 
+---
+
 ## 🔄 Workflow Integration
 
 ### Automated Notifications
-1. **Build Completion**: Automatic notifications sent to configured channels
-2. **Failure Analysis**: AI analysis triggered for failed builds
-3. **Pull Request Updates**: Notifications for PR status changes
-4. **Work Item Changes**: Updates on work item modifications
+- **Build Completion**: Automatic notifications to configured channels
+- **Failure Analysis**: AI analysis triggered for failed builds
+- **Pull Request Updates**: Notifications for PR status changes
+- **Work Item Changes**: Updates on work item modifications
 
-### Polling vs Webhooks
+### Monitoring Options
 - **Webhooks**: Real-time notifications (recommended)
-- **Polling**: Fallback mechanism for environments without webhook support
+- **Polling**: Fallback mechanism with configurable intervals
 
-## 🚀 Development
+---
 
-### Running in Development Mode
-```bash
-# Backend with hot reload
-cd backend && npm run dev
+## 🚀 Deployment
 
-# Frontend with hot reload
-cd frontend && npm run dev
+### Docker Deployment
 
-# Or use the development script
-./start-dev.sh
+```dockerfile
+# Dockerfile example
+FROM node:18-alpine
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+RUN npm run build
+
+EXPOSE 3001
+CMD ["npm", "start"]
 ```
 
-### Testing
+### Environment Variables for Production
+```env
+NODE_ENV=production
+PORT=3001
+LOG_LEVEL=warn
+WEBHOOK_SECRET=secure-random-string
+API_TOKEN=secure-api-token
+ENCRYPTION_KEY=32-character-encryption-key
+```
+
+---
+
+## 🧪 Development
+
+### Running Tests
 ```bash
-# Run backend tests
+# Backend tests
 cd backend && npm test
 
-# Run frontend tests
+# Frontend tests  
 cd frontend && npm test
+
+# Run all tests
+npm run test:all
 ```
 
-### Building for Production
+### Development Scripts
 ```bash
-# Build frontend
-cd frontend && npm run build
+# Install all dependencies
+npm run install:all
 
-# Start production server
-cd backend && npm start
+# Start both backend and frontend in development
+npm run dev
+
+# Build for production
+npm run build
+
+# Lint code
+npm run lint
+
+# Format code
+npm run format
 ```
 
-## 🔒 Security Considerations
+### Project Structure
+```
+src/
+├── components/
+│   ├── ui/              # shadcn/ui components
+│   ├── Layout.jsx       # Main layout with sidebar
+│   ├── DevOpsAppSidebar.jsx  # Custom sidebar
+│   └── ...
+├── pages/               # Route components
+├── contexts/            # React contexts
+├── hooks/               # Custom hooks
+└── api/                 # API client functions
+```
 
-- **API Keys**: Store securely in environment variables
+---
+
+## 🔒 Security
+
+### Best Practices
+- **Environment Variables**: Store sensitive data in `.env` files
+- **API Keys**: Never commit API keys to version control
 - **Webhooks**: Validate incoming webhook signatures
 - **Rate Limiting**: Built-in protection against API abuse
 - **CORS**: Configured for secure cross-origin requests
+
+### Security Headers
+```javascript
+// Helmet.js security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Configure as needed
+  crossOriginEmbedderPolicy: false
+}))
+```
+
+---
 
 ## 📝 Logging and Monitoring
 
@@ -313,34 +415,96 @@ cd backend && npm start
 
 ### Monitoring Endpoints
 - `GET /api/health` - Application health check
-- `GET /api/status` - Detailed system status
+- `GET /api/logs` - Recent application logs
+- Connection status indicator in UI
+
+---
 
 ## 🤝 Contributing
 
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes
 4. Add tests for new functionality
-5. Submit a pull request
+5. Commit your changes: `git commit -m 'Add amazing feature'`
+6. Push to the branch: `git push origin feature/amazing-feature`
+7. Open a Pull Request
+
+### Code Style
+- ESLint configuration for JavaScript/React
+- Prettier for code formatting
+- Conventional commits for commit messages
+
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+---
 
-For issues and questions:
-1. Check the logs in `backend/logs/`
-2. Verify environment configuration
-3. Test API endpoints manually
-4. Review Azure DevOps webhook configuration
+## 🆘 Support & Troubleshooting
+
+### Common Issues
+
+**Connection Issues:**
+1. Verify Azure DevOps PAT has correct permissions
+2. Check organization and project names
+3. Ensure network connectivity to Azure DevOps
+
+**AI Provider Issues:**
+1. Verify API key is valid and has credits
+2. Check model name matches provider's available models
+3. Review rate limiting and quota restrictions
+
+**Build Analysis Issues:**
+1. Ensure build has failed status
+2. Check pipeline permissions for timeline access
+3. Verify YAML pipeline configuration access
+
+### Getting Help
+- 📖 Check the [Documentation](docs/)
+- 🐛 Report bugs via [GitHub Issues](https://github.com/your-username/azure-devops-monitoring-agent/issues)
+- 💬 Join our [Discord Community](https://discord.gg/your-invite)
+- 📧 Email support: support@your-domain.com
+
+### Debug Mode
+```env
+LOG_LEVEL=debug
+NODE_ENV=development
+```
+
+---
 
 ## 🔮 Roadmap
 
-- [ ] Additional AI provider integrations
-- [ ] Advanced analytics dashboard
-- [ ] Custom notification templates
-- [ ] Multi-tenant support
-- [ ] Enhanced security features
-- [ ] Performance optimization
-- [ ] Mobile application support
+- [ ] **Enhanced AI Providers**: Claude, Cohere integration
+- [ ] **Advanced Analytics**: Custom dashboards and metrics
+- [ ] **Multi-tenant Support**: Organization-level isolation
+- [ ] **Mobile App**: React Native companion app
+- [ ] **Plugin System**: Extensible architecture for custom integrations
+- [ ] **Advanced Security**: SSO, RBAC, audit logging
+- [ ] **Performance Optimization**: Caching, database optimization
+- [ ] **Kubernetes Deployment**: Helm charts and operators
+
+---
+
+## 🙏 Acknowledgments
+
+- [shadcn/ui](https://ui.shadcn.com/) for the beautiful UI components
+- [Azure DevOps REST API](https://docs.microsoft.com/en-us/rest/api/azure/devops/) for comprehensive integration
+- [OpenAI](https://openai.com/), [Groq](https://groq.com/), and [Google](https://ai.google.dev/) for AI capabilities
+- The open-source community for inspiration and contributions
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the DevOps Agent Team**
+
+[⭐ Star this repo](https://github.com/your-username/azure-devops-monitoring-agent) • [🐛 Report Bug](https://github.com/your-username/azure-devops-monitoring-agent/issues) • [✨ Request Feature](https://github.com/your-username/azure-devops-monitoring-agent/issues)
+
+</div>
