@@ -19,8 +19,10 @@ const PORT = process.env.PORT || 3001;
 
 // Security middleware
 app.use(cors({
-  origin: (origin, callback) => callback(null, origin),
-  credentials: true
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Rate limiting
