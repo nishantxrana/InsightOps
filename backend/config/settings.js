@@ -27,13 +27,13 @@ class ConfigLoader {
     // Get runtime settings (user configuration)
     const runtime = runtimeSettings.get() || {};
     
-    // Smart defaults
+    // Smart defaults with environment variable fallbacks
     const defaults = {
       azureDevOps: {
-        organization: '',
-        project: '',
-        personalAccessToken: '',
-        baseUrl: 'https://dev.azure.com'
+        organization: env.AZURE_DEVOPS_ORG || '',
+        project: env.AZURE_DEVOPS_PROJECT || '',
+        personalAccessToken: env.AZURE_DEVOPS_PAT || '',
+        baseUrl: env.AZURE_DEVOPS_BASE_URL || 'https://dev.azure.com'
       },
       ai: {
         provider: 'openai',
