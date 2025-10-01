@@ -32,6 +32,24 @@ export const updateUserSettings = async (userId, updates) => {
     settings = new UserSettings({ userId });
   }
   
+  // Helper function to trim string values recursively
+  const trimStrings = (obj) => {
+    if (typeof obj === 'string') {
+      return obj.trim();
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      const trimmed = {};
+      for (const [key, value] of Object.entries(obj)) {
+        trimmed[key] = trimStrings(value);
+      }
+      return trimmed;
+    }
+    return obj;
+  };
+  
+  // Trim all string values in updates
+  updates = trimStrings(updates);
+  
   // Deep merge instead of overwrite to preserve existing values
   if (updates.azureDevOps) {
     settings.azureDevOps = { ...settings.azureDevOps, ...updates.azureDevOps };
@@ -108,7 +126,17 @@ export const updateUserSettings = async (userId, updates) => {
   }
   
   if (updates.polling) {
+    console.log('Updating polling settings:', updates.polling);
+    // Ensure polling object exists
+    if (!settings.polling) {
+      settings.polling = {};
+    }
     settings.polling = { ...settings.polling, ...updates.polling };
+    console.log('Final polling settings:', settings.polling);
+    
+    // Update global config for cron jobs (temporary solution)
+    const { configLoader } = await import('../config/settings.js');
+    configLoader.updatePollingConfig(settings.polling);
   }
   
   await settings.save();

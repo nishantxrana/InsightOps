@@ -55,10 +55,10 @@ export default function Settings() {
       enabled: false
     },
     polling: {
-      workItemsInterval: '0 */1 * * *',
-      pipelineInterval: '0 */1 * * *',
-      pullRequestInterval: '0 */1 * * *',
-      overdueCheckInterval: '0 9 * * *'
+      workItemsInterval: '1',
+      pipelineInterval: '2',
+      pullRequestInterval: '3',
+      overdueCheckInterval: '4'
     },
     security: {
       webhookSecret: '',
@@ -136,10 +136,10 @@ export default function Settings() {
             : !!(response.data.notifications?.webhooks?.googleChat)
         },
         polling: response.data.polling || {
-          workItems: '*/10 * * * *',
-          pipelines: '0 */10 * * *',
-          pullRequests: '0 */10 * * *',
-          overdueCheck: '0 */10 * * *'
+          workItemsInterval: '*/10 * * * *',
+          pipelineInterval: '0 */10 * * *',
+          pullRequestInterval: '0 */10 * * *',
+          overdueCheckInterval: '0 */10 * * *'
         }
       }
       

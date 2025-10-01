@@ -34,10 +34,10 @@ const userSettingsSchema = new mongoose.Schema({
     }
   },
   polling: {
-    workItems: { type: String, default: '*/10 * * * *' },
-    pipelines: { type: String, default: '0 */10 * * *' },
-    pullRequests: { type: String, default: '0 */10 * * *' },
-    overdueCheck: { type: String, default: '0 */10 * * *' }
+    workItemsInterval: { type: String, default: '*/10 * * * *' },
+    pipelineInterval: { type: String, default: '0 */10 * * *' },
+    pullRequestInterval: { type: String, default: '0 */10 * * *' },
+    overdueCheckInterval: { type: String, default: '0 */10 * * *' }
   },
   updatedAt: {
     type: Date,
