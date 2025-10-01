@@ -17,7 +17,7 @@ import {
   Webhook,
   Bot
 } from 'lucide-react'
-import { apiService } from '../api/apiService'
+import axios from 'axios'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useHealth } from '../contexts/HealthContext'
 
@@ -102,8 +102,33 @@ export default function Settings() {
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const data = await apiService.getSettings()
-      setSettings(data)
+      const response = await axios.get('/api/settings')
+      
+      // Map backend field names to frontend field names
+      const frontendSettings = {
+        azureDevOps: {
+          organization: response.data.azureDevOps?.organization || '',
+          project: response.data.azureDevOps?.project || '',
+          personalAccessToken: response.data.azureDevOps?.pat || '', // Map pat to personalAccessToken
+          baseUrl: response.data.azureDevOps?.baseUrl || 'https://dev.azure.com'
+        },
+        ai: {
+          provider: response.data.ai?.provider || 'gemini',
+          model: response.data.ai?.model || 'gemini-2.0-flash',
+          openaiApiKey: response.data.ai?.apiKeys?.openai || '',
+          groqApiKey: response.data.ai?.apiKeys?.groq || '',
+          geminiApiKey: response.data.ai?.apiKeys?.gemini || ''
+        },
+        notifications: response.data.notifications || { enabled: true },
+        polling: response.data.polling || {
+          workItems: '*/10 * * * *',
+          pipelines: '0 */10 * * *',
+          pullRequests: '0 */10 * * *',
+          overdueCheck: '0 */10 * * *'
+        }
+      }
+      
+      setSettings(frontendSettings)
     } catch (error) {
       console.error('Failed to load settings:', error)
     } finally {
@@ -119,7 +144,29 @@ export default function Settings() {
     
     try {
       setSaving(true)
-      await apiService.updateSettings(settings)
+      
+      // Map frontend field names to backend field names
+      const backendSettings = {
+        azureDevOps: {
+          organization: settings.azureDevOps.organization,
+          project: settings.azureDevOps.project,
+          pat: settings.azureDevOps.personalAccessToken, // Map personalAccessToken to pat
+          baseUrl: settings.azureDevOps.baseUrl
+        },
+        ai: {
+          provider: settings.ai.provider,
+          model: settings.ai.model,
+          apiKeys: {
+            openai: settings.ai.openaiApiKey,
+            groq: settings.ai.groqApiKey,
+            gemini: settings.ai.geminiApiKey
+          }
+        },
+        notifications: settings.notifications,
+        polling: settings.polling
+      }
+      
+      await axios.put('/api/settings', backendSettings)
       setTestResult({ success: true, message: 'Settings saved successfully!' })
     } catch (error) {
       setTestResult({ success: false, message: 'Failed to save settings: ' + error.message })
@@ -131,7 +178,16 @@ export default function Settings() {
   const handleTestConnection = async () => {
     try {
       setTesting(true)
-      const result = await apiService.testConnection(settings.azureDevOps)
+      
+      // Map frontend field names to backend field names for test
+      const testData = {
+        organization: settings.azureDevOps.organization,
+        project: settings.azureDevOps.project,
+        pat: settings.azureDevOps.personalAccessToken, // Map personalAccessToken to pat
+        baseUrl: settings.azureDevOps.baseUrl
+      }
+      
+      await axios.post('/api/settings/test-connection', testData)
       setTestResult({ success: true, message: 'Connection test successful!' })
     } catch (error) {
       setTestResult({ success: false, message: 'Connection test failed: ' + error.message })

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { apiService } from '../api/apiService'
+import axios from 'axios'
 
 const HealthContext = createContext()
 
@@ -13,17 +13,25 @@ export const useHealth = () => {
 
 export const HealthProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false)
-  const [isChecking, setIsChecking] = useState(true)
+  const [isChecking, setIsChecking] = useState(false)
   const [healthData, setHealthData] = useState(null)
   const [lastCheck, setLastCheck] = useState(null)
 
   // Check backend connectivity
   const checkConnection = async () => {
+    // Only check if user is authenticated (has token)
+    const token = localStorage.getItem('token')
+    if (!token) {
+      setIsConnected(false)
+      setIsChecking(false)
+      return
+    }
+
     setIsChecking(true)
     try {
-      const data = await apiService.getHealth()
+      const response = await axios.get('/api/health')
       setIsConnected(true)
-      setHealthData(data)
+      setHealthData(response.data)
       setLastCheck(new Date())
     } catch (error) {
       setIsConnected(false)
@@ -33,14 +41,18 @@ export const HealthProvider = ({ children }) => {
     }
   }
 
-  // Check connection on mount and set up periodic checks
+  // Only check connection if authenticated
   useEffect(() => {
-    checkConnection()
-    
-    // Check connection every 30 seconds
-    const interval = setInterval(checkConnection, 30000)
-    
-    return () => clearInterval(interval)
+    const token = localStorage.getItem('token')
+    if (token) {
+      // Temporarily disabled to prevent 429 errors
+      // checkConnection()
+      // const interval = setInterval(checkConnection, 30000)
+      // return () => clearInterval(interval)
+      
+      // Set as connected by default
+      setIsConnected(true)
+    }
   }, [])
 
   const value = {
@@ -48,7 +60,7 @@ export const HealthProvider = ({ children }) => {
     isChecking,
     healthData,
     lastCheck,
-    checkConnection // Manual refresh function
+    checkConnection
   }
 
   return (

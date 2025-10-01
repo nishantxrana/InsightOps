@@ -148,3 +148,7 @@ class SettingsEncryption {
 }
 
 export const settingsEncryption = new SettingsEncryption();
+
+// Export convenience functions
+export const encrypt = (plaintext) => settingsEncryption.encrypt(plaintext);
+export const decrypt = (encryptedValue) => settingsEncryption.decrypt(encryptedValue);

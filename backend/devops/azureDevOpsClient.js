@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
-import { configLoader } from '../config/settings.js';
 import { getWiqlExcludeCompletedCondition } from '../utils/workItemStates.js';
 
 class AzureDevOpsClient {
@@ -13,21 +12,52 @@ class AzureDevOpsClient {
     this.initialized = false;
   }
 
+  createUserClient(userConfig) {
+    const orgBaseURL = `${userConfig.baseUrl}/${encodeURIComponent(userConfig.organization)}/_apis`;
+    const baseURL = `${userConfig.baseUrl}/${encodeURIComponent(userConfig.organization)}/${encodeURIComponent(userConfig.project)}/_apis`;
+    
+    const client = axios.create({
+      baseURL: baseURL,
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`:${userConfig.pat}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    const orgClient = axios.create({
+      baseURL: orgBaseURL,
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`:${userConfig.pat}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    return new UserAzureDevOpsClient(client, orgClient, userConfig);
+  }
+
   initializeClient() {
     if (this.initialized) return;
     
-    this.config = configLoader.getAzureDevOpsConfig();
+    // Legacy method for backward compatibility
+    this.config = {
+      organization: process.env.AZURE_DEVOPS_ORG,
+      project: process.env.AZURE_DEVOPS_PROJECT,
+      personalAccessToken: process.env.AZURE_DEVOPS_PAT,
+      baseUrl: process.env.AZURE_DEVOPS_BASE_URL || 'https://dev.azure.com'
+    };
+    
     this.orgBaseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/_apis`;
     this.baseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/${encodeURIComponent(this.config.project)}/_apis`;
     
-    // Create axios instance with default configuration for project-level APIs
     this.client = axios.create({
       baseURL: this.baseURL,
       headers: {
         'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000 // 30 seconds timeout
+      timeout: 30000
     });
 
     // Create axios instance for organization-level APIs
@@ -220,8 +250,8 @@ class AzureDevOpsClient {
     try {
       logger.info('Fetching current sprint work items', { page, limit });
       
-      // Get fresh config to handle runtime updates
-      const config = configLoader.getAzureDevOpsConfig();
+      // Use instance config instead of configLoader
+      const config = this.config;
       if (!config || !config.project) {
         throw new Error('Azure DevOps configuration not found or incomplete');
       }
@@ -783,6 +813,16 @@ class AzureDevOpsClient {
       logger.error('Error fetching repositories:', error);
       throw error;
     }
+  }
+}
+
+class UserAzureDevOpsClient extends AzureDevOpsClient {
+  constructor(client, orgClient, config) {
+    super();
+    this.client = client;
+    this.orgClient = orgClient;
+    this.config = config;
+    this.initialized = true;
   }
 }
 
