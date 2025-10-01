@@ -283,6 +283,9 @@ router.get('/work-items/ai-summary', async (req, res) => {
       });
     }
     
+    // Initialize AI service with user settings
+    aiService.initializeWithUserSettings(userSettings);
+    
     const summary = await aiService.summarizeSprintWorkItems(allWorkItems.value);
     res.json({ summary, status: 'completed' });
     

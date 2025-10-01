@@ -41,6 +41,42 @@ class AIService {
     this.initialized = true;
   }
 
+  initializeWithUserSettings(userSettings) {
+    this.config = {
+      provider: userSettings.ai.provider,
+      model: userSettings.ai.model,
+      openaiApiKey: userSettings.ai.apiKeys?.openai,
+      groqApiKey: userSettings.ai.apiKeys?.groq,
+      geminiApiKey: userSettings.ai.apiKeys?.gemini
+    };
+    
+    if (this.config.provider === 'openai') {
+      if (!this.config.openaiApiKey) {
+        throw new Error('OpenAI API key is required when using OpenAI provider');
+      }
+      this.client = new OpenAI({
+        apiKey: this.config.openaiApiKey
+      });
+    } else if (this.config.provider === 'groq') {
+      if (!this.config.groqApiKey) {
+        throw new Error('Groq API key is required when using Groq provider');
+      }
+      this.client = new Groq({
+        apiKey: this.config.groqApiKey
+      });
+    } else if (this.config.provider === 'gemini') {
+      if (!this.config.geminiApiKey) {
+        throw new Error('Gemini API key is required when using Gemini provider');
+      }
+      this.client = new GoogleGenerativeAI(this.config.geminiApiKey);
+    } else {
+      throw new Error(`Unsupported AI provider: ${this.config.provider}`);
+    }
+    
+    this.initialized = true;
+    logger.info(`AI service initialized with user settings - provider: ${this.config.provider}`);
+  }
+
   async generateCompletion(messages, options = {}) {
     try {
       if (!this.initialized) {
