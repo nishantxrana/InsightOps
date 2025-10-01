@@ -24,6 +24,9 @@ const userSettingsSchema = new mongoose.Schema({
   },
   notifications: {
     enabled: { type: Boolean, default: true },
+    teamsEnabled: { type: Boolean, default: false },
+    slackEnabled: { type: Boolean, default: false },
+    googleChatEnabled: { type: Boolean, default: false },
     webhooks: {
       teams: String,
       slack: String,

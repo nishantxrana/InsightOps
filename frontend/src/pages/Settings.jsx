@@ -119,7 +119,22 @@ export default function Settings() {
           groqApiKey: response.data.ai?.apiKeys?.groq || '',
           geminiApiKey: response.data.ai?.apiKeys?.gemini || ''
         },
-        notifications: response.data.notifications || { enabled: true },
+        notifications: {
+          enabled: response.data.notifications?.enabled || true,
+          teamsWebhookUrl: response.data.notifications?.webhooks?.teams || '',
+          slackWebhookUrl: response.data.notifications?.webhooks?.slack || '',
+          googleChatWebhookUrl: response.data.notifications?.webhooks?.googleChat || '',
+          // Auto-enable checkboxes if webhook URLs exist, otherwise use saved state
+          teamsEnabled: response.data.notifications?.teamsEnabled !== undefined 
+            ? response.data.notifications.teamsEnabled 
+            : !!(response.data.notifications?.webhooks?.teams),
+          slackEnabled: response.data.notifications?.slackEnabled !== undefined 
+            ? response.data.notifications.slackEnabled 
+            : !!(response.data.notifications?.webhooks?.slack),
+          googleChatEnabled: response.data.notifications?.googleChatEnabled !== undefined 
+            ? response.data.notifications.googleChatEnabled 
+            : !!(response.data.notifications?.webhooks?.googleChat)
+        },
         polling: response.data.polling || {
           workItems: '*/10 * * * *',
           pipelines: '0 */10 * * *',
@@ -150,20 +165,41 @@ export default function Settings() {
         azureDevOps: {
           organization: settings.azureDevOps.organization,
           project: settings.azureDevOps.project,
-          pat: settings.azureDevOps.personalAccessToken, // Map personalAccessToken to pat
           baseUrl: settings.azureDevOps.baseUrl
         },
         ai: {
           provider: settings.ai.provider,
-          model: settings.ai.model,
-          apiKeys: {
-            openai: settings.ai.openaiApiKey,
-            groq: settings.ai.groqApiKey,
-            gemini: settings.ai.geminiApiKey
-          }
+          model: settings.ai.model
         },
         notifications: settings.notifications,
         polling: settings.polling
+      }
+      
+      // Only include PAT if it's not masked
+      if (settings.azureDevOps.personalAccessToken && settings.azureDevOps.personalAccessToken !== '***') {
+        backendSettings.azureDevOps.pat = settings.azureDevOps.personalAccessToken;
+      }
+      
+      // Only include API keys if they're not masked
+      const apiKeys = {};
+      let hasApiKeys = false;
+      
+      if (settings.ai.openaiApiKey && settings.ai.openaiApiKey !== '***') {
+        apiKeys.openai = settings.ai.openaiApiKey;
+        hasApiKeys = true;
+      }
+      if (settings.ai.groqApiKey && settings.ai.groqApiKey !== '***') {
+        apiKeys.groq = settings.ai.groqApiKey;
+        hasApiKeys = true;
+      }
+      if (settings.ai.geminiApiKey && settings.ai.geminiApiKey !== '***') {
+        apiKeys.gemini = settings.ai.geminiApiKey;
+        hasApiKeys = true;
+      }
+      
+      // Only include apiKeys if we have at least one key to update
+      if (hasApiKeys) {
+        backendSettings.ai.apiKeys = apiKeys;
       }
       
       await axios.put('/api/settings', backendSettings)
