@@ -178,8 +178,16 @@ router.get('/work-items', async (req, res) => {
 
 router.get('/work-items/sprint-summary', async (req, res) => {
   try {
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    
     // Get all work items for summary calculations (without pagination)
-    const allWorkItems = await azureDevOpsClient.getAllCurrentSprintWorkItems();
+    const allWorkItems = await client.getAllCurrentSprintWorkItems();
     
     // Use utility functions for consistent state categorization
     const activeItems = filterActiveWorkItems(allWorkItems.value || []);
@@ -188,7 +196,7 @@ router.get('/work-items/sprint-summary', async (req, res) => {
     // Get overdue items count for dashboard
     let overdueCount = 0;
     try {
-      const overdueItems = await azureDevOpsClient.getOverdueWorkItems();
+      const overdueItems = await client.getOverdueWorkItems();
       overdueCount = overdueItems.count || 0;
     } catch (error) {
       logger.warn('Failed to fetch overdue items for summary:', error.message);
@@ -242,7 +250,26 @@ router.get('/work-items/sprint-summary', async (req, res) => {
 // New endpoint for AI summary
 router.get('/work-items/ai-summary', async (req, res) => {
   try {
-    const allWorkItems = await azureDevOpsClient.getAllCurrentSprintWorkItems();
+    const userSettings = await getUserSettings(req.user._id);
+    
+    // Check AI configuration
+    if (!userSettings.ai?.provider || !userSettings.ai?.apiKeys) {
+      return res.json({ 
+        summary: 'AI analysis not available - please configure AI provider in settings.',
+        status: 'not_configured'
+      });
+    }
+    
+    const hasApiKey = userSettings.ai.apiKeys[userSettings.ai.provider];
+    if (!hasApiKey) {
+      return res.json({ 
+        summary: `AI analysis not available - please configure ${userSettings.ai.provider} API key in settings.`,
+        status: 'not_configured'
+      });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const allWorkItems = await client.getAllCurrentSprintWorkItems();
     
     if (!allWorkItems.value || allWorkItems.value.length === 0) {
       return res.json({ summary: 'No work items found in current sprint.' });
@@ -272,10 +299,17 @@ router.get('/work-items/ai-summary', async (req, res) => {
 // Work item AI explanation endpoint 
 router.get('/work-items/:id/explain', async (req, res) => {
   try {
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
     const workItemId = req.params.id;
     
     // Get work item details
-    const workItem = await azureDevOpsClient.getWorkItems([workItemId]);
+    const workItem = await client.getWorkItems([workItemId]);
     
     if (!workItem.value || workItem.value.length === 0) {
       return res.status(404).json({ 
@@ -321,7 +355,14 @@ async function processAISummaryAsync(workItems) {
 
 router.get('/work-items/overdue', async (req, res) => {
   try {
-    const overdueItems = await azureDevOpsClient.getOverdueWorkItems();
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const overdueItems = await client.getOverdueWorkItems();
     res.json(overdueItems);
   } catch (error) {
     logger.error('Error fetching overdue items:', error);
@@ -340,7 +381,14 @@ router.get('/work-items/overdue', async (req, res) => {
 // Builds endpoints
 router.get('/builds/recent', async (req, res) => {
   try {
-    const builds = await azureDevOpsClient.getRecentBuilds(20);
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const builds = await client.getRecentBuilds(20);
     res.json(builds);
   } catch (error) {
     logger.error('Error fetching recent builds:', error);
@@ -350,7 +398,14 @@ router.get('/builds/recent', async (req, res) => {
 
 router.get('/builds/:buildId', async (req, res) => {
   try {
-    const build = await azureDevOpsClient.getBuild(req.params.buildId);
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const build = await client.getBuild(req.params.buildId);
     res.json(build);
   } catch (error) {
     logger.error('Error fetching build details:', error);
@@ -361,10 +416,17 @@ router.get('/builds/:buildId', async (req, res) => {
 // Build analysis endpoint
 router.post('/builds/:buildId/analyze', async (req, res) => {
   try {
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
     const buildId = req.params.buildId;
     
     // Get build details
-    const build = await azureDevOpsClient.getBuild(buildId);
+    const build = await client.getBuild(buildId);
     
     if (!build) {
       return res.status(404).json({ 
@@ -375,8 +437,8 @@ router.post('/builds/:buildId/analyze', async (req, res) => {
     
     // Get timeline and logs for analysis
     const [timeline, logs] = await Promise.all([
-      azureDevOpsClient.getBuildTimeline(buildId),
-      azureDevOpsClient.getBuildLogs(buildId)
+      client.getBuildTimeline(buildId),
+      client.getBuildLogs(buildId)
     ]);
     
     // Generate AI analysis
@@ -401,7 +463,14 @@ router.post('/builds/:buildId/analyze', async (req, res) => {
 // Pull Requests endpoints
 router.get('/pull-requests', async (req, res) => {
   try {
-    const pullRequests = await azureDevOpsClient.getPullRequests('active');
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const pullRequests = await client.getPullRequests('active');
     res.json(pullRequests);
   } catch (error) {
     logger.error('Error fetching pull requests:', error);
@@ -411,7 +480,14 @@ router.get('/pull-requests', async (req, res) => {
 
 router.get('/pull-requests/idle', async (req, res) => {
   try {
-    const idlePRs = await azureDevOpsClient.getIdlePullRequests(48);
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const idlePRs = await client.getIdlePullRequests(48);
     res.json(idlePRs);
   } catch (error) {
     logger.error('Error fetching idle pull requests:', error);
@@ -422,10 +498,17 @@ router.get('/pull-requests/idle', async (req, res) => {
 // Pull Request AI explanation endpoint
 router.get('/pull-requests/:id/explain', async (req, res) => {
   try {
+    const userSettings = await getUserSettings(req.user._id);
+    
+    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
     const pullRequestId = req.params.id;
     
     // Get PR details
-    const pullRequest = await azureDevOpsClient.getPullRequestDetails(pullRequestId);
+    const pullRequest = await client.getPullRequestDetails(pullRequestId);
     
     if (!pullRequest) {
       return res.status(404).json({ 
@@ -439,13 +522,13 @@ router.get('/pull-requests/:id/explain', async (req, res) => {
     let commits = null;
     
     try {
-      changes = await azureDevOpsClient.getPullRequestIterationChanges(pullRequestId);
+      changes = await client.getPullRequestIterationChanges(pullRequestId);
     } catch (error) {
       logger.warn('Failed to fetch PR changes:', error.message);
     }
 
     try {
-      commits = await azureDevOpsClient.getPullRequestCommits(pullRequestId);
+      commits = await client.getPullRequestCommits(pullRequestId);
     } catch (error) {
       logger.warn('Failed to fetch PR commits:', error.message);
     }
