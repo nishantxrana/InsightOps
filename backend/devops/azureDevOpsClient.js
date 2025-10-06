@@ -409,6 +409,9 @@ class AzureDevOpsClient {
 
   async getBuildDefinition(definitionId) {
     try {
+      if (!this.client) {
+        throw new Error('Azure DevOps client not initialized - this.client is null');
+      }
       const response = await this.client.get(`/build/definitions/${definitionId}`, {
         params: { 'api-version': '7.0' }
       });

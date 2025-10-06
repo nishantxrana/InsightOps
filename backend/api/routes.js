@@ -444,8 +444,11 @@ router.post('/builds/:buildId/analyze', async (req, res) => {
       client.getBuildLogs(buildId)
     ]);
     
+    // Initialize AI service with user settings
+    aiService.initializeWithUserSettings(userSettings);
+    
     // Generate AI analysis
-    const analysis = await aiService.summarizeBuildFailure(build, timeline, logs);
+    const analysis = await aiService.summarizeBuildFailure(build, timeline, logs, client);
     
     res.json({
       buildId: buildId,

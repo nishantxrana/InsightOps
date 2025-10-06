@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { RefreshCw, Moon, Sun, LogOut } from 'lucide-react'
+import { RefreshCw, Moon, Sun } from 'lucide-react'
 import { useHealth } from '../contexts/HealthContext'
 import { useTheme } from '../contexts/ThemeContext'
-import { useAuth } from '../contexts/AuthContext'
 import { DevOpsAppSidebar } from './DevOpsAppSidebar'
-import { Button } from './ui/button'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -40,7 +38,6 @@ export default function Layout({ children }) {
   const location = useLocation()
   const { isConnected, isChecking, checkConnection } = useHealth()
   const { theme, toggleTheme } = useTheme()
-  const { logout, user } = useAuth()
   const [isAnimating, setIsAnimating] = useState(false)
 
   const currentPageName = breadcrumbMap[location.pathname] || 'Page'
@@ -113,12 +110,7 @@ export default function Layout({ children }) {
             </div>
             
             {/* Right Section - Status & Theme */}
-            <div className="ml-auto flex items-center gap-3 px-10">
-              {/* User Info */}
-              <span className="text-sm text-muted-foreground">
-                {user?.name}
-              </span>
-              
+            <div className="ml-auto flex items-center gap-3 px-4">
               {/* Theme Toggle */}
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -138,23 +130,6 @@ export default function Layout({ children }) {
                   <p className="text-sm">
                     Switch to {theme === 'dark' ? 'light' : 'dark'} mode
                   </p>
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Logout Button */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={logout}
-                    className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-muted transition-all duration-200"
-                  >
-                    <LogOut className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-sm">Sign out</p>
                 </TooltipContent>
               </Tooltip>
 

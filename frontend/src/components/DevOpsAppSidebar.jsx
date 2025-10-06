@@ -20,11 +20,6 @@ import {
 
 // Azure DevOps navigation data
 const data = {
-  user: {
-    name: "Nishant Rana",
-    email: "nishantrana@example.com",
-    avatar: "", // Avatar URL (string). If empty, initials will be displayed. TODO: Integrate with user profile service
-  },
   navMain: [
     {
       title: "Overview",
@@ -85,7 +80,7 @@ export function DevOpsAppSidebar({ ...props }) {
         <DevOpsNavMain items={data.navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

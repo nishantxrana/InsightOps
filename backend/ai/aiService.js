@@ -417,7 +417,7 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
     }
   }
 
-  async summarizeBuildFailure(build, timeline, logs) {
+  async summarizeBuildFailure(build, timeline, logs, userClient = null) {
     try {
       if (!this.initialized) {
         try {
@@ -450,9 +450,8 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
       let pipelineAnalysisNote = '';
       
       try {
-        if (build.definition?.id) {
-          const { azureDevOpsClient } = await import('../devops/azureDevOpsClient.js');
-          const definition = await azureDevOpsClient.getBuildDefinition(build.definition.id);
+        if (build.definition?.id && userClient) {
+          const definition = await userClient.getBuildDefinition(build.definition.id);
           
           // Check if it's YAML pipeline (type 2) or classic (type 1)
           if (definition.process?.type === 2 && definition.process?.yamlFilename) {
