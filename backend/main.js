@@ -14,14 +14,32 @@ import { errorHandler } from './utils/errorHandler.js';
 // Load environment variables first
 config();
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
-    logger.info('Connected to MongoDB');
-  })
-  .catch(err => {
+// Connect to MongoDB with better error handling
+async function connectToDatabase() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+    });
+    logger.info('Connected to MongoDB successfully');
+  } catch (err) {
     logger.error('MongoDB connection error:', err);
-  });
+    throw err;
+  }
+}
+
+// Handle MongoDB connection events
+mongoose.connection.on('error', (err) => {
+  logger.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  logger.warn('MongoDB disconnected');
+});
+
+mongoose.connection.on('reconnected', () => {
+  logger.info('MongoDB reconnected');
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -91,6 +109,9 @@ process.on('SIGINT', () => {
 // Start server
 async function startServer() {
   try {
+    // Connect to database first
+    await connectToDatabase();
+    
     const server = app.listen(PORT, () => {
       logger.info(`Azure DevOps Monitoring Agent Backend started on port ${PORT}`);
       logger.info('🚀 Azure DevOps Monitoring Agent is ready!');
