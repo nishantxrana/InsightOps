@@ -16,7 +16,7 @@ router.get('/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    service: 'Azure DevOps Monitoring Agent'
+    service: 'Azure DevOps Monitoring InsightOps'
   });
 });
 

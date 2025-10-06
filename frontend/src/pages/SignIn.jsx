@@ -14,8 +14,8 @@ export default function SignIn() {
         <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 relative">
           <div className="flex flex-col justify-center px-12">
             <Link to="/" className="flex items-center gap-3 mb-12">
-              <img src="/icon.svg" alt="Agent" className="h-10 w-10" />
-              <span className="text-2xl font-bold text-foreground">Agent</span>
+              <img src="/icon.svg" alt="InsightOps" className="h-10 w-10" />
+              <span className="text-2xl font-bold text-foreground">InsightOps</span>
             </Link>
             
             <h1 className="text-3xl font-bold mb-4 text-foreground">
@@ -65,8 +65,8 @@ export default function SignIn() {
             {/* Mobile Header */}
             <div className="lg:hidden text-center mb-8">
               <Link to="/" className="inline-flex items-center gap-2 mb-4">
-                <img src="/icon.svg" alt="Agent" className="h-8 w-8" />
-                <span className="text-xl font-bold text-foreground">Agent</span>
+                <img src="/icon.svg" alt="InsightOps" className="h-8 w-8" />
+                <span className="text-xl font-bold text-foreground">InsightOps</span>
               </Link>
             </div>
             

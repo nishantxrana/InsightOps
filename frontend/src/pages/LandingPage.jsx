@@ -91,7 +91,7 @@ export default function LandingPage() {
 
   const testimonials = [
     {
-      quote: "Agent transformed our DevOps workflow. We've reduced deployment time by 60% and caught 95% more issues before production.",
+      quote: "InsightOps transformed our DevOps workflow. We've reduced deployment time by 60% and caught 95% more issues before production.",
       author: "Sarah Chen",
       role: "VP Engineering",
       company: "TechCorp",
@@ -123,13 +123,13 @@ export default function LandingPage() {
               <div className="relative">
                 <img 
                   src="/icon.svg" 
-                  alt="Agent" 
+                  alt="InsightOps" 
                   className="h-8 w-8 transition-transform duration-300 group-hover:scale-110" 
                 />
                 <div className="absolute inset-0 bg-blue-500/20 rounded-full scale-0 group-hover:scale-150 transition-transform duration-500"></div>
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
-                Agent
+                InsightOps
               </span>
             </Link>
             
@@ -603,7 +603,7 @@ export default function LandingPage() {
             </span>
           </h2>
           <p className="text-xl text-blue-100 mb-12 max-w-3xl mx-auto leading-relaxed">
-            Join thousands of teams already using Agent to streamline their development process and achieve 10x faster deployments.
+            Join thousands of teams already using InsightOps to streamline their development process and achieve 10x faster deployments.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
@@ -644,8 +644,8 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8 mb-12">
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-6">
-                <img src="/icon.svg" alt="Agent" className="h-10 w-10" />
-                <span className="text-2xl font-bold text-white">Agent</span>
+                <img src="/icon.svg" alt="InsightOps" className="h-10 w-10" />
+                <span className="text-2xl font-bold text-white">InsightOps</span>
               </div>
               <p className="text-slate-400 mb-6 max-w-md leading-relaxed">
                 The most advanced AI-powered DevOps monitoring platform. Transform your development workflow with intelligent insights and automation.
@@ -688,7 +688,7 @@ export default function LandingPage() {
           
           <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center">
             <div className="text-sm text-slate-400 mb-4 md:mb-0">
-              © 2024 Agent. All rights reserved. Built with ❤️ for developers.
+              © 2024 InsightOps. All rights reserved. Built with ❤️ for developers.
             </div>
             <div className="flex items-center gap-6 text-sm text-slate-400">
               <a href="#" className="hover:text-white transition-colors duration-200">Terms</a>
