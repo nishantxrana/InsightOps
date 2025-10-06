@@ -26,9 +26,9 @@ export const LoginForm = ({ onToggleMode }) => {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto bg-card border-border">
       <CardHeader>
-        <CardTitle>Sign In</CardTitle>
+        <CardTitle className="text-foreground">Sign In</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -39,6 +39,7 @@ export const LoginForm = ({ onToggleMode }) => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="bg-background border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
           <div>
@@ -48,23 +49,15 @@ export const LoginForm = ({ onToggleMode }) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="bg-background border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
           {error && (
-            <div className="text-red-500 text-sm">{error}</div>
+            <div className="text-destructive text-sm">{error}</div>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={onToggleMode}
-              className="text-blue-500 hover:underline text-sm"
-            >
-              Don't have an account? Sign up
-            </button>
-          </div>
         </form>
       </CardContent>
     </Card>

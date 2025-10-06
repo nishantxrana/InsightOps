@@ -33,9 +33,9 @@ export const SignupForm = ({ onToggleMode }) => {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto bg-card border-border">
       <CardHeader>
-        <CardTitle>Sign Up</CardTitle>
+        <CardTitle className="text-foreground">Create Account</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -46,6 +46,7 @@ export const SignupForm = ({ onToggleMode }) => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
+              className="bg-background border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
           <div>
@@ -55,6 +56,7 @@ export const SignupForm = ({ onToggleMode }) => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="bg-background border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
           <div>
@@ -64,23 +66,15 @@ export const SignupForm = ({ onToggleMode }) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="bg-background border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
           {error && (
-            <div className="text-red-500 text-sm">{error}</div>
+            <div className="text-destructive text-sm">{error}</div>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating account...' : 'Sign Up'}
+            {loading ? 'Creating account...' : 'Create Account'}
           </Button>
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={onToggleMode}
-              className="text-blue-500 hover:underline text-sm"
-            >
-              Already have an account? Sign in
-            </button>
-          </div>
         </form>
       </CardContent>
     </Card>
