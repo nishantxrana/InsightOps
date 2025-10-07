@@ -346,21 +346,28 @@ class AzureDevOpsClient {
   async getOverdueWorkItems() {
     this.ensureInitialized();
     try {
+      // Query for overdue items across all active iterations, not just current
       const wiql = `
-        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
+        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType], [Microsoft.VSTS.Scheduling.DueDate]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
-        AND [System.IterationPath] = @CurrentIteration
         AND ${getWiqlExcludeCompletedCondition()}
         AND [Microsoft.VSTS.Scheduling.DueDate] < @Today
+        AND [Microsoft.VSTS.Scheduling.DueDate] <> ''
         ORDER BY [Microsoft.VSTS.Scheduling.DueDate] ASC
       `;
       
+      logger.debug('Overdue work items query:', wiql);
+      
       const queryResult = await this.queryWorkItems(wiql);
+      
+      logger.debug(`Overdue query returned ${queryResult.workItems?.length || 0} work items`);
       
       if (queryResult.workItems && queryResult.workItems.length > 0) {
         const workItemIds = queryResult.workItems.map(wi => wi.id);
-        return await this.getWorkItems(workItemIds);
+        const detailedItems = await this.getWorkItems(workItemIds);
+        logger.debug(`Retrieved details for ${detailedItems.count} overdue items`);
+        return detailedItems;
       }
       
       return { count: 0, value: [] };

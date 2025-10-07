@@ -9,12 +9,28 @@ class PullRequestPoller {
     this.processedPRs = new Set();
   }
 
-  async pollPullRequests() {
+  async pollPullRequests(userId) {
     try {
-      logger.info('Starting pull requests polling');
+      let client = azureDevOpsClient;
+      
+      if (userId) {
+        const { getUserSettings } = await import('../utils/userSettings.js');
+        const settings = await getUserSettings(userId);
+        if (!settings.azureDevOps?.organization || !settings.azureDevOps?.project || !settings.azureDevOps?.pat) {
+          return;
+        }
+        client = azureDevOpsClient.createUserClient({
+          organization: settings.azureDevOps.organization,
+          project: settings.azureDevOps.project,
+          pat: settings.azureDevOps.pat,
+          baseUrl: settings.azureDevOps.baseUrl || 'https://dev.azure.com'
+        });
+      }
+
+      logger.info(`Starting pull requests polling${userId ? ` for user ${userId}` : ''}`);
 
       // Check for idle pull requests (>48 hours without activity)
-      await this.checkIdlePullRequests();
+      await this.checkIdlePullRequests(userId, client);
 
       this.lastPollTime = new Date();
     } catch (error) {
@@ -22,19 +38,28 @@ class PullRequestPoller {
     }
   }
 
-  async checkIdlePullRequests() {
+  async checkIdlePullRequests(userId, client = azureDevOpsClient) {
     try {
-      logger.info('Checking for idle pull requests');
+      logger.info(`Checking for idle pull requests${userId ? ` for user ${userId}` : ''}`);
 
-      const idlePRs = await azureDevOpsClient.getIdlePullRequests(48);
+      const idlePRs = await client.getIdlePullRequests(48);
       
       if (idlePRs.count > 0) {
         logger.warn(`Found ${idlePRs.count} idle pull requests`);
         
-        // Send reminder notification
-        const message = markdownFormatter.formatIdlePullRequestReminder(idlePRs.value);
-        if (message) {
-          await notificationService.sendNotification(message, 'pull-request-idle-reminder');
+        // Send notification with user-specific settings
+        if (userId) {
+          const { getUserSettings } = await import('../utils/userSettings.js');
+          const settings = await getUserSettings(userId);
+          if (settings.notifications?.enabled) {
+            await this.sendIdlePRNotification(idlePRs.value, settings);
+          }
+        } else {
+          // Fallback for global notifications
+          const message = markdownFormatter.formatIdlePullRequestReminder(idlePRs.value);
+          if (message) {
+            await notificationService.sendNotification(message, 'pull-request-idle-reminder');
+          }
         }
       } else {
         logger.info('No idle pull requests found');
@@ -97,5 +122,36 @@ class PullRequestPoller {
     }
   }
 }
+
+// Add notification methods to the class
+PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, userSettings) {
+  try {
+    if (!userSettings.notifications?.enabled) {
+      return;
+    }
+
+    const { markdownFormatter } = await import('../utils/markdownFormatter.js');
+    const message = markdownFormatter.formatIdlePullRequestReminder(idlePRs);
+    
+    // Send to enabled notification channels
+    if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
+      await this.sendGoogleChatNotification(message, userSettings.notifications.webhooks.googleChat);
+    }
+    
+    logger.info('Idle PR notification sent successfully');
+  } catch (error) {
+    logger.error('Error sending idle PR notification:', error);
+  }
+};
+
+PullRequestPoller.prototype.sendGoogleChatNotification = async function(message, webhookUrl) {
+  try {
+    const axios = (await import('axios')).default;
+    await axios.post(webhookUrl, { text: message });
+  } catch (error) {
+    logger.error('Error sending Google Chat notification:', error);
+    throw error;
+  }
+};
 
 export const pullRequestPoller = new PullRequestPoller();

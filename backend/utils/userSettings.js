@@ -134,9 +134,9 @@ export const updateUserSettings = async (userId, updates) => {
     settings.polling = { ...settings.polling, ...updates.polling };
     console.log('Final polling settings:', settings.polling);
     
-    // Update global config for cron jobs (temporary solution)
-    const { configLoader } = await import('../config/settings.js');
-    configLoader.updatePollingConfig(settings.polling);
+    // Start/restart user-specific polling jobs
+    const { userPollingManager } = await import('../polling/userPollingManager.js');
+    await userPollingManager.startUserPolling(userId);
   }
   
   await settings.save();

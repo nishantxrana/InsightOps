@@ -56,7 +56,6 @@ export default function Settings() {
     },
     polling: {
       workItemsInterval: '1',
-      pipelineInterval: '2',
       pullRequestInterval: '3',
       overdueCheckInterval: '4'
     },
@@ -137,7 +136,6 @@ export default function Settings() {
         },
         polling: response.data.polling || {
           workItemsInterval: '*/10 * * * *',
-          pipelineInterval: '0 */10 * * *',
           pullRequestInterval: '0 */10 * * *',
           overdueCheckInterval: '0 */10 * * *'
         }
@@ -530,9 +528,10 @@ export default function Settings() {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
                   checked={settings.notifications.teamsEnabled}
                   onChange={(e) => updateSetting('notifications', 'teamsEnabled', e.target.checked)}
+                  disabled={true}
                 />
-                <label htmlFor="teams-enabled" className="ml-2 text-sm font-medium text-foreground">
-                  Microsoft Teams
+                <label htmlFor="teams-enabled" className="ml-2 text-sm font-medium text-foreground opacity-50">
+                  Microsoft Teams (Coming Soon)
                 </label>
               </div>
               <input
@@ -554,9 +553,10 @@ export default function Settings() {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
                   checked={settings.notifications.slackEnabled}
                   onChange={(e) => updateSetting('notifications', 'slackEnabled', e.target.checked)}
+                  disabled={true}
                 />
-                <label htmlFor="slack-enabled" className="ml-2 text-sm font-medium text-foreground">
-                  Slack
+                <label htmlFor="slack-enabled" className="ml-2 text-sm font-medium text-foreground opacity-50">
+                  Slack (Coming Soon)
                 </label>
               </div>
               <input
@@ -609,17 +609,6 @@ export default function Settings() {
                 placeholder="*/15 * * * *"
               />
               <p className="text-xs text-muted-foreground mt-1">Every 15 minutes</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Pipelines (cron expression)</label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
-                value={settings.polling.pipelineInterval}
-                onChange={(e) => updateSetting('polling', 'pipelineInterval', e.target.value)}
-                placeholder="*/10 * * * *"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Every 10 minutes</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Pull Requests (cron expression)</label>

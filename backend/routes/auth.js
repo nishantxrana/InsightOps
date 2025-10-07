@@ -85,6 +85,14 @@ router.post('/login', async (req, res) => {
     
     logger.info(`User logged in: ${email}`);
     
+    // Start user polling if settings are configured
+    try {
+      const { userPollingManager } = await import('../polling/userPollingManager.js');
+      await userPollingManager.startUserPolling(user._id.toString());
+    } catch (error) {
+      logger.warn('Failed to start user polling on login:', error);
+    }
+    
     res.json({
       token,
       user: {

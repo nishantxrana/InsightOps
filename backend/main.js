@@ -10,6 +10,7 @@ import { webhookRoutes } from './webhooks/routes.js';
 import { apiRoutes } from './api/routes.js';
 import { authRoutes } from './routes/auth.js';
 import { errorHandler } from './utils/errorHandler.js';
+import { userPollingManager } from './polling/userPollingManager.js';
 
 // Load environment variables first
 config();
@@ -111,6 +112,10 @@ async function startServer() {
   try {
     // Connect to database first
     await connectToDatabase();
+    
+    // Initialize user polling manager
+    await userPollingManager.initializeAllUsers();
+    logger.info('User polling manager initialized');
     
     const server = app.listen(PORT, () => {
       logger.info(`Azure DevOps Monitoring Agent Backend started on port ${PORT}`);
