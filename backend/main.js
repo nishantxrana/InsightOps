@@ -3,16 +3,44 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import mongoose from 'mongoose';
 import { config } from 'dotenv';
 import { logger } from './utils/logger.js';
-import { configLoader } from './config/settings.js';
 import { webhookRoutes } from './webhooks/routes.js';
 import { apiRoutes } from './api/routes.js';
-import { startPollingJobs, restartPollingJobs } from './polling/index.js';
+import { authRoutes } from './routes/auth.js';
 import { errorHandler } from './utils/errorHandler.js';
+import { userPollingManager } from './polling/userPollingManager.js';
 
 // Load environment variables first
 config();
+
+// Connect to MongoDB with better error handling
+async function connectToDatabase() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+    });
+    logger.info('Connected to MongoDB successfully');
+  } catch (err) {
+    logger.error('MongoDB connection error:', err);
+    throw err;
+  }
+}
+
+// Handle MongoDB connection events
+mongoose.connection.on('error', (err) => {
+  logger.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  logger.warn('MongoDB disconnected');
+});
+
+mongoose.connection.on('reconnected', () => {
+  logger.info('MongoDB reconnected');
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -28,7 +56,7 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs (increased for development)
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api', limiter);
@@ -45,6 +73,9 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Auth routes (public)
+app.use('/api/auth', authRoutes);
 
 // API Routes (BEFORE static files)
 app.use('/api/webhooks', webhookRoutes);
@@ -65,31 +96,6 @@ app.get('*', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-// Initialize configuration system
-async function initializeApp() {
-  try {
-    // Initialize configuration (loads runtime settings)
-    await configLoader.initialize();
-    
-    // Add listener for configuration changes to restart polling jobs
-    configLoader.onConfigChange((newConfig) => {
-      logger.info('Configuration changed, restarting polling jobs');
-      try {
-        restartPollingJobs();
-      } catch (error) {
-        logger.error('Failed to restart polling jobs after config change:', error);
-      }
-    });
-    
-    logger.info('Configuration system initialized successfully');
-    
-    return true;
-  } catch (error) {
-    logger.error('Failed to initialize configuration:', error);
-    throw error;
-  }
-}
-
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
@@ -104,50 +110,23 @@ process.on('SIGINT', () => {
 // Start server
 async function startServer() {
   try {
-    // Initialize configuration first
-    await initializeApp();
+    // Connect to database first
+    await connectToDatabase();
     
-    // Start the server
-    app.listen(PORT, async () => {
+    // Initialize user polling manager
+    await userPollingManager.initializeAllUsers();
+    logger.info('User polling manager initialized');
+    
+    const server = app.listen(PORT, () => {
       logger.info(`Azure DevOps Monitoring Agent Backend started on port ${PORT}`);
-      
-      try {
-        // Validate configuration (but don't fail if Azure DevOps is not configured yet)
-        let configValid = false;
-        
-        try {
-          configValid = configLoader.validateEssential();
-          if (configValid) {
-            logger.info('Essential configuration validation passed');
-          } else {
-            logger.warn('Essential configuration incomplete - Azure DevOps settings required');
-          }
-        } catch (error) {
-          logger.warn('Configuration validation failed (this is expected if not fully configured):', error.message);
-        }
-        
-        // Start polling jobs if configuration is valid
-        if (configValid) {
-          try {
-            await startPollingJobs();
-            logger.info('Polling jobs started successfully');
-          } catch (error) {
-            logger.error('Failed to start polling jobs:', error);
-          }
-        } else {
-          logger.info('Skipping polling jobs due to incomplete configuration. Configure via Settings page.');
-        }
-        
-        logger.info('🚀 Azure DevOps Monitoring Agent is ready!');
-        logger.info(`📊 Dashboard: http://localhost:${PORT}`);
-        logger.info('⚙️  Configure via Settings page if needed');
-        
-      } catch (error) {
-        logger.error('Error during startup:', error);
-        if (process.env.NODE_ENV === 'production') {
-          process.exit(1);
-        }
-      }
+      logger.info('🚀 Azure DevOps Monitoring Agent is ready!');
+      logger.info(`📊 Dashboard: http://localhost:${PORT}`);
+      logger.info('⚙️  Configure via Settings page after login');
+    });
+    
+    server.on('error', (error) => {
+      logger.error('Server error:', error);
+      process.exit(1);
     });
     
   } catch (error) {

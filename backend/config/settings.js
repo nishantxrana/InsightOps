@@ -253,6 +253,11 @@ class ConfigLoader {
     return this.config.polling;
   }
 
+  updatePollingConfig(newPollingConfig) {
+    this.config.polling = { ...this.config.polling, ...newPollingConfig };
+    logger.info('Updated global polling config', newPollingConfig);
+  }
+
   getSecurityConfig() {
     return this.config.security;
   }

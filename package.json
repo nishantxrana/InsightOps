@@ -9,7 +9,8 @@
     "build": "cd frontend && npm run build",
     "start": "cd backend && npm start",
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
-    "deploy": "npm run build && cd backend && npm start"
+    "deploy": "npm run build && cd backend && npm start",
+    "simulate:production": "cd frontend && npm run build && cd .. && mkdir -p backend/public && cp -r frontend/dist/* backend/public/ && cd backend && npm start"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

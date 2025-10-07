@@ -17,7 +17,7 @@ import {
   Webhook,
   Bot
 } from 'lucide-react'
-import { apiService } from '../api/apiService'
+import axios from 'axios'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useHealth } from '../contexts/HealthContext'
 
@@ -55,10 +55,9 @@ export default function Settings() {
       enabled: false
     },
     polling: {
-      workItemsInterval: '0 */1 * * *',
-      pipelineInterval: '0 */1 * * *',
-      pullRequestInterval: '0 */1 * * *',
-      overdueCheckInterval: '0 9 * * *'
+      workItemsInterval: '1',
+      pullRequestInterval: '3',
+      overdueCheckInterval: '4'
     },
     security: {
       webhookSecret: '',
@@ -102,8 +101,47 @@ export default function Settings() {
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const data = await apiService.getSettings()
-      setSettings(data)
+      const response = await axios.get('/api/settings')
+      
+      // Map backend field names to frontend field names
+      const frontendSettings = {
+        azureDevOps: {
+          organization: response.data.azureDevOps?.organization || '',
+          project: response.data.azureDevOps?.project || '',
+          personalAccessToken: response.data.azureDevOps?.pat || '', // Map pat to personalAccessToken
+          baseUrl: response.data.azureDevOps?.baseUrl || 'https://dev.azure.com'
+        },
+        ai: {
+          provider: response.data.ai?.provider || 'gemini',
+          model: response.data.ai?.model || 'gemini-2.0-flash',
+          openaiApiKey: response.data.ai?.apiKeys?.openai || '',
+          groqApiKey: response.data.ai?.apiKeys?.groq || '',
+          geminiApiKey: response.data.ai?.apiKeys?.gemini || ''
+        },
+        notifications: {
+          enabled: response.data.notifications?.enabled || true,
+          teamsWebhookUrl: response.data.notifications?.webhooks?.teams || '',
+          slackWebhookUrl: response.data.notifications?.webhooks?.slack || '',
+          googleChatWebhookUrl: response.data.notifications?.webhooks?.googleChat || '',
+          // Auto-enable checkboxes if webhook URLs exist, otherwise use saved state
+          teamsEnabled: response.data.notifications?.teamsEnabled !== undefined 
+            ? response.data.notifications.teamsEnabled 
+            : !!(response.data.notifications?.webhooks?.teams),
+          slackEnabled: response.data.notifications?.slackEnabled !== undefined 
+            ? response.data.notifications.slackEnabled 
+            : !!(response.data.notifications?.webhooks?.slack),
+          googleChatEnabled: response.data.notifications?.googleChatEnabled !== undefined 
+            ? response.data.notifications.googleChatEnabled 
+            : !!(response.data.notifications?.webhooks?.googleChat)
+        },
+        polling: response.data.polling || {
+          workItemsInterval: '*/10 * * * *',
+          pullRequestInterval: '0 */10 * * *',
+          overdueCheckInterval: '0 */10 * * *'
+        }
+      }
+      
+      setSettings(frontendSettings)
     } catch (error) {
       console.error('Failed to load settings:', error)
     } finally {
@@ -119,7 +157,50 @@ export default function Settings() {
     
     try {
       setSaving(true)
-      await apiService.updateSettings(settings)
+      
+      // Map frontend field names to backend field names
+      const backendSettings = {
+        azureDevOps: {
+          organization: settings.azureDevOps.organization,
+          project: settings.azureDevOps.project,
+          baseUrl: settings.azureDevOps.baseUrl
+        },
+        ai: {
+          provider: settings.ai.provider,
+          model: settings.ai.model
+        },
+        notifications: settings.notifications,
+        polling: settings.polling
+      }
+      
+      // Only include PAT if it's not masked
+      if (settings.azureDevOps.personalAccessToken && settings.azureDevOps.personalAccessToken !== '***') {
+        backendSettings.azureDevOps.pat = settings.azureDevOps.personalAccessToken;
+      }
+      
+      // Only include API keys if they're not masked
+      const apiKeys = {};
+      let hasApiKeys = false;
+      
+      if (settings.ai.openaiApiKey && settings.ai.openaiApiKey !== '***') {
+        apiKeys.openai = settings.ai.openaiApiKey;
+        hasApiKeys = true;
+      }
+      if (settings.ai.groqApiKey && settings.ai.groqApiKey !== '***') {
+        apiKeys.groq = settings.ai.groqApiKey;
+        hasApiKeys = true;
+      }
+      if (settings.ai.geminiApiKey && settings.ai.geminiApiKey !== '***') {
+        apiKeys.gemini = settings.ai.geminiApiKey;
+        hasApiKeys = true;
+      }
+      
+      // Only include apiKeys if we have at least one key to update
+      if (hasApiKeys) {
+        backendSettings.ai.apiKeys = apiKeys;
+      }
+      
+      await axios.put('/api/settings', backendSettings)
       setTestResult({ success: true, message: 'Settings saved successfully!' })
     } catch (error) {
       setTestResult({ success: false, message: 'Failed to save settings: ' + error.message })
@@ -131,7 +212,16 @@ export default function Settings() {
   const handleTestConnection = async () => {
     try {
       setTesting(true)
-      const result = await apiService.testConnection(settings.azureDevOps)
+      
+      // Map frontend field names to backend field names for test
+      const testData = {
+        organization: settings.azureDevOps.organization,
+        project: settings.azureDevOps.project,
+        pat: settings.azureDevOps.personalAccessToken, // Map personalAccessToken to pat
+        baseUrl: settings.azureDevOps.baseUrl
+      }
+      
+      await axios.post('/api/settings/test-connection', testData)
       setTestResult({ success: true, message: 'Connection test successful!' })
     } catch (error) {
       setTestResult({ success: false, message: 'Connection test failed: ' + error.message })
@@ -438,9 +528,10 @@ export default function Settings() {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
                   checked={settings.notifications.teamsEnabled}
                   onChange={(e) => updateSetting('notifications', 'teamsEnabled', e.target.checked)}
+                  disabled={true}
                 />
-                <label htmlFor="teams-enabled" className="ml-2 text-sm font-medium text-foreground">
-                  Microsoft Teams
+                <label htmlFor="teams-enabled" className="ml-2 text-sm font-medium text-foreground opacity-50">
+                  Microsoft Teams (Coming Soon)
                 </label>
               </div>
               <input
@@ -462,9 +553,10 @@ export default function Settings() {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
                   checked={settings.notifications.slackEnabled}
                   onChange={(e) => updateSetting('notifications', 'slackEnabled', e.target.checked)}
+                  disabled={true}
                 />
-                <label htmlFor="slack-enabled" className="ml-2 text-sm font-medium text-foreground">
-                  Slack
+                <label htmlFor="slack-enabled" className="ml-2 text-sm font-medium text-foreground opacity-50">
+                  Slack (Coming Soon)
                 </label>
               </div>
               <input
@@ -517,17 +609,6 @@ export default function Settings() {
                 placeholder="*/15 * * * *"
               />
               <p className="text-xs text-muted-foreground mt-1">Every 15 minutes</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Pipelines (cron expression)</label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
-                value={settings.polling.pipelineInterval}
-                onChange={(e) => updateSetting('polling', 'pipelineInterval', e.target.value)}
-                placeholder="*/10 * * * *"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Every 10 minutes</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Pull Requests (cron expression)</label>

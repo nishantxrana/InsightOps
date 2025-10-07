@@ -7,12 +7,28 @@ class BuildPoller {
     this.processedBuilds = new Set();
   }
 
-  async pollBuilds() {
+  async pollBuilds(userId) {
     try {
-      logger.info('Starting builds polling');
+      let client = azureDevOpsClient;
+      
+      if (userId) {
+        const { getUserSettings } = await import('../utils/userSettings.js');
+        const settings = await getUserSettings(userId);
+        if (!settings.azureDevOps?.organization || !settings.azureDevOps?.project || !settings.azureDevOps?.pat) {
+          return;
+        }
+        client = azureDevOpsClient.createUserClient({
+          organization: settings.azureDevOps.organization,
+          project: settings.azureDevOps.project,
+          pat: settings.azureDevOps.pat,
+          baseUrl: settings.azureDevOps.baseUrl || 'https://dev.azure.com'
+        });
+      }
+
+      logger.info(`Starting builds polling${userId ? ` for user ${userId}` : ''}`);
 
       // Get recent builds
-      const recentBuilds = await azureDevOpsClient.getRecentBuilds(20);
+      const recentBuilds = await client.getRecentBuilds(20);
       
       if (recentBuilds.count > 0) {
         logger.info(`Found ${recentBuilds.count} recent builds`);

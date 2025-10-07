@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
-import { configLoader } from '../config/settings.js';
 import { getWiqlExcludeCompletedCondition } from '../utils/workItemStates.js';
 
 class AzureDevOpsClient {
@@ -13,21 +12,52 @@ class AzureDevOpsClient {
     this.initialized = false;
   }
 
+  createUserClient(userConfig) {
+    const orgBaseURL = `${userConfig.baseUrl}/${encodeURIComponent(userConfig.organization)}/_apis`;
+    const baseURL = `${userConfig.baseUrl}/${encodeURIComponent(userConfig.organization)}/${encodeURIComponent(userConfig.project)}/_apis`;
+    
+    const client = axios.create({
+      baseURL: baseURL,
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`:${userConfig.pat}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    const orgClient = axios.create({
+      baseURL: orgBaseURL,
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`:${userConfig.pat}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    return new UserAzureDevOpsClient(client, orgClient, userConfig);
+  }
+
   initializeClient() {
     if (this.initialized) return;
     
-    this.config = configLoader.getAzureDevOpsConfig();
+    // Legacy method for backward compatibility
+    this.config = {
+      organization: process.env.AZURE_DEVOPS_ORG,
+      project: process.env.AZURE_DEVOPS_PROJECT,
+      personalAccessToken: process.env.AZURE_DEVOPS_PAT,
+      baseUrl: process.env.AZURE_DEVOPS_BASE_URL || 'https://dev.azure.com'
+    };
+    
     this.orgBaseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/_apis`;
     this.baseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/${encodeURIComponent(this.config.project)}/_apis`;
     
-    // Create axios instance with default configuration for project-level APIs
     this.client = axios.create({
       baseURL: this.baseURL,
       headers: {
         'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000 // 30 seconds timeout
+      timeout: 30000
     });
 
     // Create axios instance for organization-level APIs
@@ -220,8 +250,8 @@ class AzureDevOpsClient {
     try {
       logger.info('Fetching current sprint work items', { page, limit });
       
-      // Get fresh config to handle runtime updates
-      const config = configLoader.getAzureDevOpsConfig();
+      // Use instance config instead of configLoader
+      const config = this.config;
       if (!config || !config.project) {
         throw new Error('Azure DevOps configuration not found or incomplete');
       }
@@ -316,21 +346,28 @@ class AzureDevOpsClient {
   async getOverdueWorkItems() {
     this.ensureInitialized();
     try {
+      // Query for overdue items across all active iterations, not just current
       const wiql = `
-        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
+        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType], [Microsoft.VSTS.Scheduling.DueDate]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
-        AND [System.IterationPath] = @CurrentIteration
         AND ${getWiqlExcludeCompletedCondition()}
         AND [Microsoft.VSTS.Scheduling.DueDate] < @Today
+        AND [Microsoft.VSTS.Scheduling.DueDate] <> ''
         ORDER BY [Microsoft.VSTS.Scheduling.DueDate] ASC
       `;
       
+      logger.debug('Overdue work items query:', wiql);
+      
       const queryResult = await this.queryWorkItems(wiql);
+      
+      logger.debug(`Overdue query returned ${queryResult.workItems?.length || 0} work items`);
       
       if (queryResult.workItems && queryResult.workItems.length > 0) {
         const workItemIds = queryResult.workItems.map(wi => wi.id);
-        return await this.getWorkItems(workItemIds);
+        const detailedItems = await this.getWorkItems(workItemIds);
+        logger.debug(`Retrieved details for ${detailedItems.count} overdue items`);
+        return detailedItems;
       }
       
       return { count: 0, value: [] };
@@ -379,6 +416,9 @@ class AzureDevOpsClient {
 
   async getBuildDefinition(definitionId) {
     try {
+      if (!this.client) {
+        throw new Error('Azure DevOps client not initialized - this.client is null');
+      }
       const response = await this.client.get(`/build/definitions/${definitionId}`, {
         params: { 'api-version': '7.0' }
       });
@@ -783,6 +823,16 @@ class AzureDevOpsClient {
       logger.error('Error fetching repositories:', error);
       throw error;
     }
+  }
+}
+
+class UserAzureDevOpsClient extends AzureDevOpsClient {
+  constructor(client, orgClient, config) {
+    super();
+    this.client = client;
+    this.orgClient = orgClient;
+    this.config = config;
+    this.initialized = true;
   }
 }
 
