@@ -86,7 +86,11 @@ class MarkdownFormatter {
                    azureDevOpsClient.constructWorkItemWebUrl({ id: workItemId, fields });
 
     let message = `*📝 Work Item Updated*\n\n`;
-    message += `*${workItemType} #${workItemId}*: ${title}\n\n`;
+    if (webUrl) {
+      message += `*${workItemType} #${workItemId}*: [${title}](${webUrl})\n\n`;
+    } else {
+      message += `*${workItemType} #${workItemId}*: ${title}\n\n`;
+    }
     
     if (changes.length > 0) {
       message += `*Changes:*\n`;

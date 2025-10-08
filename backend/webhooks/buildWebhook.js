@@ -5,7 +5,7 @@ import { markdownFormatter } from '../utils/markdownFormatter.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 
 class BuildWebhook {
-  async handleCompleted(req, res) {
+  async handleCompleted(req, res, userId = null) {
     try {
       const { resource } = req.body;
       
@@ -54,7 +54,14 @@ class BuildWebhook {
       
       // Send notification
       const notificationType = result === 'failed' ? 'build-failed' : 'build-succeeded';
-      await notificationService.sendNotification(message, notificationType);
+      
+      if (userId) {
+        // User-specific notification
+        await this.sendUserNotification(message, userId, notificationType);
+      } else {
+        // Legacy global notification
+        await notificationService.sendNotification(message, notificationType);
+      }
       
       res.json({
         message: 'Build completed webhook processed successfully',
@@ -69,6 +76,36 @@ class BuildWebhook {
         error: 'Failed to process build completed webhook',
         message: error.message
       });
+    }
+  }
+
+  async sendUserNotification(message, userId, notificationType) {
+    try {
+      const { getUserSettings } = await import('../utils/userSettings.js');
+      const settings = await getUserSettings(userId);
+      
+      if (!settings.notifications?.enabled) {
+        logger.info(`Notifications disabled for user ${userId}`);
+        return;
+      }
+
+      // Send to enabled notification channels
+      if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
+        await this.sendGoogleChatNotification(message, settings.notifications.webhooks.googleChat);
+        logger.info(`Build notification sent to user ${userId} via Google Chat`);
+      }
+    } catch (error) {
+      logger.error(`Error sending user notification for ${userId}:`, error);
+    }
+  }
+
+  async sendGoogleChatNotification(message, webhookUrl) {
+    try {
+      const axios = (await import('axios')).default;
+      await axios.post(webhookUrl, { text: message });
+    } catch (error) {
+      logger.error('Error sending Google Chat notification:', error);
+      throw error;
     }
   }
 }

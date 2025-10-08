@@ -7,6 +7,7 @@ import { authenticate } from '../middleware/auth.js';
 import { getUserSettings, updateUserSettings } from '../utils/userSettings.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
 import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workItemStates.js';
+import { userPollingManager } from '../polling/userPollingManager.js';
 
 const router = express.Router();
 
@@ -104,6 +105,13 @@ router.put('/settings', async (req, res) => {
     }
     
     const settings = await updateUserSettings(req.user._id, updates);
+    
+    // Restart user polling with new settings if polling settings were updated
+    if (updates.polling) {
+      logger.info('Polling settings updated - restarting user polling');
+      await userPollingManager.startUserPolling(req.user._id);
+    }
+    
     res.json({ message: 'Settings updated successfully' });
   } catch (error) {
     logger.error('Error updating user settings:', error);
@@ -790,6 +798,33 @@ router.get('/ai/config', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch AI configuration'
+    });
+  }
+});
+
+// Get user-specific webhook URLs
+router.get('/webhooks/urls', async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
+    const webhookUrls = {
+      buildCompleted: `${baseUrl}/api/webhooks/${userId}/build/completed`,
+      pullRequestCreated: `${baseUrl}/api/webhooks/${userId}/pullrequest/created`,
+      pullRequestUpdated: `${baseUrl}/api/webhooks/${userId}/pullrequest/updated`,
+      workItemCreated: `${baseUrl}/api/webhooks/${userId}/workitem/created`,
+      workItemUpdated: `${baseUrl}/api/webhooks/${userId}/workitem/updated`
+    };
+    
+    res.json({
+      success: true,
+      webhookUrls
+    });
+  } catch (error) {
+    logger.error('Error generating webhook URLs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate webhook URLs'
     });
   }
 });

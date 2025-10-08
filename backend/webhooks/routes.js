@@ -45,14 +45,19 @@ const logWebhookEvent = (req, res, next) => {
 // router.use(webhookAuth);
 router.use(logWebhookEvent);
 
-// Work Item webhooks
+// User-specific webhook routes
+router.post('/:userId/workitem/created', (req, res) => workItemWebhook.handleCreated(req, res, req.params.userId));
+router.post('/:userId/workitem/updated', (req, res) => workItemWebhook.handleUpdated(req, res, req.params.userId));
+
+router.post('/:userId/build/completed', (req, res) => buildWebhook.handleCompleted(req, res, req.params.userId));
+
+router.post('/:userId/pullrequest/created', (req, res) => pullRequestWebhook.handleCreated(req, res, req.params.userId));
+router.post('/:userId/pullrequest/updated', (req, res) => pullRequestWebhook.handleUpdated(req, res, req.params.userId));
+
+// Legacy global webhooks (for backward compatibility)
 router.post('/workitem/created', workItemWebhook.handleCreated);
 router.post('/workitem/updated', workItemWebhook.handleUpdated);
-
-// Build/Pipeline webhooks
 router.post('/build/completed', buildWebhook.handleCompleted);
-
-// Pull Request webhooks
 router.post('/pullrequest/created', pullRequestWebhook.handleCreated);
 router.post('/pullrequest/updated', pullRequestWebhook.handleUpdated);
 
