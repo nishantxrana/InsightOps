@@ -806,7 +806,9 @@ router.get('/ai/config', async (req, res) => {
 router.get('/webhooks/urls', async (req, res) => {
   try {
     const userId = req.user._id;
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // Check for X-Forwarded-Proto header for proper HTTPS detection behind reverse proxy
+    const protocol = req.get('X-Forwarded-Proto') || req.protocol;
+    const baseUrl = `${protocol}://${req.get('host')}`;
     
     const webhookUrls = {
       buildCompleted: `${baseUrl}/api/webhooks/${userId}/build/completed`,
