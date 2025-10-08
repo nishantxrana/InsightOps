@@ -46,20 +46,56 @@ const logWebhookEvent = (req, res, next) => {
 router.use(logWebhookEvent);
 
 // User-specific webhook routes
-router.post('/:userId/workitem/created', (req, res) => workItemWebhook.handleCreated(req, res, req.params.userId));
-router.post('/:userId/workitem/updated', (req, res) => workItemWebhook.handleUpdated(req, res, req.params.userId));
+router.post('/:userId/workitem/created', (req, res) => {
+  logger.info('User-specific workitem/created route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
+  workItemWebhook.handleCreated(req, res, req.params.userId);
+});
 
-router.post('/:userId/build/completed', (req, res) => buildWebhook.handleCompleted(req, res, req.params.userId));
+router.post('/:userId/workitem/updated', (req, res) => {
+  logger.info('User-specific workitem/updated route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
+  workItemWebhook.handleUpdated(req, res, req.params.userId);
+});
 
-router.post('/:userId/pullrequest/created', (req, res) => pullRequestWebhook.handleCreated(req, res, req.params.userId));
-router.post('/:userId/pullrequest/updated', (req, res) => pullRequestWebhook.handleUpdated(req, res, req.params.userId));
+router.post('/:userId/build/completed', (req, res) => {
+  logger.info('User-specific build/completed route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
+  buildWebhook.handleCompleted(req, res, req.params.userId);
+});
+
+router.post('/:userId/pullrequest/created', (req, res) => {
+  logger.info('User-specific pullrequest/created route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
+  pullRequestWebhook.handleCreated(req, res, req.params.userId);
+});
+
+router.post('/:userId/pullrequest/updated', (req, res) => {
+  logger.info('User-specific pullrequest/updated route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
+  pullRequestWebhook.handleUpdated(req, res, req.params.userId);
+});
 
 // Legacy global webhooks (for backward compatibility)
-router.post('/workitem/created', workItemWebhook.handleCreated);
-router.post('/workitem/updated', workItemWebhook.handleUpdated);
-router.post('/build/completed', buildWebhook.handleCompleted);
-router.post('/pullrequest/created', pullRequestWebhook.handleCreated);
-router.post('/pullrequest/updated', pullRequestWebhook.handleUpdated);
+router.post('/workitem/created', (req, res) => {
+  logger.info('Legacy workitem/created route hit');
+  workItemWebhook.handleCreated(req, res);
+});
+
+router.post('/workitem/updated', (req, res) => {
+  logger.info('Legacy workitem/updated route hit');
+  workItemWebhook.handleUpdated(req, res);
+});
+
+router.post('/build/completed', (req, res) => {
+  logger.info('Legacy build/completed route hit');
+  buildWebhook.handleCompleted(req, res);
+});
+
+router.post('/pullrequest/created', (req, res) => {
+  logger.info('Legacy pullrequest/created route hit');
+  pullRequestWebhook.handleCreated(req, res);
+});
+
+router.post('/pullrequest/updated', (req, res) => {
+  logger.info('Legacy pullrequest/updated route hit');
+  pullRequestWebhook.handleUpdated(req, res);
+});
 
 // Generic webhook endpoint for testing
 router.post('/test', (req, res) => {

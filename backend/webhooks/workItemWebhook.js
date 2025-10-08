@@ -4,7 +4,7 @@ import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
 
 class WorkItemWebhook {
-  async handleCreated(req, res) {
+  async handleCreated(req, res, userId = null) {
     try {
       const { resource } = req.body;
       
@@ -16,17 +16,53 @@ class WorkItemWebhook {
         workItemId: resource.id,
         workItemType: resource.fields?.['System.WorkItemType'],
         title: resource.fields?.['System.Title'],
-        assignedTo: resource.fields?.['System.AssignedTo']?.displayName
+        assignedTo: resource.fields?.['System.AssignedTo']?.displayName,
+        userId: userId || 'legacy-global',
+        hasUserId: !!userId
       });
 
-      // Generate AI summary of the work item
-      const aiSummary = await aiService.summarizeWorkItem(resource);
+      // Get user settings for URL construction and AI
+      let userConfig = null;
+      let userSettings = null;
+      if (userId) {
+        try {
+          const { getUserSettings } = await import('../utils/userSettings.js');
+          userSettings = await getUserSettings(userId);
+          userConfig = userSettings.azureDevOps;
+          logger.info(`Retrieved user config for ${userId}`, {
+            hasOrganization: !!userConfig?.organization,
+            hasProject: !!userConfig?.project,
+            hasBaseUrl: !!userConfig?.baseUrl
+          });
+        } catch (error) {
+          logger.warn(`Failed to get user settings for ${userId}:`, error);
+        }
+      } else {
+        logger.warn('No userId provided - using legacy webhook handler');
+      }
+
+      // Generate AI summary if configured
+      let aiSummary = null;
+      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys) {
+        try {
+          aiService.initializeWithUserSettings(userSettings);
+          aiSummary = await aiService.summarizeWorkItem(resource);
+        } catch (error) {
+          logger.warn('Failed to generate AI summary:', error);
+        }
+      }
       
-      // Format notification message
-      const message = markdownFormatter.formatWorkItemCreated(resource, aiSummary);
+      // Format notification message with user config
+      const message = markdownFormatter.formatWorkItemCreated(resource, aiSummary, userConfig);
       
       // Send notification
-      await notificationService.sendNotification(message, 'work-item-created');
+      if (userId) {
+        // User-specific notification
+        await this.sendUserNotification(message, userId, 'work-item-created');
+      } else {
+        // Legacy global notification
+        await notificationService.sendNotification(message, 'work-item-created');
+      }
       
       res.json({
         message: 'Work item created webhook processed successfully',
