@@ -31,7 +31,7 @@ class MarkdownFormatter {
     return message;
   }
 
-  formatWorkItemUpdated(webhookData) {
+  formatWorkItemUpdated(webhookData, userConfig = null) {
     // Extract data from webhook structure
     const resource = webhookData.resource || webhookData;
     const revision = resource.revision || resource;
@@ -80,10 +80,20 @@ class MarkdownFormatter {
       changes.push(`*Due Date*: ${oldDueDateFormatted} ➝ ${newDueDateFormatted}`);
     }
 
-    // Construct work item URL
-    const webUrl = resource._links?.html?.href || 
-                   revision._links?.html?.href ||
-                   azureDevOpsClient.constructWorkItemWebUrl({ id: workItemId, fields });
+    // Construct work item URL with user config
+    let webUrl = resource._links?.html?.href || revision._links?.html?.href;
+    
+    if (!webUrl && userConfig && userConfig.organization && userConfig.project) {
+      // Construct URL using user's Azure DevOps configuration
+      const organization = userConfig.organization;
+      const project = fields['System.TeamProject'] || userConfig.project;
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const encodedProject = encodeURIComponent(project);
+      webUrl = `${baseUrl}/${organization}/${encodedProject}/_workitems/edit/${workItemId}`;
+    } else if (!webUrl) {
+      // Fallback to azureDevOpsClient if no user config
+      webUrl = azureDevOpsClient.constructWorkItemWebUrl({ id: workItemId, fields });
+    }
 
     let message = `*📝 Work Item Updated*\n\n`;
     if (webUrl) {

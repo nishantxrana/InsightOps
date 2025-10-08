@@ -68,11 +68,32 @@ class WorkItemWebhook {
         state,
         assignedTo,
         changedBy,
-        eventType: webhookData.eventType
+        eventType: webhookData.eventType,
+        userId: userId || 'legacy-global',
+        hasUserId: !!userId
       });
 
-      // Format notification message with complete webhook data
-      const message = markdownFormatter.formatWorkItemUpdated(webhookData);
+      // Get user settings for URL construction
+      let userConfig = null;
+      if (userId) {
+        try {
+          const { getUserSettings } = await import('../utils/userSettings.js');
+          const settings = await getUserSettings(userId);
+          userConfig = settings.azureDevOps;
+          logger.info(`Retrieved user config for ${userId}`, {
+            hasOrganization: !!userConfig?.organization,
+            hasProject: !!userConfig?.project,
+            hasBaseUrl: !!userConfig?.baseUrl
+          });
+        } catch (error) {
+          logger.warn(`Failed to get user settings for ${userId}:`, error);
+        }
+      } else {
+        logger.warn('No userId provided - using legacy webhook handler');
+      }
+
+      // Format notification message with user config for proper URL construction
+      const message = markdownFormatter.formatWorkItemUpdated(webhookData, userConfig);
       
       // Send notification
       if (userId) {
