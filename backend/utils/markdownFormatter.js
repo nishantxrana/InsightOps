@@ -259,7 +259,7 @@ class MarkdownFormatter {
     return message;
   }
 
-  formatPullRequestCreated(pullRequest, aiSummary = null) {
+  formatPullRequestCreated(pullRequest, aiSummary = null, userConfig = null) {
       const title = pullRequest.title || 'No title';
       const createdBy = pullRequest.createdBy?.displayName || 'Unknown';
       const project = pullRequest.repository?.project?.name || 'Unknown';
@@ -268,6 +268,20 @@ class MarkdownFormatter {
       const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
       const description = ((pullRequest.description || 'No description').slice(0, 200)) +
                     ((pullRequest.description?.length ?? 0) > 200 ? '...' : '');
+
+      // Construct PR URL with user config (prioritize custom construction)
+      let prUrl = null;
+      
+      if (userConfig && userConfig.organization && userConfig.project) {
+        // Construct URL using user's Azure DevOps configuration
+        const organization = userConfig.organization;
+        const projectName = userConfig.project;
+        const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+        prUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
+      } else {
+        // Fallback to provided URLs
+        prUrl = pullRequest.webUrl || pullRequest.url;
+      }
 
       let message = `*New Pull Request Created!*\n`;
 
@@ -278,7 +292,7 @@ class MarkdownFormatter {
       message += `- *Repository:* ${repository}\n`;
       message += `- *Source Branch:* ${sourceBranch}\n`;
       message += `- *Target Branch:* ${targetBranch}\n`;
-      message += `- *PR Url:* <${pullRequest.webUrl || pullRequest.url}|Open Pull Request>\n`;
+      message += `- *PR Url:* <${prUrl}|Open Pull Request>\n`;
       message += `- *Description:* ${description}\n\n`;
 
     if (aiSummary) {
@@ -288,28 +302,73 @@ class MarkdownFormatter {
     return message;
   }
 
-  formatPullRequestUpdated(pullRequest) {
+  formatPullRequestUpdated(pullRequest, userConfig = null) {
     const title = pullRequest.title || 'No title';
     const status = pullRequest.status || 'unknown';
+    const mergeStatus = pullRequest.mergeStatus || 'unknown';
+    const updatedBy = pullRequest.createdBy?.displayName || 'Unknown';
+    const sourceBranch = pullRequest.sourceRefName?.replace('refs/heads/', '') || 'unknown';
+    const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
+    const repository = pullRequest.repository?.name || 'Unknown Repository';
 
-    let message = `## 🔄 Pull Request Updated\n\n`;
-    message += `**#${pullRequest.pullRequestId}**: ${title}\n\n`;
-    message += `- **Status**: ${status}\n`;
-    message += `- **Updated**: ${new Date().toLocaleString()}\n`;
-    message += `- **PR URL**: ${pullRequest.webUrl || pullRequest.url}\n`;
+    // Use web URL from _links first, then fallback to custom construction
+    let prUrl = pullRequest._links?.web?.href;
+    
+    if (!prUrl && userConfig && userConfig.organization) {
+      const organization = userConfig.organization;
+      const projectName = pullRequest.repository?.project?.name || userConfig.project;
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      prUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
+    }
+    
+    if (!prUrl) {
+      prUrl = pullRequest.url;
+    }
+
+    // Determine update type based on merge status
+    let updateType = '🔄 Pull Request Updated';
+    if (mergeStatus === 'conflicts') {
+      updateType = '⚠️ Pull Request Has Conflicts';
+    }
+
+    let message = `*${updateType}*\n\n`;
+    message += `*PR #${pullRequest.pullRequestId}*: ${title}\n\n`;
+    message += `- *Status*: ${status}\n`;
+    message += `- *Repository*: ${repository}\n`;
+    message += `- *Source*: ${sourceBranch} → ${targetBranch}\n`;
+    if (mergeStatus !== 'unknown') {
+      message += `- *Merge Status*: ${mergeStatus}\n`;
+    }
+    message += `- *Updated By*: ${updatedBy}\n`;
+    message += `- *PR URL*: <${prUrl}|Open Pull Request>\n`;
 
     return message;
   }
 
-  formatPullRequestReviewerAssigned(pullRequest, reviewers) {
+  formatPullRequestReviewerAssigned(pullRequest, reviewers, userConfig = null) {
     const title = pullRequest.title || 'No title';
     const reviewerList = Array.isArray(reviewers) ? reviewers.join(', ') : reviewers;
 
-    let message = `## 👥 Pull Request Reviewer Assigned\n\n`;
-    message += `**#${pullRequest.pullRequestId}**: ${title}\n\n`;
-    message += `- **New Reviewers**: ${reviewerList}\n`;
-    message += `- **Action Required**: Please review the pull request\n`;
-    message += `- **PR URL**: ${pullRequest.webUrl || pullRequest.url}\n`;
+    // Construct PR URL with user config (prioritize custom construction)
+    let prUrl = null;
+    
+    if (userConfig && userConfig.organization && userConfig.project) {
+      // Construct URL using user's Azure DevOps configuration
+      const organization = userConfig.organization;
+      const projectName = userConfig.project;
+      const repository = pullRequest.repository?.name || 'unknown';
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      prUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
+    } else {
+      // Fallback to provided URLs
+      prUrl = pullRequest.webUrl || pullRequest.url;
+    }
+
+    let message = `*👥 Pull Request Reviewer Assigned*\n\n`;
+    message += `*#${pullRequest.pullRequestId}*: ${title}\n\n`;
+    message += `- *New Reviewers*: ${reviewerList}\n`;
+    message += `- *Action Required*: Please review the pull request\n`;
+    message += `- *PR URL*: <${prUrl}|Open Pull Request>\n`;
 
     return message;
   }

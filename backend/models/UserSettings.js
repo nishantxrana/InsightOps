@@ -35,12 +35,11 @@ const userSettingsSchema = new mongoose.Schema({
   },
   polling: {
     workItemsInterval: { type: String, default: '*/10 * * * *' },
-    pipelineInterval: { type: String, default: '0 */10 * * *' },
     pullRequestInterval: { type: String, default: '0 */10 * * *' },
     overdueCheckInterval: { type: String, default: '0 */10 * * *' },
-    workItemsEnabled: { type: Boolean, default: true },
-    pullRequestEnabled: { type: Boolean, default: true },
-    overdueCheckEnabled: { type: Boolean, default: true }
+    workItemsEnabled: { type: Boolean, default: false },
+    pullRequestEnabled: { type: Boolean, default: false },
+    overdueCheckEnabled: { type: Boolean, default: false },
   },
   updatedAt: {
     type: Date,

@@ -38,8 +38,20 @@ export default function Dashboard() {
 
   // Live uptime counter that updates every second
   useEffect(() => {
-    if (isConnected && healthData?.uptime) {
-      setLiveUptime(Math.floor(healthData.uptime)) // Convert to integer seconds
+    if (isConnected && healthData?.serverStartTime) {
+      // Calculate current uptime based on server start time
+      const currentUptime = Math.floor((Date.now() - healthData.serverStartTime) / 1000)
+      setLiveUptime(currentUptime)
+      
+      const interval = setInterval(() => {
+        const newUptime = Math.floor((Date.now() - healthData.serverStartTime) / 1000)
+        setLiveUptime(newUptime)
+      }, 1000)
+      
+      return () => clearInterval(interval)
+    } else if (isConnected && healthData?.uptime) {
+      // Fallback to process uptime if serverStartTime not available
+      setLiveUptime(Math.floor(healthData.uptime))
       
       const interval = setInterval(() => {
         setLiveUptime(prev => prev + 1)
@@ -47,7 +59,7 @@ export default function Dashboard() {
       
       return () => clearInterval(interval)
     }
-  }, [isConnected, healthData?.uptime])
+  }, [isConnected, healthData?.serverStartTime, healthData?.uptime])
 
   // Format uptime to show hours, minutes, and seconds
   const formatUptime = (totalSeconds) => {
