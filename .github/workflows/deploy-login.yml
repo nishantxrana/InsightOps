@@ -2,7 +2,7 @@ name: Deploy Login Branch to Azure App Service
 
 on:
   push:
-    branches: [ login ]
+    branches: [ stage ]
   workflow_dispatch:
 
 jobs:
