@@ -108,8 +108,7 @@ class PullRequestWebhook {
         status,
         updatedBy,
         userId: userId || 'legacy-global',
-        hasUserId: !!userId,
-        fullResource: JSON.stringify(resource, null, 2)
+        hasUserId: !!userId
       });
 
       // Get user settings for URL construction
