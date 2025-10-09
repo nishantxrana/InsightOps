@@ -45,11 +45,22 @@ class WorkItemWebhook {
       let aiSummary = null;
       if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys) {
         try {
+          logger.info(`Generating AI summary for work item ${resource.id}`, {
+            provider: userSettings.ai.provider,
+            hasApiKey: !!userSettings.ai.apiKeys[userSettings.ai.provider]
+          });
           aiService.initializeWithUserSettings(userSettings);
           aiSummary = await aiService.summarizeWorkItem(resource);
+          logger.info(`AI summary generated successfully`, { summaryLength: aiSummary?.length || 0 });
         } catch (error) {
           logger.warn('Failed to generate AI summary:', error);
         }
+      } else {
+        logger.warn('AI not configured for work item summary', {
+          hasProvider: !!userSettings?.ai?.provider,
+          hasApiKeys: !!userSettings?.ai?.apiKeys,
+          userId
+        });
       }
       
       // Format notification message with user config
