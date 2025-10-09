@@ -20,18 +20,13 @@ import {
 
 // Azure DevOps navigation data
 const data = {
-  user: {
-    name: "Admin User",
-    email: "admin@company.com",
-    avatar: "", // Avatar URL (string). If empty, initials will be displayed. TODO: Integrate with user profile service
-  },
   navMain: [
     {
       title: "Overview",
       items: [
         {
           title: "Dashboard",
-          url: "/",
+          url: "/dashboard",
           icon: Home,
           isActive: true,
         },
@@ -75,9 +70,9 @@ export function DevOpsAppSidebar({ ...props }) {
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <div className="flex items-center gap-2 pl-1 pr-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <img src="/icon.svg" alt="Agent" className="h-8 w-8 flex-shrink-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10" />
+          <img src="/icon.svg" alt="InsightOps" className="h-8 w-8 flex-shrink-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10" />
           <span className="text-lg font-semibold text-foreground group-data-[collapsible=icon]:hidden">
-            Agent
+            InsightOps
           </span>
         </div>
       </SidebarHeader>
@@ -85,7 +80,7 @@ export function DevOpsAppSidebar({ ...props }) {
         <DevOpsNavMain items={data.navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

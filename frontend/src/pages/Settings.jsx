@@ -17,7 +17,9 @@ import {
   Webhook,
   Bot
 } from 'lucide-react'
-import { apiService } from '../api/apiService'
+import axios from 'axios'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Switch } from '../components/ui/switch'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useHealth } from '../contexts/HealthContext'
 
@@ -27,8 +29,8 @@ export default function Settings() {
   const [testing, setTesting] = useState(false)
   const [showSecrets, setShowSecrets] = useState({})
   const [testResult, setTestResult] = useState(null)
-  const [activeTab, setActiveTab] = useState('azure')
   const [validationErrors, setValidationErrors] = useState({})
+  const [webhookUrls, setWebhookUrls] = useState({})
   const { isConnected, healthData } = useHealth()
   
   const [settings, setSettings] = useState({
@@ -49,13 +51,18 @@ export default function Settings() {
       teamsWebhookUrl: '',
       slackWebhookUrl: '',
       googleChatWebhookUrl: '',
-      enabled: true
+      teamsEnabled: false,
+      slackEnabled: false,
+      googleChatEnabled: false,
+      enabled: false
     },
     polling: {
-      workItemsInterval: '*/15 * * * *',
-      pipelineInterval: '*/10 * * * *',
-      pullRequestInterval: '0 */2 * * *',
-      overdueCheckInterval: '0 9 * * *'
+      workItemsInterval: '1',
+      pullRequestInterval: '3',
+      overdueCheckInterval: '4',
+      workItemsEnabled: true,
+      pullRequestEnabled: true,
+      overdueCheckEnabled: true
     },
     security: {
       webhookSecret: '',
@@ -68,26 +75,16 @@ export default function Settings() {
   const validateSettings = () => {
     const errors = {}
     
-    // Azure DevOps validation
+    // Azure DevOps validation (required)
     if (!settings.azureDevOps.organization.trim()) {
       errors.organization = 'Organization is required'
     }
     if (!settings.azureDevOps.project.trim()) {
       errors.project = 'Project is required'
     }
-    if (!settings.azureDevOps.personalAccessToken.trim()) {
+    // PAT is valid if it exists OR is masked (meaning it was previously saved)
+    if (!settings.azureDevOps.personalAccessToken.trim() && settings.azureDevOps.personalAccessToken !== '***') {
       errors.personalAccessToken = 'Personal Access Token is required'
-    }
-    
-    // AI validation
-    if (settings.ai.provider === 'openai' && !settings.ai.openaiApiKey.trim()) {
-      errors.openaiApiKey = 'OpenAI API Key is required when using OpenAI'
-    }
-    if (settings.ai.provider === 'groq' && !settings.ai.groqApiKey.trim()) {
-      errors.groqApiKey = 'Groq API Key is required when using Groq'
-    }
-    if (settings.ai.provider === 'gemini' && !settings.ai.geminiApiKey.trim()) {
-      errors.geminiApiKey = 'Gemini API Key is required when using Gemini'
     }
     
     setValidationErrors(errors)
@@ -98,23 +95,96 @@ export default function Settings() {
     { id: 'azure', name: 'Azure DevOps', icon: Database },
     { id: 'ai', name: 'AI Configuration', icon: Bot },
     { id: 'notifications', name: 'Notifications', icon: Bell },
+    { id: 'webhooks', name: 'Webhook URLs', icon: Webhook },
     { id: 'polling', name: 'Polling', icon: Clock },
     { id: 'security', name: 'Security', icon: Shield }
   ]
 
   useEffect(() => {
     loadSettings()
+    loadWebhookUrls()
   }, [])
 
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const data = await apiService.getSettings()
-      setSettings(data)
+      const response = await axios.get('/api/settings')
+      
+      // Map backend field names to frontend field names
+      // Map backend field names to frontend field names
+      const frontendSettings = {
+        azureDevOps: {
+          organization: response.data.azureDevOps?.organization || '',
+          project: response.data.azureDevOps?.project || '',
+          personalAccessToken: response.data.azureDevOps?.pat || '', // Map pat to personalAccessToken
+          baseUrl: response.data.azureDevOps?.baseUrl || 'https://dev.azure.com'
+        },
+        ai: {
+          provider: response.data.ai?.provider || 'gemini',
+          model: response.data.ai?.model || 'gemini-2.0-flash',
+          openaiApiKey: response.data.ai?.apiKeys?.openai || '',
+          groqApiKey: response.data.ai?.apiKeys?.groq || '',
+          geminiApiKey: response.data.ai?.apiKeys?.gemini || ''
+        },
+        notifications: {
+          enabled: response.data.notifications?.enabled !== undefined 
+            ? response.data.notifications.enabled 
+            : true,
+          teamsWebhookUrl: response.data.notifications?.webhooks?.teams || '',
+          slackWebhookUrl: response.data.notifications?.webhooks?.slack || '',
+          googleChatWebhookUrl: response.data.notifications?.webhooks?.googleChat || '',
+          // Auto-enable checkboxes if webhook URLs exist, otherwise use saved state
+          teamsEnabled: response.data.notifications?.teamsEnabled !== undefined 
+            ? response.data.notifications.teamsEnabled 
+            : !!(response.data.notifications?.webhooks?.teams),
+          slackEnabled: response.data.notifications?.slackEnabled !== undefined 
+            ? response.data.notifications.slackEnabled 
+            : !!(response.data.notifications?.webhooks?.slack),
+          googleChatEnabled: response.data.notifications?.googleChatEnabled !== undefined 
+            ? response.data.notifications.googleChatEnabled 
+            : !!(response.data.notifications?.webhooks?.googleChat)
+        },
+        polling: response.data.polling || {
+          workItemsInterval: '*/10 * * * *',
+          pullRequestInterval: '0 */10 * * *',
+          overdueCheckInterval: '0 */10 * * *',
+          workItemsEnabled: true,
+          pullRequestEnabled: true,
+          overdueCheckEnabled: true
+        },
+        security: response.data.security || {
+          webhookSecret: '',
+          apiToken: '',
+          enableRateLimit: true,
+          maxRequestsPerMinute: 100
+        }
+      }
+      
+      setSettings(frontendSettings)
     } catch (error) {
       console.error('Failed to load settings:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadWebhookUrls = async () => {
+    try {
+      const response = await axios.get('/api/webhooks/urls')
+      if (response.data.success) {
+        setWebhookUrls(response.data.webhookUrls)
+      }
+    } catch (error) {
+      console.error('Failed to load webhook URLs:', error)
+    }
+  }
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      // Could add a toast notification here
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error)
     }
   }
 
@@ -126,7 +196,51 @@ export default function Settings() {
     
     try {
       setSaving(true)
-      await apiService.updateSettings(settings)
+      
+      // Map frontend field names to backend field names
+      const backendSettings = {
+        azureDevOps: {
+          organization: settings.azureDevOps.organization,
+          project: settings.azureDevOps.project,
+          baseUrl: settings.azureDevOps.baseUrl
+        },
+        ai: {
+          provider: settings.ai.provider,
+          model: settings.ai.model
+        },
+        notifications: settings.notifications,
+        polling: settings.polling,
+        security: settings.security
+      }
+      
+      // Only include PAT if it's not masked
+      if (settings.azureDevOps.personalAccessToken && settings.azureDevOps.personalAccessToken !== '***') {
+        backendSettings.azureDevOps.pat = settings.azureDevOps.personalAccessToken;
+      }
+      
+      // Only include API keys if they're not masked
+      const apiKeys = {};
+      let hasApiKeys = false;
+      
+      if (settings.ai.openaiApiKey && settings.ai.openaiApiKey !== '***') {
+        apiKeys.openai = settings.ai.openaiApiKey;
+        hasApiKeys = true;
+      }
+      if (settings.ai.groqApiKey && settings.ai.groqApiKey !== '***') {
+        apiKeys.groq = settings.ai.groqApiKey;
+        hasApiKeys = true;
+      }
+      if (settings.ai.geminiApiKey && settings.ai.geminiApiKey !== '***') {
+        apiKeys.gemini = settings.ai.geminiApiKey;
+        hasApiKeys = true;
+      }
+      
+      // Only include apiKeys if we have at least one key to update
+      if (hasApiKeys) {
+        backendSettings.ai.apiKeys = apiKeys;
+      }
+      
+      await axios.put('/api/settings', backendSettings)
       setTestResult({ success: true, message: 'Settings saved successfully!' })
     } catch (error) {
       setTestResult({ success: false, message: 'Failed to save settings: ' + error.message })
@@ -138,7 +252,16 @@ export default function Settings() {
   const handleTestConnection = async () => {
     try {
       setTesting(true)
-      const result = await apiService.testConnection()
+      
+      // Map frontend field names to backend field names for test
+      const testData = {
+        organization: settings.azureDevOps.organization,
+        project: settings.azureDevOps.project,
+        pat: settings.azureDevOps.personalAccessToken, // Map personalAccessToken to pat
+        baseUrl: settings.azureDevOps.baseUrl
+      }
+      
+      await axios.post('/api/settings/test-connection', testData)
       setTestResult({ success: true, message: 'Connection test successful!' })
     } catch (error) {
       setTestResult({ success: false, message: 'Connection test failed: ' + error.message })
@@ -242,8 +365,35 @@ export default function Settings() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Azure DevOps Configuration */}
+      <Tabs defaultValue="azure" className="w-full">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="azure" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Azure DevOps
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            AI Config
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Notifications
+          </TabsTrigger>
+          <TabsTrigger value="webhooks" className="flex items-center gap-2">
+            <Webhook className="h-4 w-4" />
+            Webhooks
+          </TabsTrigger>
+          <TabsTrigger value="polling" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Polling
+          </TabsTrigger>
+          <TabsTrigger value="security" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Security
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="azure" className="mt-6">
         <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
             <Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -284,7 +434,7 @@ export default function Settings() {
                   className="w-full px-3 py-2 pr-10 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                   value={settings.azureDevOps.personalAccessToken}
                   onChange={(e) => updateSetting('azureDevOps', 'personalAccessToken', e.target.value)}
-                  placeholder="your-personal-access-token"
+                  placeholder={settings.azureDevOps.personalAccessToken === '***' ? 'Enter new PAT token or leave unchanged' : 'your-personal-access-token'}
                 />
                 <button
                   type="button"
@@ -314,8 +464,9 @@ export default function Settings() {
             </div>
           </div>
         </div>
+        </TabsContent>
 
-        {/* AI Configuration */}
+        <TabsContent value="ai" className="mt-6">
         <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           <h3 className="text-lg font-medium text-foreground mb-4">AI Configuration</h3>
           <div className="space-y-4">
@@ -418,97 +569,264 @@ export default function Settings() {
             </div>
           </div>
         </div>
+        </TabsContent>
 
-        {/* Notification Configuration */}
+        <TabsContent value="notifications" className="mt-6">
         <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           <h3 className="text-lg font-medium text-foreground mb-4">Notifications</h3>
           <div className="space-y-4">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="notifications-enabled"
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
-                checked={settings.notifications.enabled}
-                onChange={(e) => updateSetting('notifications', 'enabled', e.target.checked)}
-              />
-              <label htmlFor="notifications-enabled" className="ml-2 text-sm text-foreground">
+            <div className="flex items-center justify-between">
+              <label htmlFor="notifications-enabled" className="text-sm font-medium text-foreground">
                 Enable notifications
               </label>
+              <Switch
+                id="notifications-enabled"
+                checked={settings.notifications.enabled}
+                onCheckedChange={(checked) => updateSetting('notifications', 'enabled', checked)}
+              />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Microsoft Teams Webhook URL</label>
+            
+            {/* Microsoft Teams */}
+            <div className="border border-border dark:border-[#1a1a1a] rounded-lg p-4 opacity-50">
+              <div className="flex items-center justify-between mb-3">
+                <label htmlFor="teams-enabled" className="text-sm font-medium text-foreground">
+                  Microsoft Teams (Coming Soon)
+                </label>
+                <Switch
+                  id="teams-enabled"
+                  checked={settings.notifications.teamsEnabled}
+                  onCheckedChange={(checked) => updateSetting('notifications', 'teamsEnabled', checked)}
+                  disabled={true}
+                />
+              </div>
               <input
                 type="url"
-                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground opacity-50"
                 value={settings.notifications.teamsWebhookUrl}
                 onChange={(e) => updateSetting('notifications', 'teamsWebhookUrl', e.target.value)}
                 placeholder="https://outlook.office.com/webhook/..."
+                disabled={true}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Slack Webhook URL</label>
+
+            {/* Slack */}
+            <div className="border border-border dark:border-[#1a1a1a] rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <label htmlFor="slack-enabled" className="text-sm font-medium text-foreground">
+                  Slack (Coming Soon)
+                </label>
+                <Switch
+                  id="slack-enabled"
+                  checked={settings.notifications.slackEnabled}
+                  onCheckedChange={(checked) => updateSetting('notifications', 'slackEnabled', checked)}
+                  disabled={true}
+                />
+              </div>
               <input
                 type="url"
                 className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.notifications.slackWebhookUrl}
                 onChange={(e) => updateSetting('notifications', 'slackWebhookUrl', e.target.value)}
                 placeholder="https://hooks.slack.com/services/..."
+                disabled={!settings.notifications.slackEnabled}
+              />
+            </div>
+
+            {/* Google Chat */}
+            <div className={`border border-border dark:border-[#1a1a1a] rounded-lg p-4 ${!settings.notifications.enabled ? 'opacity-50' : ''}`}>
+              <div className="flex items-center justify-between mb-3">
+                <label htmlFor="gchat-enabled" className="text-sm font-medium text-foreground">
+                  Google Chat
+                </label>
+                <Switch
+                  id="gchat-enabled"
+                  checked={settings.notifications.googleChatEnabled}
+                  onCheckedChange={(checked) => updateSetting('notifications', 'googleChatEnabled', checked)}
+                  disabled={!settings.notifications.enabled}
+                />
+              </div>
+              <input
+                type="url"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
+                value={settings.notifications.googleChatWebhookUrl}
+                onChange={(e) => updateSetting('notifications', 'googleChatWebhookUrl', e.target.value)}
+                placeholder="https://chat.googleapis.com/v1/spaces/..."
+                disabled={!settings.notifications.enabled || !settings.notifications.googleChatEnabled}
               />
             </div>
           </div>
         </div>
+        </TabsContent>
 
-        {/* Polling Configuration */}
+        <TabsContent value="webhooks" className="mt-6">
+          <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+            <h3 className="text-lg font-medium text-foreground mb-4">Azure DevOps Webhook URLs</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              Copy these URLs to configure webhooks in your Azure DevOps project settings. These URLs are unique to your account and will route events to your notification preferences.
+            </p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Build Completed Events</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={webhookUrls.buildCompleted || 'Loading...'}
+                    className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(webhookUrls.buildCompleted)}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    📋
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Pull Request Events</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={webhookUrls.pullRequestUpdated || 'Loading...'}
+                    className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(webhookUrls.pullRequestUpdated)}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    📋
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Work Item Events</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={webhookUrls.workItemUpdated || 'Loading...'}
+                    className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(webhookUrls.workItemUpdated)}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    📋
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Setup Instructions:</h4>
+              <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
+                <li>Go to your Azure DevOps project settings</li>
+                <li>Navigate to Service Hooks</li>
+                <li>Create a new subscription for each event type</li>
+                <li>Use the corresponding webhook URL above</li>
+                <li>Events will be routed to your configured notification channels</li>
+              </ol>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="polling" className="mt-6">
         <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           <h3 className="text-lg font-medium text-foreground mb-4">Polling Intervals</h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Work Items (cron expression)</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-foreground">Work Items Polling</label>
+                <Switch
+                  checked={settings.polling.workItemsEnabled}
+                  onCheckedChange={(checked) => updateSetting('polling', 'workItemsEnabled', checked)}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.polling.workItemsInterval}
                 onChange={(e) => updateSetting('polling', 'workItemsInterval', e.target.value)}
                 placeholder="*/15 * * * *"
+                disabled={!settings.polling.workItemsEnabled}
               />
               <p className="text-xs text-muted-foreground mt-1">Every 15 minutes</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Pipelines (cron expression)</label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
-                value={settings.polling.pipelineInterval}
-                onChange={(e) => updateSetting('polling', 'pipelineInterval', e.target.value)}
-                placeholder="*/10 * * * *"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Every 10 minutes</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Pull Requests (cron expression)</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-foreground">Pull Requests Polling</label>
+                <Switch
+                  checked={settings.polling.pullRequestEnabled}
+                  onCheckedChange={(checked) => updateSetting('polling', 'pullRequestEnabled', checked)}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.polling.pullRequestInterval}
                 onChange={(e) => updateSetting('polling', 'pullRequestInterval', e.target.value)}
-                placeholder="0 */2 * * *"
+                placeholder="0 */10 * * *"
+                disabled={!settings.polling.pullRequestEnabled}
               />
-              <p className="text-xs text-muted-foreground mt-1">Every 2 hours</p>
+              <p className="text-xs text-muted-foreground mt-1">Every 10 hours</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Overdue Check (cron expression)</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-foreground">Overdue Check Polling</label>
+                <Switch
+                  checked={settings.polling.overdueCheckEnabled}
+                  onCheckedChange={(checked) => updateSetting('polling', 'overdueCheckEnabled', checked)}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
                 value={settings.polling.overdueCheckInterval}
                 onChange={(e) => updateSetting('polling', 'overdueCheckInterval', e.target.value)}
                 placeholder="0 9 * * *"
+                disabled={!settings.polling.overdueCheckEnabled}
               />
               <p className="text-xs text-muted-foreground mt-1">Daily at 9 AM</p>
             </div>
           </div>
         </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="security" className="mt-6">
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+          <h3 className="text-lg font-medium text-foreground mb-4">Security Settings</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Webhook Secret</label>
+              <input
+                type="password"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
+                value={settings.security.webhookSecret}
+                onChange={(e) => updateSetting('security', 'webhookSecret', e.target.value)}
+                placeholder="Enter webhook secret"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">API Token</label>
+              <input
+                type="password"
+                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
+                value={settings.security.apiToken}
+                onChange={(e) => updateSetting('security', 'apiToken', e.target.value)}
+                placeholder="Enter API token"
+              />
+            </div>
+          </div>
+        </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

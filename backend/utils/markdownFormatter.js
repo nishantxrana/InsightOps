@@ -2,7 +2,7 @@
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 
 class MarkdownFormatter {
-  formatWorkItemCreated(workItem, aiSummary = null) {
+  formatWorkItemCreated(workItem, aiSummary = null, userConfig = null) {
     const fields = workItem.fields || {};
     const title = fields['System.Title'] || 'No title';
     const workItemType = fields['System.WorkItemType'] || 'Work Item';
@@ -12,8 +12,20 @@ class MarkdownFormatter {
     const priority = fields['Microsoft.VSTS.Common.Priority'] || 'Not set';
     const createdDate = fields['System.CreatedDate'] || new Date().toISOString();
 
-    // Construct work item URL
-    const webUrl = workItem.webUrl || azureDevOpsClient.constructWorkItemWebUrl(workItem);
+    // Construct work item URL with user config
+    let webUrl = workItem.webUrl || workItem._links?.html?.href;
+    
+    if (!webUrl && userConfig && userConfig.organization && userConfig.project) {
+      // Construct URL using user's Azure DevOps configuration
+      const organization = userConfig.organization;
+      const project = fields['System.TeamProject'] || userConfig.project;
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const encodedProject = encodeURIComponent(project);
+      webUrl = `${baseUrl}/${organization}/${encodedProject}/_workitems/edit/${workItem.id}`;
+    } else if (!webUrl) {
+      // Fallback to azureDevOpsClient if no user config
+      webUrl = azureDevOpsClient.constructWorkItemWebUrl(workItem);
+    }
 
     let message = `*🆕 New ${workItemType} Created*\n\n`;
     message += `*${workItemType} #${workItem.id}*: ${title}\n\n`;
@@ -31,7 +43,7 @@ class MarkdownFormatter {
     return message;
   }
 
-  formatWorkItemUpdated(webhookData) {
+  formatWorkItemUpdated(webhookData, userConfig = null) {
     // Extract data from webhook structure
     const resource = webhookData.resource || webhookData;
     const revision = resource.revision || resource;
@@ -80,10 +92,20 @@ class MarkdownFormatter {
       changes.push(`*Due Date*: ${oldDueDateFormatted} ➝ ${newDueDateFormatted}`);
     }
 
-    // Construct work item URL
-    const webUrl = resource._links?.html?.href || 
-                   revision._links?.html?.href ||
-                   azureDevOpsClient.constructWorkItemWebUrl({ id: workItemId, fields });
+    // Construct work item URL with user config
+    let webUrl = resource._links?.html?.href || revision._links?.html?.href;
+    
+    if (!webUrl && userConfig && userConfig.organization && userConfig.project) {
+      // Construct URL using user's Azure DevOps configuration
+      const organization = userConfig.organization;
+      const project = fields['System.TeamProject'] || userConfig.project;
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const encodedProject = encodeURIComponent(project);
+      webUrl = `${baseUrl}/${organization}/${encodedProject}/_workitems/edit/${workItemId}`;
+    } else if (!webUrl) {
+      // Fallback to azureDevOpsClient if no user config
+      webUrl = azureDevOpsClient.constructWorkItemWebUrl({ id: workItemId, fields });
+    }
 
     let message = `*📝 Work Item Updated*\n\n`;
     message += `*${workItemType} #${workItemId}*: ${title}\n\n`;
@@ -169,7 +191,7 @@ class MarkdownFormatter {
     }
   }
 
-  formatBuildCompleted(build) {
+  formatBuildCompleted(build, userConfig = null) {
     const buildName = build.definition?.name || 'Unknown Build';
     const buildNumber = build.buildNumber || 'Unknown';
     const result = build.result || 'Unknown';
@@ -182,6 +204,19 @@ class MarkdownFormatter {
     const projectName = build.project?.name || 'Unknown Project';
     const repositoryName = build.repository?.name || 'Unknown Repository';
     const sourceVersion = build.sourceVersion ? build.sourceVersion.substring(0, 8) : 'Unknown';
+    
+    // Construct build URL with user config
+    let buildUrl = build._links?.web?.href;
+    
+    if (!buildUrl && userConfig && userConfig.organization && userConfig.project) {
+      // Construct URL using user's Azure DevOps configuration
+      const organization = userConfig.organization;
+      const project = userConfig.project;
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      buildUrl = `${baseUrl}/${organization}/${project}/_build/results?buildId=${build.id}`;
+    } else if (!buildUrl) {
+      buildUrl = `Build #${build.id}`;
+    }
     
     // Extract PR information if available
     let commitInfo = sourceVersion;
@@ -210,8 +245,8 @@ class MarkdownFormatter {
     return message;
   }
 
-  formatBuildFailed(build, aiSummary = null) {
-    let message = this.formatBuildCompleted(build);
+  formatBuildFailed(build, aiSummary = null, userConfig = null) {
+    let message = this.formatBuildCompleted(build, userConfig);
 
     if (aiSummary) {
       message += `\n🤖 *AI Analysis*\n${aiSummary}\n`;

@@ -5,11 +5,25 @@ import { markdownFormatter } from '../utils/markdownFormatter.js';
 
 class NotificationService {
   constructor() {
-    this.config = configLoader.getNotificationConfig();
+    // Don't store config in constructor, get it fresh each time
+  }
+
+  getConfig() {
+    return configLoader.getNotificationConfig() || { 
+      enabled: false,
+      teamsEnabled: false,
+      slackEnabled: false,
+      googleChatEnabled: false,
+      teamsWebhookUrl: '',
+      slackWebhookUrl: '',
+      googleChatWebhookUrl: ''
+    };
   }
 
   async sendNotification(message, type = 'general') {
-    if (!this.config.enabled) {
+    const config = this.getConfig();
+    
+    if (!config.enabled) {
       logger.debug('Notifications are disabled, skipping notification');
       return;
     }
@@ -17,18 +31,18 @@ class NotificationService {
     const promises = [];
 
     // Send to Microsoft Teams if configured
-    if (this.config.teamsWebhookUrl) {
-      promises.push(this.sendTeamsNotification(message, type));
+    if (config.teamsEnabled && config.teamsWebhookUrl) {
+      promises.push(this.sendTeamsNotification(message, type, config));
     }
 
     // Send to Slack if configured
-    if (this.config.slackWebhookUrl) {
-      promises.push(this.sendSlackNotification(message, type));
+    if (config.slackEnabled && config.slackWebhookUrl) {
+      promises.push(this.sendSlackNotification(message, type, config));
     }
 
     // Send to Google Chat if configured
-    if (this.config.googleChatWebhookUrl) {
-      promises.push(this.sendGoogleChatNotification(message, type));
+    if (config.googleChatEnabled && config.googleChatWebhookUrl) {
+      promises.push(this.sendGoogleChatNotification(message, type, config));
     }
 
     if (promises.length === 0) {
@@ -44,7 +58,7 @@ class NotificationService {
     }
   }
 
-  async sendTeamsNotification(message, type) {
+  async sendTeamsNotification(message, type, config) {
     try {
       const color = this.getColorForType(type);
       const title = this.getTitleForType(type);
@@ -64,7 +78,7 @@ class NotificationService {
         ]
       };
 
-      await axios.post(this.config.teamsWebhookUrl, teamsMessage, {
+      await axios.post(config.teamsWebhookUrl, teamsMessage, {
         headers: {
           'Content-Type': 'application/json'
         },
@@ -78,7 +92,7 @@ class NotificationService {
     }
   }
 
-  async sendSlackNotification(message, type) {
+  async sendSlackNotification(message, type, config) {
     try {
       const color = this.getSlackColorForType(type);
       const title = this.getTitleForType(type);
@@ -95,7 +109,7 @@ class NotificationService {
         ]
       };
 
-      await axios.post(this.config.slackWebhookUrl, slackMessage, {
+      await axios.post(config.slackWebhookUrl, slackMessage, {
         headers: {
           'Content-Type': 'application/json'
         },
@@ -109,7 +123,7 @@ class NotificationService {
     }
   }
 
-  async sendGoogleChatNotification(message, type) {
+  async sendGoogleChatNotification(message, type, config) {
     try {
       // const title = this.getTitleForType(type);
       // const formattedMessage = `${title}\n\n${message}`;
@@ -118,7 +132,7 @@ class NotificationService {
         text: message
       };
 
-      await axios.post(this.config.googleChatWebhookUrl, googleChatMessage, {
+      await axios.post(config.googleChatWebhookUrl, googleChatMessage, {
         headers: {
           'Content-Type': 'application/json; charset=UTF-8'
         },

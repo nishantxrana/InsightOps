@@ -1,0 +1,27 @@
+{
+  "name": "azure-devops-monitoring-agent",
+  "version": "1.0.0",
+  "description": "AI-powered Azure DevOps monitoring agent",
+  "main": "backend/main.js",
+  "type": "module",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "deploy": "npm run build && cd backend && npm start",
+    "simulate:production": "cd frontend && npm run build && cd .. && mkdir -p backend/public && cp -r frontend/dist/* backend/public/ && cd backend && npm start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "azure-devops",
+    "monitoring",
+    "ai",
+    "nodejs",
+    "react"
+  ],
+  "author": "DevOps Agent",
+  "license": "MIT"
+}

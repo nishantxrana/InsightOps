@@ -12,7 +12,7 @@ const api = axios.create({
 // Request interceptor for adding auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('apiToken')
+    const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -113,6 +113,24 @@ export const apiService = {
     return response.data
   },
 
+  // Pull request AI explanation
+  async explainPullRequest(pullRequestId) {
+    const response = await api.get(`/pull-requests/${pullRequestId}/explain`)
+    return response.data
+  },
+
+  // Build analysis
+  async analyzeBuild(buildId) {
+    const response = await api.post(`/builds/${buildId}/analyze`)
+    return response.data
+  },
+
+  // Pull request changes/diffs
+  async getPullRequestChanges(pullRequestId) {
+    const response = await api.get(`/pull-requests/${pullRequestId}/changes`)
+    return response.data
+  },
+
   // Logs
   async getLogs(params = {}) {
     const response = await api.get('/logs', { params })
@@ -130,8 +148,8 @@ export const apiService = {
     return response.data
   },
 
-  async testConnection() {
-    const response = await api.post('/settings/test-connection')
+  async testConnection(azureDevOpsConfig) {
+    const response = await api.post('/settings/test-connection', azureDevOpsConfig)
     return response.data
   }
 }

@@ -1,22 +1,63 @@
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
-import { configLoader } from '../config/settings.js';
 import { getWiqlExcludeCompletedCondition } from '../utils/workItemStates.js';
 
 class AzureDevOpsClient {
   constructor() {
-    this.config = configLoader.getAzureDevOpsConfig();
+    this.config = null;
+    this.orgBaseURL = null;
+    this.baseURL = null;
+    this.client = null;
+    this.orgClient = null;
+    this.initialized = false;
+  }
+
+  createUserClient(userConfig) {
+    const orgBaseURL = `${userConfig.baseUrl}/${encodeURIComponent(userConfig.organization)}/_apis`;
+    const baseURL = `${userConfig.baseUrl}/${encodeURIComponent(userConfig.organization)}/${encodeURIComponent(userConfig.project)}/_apis`;
+    
+    const client = axios.create({
+      baseURL: baseURL,
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`:${userConfig.pat}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    const orgClient = axios.create({
+      baseURL: orgBaseURL,
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`:${userConfig.pat}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    return new UserAzureDevOpsClient(client, orgClient, userConfig);
+  }
+
+  initializeClient() {
+    if (this.initialized) return;
+    
+    // Legacy method for backward compatibility
+    this.config = {
+      organization: process.env.AZURE_DEVOPS_ORG,
+      project: process.env.AZURE_DEVOPS_PROJECT,
+      personalAccessToken: process.env.AZURE_DEVOPS_PAT,
+      baseUrl: process.env.AZURE_DEVOPS_BASE_URL || 'https://dev.azure.com'
+    };
+    
     this.orgBaseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/_apis`;
     this.baseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/${encodeURIComponent(this.config.project)}/_apis`;
     
-    // Create axios instance with default configuration for project-level APIs
     this.client = axios.create({
       baseURL: this.baseURL,
       headers: {
         'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000 // 30 seconds timeout
+      timeout: 30000
     });
 
     // Create axios instance for organization-level APIs
@@ -26,20 +67,23 @@ class AzureDevOpsClient {
         'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000 // 30 seconds timeout
-    });
-    
-    // Create axios instance with default configuration
-    this.client = axios.create({
-      baseURL: this.baseURL,
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000 // 30 seconds timeout
+      timeout: 30000
     });
 
-    // Add request interceptor for logging
+    this.initialized = true;
+    this.setupInterceptors();
+  }
+
+  ensureInitialized() {
+    if (!this.initialized) {
+      this.initializeClient();
+    }
+  }
+
+  // Add request interceptor for logging
+  setupInterceptors() {
+    if (!this.client) return;
+    
     this.client.interceptors.request.use(
       (config) => {
         logger.debug('Azure DevOps API request', {
@@ -91,6 +135,7 @@ class AzureDevOpsClient {
 
   // Add a method to test the connection
   async testConnection() {
+    this.ensureInitialized();
     try {
       logger.info('Testing Azure DevOps connection...');
       // Test organization-level access first
@@ -132,6 +177,7 @@ class AzureDevOpsClient {
 
   // Work Items API
   async getWorkItems(ids, fields = null) {
+    this.ensureInitialized();
     try {
       const params = {
         ids: Array.isArray(ids) ? ids.join(',') : ids,
@@ -160,6 +206,7 @@ class AzureDevOpsClient {
   }
 
   async queryWorkItems(wiql) {
+    this.ensureInitialized();
     try {
       const response = await this.client.post('/wit/wiql', {
         query: wiql
@@ -174,6 +221,7 @@ class AzureDevOpsClient {
   }
 
   async getAllCurrentSprintWorkItems() {
+    this.ensureInitialized();
     try {
       // Get all work items without pagination for summary calculations
       const wiql = `
@@ -202,11 +250,17 @@ class AzureDevOpsClient {
     try {
       logger.info('Fetching current sprint work items', { page, limit });
       
+      // Use instance config instead of configLoader
+      const config = this.config;
+      if (!config || !config.project) {
+        throw new Error('Azure DevOps configuration not found or incomplete');
+      }
+      
       // First try to get work items from current iteration
       const wiql = `
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
-        WHERE [System.TeamProject] = '${this.config.project}'
+        WHERE [System.TeamProject] = '${config.project}'
         AND [System.IterationPath] = @CurrentIteration
         ORDER BY [System.State] ASC, [System.CreatedDate] DESC
       `;
@@ -290,22 +344,30 @@ class AzureDevOpsClient {
   }
 
   async getOverdueWorkItems() {
+    this.ensureInitialized();
     try {
+      // Query for overdue items across all active iterations, not just current
       const wiql = `
-        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
+        SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType], [Microsoft.VSTS.Scheduling.DueDate]
         FROM WorkItems
         WHERE [System.TeamProject] = '${this.config.project}'
-        AND [System.IterationPath] = @CurrentIteration
         AND ${getWiqlExcludeCompletedCondition()}
         AND [Microsoft.VSTS.Scheduling.DueDate] < @Today
+        AND [Microsoft.VSTS.Scheduling.DueDate] <> ''
         ORDER BY [Microsoft.VSTS.Scheduling.DueDate] ASC
       `;
       
+      logger.debug('Overdue work items query:', wiql);
+      
       const queryResult = await this.queryWorkItems(wiql);
+      
+      logger.debug(`Overdue query returned ${queryResult.workItems?.length || 0} work items`);
       
       if (queryResult.workItems && queryResult.workItems.length > 0) {
         const workItemIds = queryResult.workItems.map(wi => wi.id);
-        return await this.getWorkItems(workItemIds);
+        const detailedItems = await this.getWorkItems(workItemIds);
+        logger.debug(`Retrieved details for ${detailedItems.count} overdue items`);
+        return detailedItems;
       }
       
       return { count: 0, value: [] };
@@ -354,6 +416,9 @@ class AzureDevOpsClient {
 
   async getBuildDefinition(definitionId) {
     try {
+      if (!this.client) {
+        throw new Error('Azure DevOps client not initialized - this.client is null');
+      }
       const response = await this.client.get(`/build/definitions/${definitionId}`, {
         params: { 'api-version': '7.0' }
       });
@@ -386,6 +451,7 @@ class AzureDevOpsClient {
   }
 
   async getRecentBuilds(top = 10) {
+    this.ensureInitialized();
     try {
       const response = await this.client.get('/build/builds', {
         params: {
@@ -403,6 +469,7 @@ class AzureDevOpsClient {
 
   // Pull Request API
   async getPullRequests(status = 'active') {
+    this.ensureInitialized();
     try {
       const response = await this.client.get('/git/pullrequests', {
         params: {
@@ -465,16 +532,17 @@ class AzureDevOpsClient {
    */
   constructWorkItemWebUrl(workItem) {
     try {
-      const organization = this.config.organization;
-      const project = workItem.fields?.['System.TeamProject'] || this.config.project;
+      const organization = this.config?.organization;
+      const project = workItem.fields?.['System.TeamProject'] || this.config?.project;
       const workItemId = workItem.id;
 
-      if (!workItemId) {
-        logger.warn('Missing workItemId for web URL construction', {
-          workItemId,
-          workItemTitle: workItem.fields?.['System.Title']
+      if (!organization || !project || !workItemId) {
+        logger.warn('Missing required data for web URL construction', {
+          hasOrganization: !!organization,
+          hasProject: !!project,
+          hasWorkItemId: !!workItemId
         });
-        return workItem.url || ''; // Fallback to API URL
+        return null;
       }
 
       // Encode components for URL safety
@@ -490,7 +558,11 @@ class AzureDevOpsClient {
   async getPullRequestDetails(pullRequestId) {
     try {
       const response = await this.client.get(`/git/pullrequests/${pullRequestId}`, {
-        params: { 'api-version': '7.0' }
+        params: { 
+          'api-version': '7.0',
+          'includeCommits': true,
+          'includeWorkItemRefs': true
+        }
       });
       
       // Add web URL to the pull request details
@@ -576,6 +648,171 @@ class AzureDevOpsClient {
   }
 }
 
+  async getPullRequestChanges(pullRequestId) {
+    try {
+      const response = await this.client.get(`/git/pullrequests/${pullRequestId}/changes`, {
+        params: { 'api-version': '7.0' }
+      });
+      return response.data;
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} changes:`, error);
+      return { changeEntries: [] };
+    }
+  }
+
+  async getPullRequestCommits(pullRequestId) {
+    try {
+      // Try repository-specific endpoint
+      const prDetails = await this.getPullRequestDetails(pullRequestId);
+      const repositoryId = prDetails.repository?.id;
+      
+      if (repositoryId) {
+        const response = await this.client.get(`/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/commits`, {
+          params: { 'api-version': '7.0' }
+        });
+        return response.data;
+      } else {
+        // Fallback to project-level endpoint
+        const response = await this.client.get(`/git/pullrequests/${pullRequestId}/commits`, {
+          params: { 'api-version': '7.0' }
+        });
+        return response.data;
+      }
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} commits:`, error);
+      // Return empty commits instead of throwing
+      return { value: [] };
+    }
+  }
+
+  async getPullRequestIterationChanges(pullRequestId, iterationId = 1) {
+    try {
+      const prDetails = await this.getPullRequestDetails(pullRequestId);
+      const repositoryId = prDetails.repository?.id;
+      
+      if (!repositoryId) {
+        throw new Error('Repository ID not found');
+      }
+
+      // Get the changes list - this gives us file paths and change types
+      const changesResponse = await this.client.get(`/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/iterations/${iterationId}/changes`, {
+        params: { 
+          'api-version': '7.0',
+          '$top': 1000, // Increase limit to get all changes
+          'includeContent': false // We don't need content, just the list
+        }
+      });
+      
+      logger.info(`Fetched ${changesResponse.data.changeEntries?.length || 0} changes for PR ${pullRequestId}`);
+      
+      // Process ALL changes to extract useful information
+      const processedChanges = (changesResponse.data.changeEntries || []).map(change => {
+        const filePath = change.item?.path || 'unknown';
+        const changeType = change.changeType || 'edit';
+        const isFolder = change.item?.isFolder || false;
+        
+        // Extract file extension and type
+        const fileExtension = filePath.split('.').pop()?.toLowerCase() || '';
+        const fileType = this.getFileType(fileExtension);
+        
+        logger.debug(`Processing change: ${changeType} - ${filePath}`, {
+          changeType,
+          filePath,
+          isFolder,
+          fileType
+        });
+        
+        return {
+          path: filePath,
+          changeType: changeType,
+          isFolder: isFolder,
+          fileExtension: fileExtension,
+          fileType: fileType,
+          url: change.item?.url
+        };
+      });
+      
+      // Calculate summary statistics
+      const summary = {
+        totalFiles: processedChanges.filter(c => !c.isFolder).length,
+        addedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'add').length,
+        modifiedFiles: processedChanges.filter(c => !c.isFolder && (c.changeType === 'edit' || c.changeType === 'rename')).length,
+        deletedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'delete').length,
+        renamedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'rename').length,
+        fileTypes: this.groupFilesByType(processedChanges)
+      };
+      
+      logger.info('PR changes summary', {
+        pullRequestId,
+        ...summary
+      });
+      
+      return {
+        ...changesResponse.data,
+        changeEntries: processedChanges,
+        summary: summary
+      };
+      
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} iteration changes:`, error);
+      return {
+        changeEntries: [],
+        summary: { totalFiles: 0, addedFiles: 0, modifiedFiles: 0, deletedFiles: 0, renamedFiles: 0, fileTypes: {} }
+      };
+    }
+  }
+
+  getFileType(extension) {
+    const typeMap = {
+      'js': 'JavaScript', 'jsx': 'React', 'ts': 'TypeScript', 'tsx': 'React TypeScript',
+      'py': 'Python', 'java': 'Java', 'cs': 'C#', 'cpp': 'C++', 'c': 'C',
+      'html': 'HTML', 'css': 'CSS', 'scss': 'SCSS', 'json': 'JSON',
+      'xml': 'XML', 'yml': 'YAML', 'yaml': 'YAML', 'md': 'Markdown',
+      'sql': 'SQL', 'txt': 'Text', 'sh': 'Shell', 'bat': 'Batch',
+      'dockerfile': 'Docker', 'gitignore': 'Git', 'env': 'Environment'
+    };
+    return typeMap[extension] || 'Other';
+  }
+
+  groupFilesByType(changes) {
+    return changes.reduce((acc, change) => {
+      if (!change.isFolder) {
+        const type = change.fileType;
+        acc[type] = (acc[type] || 0) + 1;
+      }
+      return acc;
+    }, {});
+  }
+
+  // Alternative method using diffs API
+  async getPullRequestDiffs(pullRequestId) {
+    try {
+      const prDetails = await this.getPullRequestDetails(pullRequestId);
+      const repositoryId = prDetails.repository?.id;
+      
+      if (!repositoryId) {
+        throw new Error('Repository ID not found');
+      }
+
+      // Get diffs using the diffs API
+      const diffsResponse = await this.client.get(`/git/repositories/${repositoryId}/diffs/commits`, {
+        params: {
+          'api-version': '7.0',
+          'baseVersionDescriptor.version': prDetails.targetRefName,
+          'baseVersionDescriptor.versionType': 'branch',
+          'targetVersionDescriptor.version': prDetails.sourceRefName,
+          'targetVersionDescriptor.versionType': 'branch',
+          '$top': 100
+        }
+      });
+
+      return diffsResponse.data;
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} diffs:`, error);
+      throw error;
+    }
+  }
+
   // Repository API
   async getRepositories() {
     try {
@@ -587,6 +824,16 @@ class AzureDevOpsClient {
       logger.error('Error fetching repositories:', error);
       throw error;
     }
+  }
+}
+
+class UserAzureDevOpsClient extends AzureDevOpsClient {
+  constructor(client, orgClient, config) {
+    super();
+    this.client = client;
+    this.orgClient = orgClient;
+    this.config = config;
+    this.initialized = true;
   }
 }
 

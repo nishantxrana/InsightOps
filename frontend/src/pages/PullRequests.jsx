@@ -20,6 +20,7 @@ import { apiService } from '../api/apiService'
 import { useHealth } from '../contexts/HealthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
+import PullRequestDetailModal from '../components/PullRequestDetailModal'
 import { format, formatDistanceToNow } from 'date-fns'
 
 export default function PullRequests() {
@@ -40,6 +41,8 @@ export default function PullRequests() {
     unassigned: 0,
     idle: 0
   })
+  const [selectedPR, setSelectedPR] = useState(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const { checkConnection } = useHealth()
 
   useEffect(() => {
@@ -570,7 +573,14 @@ export default function PullRequests() {
           ) : getFilteredAndSortedPRs().length > 0 ? (
             <div className="divide-y divide-border dark:divide-[#1a1a1a]">
               {getFilteredAndSortedPRs().map((pr) => (
-                <div key={pr.pullRequestId} className="px-6 py-4 hover:bg-muted/50 transition-colors">
+                <div 
+                  key={pr.pullRequestId} 
+                  className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                  onClick={() => {
+                    setSelectedPR(pr)
+                    setIsModalOpen(true)
+                  }}
+                >
                   {/* Header Row */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center flex-1 min-w-0">
@@ -690,6 +700,16 @@ export default function PullRequests() {
           </p>
         </div>
       )}
+
+      {/* Pull Request Detail Modal */}
+      <PullRequestDetailModal
+        pullRequest={selectedPR}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setSelectedPR(null)
+        }}
+      />
     </div>
   )
 }
