@@ -461,21 +461,25 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
             
             if (repositoryId && yamlPath) {
               try {
-                const yamlFile = await azureDevOpsClient.getRepositoryFile(repositoryId, yamlPath, sourceBranch);
+                const yamlFile = await userClient.getRepositoryFile(repositoryId, yamlPath, sourceBranch);
                 pipelineContent = yamlFile.content || '';
                 
                 if (!pipelineContent) {
                   pipelineAnalysisNote = 'YAML pipeline file was found but appears to be empty.';
                 }
               } catch (yamlError) {
+                logger.warn(`Failed to fetch YAML file ${yamlPath}:`, yamlError);
                 pipelineAnalysisNote = `Unable to fetch YAML pipeline file (${yamlPath}).`;
               }
             } else {
               pipelineAnalysisNote = 'YAML pipeline detected but missing repository information.';
             }
           }
+        } else if (!userClient) {
+          pipelineAnalysisNote = 'User client not available for pipeline analysis.';
         }
       } catch (definitionError) {
+        logger.warn('Failed to fetch build definition:', definitionError);
         pipelineAnalysisNote = `Unable to fetch build definition. Analysis limited to timeline data.`;
       }
 

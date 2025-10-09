@@ -532,16 +532,17 @@ class AzureDevOpsClient {
    */
   constructWorkItemWebUrl(workItem) {
     try {
-      const organization = this.config.organization;
-      const project = workItem.fields?.['System.TeamProject'] || this.config.project;
+      const organization = this.config?.organization;
+      const project = workItem.fields?.['System.TeamProject'] || this.config?.project;
       const workItemId = workItem.id;
 
-      if (!workItemId) {
-        logger.warn('Missing workItemId for web URL construction', {
-          workItemId,
-          workItemTitle: workItem.fields?.['System.Title']
+      if (!organization || !project || !workItemId) {
+        logger.warn('Missing required data for web URL construction', {
+          hasOrganization: !!organization,
+          hasProject: !!project,
+          hasWorkItemId: !!workItemId
         });
-        return workItem.url || ''; // Fallback to API URL
+        return null;
       }
 
       // Encode components for URL safety

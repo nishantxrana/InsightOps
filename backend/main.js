@@ -45,6 +45,9 @@ mongoose.connection.on('reconnected', () => {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy for deployed environments (Azure App Service, etc.)
+app.set('trust proxy', true);
+
 // Security middleware
 app.use(cors({
   origin: true,
@@ -53,11 +56,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Rate limiting
+// Rate limiting with proper trust proxy configuration
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 1000, // limit each IP to 1000 requests per windowMs (increased for development)
-  message: 'Too many requests from this IP, please try again later.'
+  message: 'Too many requests from this IP, please try again later.',
+  trustProxy: 1 // Trust first proxy (Azure App Service, ngrok, etc.)
 });
 app.use('/api', limiter);
 
