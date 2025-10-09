@@ -17,7 +17,7 @@ const webhookAuth = (req, res, next) => {
     if (!isValid) {
       logger.warn('Invalid webhook signature', {
         ip: req.ip,
-        userAgent: req.get('User-Agent')
+        userInsightOps: req.get('User-InsightOps')
       });
       return res.status(401).json({ error: 'Invalid signature' });
     }

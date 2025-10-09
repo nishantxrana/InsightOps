@@ -12,7 +12,7 @@ const api = axios.create({
 // Request interceptor for adding auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('apiToken')
+    const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -148,8 +148,8 @@ export const apiService = {
     return response.data
   },
 
-  async testConnection() {
-    const response = await api.post('/settings/test-connection')
+  async testConnection(azureDevOpsConfig) {
+    const response = await api.post('/settings/test-connection', azureDevOpsConfig)
     return response.data
   }
 }

@@ -11,6 +11,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Runtime settings (contains encrypted secrets)
+backend/config/runtime-settings.json
+
 # Logs
 logs/
 *.log
@@ -97,3 +100,6 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+backend/public/
+
+copy-frontend.sh

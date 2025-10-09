@@ -1,56 +1,154 @@
 import Joi from 'joi';
 import { logger } from '../utils/logger.js';
 import { env } from './env.js';
+import { runtimeSettings } from './runtimeSettings.js';
 
 class ConfigLoader {
   constructor() {
-    this.config = {
-      // Azure DevOps Configuration
+    this.config = {};
+    this.initialized = false;
+    this.changeListeners = [];
+  }
+
+  async initialize() {
+    if (this.initialized) return;
+    
+    // Load runtime settings first
+    await runtimeSettings.load();
+    
+    // Build merged configuration
+    this.buildConfig();
+    
+    this.initialized = true;
+    logger.info('Configuration initialized successfully');
+  }
+
+  buildConfig() {
+    // Get runtime settings (user configuration)
+    const runtime = runtimeSettings.get() || {};
+    
+    // Smart defaults with environment variable fallbacks
+    const defaults = {
       azureDevOps: {
         organization: env.AZURE_DEVOPS_ORG || '',
         project: env.AZURE_DEVOPS_PROJECT || '',
         personalAccessToken: env.AZURE_DEVOPS_PAT || '',
         baseUrl: env.AZURE_DEVOPS_BASE_URL || 'https://dev.azure.com'
       },
-      
-      // AI Configuration
       ai: {
-        provider: env.AI_PROVIDER || 'openai', // 'openai', 'groq', or 'gemini'
-        openaiApiKey: env.OPENAI_API_KEY || '',
-        groqApiKey: env.GROQ_API_KEY || '',
-        geminiApiKey: env.GEMINI_API_KEY || '',
-        model: env.AI_MODEL || 'gpt-3.5-turbo'
+        provider: 'openai',
+        openaiApiKey: '',
+        groqApiKey: '',
+        geminiApiKey: '',
+        model: 'gpt-3.5-turbo'
       },
-      
-      // Notification Configuration
       notifications: {
-        teamsWebhookUrl: env.TEAMS_WEBHOOK_URL || '',
-        slackWebhookUrl: env.SLACK_WEBHOOK_URL || '',
-        googleChatWebhookUrl: env.GOOGLE_CHAT_WEBHOOK_URL || '',
-        enabled: env.NOTIFICATIONS_ENABLED === 'true'
+        teamsWebhookUrl: '',
+        slackWebhookUrl: '',
+        googleChatWebhookUrl: '',
+        teamsEnabled: false,
+        slackEnabled: false,
+        googleChatEnabled: false,
+        enabled: false
       },
-      
-      // Polling Configuration
       polling: {
-        workItemsInterval: env.WORK_ITEMS_POLL_INTERVAL || '*/15 * * * *', // Every 15 minutes
-        pipelineInterval: env.PIPELINE_POLL_INTERVAL || '*/10 * * * *', // Every 10 minutes
-        pullRequestInterval: env.PR_POLL_INTERVAL || '0 */2 * * *', // Every 2 hours
-        overdueCheckInterval: env.OVERDUE_CHECK_INTERVAL || '0 9 * * *' // Daily at 9 AM
+        workItemsInterval: '0 */1 * * *',     // Every hour
+        pipelineInterval: '0 */1 * * *',      // Every hour  
+        pullRequestInterval: '0 */1 * * *',   // Every hour
+        overdueCheckInterval: '0 9 * * *'     // Daily at 9 AM
+      }
+    };
+
+    // Priority: Runtime Settings > Defaults > Env Vars (only for deployment config)
+    this.config = {
+      // Azure DevOps Configuration (Runtime settings override defaults)
+      azureDevOps: {
+        organization: runtime.azureDevOps?.organization || defaults.azureDevOps.organization,
+        project: runtime.azureDevOps?.project || defaults.azureDevOps.project,
+        personalAccessToken: runtime.azureDevOps?.personalAccessToken || defaults.azureDevOps.personalAccessToken,
+        baseUrl: runtime.azureDevOps?.baseUrl || defaults.azureDevOps.baseUrl
       },
       
-      // Security Configuration
+      // AI Configuration (Runtime settings override defaults)
+      ai: {
+        provider: runtime.ai?.provider || defaults.ai.provider,
+        openaiApiKey: runtime.ai?.openaiApiKey || defaults.ai.openaiApiKey,
+        groqApiKey: runtime.ai?.groqApiKey || defaults.ai.groqApiKey,
+        geminiApiKey: runtime.ai?.geminiApiKey || defaults.ai.geminiApiKey,
+        model: runtime.ai?.model || defaults.ai.model
+      },
+      
+      // Notification Configuration (Runtime settings override defaults)
+      notifications: {
+        teamsWebhookUrl: runtime.notifications?.teamsWebhookUrl || defaults.notifications.teamsWebhookUrl,
+        slackWebhookUrl: runtime.notifications?.slackWebhookUrl || defaults.notifications.slackWebhookUrl,
+        googleChatWebhookUrl: runtime.notifications?.googleChatWebhookUrl || defaults.notifications.googleChatWebhookUrl,
+        teamsEnabled: runtime.notifications?.teamsEnabled || defaults.notifications.teamsEnabled,
+        slackEnabled: runtime.notifications?.slackEnabled || defaults.notifications.slackEnabled,
+        googleChatEnabled: runtime.notifications?.googleChatEnabled || defaults.notifications.googleChatEnabled,
+        enabled: runtime.notifications?.enabled || defaults.notifications.enabled
+      },
+      
+      // Polling Configuration (Runtime settings override defaults)
+      polling: {
+        workItemsInterval: runtime.polling?.workItemsInterval || defaults.polling.workItemsInterval,
+        pipelineInterval: runtime.polling?.pipelineInterval || defaults.polling.pipelineInterval,
+        pullRequestInterval: runtime.polling?.pullRequestInterval || defaults.polling.pullRequestInterval,
+        overdueCheckInterval: runtime.polling?.overdueCheckInterval || defaults.polling.overdueCheckInterval
+      },
+      
+      // Security Configuration (Env vars only - deployment level)
       security: {
         webhookSecret: env.WEBHOOK_SECRET || '',
         apiToken: env.API_TOKEN || 'default-token-change-me'
       },
       
-      // Application Configuration
+      // Application Configuration (Env vars only - deployment level)
       app: {
         port: parseInt(env.PORT) || 3001,
         nodeEnv: env.NODE_ENV || 'development',
         logLevel: env.LOG_LEVEL || 'info'
       }
     };
+  }
+
+  async updateRuntimeSettings(newSettings) {
+    try {
+      // Save new runtime settings
+      await runtimeSettings.save(newSettings);
+      
+      // Rebuild configuration
+      this.buildConfig();
+      
+      // Notify listeners of configuration change
+      this.notifyChangeListeners();
+      
+      logger.info('Runtime settings updated and configuration reloaded');
+      return true;
+    } catch (error) {
+      logger.error('Failed to update runtime settings:', error);
+      throw error;
+    }
+  }
+
+  getRuntimeSettings() {
+    return runtimeSettings.get() || runtimeSettings.getDefaults();
+  }
+
+  // Add listener for configuration changes
+  onConfigChange(listener) {
+    this.changeListeners.push(listener);
+  }
+
+  // Notify all listeners of configuration changes
+  notifyChangeListeners() {
+    for (const listener of this.changeListeners) {
+      try {
+        listener(this.config);
+      } catch (error) {
+        logger.error('Error in config change listener:', error);
+      }
+    }
   }
 
   // Validation schema
@@ -64,31 +162,22 @@ class ConfigLoader {
       }).required(),
       
       ai: Joi.object({
-        provider: Joi.string().valid('openai', 'groq', 'gemini').required(),
-        openaiApiKey: Joi.when('provider', {
-          is: 'openai',
-          then: Joi.string().min(1).required(),
-          otherwise: Joi.string().allow('').optional()
-        }),
-        groqApiKey: Joi.when('provider', {
-          is: 'groq',
-          then: Joi.string().min(1).required(),
-          otherwise: Joi.string().allow('').optional()
-        }),
-        geminiApiKey: Joi.when('provider', {
-          is: 'gemini',
-          then: Joi.string().min(1).required(),
-          otherwise: Joi.string().allow('').optional()
-        }),
-        model: Joi.string().min(1).required()
-      }).required(),
+        provider: Joi.string().valid('openai', 'groq', 'gemini').default('openai'),
+        openaiApiKey: Joi.string().allow('').optional(),
+        groqApiKey: Joi.string().allow('').optional(),
+        geminiApiKey: Joi.string().allow('').optional(),
+        model: Joi.string().default('gpt-3.5-turbo')
+      }).optional(),
       
       notifications: Joi.object({
         teamsWebhookUrl: Joi.string().uri().allow('').optional(),
         slackWebhookUrl: Joi.string().uri().allow('').optional(),
         googleChatWebhookUrl: Joi.string().uri().allow('').optional(),
-        enabled: Joi.boolean().required()
-      }).required(),
+        teamsEnabled: Joi.boolean().default(false),
+        slackEnabled: Joi.boolean().default(false),
+        googleChatEnabled: Joi.boolean().default(false),
+        enabled: Joi.boolean().default(false)
+      }).optional(),
       
       polling: Joi.object({
         workItemsInterval: Joi.string().min(1).required(),
@@ -123,7 +212,28 @@ class ConfigLoader {
     return this.config;
   }
 
+  // Validate only essential configuration for basic functionality
+  validateEssential() {
+    const essentialSchema = Joi.object({
+      azureDevOps: Joi.object({
+        organization: Joi.string().min(1).required(),
+        project: Joi.string().min(1).required(),
+        personalAccessToken: Joi.string().min(1).required(),
+        baseUrl: Joi.string().uri().required()
+      }).required()
+    });
+
+    const { error } = essentialSchema.validate({
+      azureDevOps: this.config.azureDevOps
+    });
+
+    return !error;
+  }
+
   get(path) {
+    if (!this.initialized) {
+      throw new Error('ConfigLoader not initialized. Call initialize() first.');
+    }
     return path.split('.').reduce((obj, key) => obj?.[key], this.config);
   }
 
@@ -141,6 +251,11 @@ class ConfigLoader {
 
   getPollingConfig() {
     return this.config.polling;
+  }
+
+  updatePollingConfig(newPollingConfig) {
+    this.config.polling = { ...this.config.polling, ...newPollingConfig };
+    logger.info('Updated global polling config', newPollingConfig);
   }
 
   getSecurityConfig() {

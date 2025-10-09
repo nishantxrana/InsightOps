@@ -98,7 +98,7 @@ export default function Layout({ children }) {
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block">
                     <BreadcrumbLink href="/">
-                      Agent
+                      InsightOps
                     </BreadcrumbLink>
                   </BreadcrumbItem>
                   <BreadcrumbSeparator className="hidden md:block" />
@@ -110,7 +110,7 @@ export default function Layout({ children }) {
             </div>
             
             {/* Right Section - Status & Theme */}
-            <div className="ml-auto flex items-center gap-3 px-10">
+            <div className="ml-auto flex items-center gap-3 px-4">
               {/* Theme Toggle */}
               <Tooltip>
                 <TooltipTrigger asChild>
