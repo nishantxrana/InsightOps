@@ -45,13 +45,12 @@ export const HealthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
-      // Temporarily disabled to prevent 429 errors
-      // checkConnection()
-      // const interval = setInterval(checkConnection, 30000)
-      // return () => clearInterval(interval)
+      // Initial check
+      checkConnection()
       
-      // Set as connected by default
-      setIsConnected(true)
+      // Check every 30 seconds
+      const interval = setInterval(checkConnection, 30000)
+      return () => clearInterval(interval)
     }
   }, [])
 

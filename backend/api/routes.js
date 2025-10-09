@@ -13,10 +13,14 @@ const router = express.Router();
 
 // Health check endpoint (public - no auth required)
 router.get('/health', (req, res) => {
+  // Calculate server start time for persistent uptime tracking
+  const serverStartTime = Date.now() - (process.uptime() * 1000);
+  
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    serverStartTime: serverStartTime,
     service: 'Azure DevOps Monitoring InsightOps'
   });
 });

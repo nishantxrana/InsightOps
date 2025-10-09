@@ -686,7 +686,26 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Pull Request Events</label>
+                <label className="block text-sm font-medium text-foreground mb-2">Pull Request Created Events</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={webhookUrls.pullRequestCreated || 'Loading...'}
+                    className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(webhookUrls.pullRequestCreated)}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    📋
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Pull Request Updated Events</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -705,7 +724,26 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Work Item Events</label>
+                <label className="block text-sm font-medium text-foreground mb-2">Work Item Created Events</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={webhookUrls.workItemCreated || 'Loading...'}
+                    className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(webhookUrls.workItemCreated)}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    📋
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Work Item Updated Events</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
