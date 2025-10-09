@@ -5,7 +5,7 @@ import { markdownFormatter } from '../utils/markdownFormatter.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 
 class PullRequestWebhook {
-  async handleCreated(req, res) {
+  async handleCreated(req, res, userId = null) {
     try {
       const { resource } = req.body;
       
@@ -26,26 +26,53 @@ class PullRequestWebhook {
         createdBy,
         sourceBranch,
         targetBranch,
-        reviewers
+        reviewers,
+        userId: userId || 'legacy-global',
+        hasUserId: !!userId
       });
 
-      // Add web URL to the resource object
-      resource.webUrl = azureDevOpsClient.constructPullRequestWebUrl(resource);
-
-      // Generate AI summary of the PR changes
-      let aiSummary = null;
-      try {
-        logger.info('Generating AI summary for pull request:', { pullRequestId, title });
-        aiSummary = await aiService.summarizePullRequest(resource);
-      } catch (error) {
-        logger.error('Error generating AI summary for PR:', error);
+      // Get user settings for URL construction and AI
+      let userConfig = null;
+      let userSettings = null;
+      if (userId) {
+        try {
+          const { getUserSettings } = await import('../utils/userSettings.js');
+          userSettings = await getUserSettings(userId);
+          userConfig = userSettings.azureDevOps;
+          logger.info(`Retrieved user config for ${userId}`, {
+            hasOrganization: !!userConfig?.organization,
+            hasProject: !!userConfig?.project,
+            hasBaseUrl: !!userConfig?.baseUrl
+          });
+        } catch (error) {
+          logger.warn(`Failed to get user settings for ${userId}:`, error);
+        }
+      } else {
+        logger.warn('No userId provided - using legacy webhook handler');
       }
 
-      // Format notification message
-      const message = markdownFormatter.formatPullRequestCreated(resource, aiSummary);
+      // Generate AI summary if configured
+      let aiSummary = null;
+      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys) {
+        try {
+          aiService.initializeWithUserSettings(userSettings);
+          aiSummary = await aiService.summarizePullRequest(resource);
+        } catch (error) {
+          logger.warn('Failed to generate AI summary:', error);
+        }
+      }
+
+      // Format notification message with user config
+      const message = markdownFormatter.formatPullRequestCreated(resource, aiSummary, userConfig);
       
       // Send notification
-      await notificationService.sendNotification(message, 'pull-request-created');
+      if (userId) {
+        // User-specific notification
+        await this.sendUserNotification(message, userId, 'pull-request-created');
+      } else {
+        // Legacy global notification
+        await notificationService.sendNotification(message, 'pull-request-created');
+      }
       
       res.json({
         message: 'Pull request created webhook processed successfully',
@@ -62,7 +89,7 @@ class PullRequestWebhook {
     }
   }
 
-  async handleUpdated(req, res) {
+  async handleUpdated(req, res, userId = null) {
     try {
       const { resource } = req.body;
       
@@ -79,22 +106,46 @@ class PullRequestWebhook {
         pullRequestId,
         title,
         status,
-        updatedBy
+        updatedBy,
+        userId: userId || 'legacy-global',
+        hasUserId: !!userId,
+        fullResource: JSON.stringify(resource, null, 2)
       });
 
-      // Add web URL to the resource object
-      resource.webUrl = azureDevOpsClient.constructPullRequestWebUrl(resource);
+      // Get user settings for URL construction
+      let userConfig = null;
+      if (userId) {
+        try {
+          const { getUserSettings } = await import('../utils/userSettings.js');
+          const settings = await getUserSettings(userId);
+          userConfig = settings.azureDevOps;
+        } catch (error) {
+          logger.warn(`Failed to get user settings for ${userId}:`, error);
+        }
+      } else {
+        logger.warn('No userId provided - using legacy webhook handler');
+      }
 
       // Check if this is a reviewer assignment
       const isReviewerAssignment = this.isReviewerAssignment(resource);
       
       if (isReviewerAssignment) {
         const newReviewers = this.getNewReviewers(resource);
-        const message = markdownFormatter.formatPullRequestReviewerAssigned(resource, newReviewers);
-        await notificationService.sendNotification(message, 'pull-request-reviewer-assigned');
+        const message = markdownFormatter.formatPullRequestReviewerAssigned(resource, newReviewers, userConfig);
+        
+        if (userId) {
+          await this.sendUserNotification(message, userId, 'pull-request-reviewer-assigned');
+        } else {
+          await notificationService.sendNotification(message, 'pull-request-reviewer-assigned');
+        }
       } else {
-        const message = markdownFormatter.formatPullRequestUpdated(resource);
-        await notificationService.sendNotification(message, 'pull-request-updated');
+        const message = markdownFormatter.formatPullRequestUpdated(resource, userConfig);
+        
+        if (userId) {
+          await this.sendUserNotification(message, userId, 'pull-request-updated');
+        } else {
+          await notificationService.sendNotification(message, 'pull-request-updated');
+        }
       }
       
       res.json({
@@ -113,14 +164,44 @@ class PullRequestWebhook {
   }
 
   isReviewerAssignment(resource) {
-    // Check if the update includes reviewer changes
-    return resource.reviewers && resource.reviewers.length > 0;
+    // For now, treat all PR updates as general updates rather than reviewer assignments
+    // This can be enhanced later to detect actual reviewer changes by comparing with previous state
+    return false;
   }
 
-  getNewReviewers(webhookPayload) {
+  getNewReviewers(resource) {
     // Extract newly assigned reviewers
-    const resource = webhookPayload.resource;
-    return resource.reviewers?.map(r => r.displayName) || [];
+    return resource?.reviewers?.map(r => r.displayName) || [];
+  }
+
+  async sendUserNotification(message, userId, notificationType) {
+    try {
+      const { getUserSettings } = await import('../utils/userSettings.js');
+      const settings = await getUserSettings(userId);
+      
+      if (!settings.notifications?.enabled) {
+        logger.info(`Notifications disabled for user ${userId}`);
+        return;
+      }
+
+      // Send to enabled notification channels
+      if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
+        await this.sendGoogleChatNotification(message, settings.notifications.webhooks.googleChat);
+        logger.info(`PR notification sent to user ${userId} via Google Chat`);
+      }
+    } catch (error) {
+      logger.error(`Error sending user notification for ${userId}:`, error);
+    }
+  }
+
+  async sendGoogleChatNotification(message, webhookUrl) {
+    try {
+      const axios = (await import('axios')).default;
+      await axios.post(webhookUrl, { text: message });
+    } catch (error) {
+      logger.error('Error sending Google Chat notification:', error);
+      throw error;
+    }
   }
 }
 
