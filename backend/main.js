@@ -59,9 +59,18 @@ app.use(cors({
 // Rate limiting with proper trust proxy configuration
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs (increased for development)
+  max: 10000, // limit each IP to 10000 requests per windowMs (increased for development)
   message: 'Too many requests from this IP, please try again later.',
-  trustProxy: 1 // Trust first proxy (Azure App Service, ngrok, etc.)
+  trustProxy: 1, // Trust first proxy (Azure App Service, ngrok, etc.)
+  keyGenerator: (req) => {
+    // Extract IP address without port number
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    return ip.split(':')[0]; // Remove port if present
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks in production
+    return req.path === '/api/health';
+  }
 });
 app.use('/api', limiter);
 

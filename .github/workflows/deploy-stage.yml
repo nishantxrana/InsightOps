@@ -1,4 +1,4 @@
-name: Deploy Login Branch to Azure App Service
+name: InsightOps Staging Deployment
 
 on:
   push:
