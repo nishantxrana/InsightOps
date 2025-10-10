@@ -79,6 +79,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(userData));
       axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       
+      // Notify other components that auth state changed
+      window.dispatchEvent(new CustomEvent('auth-change'));
+      
       return { success: true };
     } catch (error) {
       return { 
@@ -98,6 +101,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', newToken);
       localStorage.setItem('user', JSON.stringify(userData));
       axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      
+      // Notify other components that auth state changed
+      window.dispatchEvent(new CustomEvent('auth-change'));
       
       return { success: true };
     } catch (error) {
