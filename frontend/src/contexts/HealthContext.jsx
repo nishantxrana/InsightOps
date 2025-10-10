@@ -41,7 +41,7 @@ export const HealthProvider = ({ children }) => {
     }
   }
 
-  // Only check connection if authenticated
+  // Check connection when component mounts and set up interval
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
@@ -51,6 +51,34 @@ export const HealthProvider = ({ children }) => {
       // Check every 30 seconds
       const interval = setInterval(checkConnection, 30000)
       return () => clearInterval(interval)
+    } else {
+      // Reset state when no token
+      setIsConnected(false)
+      setHealthData(null)
+      setIsChecking(false)
+    }
+  }, [])
+
+  // Listen for authentication state changes
+  useEffect(() => {
+    const handleAuthChange = () => {
+      const token = localStorage.getItem('token')
+      if (token) {
+        // User just logged in, check connection immediately
+        checkConnection()
+      } else {
+        // User logged out, reset state
+        setIsConnected(false)
+        setHealthData(null)
+        setIsChecking(false)
+      }
+    }
+
+    // Custom event listener for auth changes
+    window.addEventListener('auth-change', handleAuthChange)
+    
+    return () => {
+      window.removeEventListener('auth-change', handleAuthChange)
     }
   }, [])
 
