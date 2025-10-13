@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -19,7 +20,18 @@ import {
 
 export default function VideoModal({ isOpen, onClose, videoUrl }) {
   const { theme } = useTheme()
+  const videoRef = useRef(null)
   
+  // Cleanup video when modal closes
+  useEffect(() => {
+    if (!isOpen && videoRef.current) {
+      const video = videoRef.current
+      video.pause()
+      video.src = ''
+      video.load() // This aborts any pending requests
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
@@ -35,6 +47,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
         </Button>
         
         <VideoPlayer 
+          key={isOpen ? 'open' : 'closed'} // Force re-render
           className="overflow-hidden rounded-lg border relative"
           style={{
             '--media-primary-color': theme === 'dark' ? 'hsl(210 40% 98%)' : 'hsl(222.2 84% 4.9%)',
@@ -46,16 +59,14 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
         >
           <VideoPlayerLoadingIndicator />
           <VideoPlayerContent
-            preload="auto"
+            ref={videoRef}
+            preload="metadata"
             slot="media"
             src={videoUrl}
             autoPlay
             onError={(e) => {
               console.error('Video error:', e)
-              console.error('Video URL:', videoUrl)
             }}
-            onLoadStart={() => console.log('Video loading started:', videoUrl)}
-            onCanPlay={() => console.log('Video can play')}
           />
           <VideoPlayerControlBar>
             <VideoPlayerPlayButton />
