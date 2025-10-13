@@ -13,7 +13,7 @@ export default function LandingPage() {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
   const heroRef = useRef(null)
   
-  const demoVideoUrl = import.meta.env.VITE_DEMO_VIDEO_URL || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+  const demoVideoUrl = import.meta.env.VITE_DEMO_VIDEO_URL || 'https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4'
 
   // Intersection Observer for scroll animations
   useEffect(() => {
