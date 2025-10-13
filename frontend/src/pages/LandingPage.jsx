@@ -4,12 +4,16 @@ import { ArrowRight, CheckCircle, Zap, Shield, BarChart3, Bot, Users, GitBranch,
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useTheme } from '@/contexts/ThemeContext'
+import VideoModal from '@/components/VideoModal'
 
 export default function LandingPage() {
   const { theme, toggleTheme } = useTheme()
   const [isVisible, setIsVisible] = useState({})
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
   const heroRef = useRef(null)
+  
+  const demoVideoUrl = import.meta.env.VITE_DEMO_VIDEO_URL || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
 
   // Intersection Observer for scroll animations
   useEffect(() => {
@@ -267,19 +271,18 @@ export default function LandingPage() {
                 </Button>
               </Link>
               
-              <Link to="/signin">
-                <Button 
-                  variant="outline" 
-                  size="default"
-                  className="px-6 py-2 border-2 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all duration-300 transform hover:scale-105 relative overflow-hidden group"
-                >
-                  <span className="relative z-10 flex items-center gap-3">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    Watch Demo
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/50 dark:to-purple-950/50 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
-                </Button>
-              </Link>
+              <Button 
+                variant="outline" 
+                size="default"
+                onClick={() => setIsVideoModalOpen(true)}
+                className="px-6 py-2 border-2 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all duration-300 transform hover:scale-105 relative overflow-hidden group"
+              >
+                <span className="relative z-10 flex items-center gap-3">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  Watch Demo
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/50 dark:to-purple-950/50 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
+              </Button>
             </div>
 
             {/* Trust Indicators */}
@@ -698,6 +701,12 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      <VideoModal
+        isOpen={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        videoUrl={demoVideoUrl}
+      />
     </div>
   )
 }
