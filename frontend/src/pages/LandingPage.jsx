@@ -4,12 +4,16 @@ import { ArrowRight, CheckCircle, Zap, Shield, BarChart3, Bot, Users, GitBranch,
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useTheme } from '@/contexts/ThemeContext'
+import VideoModal from '@/components/VideoModal'
 
 export default function LandingPage() {
   const { theme, toggleTheme } = useTheme()
   const [isVisible, setIsVisible] = useState({})
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
   const heroRef = useRef(null)
+  
+  const demoVideoUrl = import.meta.env.VITE_DEMO_VIDEO_URL || 'https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4'
 
   // Intersection Observer for scroll animations
   useEffect(() => {
@@ -226,13 +230,13 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 relative z-10">
           <div className="text-center">
             {/* Animated Badge */}
-            <div className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-full text-sm font-medium mb-8 border border-blue-200/50 dark:border-blue-800/50 backdrop-blur-sm animate-fade-in-up">
+            <div className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-xs font-medium mb-6 border border-blue-200/50 dark:border-blue-800/50 backdrop-blur-sm animate-fade-in-up">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <span>Enterprise DevOps Platform</span>
             </div>
 
             {/* Main Heading with Gradient Animation */}
-            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-bold mb-8 leading-tight">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
               <span className="block text-foreground animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                 AI-Powered
               </span>
@@ -242,7 +246,7 @@ export default function LandingPage() {
             </h1>
 
             {/* Subtitle with Typewriter Effect */}
-            <p className="text-xl sm:text-2xl text-muted-foreground mb-12 max-w-4xl mx-auto leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
+            <p className="text-base sm:text-lg text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
               Transform your Azure DevOps workflows with{' '}
               <span className="text-blue-600 font-semibold">intelligent monitoring</span>,{' '}
               <span className="text-purple-600 font-semibold">automated insights</span>, and{' '}
@@ -254,41 +258,40 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
               <Link to="/signup">
                 <Button 
-                  size="lg" 
-                  className="text-lg px-10 py-4 bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 hover:from-blue-700 hover:via-blue-600 hover:to-purple-700 text-white shadow-2xl shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-500 transform hover:scale-105 hover:-translate-y-1 relative overflow-hidden group"
+                  size="default" 
+                  className="px-6 py-2 bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 hover:from-blue-700 hover:via-blue-600 hover:to-purple-700 text-white shadow-2xl shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-500 transform hover:scale-105 hover:-translate-y-1 relative overflow-hidden group"
                 >
                   <span className="relative z-10 flex items-center gap-3">
-                    <Play className="w-5 h-5" />
+                    <Play className="w-4 h-4" />
                     Start Free Trial
-                    <ArrowRight className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-2" />
+                    <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-2" />
                   </span>
                   <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 </Button>
               </Link>
               
-              <Link to="/signin">
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  className="text-lg px-10 py-4 border-2 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all duration-300 transform hover:scale-105 relative overflow-hidden group"
-                >
-                  <span className="relative z-10 flex items-center gap-3">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    Watch Demo
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/50 dark:to-purple-950/50 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
-                </Button>
-              </Link>
+              <Button 
+                variant="outline" 
+                size="default"
+                onClick={() => setIsVideoModalOpen(true)}
+                className="px-6 py-2 border-2 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all duration-300 transform hover:scale-105 relative overflow-hidden group"
+              >
+                <span className="relative z-10 flex items-center gap-3">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  Watch Demo
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/50 dark:to-purple-950/50 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
+              </Button>
             </div>
 
             {/* Trust Indicators */}
             <div className="mt-16 animate-fade-in-up" style={{ animationDelay: '1s' }}>
-              <p className="text-sm text-muted-foreground mb-6">Trusted by 10,000+ development teams worldwide</p>
-              <div className="flex items-center justify-center gap-8 opacity-60 hover:opacity-100 transition-opacity duration-300">
-                {['Microsoft', 'Google', 'Amazon', 'Meta', 'Netflix'].map((company, i) => (
-                  <div key={company} className="text-lg font-semibold text-muted-foreground hover:text-foreground transition-colors duration-300" style={{ animationDelay: `${1.2 + i * 0.1}s` }}>
-                    {company}
+              <p className="text-xs text-muted-foreground mb-4">Built for modern development teams</p>
+              <div className="flex items-center justify-center gap-6 opacity-60 hover:opacity-100 transition-opacity duration-300">
+                {['Azure DevOps', 'OpenAI GPT-4', 'Google Gemini', 'Groq Llama', 'Real-time Analytics'].map((tech, i) => (
+                  <div key={tech} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-300" style={{ animationDelay: `${1.2 + i * 0.1}s` }}>
+                    {tech}
                   </div>
                 ))}
               </div>
@@ -698,6 +701,12 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      <VideoModal
+        isOpen={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        videoUrl={demoVideoUrl}
+      />
     </div>
   )
 }
