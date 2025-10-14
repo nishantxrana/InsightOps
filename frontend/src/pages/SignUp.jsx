@@ -13,8 +13,8 @@ export default function SignUp() {
         {/* Left Side - Subtle Branding */}
         <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 relative">
           <div className="flex flex-col justify-center px-12">
-            <Link to="/" className="flex items-center gap-3 mb-12">
-              <img src="/icon.svg" alt="InsightOps" className="h-10 w-10" />
+            <Link to="/" className="flex items-center gap-3 mb-12 group">
+              <img src="/icon.svg" alt="InsightOps" className="h-10 w-10 transition-transform group-hover:scale-105" />
               <span className="text-2xl font-bold text-foreground">InsightOps</span>
             </Link>
             
@@ -26,7 +26,7 @@ export default function SignUp() {
             </p>
             
             <div className="space-y-6">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 dark:hover:bg-white/5 transition-colors duration-200">
                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
                   <Shield className="w-5 h-5 text-blue-600" />
                 </div>
@@ -36,7 +36,7 @@ export default function SignUp() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 dark:hover:bg-white/5 transition-colors duration-200">
                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
                   <Zap className="w-5 h-5 text-blue-600" />
                 </div>
@@ -46,7 +46,7 @@ export default function SignUp() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 dark:hover:bg-white/5 transition-colors duration-200">
                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
                   <Users className="w-5 h-5 text-blue-600" />
                 </div>
