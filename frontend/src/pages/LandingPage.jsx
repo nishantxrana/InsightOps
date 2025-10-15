@@ -76,6 +76,13 @@ const FEATURE_CARDS = [
   },
 ];
 
+const stats = [
+  { value: "99.9%", label: "Uptime SLA", icon: TrendingUp, suffix: "" },
+  { value: "50", label: "Response Time", icon: Zap, suffix: "ms" },
+  { value: "10k+", label: "Daily Events", icon: Globe, suffix: "" },
+  { value: "SOC2", label: "Compliant", icon: Award, suffix: "" }
+];
+
 const KEY_METRICS = [
   {
     value: "99.99%",
@@ -448,6 +455,30 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Stats Section */}
+      <section className="py-16 px-6 lg:px-8 bg-slate-900 dark:bg-slate-900 border-y border-slate-800">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+            {stats.map((stat, index) => (
+              <div 
+                key={index} 
+                className="text-center group"
+                data-animate
+                id={`stat-${index}`}
+              >
+                <div className="flex items-center justify-center mb-3">
+                  <stat.icon className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform duration-300" />
+                </div>
+                <div className="text-4xl font-bold text-white mb-2 group-hover:scale-105 transition-transform duration-300">
+                  {stat.value}{stat.suffix && <span className="text-2xl text-blue-400">{stat.suffix}</span>}
+                </div>
+                <div className="text-sm font-medium text-slate-400">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Enhanced Features Section */}
       <section
         id="features"
@@ -460,7 +491,10 @@ export default function LandingPage() {
               <span>Enterprise-grade platform</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4 tracking-tight">
-              Everything you need for DevOps excellence
+              Everything you need for{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
+                DevOps excellence
+              </span>
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
               Comprehensive monitoring and analysis tools designed for modern
@@ -539,10 +573,9 @@ export default function LandingPage() {
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4 tracking-tight">
+            <h2 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4 tracking-tight text-balance">
               Loved by development teams
-              <br />
-              <span className="text-slate-600 dark:text-slate-400">
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400">
                 worldwide
               </span>
             </h2>
@@ -551,17 +584,17 @@ export default function LandingPage() {
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
-                    className="w-4 h-4 fill-amber-400 text-amber-400"
+                    className="w-5 h-5 fill-amber-400 text-amber-400"
                   />
                 ))}
               </div>
-              <span className="text-slate-600 dark:text-slate-400 font-medium text-sm ml-2">
+              <span className="text-slate-600 dark:text-slate-400 font-semibold text-sm ml-3">
                 4.9/5 from 2,000+ reviews
               </span>
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid lg:grid-cols-3 gap-8">
             {[
               {
                 quote:
@@ -570,6 +603,7 @@ export default function LandingPage() {
                 role: "Engineering Manager",
                 company: "TechFlow",
                 avatar: "SC",
+                gradient: "from-blue-500 to-cyan-500"
               },
               {
                 quote:
@@ -578,6 +612,7 @@ export default function LandingPage() {
                 role: "DevOps Lead",
                 company: "BuildLab",
                 avatar: "MR",
+                gradient: "from-purple-500 to-pink-500"
               },
               {
                 quote:
@@ -586,38 +621,46 @@ export default function LandingPage() {
                 role: "CTO",
                 company: "DevCorp",
                 avatar: "EW",
+                gradient: "from-emerald-500 to-teal-500"
               },
             ].map((testimonial, index) => (
               <Card
                 key={index}
-                className="group border-0 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/10 dark:hover:shadow-slate-900/20 transition-all duration-300 hover:scale-105 hover:-translate-y-1"
+                className="group border-0 bg-white dark:bg-slate-800/50 shadow-soft hover:shadow-soft-lg transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden"
               >
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-1 mb-4">
+                {/* Gradient accent */}
+                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${testimonial.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                
+                <CardContent className="p-8">
+                  {/* Stars */}
+                  <div className="flex items-center space-x-1 mb-6">
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
-                        className="w-3 h-3 fill-amber-400 text-amber-400"
+                        className="w-4 h-4 fill-amber-400 text-amber-400 group-hover:scale-110 transition-transform duration-300"
+                        style={{ transitionDelay: `${i * 50}ms` }}
                       />
                     ))}
                   </div>
 
-                  <blockquote className="text-slate-700 dark:text-slate-300 mb-6 leading-relaxed text-sm">
-                    "{testimonial.quote}"
+                  {/* Quote */}
+                  <blockquote className="text-slate-700 dark:text-slate-300 mb-8 leading-relaxed text-base">
+                    &ldquo;{testimonial.quote}&rdquo;
                   </blockquote>
 
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  {/* Author */}
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-12 h-12 bg-gradient-to-br ${testimonial.gradient} rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform duration-300`}>
                       {testimonial.avatar}
                     </div>
                     <div>
-                      <div className="font-semibold text-slate-900 dark:text-white text-sm">
+                      <div className="font-semibold text-slate-900 dark:text-white text-base">
                         {testimonial.author}
                       </div>
-                      <div className="text-xs text-slate-600 dark:text-slate-400">
+                      <div className="text-sm text-slate-600 dark:text-slate-400">
                         {testimonial.role}
                       </div>
-                      <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                      <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
                         {testimonial.company}
                       </div>
                     </div>
