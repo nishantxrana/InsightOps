@@ -1,162 +1,323 @@
-import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowRight, CheckCircle, Zap, Shield, BarChart3, Bot, Users, GitBranch, Moon, Sun, Play, Star, TrendingUp, Award, Globe, Sparkles } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { useTheme } from '@/contexts/ThemeContext'
-import VideoModal from '@/components/VideoModal'
+import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
+import {
+  ArrowRight,
+  CheckCircle,
+  Zap,
+  Shield,
+  BarChart3,
+  Bot,
+  Users,
+  GitBranch,
+  Moon,
+  Sun,
+  Play,
+  Star,
+  TrendingUp,
+  Award,
+  Globe,
+  Sparkles,
+  Menu,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { useTheme } from "@/contexts/ThemeContext";
+import VideoModal from "@/components/VideoModal";
+
+const NAV_LINKS = [
+  { label: "Features", href: "#features" },
+  { label: "Testimonials", href: "#testimonials" },
+  { label: "Docs", href: "#docs" },
+];
+
+const FEATURE_CARDS = [
+  {
+    icon: Bot,
+    title: "AI-powered insights",
+    description:
+      "Diagnose flaky builds with context-aware remediation steps trained on your pipelines, logs, and recent incidents.",
+    accent: "from-sky-500/25 via-blue-500/10 to-transparent",
+  },
+  {
+    icon: BarChart3,
+    title: "Live observability",
+    description:
+      "Stream sprint velocity, deployment frequency, and lead time metrics to a single real-time control plane.",
+    accent: "from-indigo-500/20 via-slate-500/10 to-transparent",
+  },
+  {
+    icon: Shield,
+    title: "Enterprise-grade security",
+    description:
+      "SOC2 compliant, SSO-ready, and fully auditable with end-to-end encryption and granular workspace roles.",
+    accent: "from-emerald-500/20 via-emerald-500/10 to-transparent",
+  },
+  {
+    icon: Users,
+    title: "Collaboration built-in",
+    description:
+      "Trigger rich alerts to Slack, Teams, and Google Chat with adaptive routing, ownership, and huddles.",
+    accent: "from-blue-500/20 via-cyan-500/10 to-transparent",
+  },
+  {
+    icon: GitBranch,
+    title: "Native Azure DevOps",
+    description:
+      "Two-way sync across boards, pipelines, repos, and releases with frictionless onboarding for large orgs.",
+    accent: "from-purple-500/20 via-slate-500/10 to-transparent",
+  },
+  {
+    icon: Zap,
+    title: "Operational excellence",
+    description:
+      "Compare DORA metrics across teams, forecast risk, and automate go/no-go decisions with predictive scoring.",
+    accent: "from-amber-500/25 via-orange-500/10 to-transparent",
+  },
+];
+
+const KEY_METRICS = [
+  {
+    value: "99.99%",
+    label: "Uptime guarantee",
+    description: "Global redundancy with proactive health checks.",
+    icon: TrendingUp,
+  },
+  {
+    value: "<50ms",
+    label: "Event latency",
+    description: "Streaming ingestion keeps dashboards live.",
+    icon: Zap,
+  },
+  {
+    value: "24/7",
+    label: "Expert support",
+    description: "Follow-the-sun response led by SREs.",
+    icon: Globe,
+  },
+  {
+    value: "SOC2",
+    label: "Compliance ready",
+    description: "Audited security, signed DPA, and logging.",
+    icon: Award,
+  },
+];
+
+const TRUST_POINTS = [
+  "Free 14-day trial",
+  "SOC2 & GDPR ready",
+  "No credit card required",
+];
+
+const PARTNER_LOGOS = [
+  "Azure DevOps",
+  "GitHub",
+  "Slack",
+  "Microsoft Teams",
+  "PagerDuty",
+  "Jira",
+];
+
+const DOCS_TIMELINE = [
+  {
+    icon: GitBranch,
+    title: "Connect Azure DevOps",
+    description:
+      "Authenticate once and select the projects to mirror. InsightOps validates webhooks automatically.",
+  },
+  {
+    icon: Bot,
+    title: "Enable AI copilots",
+    description:
+      "Toggle GPT-4, Gemini, or Llama driven remediation tuned for your stack, pipelines, and alerts.",
+  },
+  {
+    icon: Shield,
+    title: "Harden governance",
+    description:
+      "Enforce SSO, SCIM, conditional access, and approval workflows without slowing teams down.",
+  },
+  {
+    icon: BarChart3,
+    title: "Ship with clarity",
+    description:
+      "Visualize delivery timelines, risk heatmaps, and post-incident intelligence in one guided workspace.",
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    quote:
+      "InsightOps is the first platform that catches regression risk before it hits master. We cut incident volume by 63% in a quarter.",
+    author: "Sarah Chen",
+    role: "VP Engineering",
+    company: "TechFlow",
+    avatar: "SC",
+  },
+  {
+    quote:
+      "Our on-call fatigue vanished. The AI summaries land in Slack with context, actions, and owners so we resolve issues 4× faster.",
+    author: "Marcus Rodriguez",
+    role: "DevOps Lead",
+    company: "BuildLab",
+    avatar: "MR",
+  },
+  {
+    quote:
+      "Rolling out to 30 squads took a week. InsightOps feels handcrafted for Azure DevOps and pays for itself every sprint.",
+    author: "Emily Watson",
+    role: "CTO",
+    company: "DevCorp",
+    avatar: "EW",
+  },
+];
 
 export default function LandingPage() {
-  const { theme, toggleTheme } = useTheme()
-  const [isVisible, setIsVisible] = useState({})
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
-  const heroRef = useRef(null)
-  
-  const demoVideoUrl = import.meta.env.VITE_DEMO_VIDEO_URL || 'https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4'
+  const { theme, toggleTheme } = useTheme();
+  const [isVisible, setIsVisible] = useState({});
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const heroRef = useRef(null);
+
+  const demoVideoUrl =
+    import.meta.env.VITE_DEMO_VIDEO_URL ||
+    "https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4";
+  import.meta.env.VITE_DEMO_VIDEO_URL ||
+    "https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4";
 
   // Scroll handler for header
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
-  // Intersection Observer for scroll animations
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          setIsVisible(prev => ({
-            ...prev,
-            [entry.target.id]: entry.isIntersecting
-          }))
-        })
+          const key = entry.target.getAttribute("data-animate");
+          if (!key) return;
+
+          setIsVisible((prev) => {
+            if (prev[key] === entry.isIntersecting) {
+              return prev;
+            }
+            return { ...prev, [key]: entry.isIntersecting };
+          });
+
+          if (entry.isIntersecting) {
+            observer.unobserve(entry.target);
+          }
+        });
       },
-      { threshold: 0.1, rootMargin: '50px' }
-    )
+      { threshold: 0.2, rootMargin: "0px 0px -10% 0px" }
+    );
 
-    document.querySelectorAll('[data-animate]').forEach((el) => {
-      observer.observe(el)
-    })
+    document
+      .querySelectorAll("[data-animate]")
+      .forEach((el) => observer.observe(el));
 
-    return () => observer.disconnect()
-  }, [])
+    return () => observer.disconnect();
+  }, []);
 
   // Mouse tracking for hero parallax
   useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (heroRef.current) {
-        const rect = heroRef.current.getBoundingClientRect()
-        setMousePosition({
-          x: (e.clientX - rect.left - rect.width / 2) / rect.width,
-          y: (e.clientY - rect.top - rect.height / 2) / rect.height
-        })
-      }
+    const handleMouseMove = (event) => {
+      if (!heroRef.current) return;
+      const rect = heroRef.current.getBoundingClientRect();
+      const x = (event.clientX - rect.left - rect.width / 2) / rect.width;
+      const y = (event.clientY - rect.top - rect.height / 2) / rect.height;
+      setMousePosition({ x, y });
+    };
+
+    const handleMouseLeave = () => setMousePosition({ x: 0, y: 0 });
+
+    const hero = heroRef.current;
+    if (!hero) return;
+
+    hero.addEventListener("mousemove", handleMouseMove);
+    hero.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      hero.removeEventListener("mousemove", handleMouseMove);
+      hero.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, []);
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    if (isMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = originalOverflow;
     }
 
-    const hero = heroRef.current
-    if (hero) {
-      hero.addEventListener('mousemove', handleMouseMove)
-      return () => hero.removeEventListener('mousemove', handleMouseMove)
-    }
-  }, [])
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isMenuOpen]);
 
-  const features = [
-    {
-      icon: Bot,
-      title: "AI-Powered Analysis",
-      description: "Advanced machine learning algorithms analyze your DevOps patterns and provide actionable insights.",
-      gradient: "from-blue-500 to-blue-600",
-      delay: "0ms"
-    },
-    {
-      icon: BarChart3,
-      title: "Real-time Monitoring",
-      description: "Live dashboards with sub-second updates and intelligent alerting systems.",
-      gradient: "from-blue-500 to-cyan-500",
-      delay: "100ms"
-    },
-    {
-      icon: Shield,
-      title: "Enterprise Security",
-      description: "Bank-grade encryption, SOC2 compliance, and zero-trust architecture.",
-      gradient: "from-green-500 to-emerald-500",
-      delay: "200ms"
-    },
-    {
-      icon: Users,
-      title: "Team Collaboration",
-      description: "Seamless integration with Slack, Teams, and Google Chat for unified workflows.",
-      gradient: "from-blue-600 to-indigo-600",
-      delay: "300ms"
-    }
-  ]
+  const animateClass = (key) =>
+    isVisible[key]
+      ? "opacity-100 translate-y-0"
+      : "opacity-0 translate-y-10 md:translate-y-12";
 
-  const stats = [
-    { value: "99.99%", label: "Uptime SLA", icon: TrendingUp },
-    { value: "<50ms", label: "Response Time", icon: Zap },
-    { value: "24/7", label: "Monitoring", icon: Globe },
-    { value: "SOC2", label: "Compliant", icon: Award }
-  ]
+  const heroParallaxStyle = {
+    transform: `translate3d(${mousePosition.x * 16}px, ${
+      mousePosition.y * 16
+    }px, 0)`,
+  };
 
-  const testimonials = [
-    {
-      quote: "InsightOps transformed our DevOps workflow. We've reduced deployment time by 60% and caught 95% more issues before production.",
-      author: "Sarah Chen",
-      role: "VP Engineering",
-      company: "TechCorp",
-      avatar: "SC"
-    },
-    {
-      quote: "The AI insights are incredible. It's like having a senior DevOps engineer working 24/7 to optimize our processes.",
-      author: "Marcus Rodriguez",
-      role: "DevOps Lead",
-      company: "InnovateLabs",
-      avatar: "MR"
-    },
-    {
-      quote: "Best investment we've made. The ROI was clear within the first month of implementation.",
-      author: "Emily Watson",
-      role: "CTO",
-      company: "ScaleUp Inc",
-      avatar: "EW"
-    }
-  ]
+  const closeMobileMenu = () => setIsMenuOpen(false);
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased">
       {/* Enhanced Header */}
-      <header className={`fixed top-0 w-full z-50 transition-all duration-500 ${
-        scrolled 
-          ? 'bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-lg shadow-slate-900/5' 
-          : 'bg-transparent'
-      }`}>
+      <header
+        className={`fixed top-0 w-full z-50 transition-all duration-500 ${
+          scrolled
+            ? "bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-lg shadow-slate-900/5"
+            : "bg-transparent"
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             <Link to="/" className="flex items-center space-x-3 group">
               <div className="relative">
-                <img 
-                  src="/icon.svg" 
-                  alt="InsightOps" 
-                  className="h-9 w-9 transition-transform duration-300 group-hover:scale-110" 
+                <img
+                  src="/icon.svg"
+                  alt="InsightOps"
+                  className="h-9 w-9 transition-transform duration-300 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-blue-500/20 rounded-lg scale-0 group-hover:scale-125 transition-transform duration-500 -z-10"></div>
               </div>
-              <span className="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">InsightOps</span>
+              <span className="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">
+                InsightOps
+              </span>
             </Link>
-            
+
             <nav className="hidden lg:flex items-center space-x-10">
-              <a href="#features" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 relative group">
+              <a
+                href="#features"
+                className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 relative group"
+              >
                 Features
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-slate-900 dark:bg-white transition-all duration-300 group-hover:w-full"></span>
               </a>
-              <a href="#testimonials" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 relative group">
+              <a
+                href="#testimonials"
+                className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 relative group"
+              >
                 Testimonials
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-slate-900 dark:bg-white transition-all duration-300 group-hover:w-full"></span>
               </a>
-              <a href="#docs" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 relative group">
+              <a
+                href="#docs"
+                className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 relative group"
+              >
                 Docs
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-slate-900 dark:bg-white transition-all duration-300 group-hover:w-full"></span>
               </a>
@@ -169,17 +330,28 @@ export default function LandingPage() {
                 onClick={toggleTheme}
                 className="p-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all duration-200"
               >
-                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {theme === "dark" ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
               </Button>
-              
+
               <Link to="/signin">
-                <Button variant="ghost" size="sm" className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 font-medium">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                >
                   Sign In
                 </Button>
               </Link>
-              
+
               <Link to="/signup">
-                <Button size="sm" className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white font-medium px-6 h-10 shadow-lg shadow-slate-900/25 hover:shadow-slate-900/40 transition-all duration-300 hover:scale-105">
+                <Button
+                  size="sm"
+                  className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white font-medium px-6 h-10 shadow-lg shadow-slate-900/25 hover:shadow-slate-900/40 transition-all duration-300 hover:scale-105"
+                >
                   Get Started
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
@@ -190,42 +362,56 @@ export default function LandingPage() {
       </header>
 
       {/* Enhanced Hero Section */}
-      <section 
+      <section
         ref={heroRef}
         className="relative pt-32 pb-32 px-6 lg:px-8 overflow-hidden bg-gradient-to-br from-slate-50/50 via-white to-blue-50/30 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
       >
         {/* Subtle background pattern */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(120,119,198,0.05),transparent_50%)] dark:bg-[radial-gradient(circle_at_30%_20%,rgba(120,119,198,0.1),transparent_50%)]"></div>
-        
+
         <div className="relative max-w-5xl mx-auto text-center">
           {/* Status badge */}
           <div className="inline-flex items-center space-x-2 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-full px-4 py-2 text-sm text-slate-600 dark:text-slate-400 mb-8 border border-slate-200/50 dark:border-slate-700/50 animate-fade-in-up">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className="font-medium">Now supporting GPT-4, Gemini, and Llama models</span>
+            <span className="font-medium">
+              Now supporting GPT-4, Gemini, and Llama models
+            </span>
           </div>
 
           {/* Main headline */}
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-slate-900 dark:text-white mb-8 leading-[1.1] animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+          <h1
+            className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-slate-900 dark:text-white mb-8 leading-[1.1] animate-fade-in-up"
+            style={{ animationDelay: "0.2s" }}
+          >
             DevOps monitoring
             <br />
-            <span className="text-slate-600 dark:text-slate-400">that actually works</span>
+            <span className="text-slate-600 dark:text-slate-400">
+              that actually works
+            </span>
           </h1>
 
           {/* Subtitle */}
-          <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-12 max-w-3xl mx-auto leading-relaxed font-light animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-            AI-powered insights for Azure DevOps. Monitor builds, track sprints, and catch issues before they reach production.
+          <p
+            className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-12 max-w-3xl mx-auto leading-relaxed font-light animate-fade-in-up"
+            style={{ animationDelay: "0.4s" }}
+          >
+            AI-powered insights for Azure DevOps. Monitor builds, track sprints,
+            and catch issues before they reach production.
           </p>
 
           {/* CTA buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-16 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
+          <div
+            className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-16 animate-fade-in-up"
+            style={{ animationDelay: "0.6s" }}
+          >
             <Link to="/signup">
               <Button className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white px-8 h-12 text-base font-semibold shadow-xl shadow-slate-900/25 hover:shadow-slate-900/40 transition-all duration-300 hover:scale-105 hover:-translate-y-0.5">
-                Start free trial
+                Get Started
                 <ArrowRight className="w-5 h-5 ml-2 transition-transform duration-300 group-hover:translate-x-1" />
               </Button>
             </Link>
-            
-            <button 
+
+            <button
               onClick={() => setIsVideoModalOpen(true)}
               className="flex items-center space-x-3 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 group"
             >
@@ -237,8 +423,13 @@ export default function LandingPage() {
           </div>
 
           {/* Trust indicators */}
-          <div className="text-sm text-slate-500 dark:text-slate-500 space-y-2 animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
-            <p className="font-medium">Free 14-day trial • No credit card required</p>
+          <div
+            className="text-sm text-slate-500 dark:text-slate-500 space-y-2 animate-fade-in-up"
+            style={{ animationDelay: "0.8s" }}
+          >
+            <p className="font-medium">
+              Free 14-day trial • No credit card required
+            </p>
             <div className="flex items-center justify-center space-x-6 text-xs">
               <span className="flex items-center space-x-1">
                 <CheckCircle className="w-3 h-3 text-emerald-500" />
@@ -258,7 +449,10 @@ export default function LandingPage() {
       </section>
 
       {/* Enhanced Features Section */}
-      <section id="features" className="py-20 px-6 lg:px-8 bg-slate-50/50 dark:bg-slate-900/50">
+      <section
+        id="features"
+        className="py-20 px-6 lg:px-8 bg-slate-50/50 dark:bg-slate-900/50"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <div className="inline-flex items-center space-x-2 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded-full px-3 py-1 text-xs font-medium mb-4">
@@ -269,44 +463,54 @@ export default function LandingPage() {
               Everything you need for DevOps excellence
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-              Comprehensive monitoring and analysis tools designed for modern development teams.
+              Comprehensive monitoring and analysis tools designed for modern
+              development teams.
             </p>
           </div>
-          
+
           <div className="grid lg:grid-cols-3 gap-6">
             {[
               {
                 icon: Bot,
                 title: "AI-Powered Analysis",
-                description: "Intelligent build failure analysis with specific fix recommendations using GPT-4, Gemini, and Llama models."
+                description:
+                  "Intelligent build failure analysis with specific fix recommendations using GPT-4, Gemini, and Llama models.",
               },
               {
                 icon: BarChart3,
                 title: "Real-time Monitoring",
-                description: "Live dashboards showing sprint progress, build status, and pull request metrics with sub-second updates."
+                description:
+                  "Live dashboards showing sprint progress, build status, and pull request metrics with sub-second updates.",
               },
               {
                 icon: Shield,
                 title: "Enterprise Security",
-                description: "SOC2 compliant with enterprise-grade security, SSO integration, and comprehensive audit logging."
+                description:
+                  "SOC2 compliant with enterprise-grade security, SSO integration, and comprehensive audit logging.",
               },
               {
                 icon: Users,
                 title: "Team Collaboration",
-                description: "Smart notifications to Slack, Teams, and Google Chat with customizable rules and rich formatting."
+                description:
+                  "Smart notifications to Slack, Teams, and Google Chat with customizable rules and rich formatting.",
               },
               {
                 icon: GitBranch,
                 title: "DevOps Integration",
-                description: "Native Azure DevOps integration with webhooks, comprehensive API coverage, and real-time sync."
+                description:
+                  "Native Azure DevOps integration with webhooks, comprehensive API coverage, and real-time sync.",
               },
               {
                 icon: Zap,
                 title: "Performance Insights",
-                description: "Detailed analytics on deployment frequency, lead time, failure recovery, and team productivity metrics."
-              }
+                description:
+                  "Detailed analytics on deployment frequency, lead time, failure recovery, and team productivity metrics.",
+              },
             ].map((feature, index) => (
-              <Card key={index} className="group border-0 bg-white dark:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/10 dark:hover:shadow-slate-900/20 transition-all duration-300 hover:scale-105 hover:-translate-y-1 cursor-pointer">
+              <Card
+                key={index}
+                className="group border-0 bg-white dark:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/10 dark:hover:shadow-slate-900/20 transition-all duration-300 hover:scale-105 hover:-translate-y-1 cursor-pointer"
+              >
                 <CardContent className="p-6">
                   <div className="w-10 h-10 bg-blue-100 dark:bg-blue-950/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
                     <feature.icon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -329,60 +533,79 @@ export default function LandingPage() {
       </section>
 
       {/* Enhanced Testimonials Section */}
-      <section id="testimonials" className="py-20 px-6 lg:px-8 bg-white dark:bg-slate-950">
+      <section
+        id="testimonials"
+        className="py-20 px-6 lg:px-8 bg-white dark:bg-slate-950"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4 tracking-tight">
               Loved by development teams
               <br />
-              <span className="text-slate-600 dark:text-slate-400">worldwide</span>
+              <span className="text-slate-600 dark:text-slate-400">
+                worldwide
+              </span>
             </h2>
             <div className="flex items-center justify-center space-x-2 mb-4">
               <div className="flex items-center space-x-1">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  <Star
+                    key={i}
+                    className="w-4 h-4 fill-amber-400 text-amber-400"
+                  />
                 ))}
               </div>
-              <span className="text-slate-600 dark:text-slate-400 font-medium text-sm ml-2">4.9/5 from 2,000+ reviews</span>
+              <span className="text-slate-600 dark:text-slate-400 font-medium text-sm ml-2">
+                4.9/5 from 2,000+ reviews
+              </span>
             </div>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
             {[
               {
-                quote: "InsightOps cut our deployment debugging time by 70%. The AI analysis is incredibly accurate and saves us hours every week.",
+                quote:
+                  "InsightOps cut our deployment debugging time by 70%. The AI analysis is incredibly accurate and saves us hours every week.",
                 author: "Sarah Chen",
                 role: "Engineering Manager",
                 company: "TechFlow",
-                avatar: "SC"
+                avatar: "SC",
               },
               {
-                quote: "Finally, a monitoring tool that understands our Azure DevOps workflow. The real-time insights are game-changing for our team.",
+                quote:
+                  "Finally, a monitoring tool that understands our Azure DevOps workflow. The real-time insights are game-changing for our team.",
                 author: "Marcus Rodriguez",
-                role: "DevOps Lead", 
+                role: "DevOps Lead",
                 company: "BuildLab",
-                avatar: "MR"
+                avatar: "MR",
               },
               {
-                quote: "The AI-powered build failure analysis is like having a senior engineer available 24/7. Best investment we've made this year.",
+                quote:
+                  "The AI-powered build failure analysis is like having a senior engineer available 24/7. Best investment we've made this year.",
                 author: "Emily Watson",
                 role: "CTO",
                 company: "DevCorp",
-                avatar: "EW"
-              }
+                avatar: "EW",
+              },
             ].map((testimonial, index) => (
-              <Card key={index} className="group border-0 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/10 dark:hover:shadow-slate-900/20 transition-all duration-300 hover:scale-105 hover:-translate-y-1">
+              <Card
+                key={index}
+                className="group border-0 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/10 dark:hover:shadow-slate-900/20 transition-all duration-300 hover:scale-105 hover:-translate-y-1"
+              >
                 <CardContent className="p-6">
                   <div className="flex items-center space-x-1 mb-4">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
+                      <Star
+                        key={i}
+                        className="w-3 h-3 fill-amber-400 text-amber-400"
+                      />
                     ))}
                   </div>
-                  
+
                   <blockquote className="text-slate-700 dark:text-slate-300 mb-6 leading-relaxed text-sm">
                     "{testimonial.quote}"
                   </blockquote>
-                  
+
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform duration-300">
                       {testimonial.avatar}
@@ -414,17 +637,19 @@ export default function LandingPage() {
             <Sparkles className="w-4 h-4" />
             <span>Ready to get started?</span>
           </div>
-          
+
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-8 tracking-tight">
             Transform your DevOps workflow
             <br />
             <span className="text-slate-300">with AI-powered monitoring</span>
           </h2>
-          
+
           <p className="text-xl text-slate-300 mb-12 max-w-2xl mx-auto leading-relaxed">
-            Start monitoring your Azure DevOps workflow today. Catch issues before they reach production and accelerate your development process.
+            Start monitoring your Azure DevOps workflow today. Catch issues
+            before they reach production and accelerate your development
+            process.
           </p>
-          
+
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
             <Link to="/signup">
               <Button className="bg-white hover:bg-slate-100 text-slate-900 px-8 h-12 text-base font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 hover:-translate-y-1">
@@ -433,8 +658,8 @@ export default function LandingPage() {
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>
-            
-            <button 
+
+            <button
               onClick={() => setIsVideoModalOpen(true)}
               className="flex items-center space-x-2 text-slate-300 hover:text-white transition-colors duration-200 font-medium"
             >
@@ -462,57 +687,97 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-5 gap-12 mb-12">
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-3 mb-6">
-                <img 
-                  src="/icon.svg" 
-                  alt="InsightOps" 
-                  className="h-8 w-8" 
-                />
-                <span className="text-xl font-semibold text-slate-900 dark:text-white">InsightOps</span>
+                <img src="/icon.svg" alt="InsightOps" className="h-8 w-8" />
+                <span className="text-xl font-semibold text-slate-900 dark:text-white">
+                  InsightOps
+                </span>
               </div>
               <p className="text-slate-600 dark:text-slate-400 leading-relaxed mb-6 max-w-md">
-                The most advanced AI-powered DevOps monitoring platform for modern development teams who demand excellence.
+                The most advanced AI-powered DevOps monitoring platform for
+                modern development teams who demand excellence.
               </p>
               <div className="flex items-center space-x-4">
-                {['Twitter', 'GitHub', 'LinkedIn', 'Discord'].map((social) => (
-                  <a key={social} href="#" className="w-10 h-10 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110">
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{social[0]}</span>
+                {["Twitter", "GitHub", "LinkedIn", "Discord"].map((social) => (
+                  <a
+                    key={social}
+                    href="#"
+                    className="w-10 h-10 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110"
+                  >
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                      {social[0]}
+                    </span>
                   </a>
                 ))}
               </div>
             </div>
-            
+
             <div>
-              <h4 className="font-semibold text-slate-900 dark:text-white mb-6 text-sm uppercase tracking-wide">Product</h4>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-6 text-sm uppercase tracking-wide">
+                Product
+              </h4>
               <ul className="space-y-3">
-                {['Features', 'Documentation', 'API Reference', 'Integrations', 'Changelog'].map((item) => (
+                {[
+                  "Features",
+                  "Documentation",
+                  "API Reference",
+                  "Integrations",
+                  "Changelog",
+                ].map((item) => (
                   <li key={item}>
-                    <a href="#" className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200">
+                    <a
+                      href="#"
+                      className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
+                    >
                       {item}
                     </a>
                   </li>
                 ))}
               </ul>
             </div>
-            
+
             <div>
-              <h4 className="font-semibold text-slate-900 dark:text-white mb-6 text-sm uppercase tracking-wide">Company</h4>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-6 text-sm uppercase tracking-wide">
+                Company
+              </h4>
               <ul className="space-y-3">
-                {['About Us', 'Blog', 'Careers', 'Press Kit', 'Contact', 'Partners'].map((item) => (
+                {[
+                  "About Us",
+                  "Blog",
+                  "Careers",
+                  "Press Kit",
+                  "Contact",
+                  "Partners",
+                ].map((item) => (
                   <li key={item}>
-                    <a href="#" className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200">
+                    <a
+                      href="#"
+                      className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
+                    >
                       {item}
                     </a>
                   </li>
                 ))}
               </ul>
             </div>
-            
+
             <div>
-              <h4 className="font-semibold text-slate-900 dark:text-white mb-6 text-sm uppercase tracking-wide">Support</h4>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-6 text-sm uppercase tracking-wide">
+                Support
+              </h4>
               <ul className="space-y-3">
-                {['Help Center', 'Community', 'Status Page', 'Security', 'Privacy Policy', 'Terms of Service'].map((item) => (
+                {[
+                  "Help Center",
+                  "Community",
+                  "Status Page",
+                  "Security",
+                  "Privacy Policy",
+                  "Terms of Service",
+                ].map((item) => (
                   <li key={item}>
-                    <a href="#" className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200">
+                    <a
+                      href="#"
+                      className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
+                    >
                       {item}
                     </a>
                   </li>
@@ -520,16 +785,37 @@ export default function LandingPage() {
               </ul>
             </div>
           </div>
-          
+
           <div className="border-t border-slate-200 dark:border-slate-800 pt-8 flex flex-col lg:flex-row justify-between items-center space-y-4 lg:space-y-0">
             <p className="text-slate-500 dark:text-slate-500">
-              © 2024 InsightOps. All rights reserved. Built with ❤️ for developers.
+              © 2024 InsightOps. All rights reserved. Built with ❤️ for
+              developers.
             </p>
             <div className="flex items-center space-x-6 text-sm">
-              <a href="#" className="text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Privacy</a>
-              <a href="#" className="text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Terms</a>
-              <a href="#" className="text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Security</a>
-              <a href="#" className="text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Cookies</a>
+              <a
+                href="#"
+                className="text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+              >
+                Privacy
+              </a>
+              <a
+                href="#"
+                className="text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+              >
+                Terms
+              </a>
+              <a
+                href="#"
+                className="text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+              >
+                Security
+              </a>
+              <a
+                href="#"
+                className="text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+              >
+                Cookies
+              </a>
             </div>
           </div>
         </div>
@@ -541,5 +827,5 @@ export default function LandingPage() {
         videoUrl={demoVideoUrl}
       />
     </div>
-  )
+  );
 }
