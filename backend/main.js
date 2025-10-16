@@ -4,23 +4,26 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import mongoose from 'mongoose';
-import { config } from 'dotenv';
 import { logger } from './utils/logger.js';
 import { webhookRoutes } from './webhooks/routes.js';
 import { apiRoutes } from './api/routes.js';
 import { authRoutes } from './routes/auth.js';
 import { errorHandler } from './utils/errorHandler.js';
 import { userPollingManager } from './polling/userPollingManager.js';
-
-// Load environment variables first
-config();
+import { requestIdMiddleware } from './middleware/requestId.js';
+import { env, database, security, rateLimits, isProduction } from './config/env.js';
 
 // Connect to MongoDB with better error handling
 async function connectToDatabase() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+    await mongoose.connect(database.uri, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: database.maxPoolSize,
+      minPoolSize: database.minPoolSize,
+      connectTimeoutMS: database.connectionTimeout,
+      retryWrites: true,
+      w: 'majority'
     });
     logger.info('Connected to MongoDB successfully');
   } catch (err) {
@@ -43,34 +46,75 @@ mongoose.connection.on('reconnected', () => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = env.PORT;
 
 // Trust proxy for deployed environments (Azure App Service, etc.)
 app.set('trust proxy', true);
 
+// Request ID middleware (must be early in the chain)
+app.use(requestIdMiddleware);
+
 // Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // For Tailwind CSS
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://dev.azure.com", "https://api.openai.com", "https://api.groq.com", "https://generativelanguage.googleapis.com"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: []
+    }
+  },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow same-origin requests (when frontend is served by backend)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    const allowedOrigins = isProduction()
+      ? (env.ALLOWED_ORIGINS || env.FRONTEND_URL || '').split(',').filter(Boolean)
+      : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001'];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+  maxAge: 600
 }));
 
 // Rate limiting with proper trust proxy configuration
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10000, // limit each IP to 10000 requests per windowMs (increased for development)
-  message: 'Too many requests from this IP, please try again later.',
-  trustProxy: 1, // Trust first proxy (Azure App Service, ngrok, etc.)
+  windowMs: rateLimits.windowMs,
+  max: rateLimits.max,
+  message: { error: 'Too many requests from this IP, please try again later.' },
+  trustProxy: 1,
   keyGenerator: (req) => {
-    // Extract IP address without port number
     const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-    return ip.split(':')[0]; // Remove port if present
+    return ip.split(':')[0];
   },
-  skip: (req) => {
-    // Skip rate limiting for health checks in production
-    return req.path === '/api/health';
-  }
+  skip: (req) => req.path === '/api/health',
+  standardHeaders: true,
+  legacyHeaders: false
 });
 app.use('/api', limiter);
 

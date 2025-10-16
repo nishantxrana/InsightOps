@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { logger } from '../utils/logger.js';
+import mongoose from 'mongoose';
+import { logger, sanitizeForLogging } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { authenticate } from '../middleware/auth.js';
@@ -8,46 +9,37 @@ import { getUserSettings, updateUserSettings } from '../utils/userSettings.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
 import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workItemStates.js';
 import { userPollingManager } from '../polling/userPollingManager.js';
+import { validateRequest } from '../middleware/validation.js';
+import { settingsSchema, testConnectionSchema } from '../validators/schemas.js';
 
 const router = express.Router();
 
 // Health check endpoint (public - no auth required)
-router.get('/health', (req, res) => {
-  // Calculate server start time for persistent uptime tracking
+router.get('/health', async (req, res) => {
   const serverStartTime = Date.now() - (process.uptime() * 1000);
   
-  res.json({
+  const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     serverStartTime: serverStartTime,
-    service: 'Azure DevOps Monitoring InsightOps'
-  });
-});
+    service: 'Azure DevOps Monitoring InsightOps',
+    environment: process.env.NODE_ENV,
+    version: process.env.npm_package_version || '1.0.0'
+  };
 
-// Debug endpoint to check token (public - no auth required)
-router.get('/debug/token', (req, res) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  
-  if (!token) {
-    return res.json({ error: 'No token provided', hasToken: false });
-  }
-  
+  // Check database connection
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json({ 
-      hasToken: true, 
-      tokenValid: true, 
-      userId: decoded.userId,
-      exp: new Date(decoded.exp * 1000).toISOString()
-    });
+    await mongoose.connection.db.admin().ping();
+    health.database = 'connected';
   } catch (error) {
-    res.json({ 
-      hasToken: true, 
-      tokenValid: false, 
-      error: error.message 
-    });
+    health.status = 'unhealthy';
+    health.database = 'disconnected';
+    logger.error('Health check: Database connection failed', error);
   }
+
+  const statusCode = health.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // Apply authentication to all other routes
@@ -91,9 +83,9 @@ router.get('/settings', async (req, res) => {
   }
 });
 
-router.put('/settings', async (req, res) => {
+router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
   try {
-    const updates = { ...req.body };
+    const updates = { ...req.validatedData };
     
     // Handle masked values - don't update if value is '***'
     if (updates.azureDevOps?.pat === '***') {
@@ -123,19 +115,11 @@ router.put('/settings', async (req, res) => {
   }
 });
 
-router.post('/settings/test-connection', async (req, res) => {
+router.post('/settings/test-connection', validateRequest(testConnectionSchema), async (req, res) => {
   try {
-    const { organization, project, pat, baseUrl } = req.body;
+    const { organization, project, pat, baseUrl } = req.validatedData;
     
-    // Validate required fields
-    if (!organization || !project || !pat) {
-      return res.status(400).json({
-        success: false,
-        message: 'Organization, project, and personal access token are required'
-      });
-    }
-    
-    logger.info('Testing Azure DevOps connection...');
+    logger.info('Testing Azure DevOps connection...', sanitizeForLogging({ organization, project }));
     
     // Test the connection with provided credentials
     const testResult = await testAzureDevOpsConnection({

@@ -3,6 +3,26 @@ import path from 'path';
 
 const { combine, timestamp, errors, json, printf, colorize } = winston.format;
 
+// Sanitize sensitive data from logs
+function sanitizeForLogging(data) {
+  if (!data || typeof data !== 'object') return data;
+  
+  const sensitive = ['password', 'token', 'secret', 'apikey', 'pat', 'authorization', 'cookie'];
+  const sanitized = Array.isArray(data) ? [] : {};
+  
+  for (const key in data) {
+    if (sensitive.some(s => key.toLowerCase().includes(s))) {
+      sanitized[key] = '***REDACTED***';
+    } else if (typeof data[key] === 'object' && data[key] !== null) {
+      sanitized[key] = sanitizeForLogging(data[key]);
+    } else {
+      sanitized[key] = data[key];
+    }
+  }
+  
+  return sanitized;
+}
+
 // Custom format for console output
 const consoleFormat = printf(({ level, message, timestamp, ...meta }) => {
   let log = `${timestamp} [${level}]: ${message}`;
@@ -93,3 +113,6 @@ const logsDir = path.join(process.cwd(), 'logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
+
+// Export sanitization function for use in other modules
+export { sanitizeForLogging };
