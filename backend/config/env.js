@@ -8,7 +8,7 @@ config();
 // Comprehensive environment validation schema
 const envSchema = z.object({
   // Application Environment
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  NODE_ENV: z.enum(['development', 'staging', 'production', 'test']).default('development'),
   PORT: z.string().regex(/^\d+$/).transform(Number).default('3001'),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 
