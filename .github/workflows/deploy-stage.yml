@@ -38,6 +38,11 @@ jobs:
           mkdir -p backend/public
           cp -r frontend/dist/. backend/public/
 
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Update environment variables in Azure App Service
         uses: azure/appservice-settings@v1
         with:
