@@ -36,21 +36,27 @@ export const settingsSchema = z.object({
     }).optional()
   }).optional(),
   notifications: z.object({
-    enabled: z.boolean(),
-    teams: z.object({
-      webhookUrl: z.string().url().optional()
-    }).optional(),
-    slack: z.object({
-      webhookUrl: z.string().url().optional()
-    }).optional(),
-    googleChat: z.object({
-      webhookUrl: z.string().url().optional()
-    }).optional()
+    enabled: z.boolean().optional(),
+    teamsWebhookUrl: z.string().url().optional().or(z.literal('')),
+    slackWebhookUrl: z.string().url().optional().or(z.literal('')),
+    googleChatWebhookUrl: z.string().url().optional().or(z.literal('')),
+    teamsEnabled: z.boolean().optional(),
+    slackEnabled: z.boolean().optional(),
+    googleChatEnabled: z.boolean().optional()
   }).optional(),
   polling: z.object({
-    workItems: z.string().regex(/^[*\d\s,\-\/]+$/, 'Invalid cron expression'),
-    pipelines: z.string().regex(/^[*\d\s,\-\/]+$/, 'Invalid cron expression'),
-    pullRequests: z.string().regex(/^[*\d\s,\-\/]+$/, 'Invalid cron expression')
+    workItemsInterval: z.string().regex(/^[*\d\s,\-\/]+$/, 'Invalid cron expression').optional(),
+    pullRequestInterval: z.string().regex(/^[*\d\s,\-\/]+$/, 'Invalid cron expression').optional(),
+    overdueCheckInterval: z.string().regex(/^[*\d\s,\-\/]+$/, 'Invalid cron expression').optional(),
+    workItemsEnabled: z.boolean().optional(),
+    pullRequestEnabled: z.boolean().optional(),
+    overdueCheckEnabled: z.boolean().optional()
+  }).optional(),
+  security: z.object({
+    webhookSecret: z.string().optional(),
+    apiToken: z.string().optional(),
+    enableRateLimit: z.boolean().optional(),
+    maxRequestsPerMinute: z.number().optional()
   }).optional()
 });
 

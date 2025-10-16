@@ -88,7 +88,7 @@ app.use(cors({
     
     const allowedOrigins = isProduction()
       ? (env.ALLOWED_ORIGINS || env.FRONTEND_URL || '').split(',').filter(Boolean)
-      : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001'];
+      : ['http://localhost:3001', 'https://sure-ant-informally.ngrok-free.app'];
     
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
