@@ -52,7 +52,7 @@ const PORT = env.PORT;
 app.set('trust proxy', true);
 
 // Request ID middleware (must be early in the chain)
-app.use(requestIdMiddleware);
+// app.use(requestIdMiddleware); // Temporarily disabled
 
 // Security middleware
 app.use(helmet({
