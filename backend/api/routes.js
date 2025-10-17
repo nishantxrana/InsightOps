@@ -386,8 +386,11 @@ router.get('/builds/recent', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
+    // Get limit from query parameter, default to 20, min 10, max 50
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 10), 50);
+    
     const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
-    const builds = await client.getRecentBuilds(20);
+    const builds = await client.getRecentBuilds(limit);
     res.json(builds);
   } catch (error) {
     logger.error('Error fetching recent builds:', error);

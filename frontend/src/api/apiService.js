@@ -92,8 +92,8 @@ export const apiService = {
   },
 
   // Builds/Pipelines
-  async getRecentBuilds() {
-    const response = await api.get('/builds/recent')
+  async getRecentBuilds(limit = 20) {
+    const response = await api.get(`/builds/recent?limit=${limit}`)
     return response.data
   },
 
