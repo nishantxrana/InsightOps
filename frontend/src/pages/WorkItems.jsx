@@ -45,9 +45,40 @@ export default function WorkItems() {
   const [sprintSummary, setSprintSummary] = useState(null)
   const [aiSummary, setAiSummary] = useState(null)
   const [overdueItems, setOverdueItems] = useState([])
+  const [aiSummaryEnabled, setAiSummaryEnabled] = useState(() => {
+    const saved = localStorage.getItem('aiSummaryEnabled');
+    return saved !== null ? JSON.parse(saved) : true; // Default enabled
+  });
   
   // Filtering and interaction state
   const [selectedState, setSelectedState] = useState('all')
+  
+  const toggleAiSummary = () => {
+    const newValue = !aiSummaryEnabled;
+    setAiSummaryEnabled(newValue);
+    localStorage.setItem('aiSummaryEnabled', JSON.stringify(newValue));
+    
+    // If enabling, load AI summary immediately
+    if (newValue && !aiSummary) {
+      loadAiSummary();
+    }
+  };
+
+  const loadAiSummary = async () => {
+    try {
+      setLoadingStates(prev => ({ ...prev, aiSummary: true }));
+      const aiData = await apiService.getAISummary();
+      setAiSummary(aiData);
+      setLoadingStates(prev => ({ ...prev, aiSummary: false }));
+    } catch (err) {
+      console.error('Failed to load AI summary:', err);
+      setLoadingStates(prev => ({ ...prev, aiSummary: false }));
+      setAiSummary({ 
+        summary: 'AI summary temporarily unavailable. Please try refreshing the page.',
+        status: 'error'
+      });
+    }
+  };
   const [selectedAssignee, setSelectedAssignee] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [filteredWorkItems, setFilteredWorkItems] = useState([])
@@ -145,9 +176,13 @@ export default function WorkItems() {
     try {
       setInitialLoading(true)
       setError(null)
+      
+      // Check current AI summary setting from localStorage
+      const currentAiEnabled = JSON.parse(localStorage.getItem('aiSummaryEnabled') ?? 'true');
+      
       setLoadingStates({
         sprintSummary: true,
-        aiSummary: true,
+        aiSummary: currentAiEnabled,
         overdueItems: true
       })
 
@@ -173,18 +208,11 @@ export default function WorkItems() {
         setLoadingStates(prev => ({ ...prev, overdueItems: false }))
       }
 
-      // Phase 3: Load AI summary last (slowest)
-      try {
-        const aiData = await apiService.getAISummary()
-        setAiSummary(aiData)
-        setLoadingStates(prev => ({ ...prev, aiSummary: false }))
-      } catch (err) {
-        console.error('Failed to load AI summary:', err)
-        setLoadingStates(prev => ({ ...prev, aiSummary: false }))
-        setAiSummary({ 
-          summary: 'AI summary temporarily unavailable. Please try refreshing the page.',
-          status: 'error'
-        })
+      // Phase 3: Load AI summary last (slowest) - only if enabled
+      if (currentAiEnabled) {
+        await loadAiSummary();
+      } else {
+        setLoadingStates(prev => ({ ...prev, aiSummary: false }));
       }
 
     } catch (err) {
@@ -925,10 +953,25 @@ export default function WorkItems() {
             <h3 className="text-xl font-semibold text-foreground">AI Sprint Insights</h3>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={toggleAiSummary}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                aiSummaryEnabled 
+                  ? 'bg-purple-600 dark:bg-purple-500' 
+                  : 'bg-gray-200 dark:bg-gray-700'
+              }`}
+              title={aiSummaryEnabled ? 'Disable AI Summary' : 'Enable AI Summary'}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  aiSummaryEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
             <span className="text-xs bg-gradient-to-r from-purple-100 dark:from-purple-950/50 to-blue-100 dark:to-blue-950/50 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full font-medium border border-purple-200 dark:border-purple-800">
               ✨ Powered by AI
             </span>
-            {loadingStates.aiSummary && (
+            {loadingStates.aiSummary && aiSummaryEnabled && (
               <div className="flex items-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 dark:border-purple-800 border-t-purple-600 dark:border-t-purple-400"></div>
                 <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">Analyzing...</span>
@@ -937,7 +980,19 @@ export default function WorkItems() {
           </div>
         </div>
         
-        {loadingStates.aiSummary ? (
+        {!aiSummaryEnabled ? (
+          <div className="text-center py-8">
+            <div className="text-gray-400 dark:text-gray-600 mb-2">
+              <Target className="h-8 w-8 mx-auto mb-3 opacity-50" />
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              AI Sprint Insights disabled to save tokens
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              Enable the toggle above to generate AI-powered sprint analysis
+            </p>
+          </div>
+        ) : loadingStates.aiSummary ? (
           <div className="space-y-4">
             <div className="space-y-3">
               <div className="h-4 bg-gradient-to-r from-muted via-muted-foreground/20 to-muted rounded animate-pulse"></div>

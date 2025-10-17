@@ -206,28 +206,12 @@ router.get('/work-items/sprint-summary', async (req, res) => {
       overdue: overdueCount, // Add overdue count for dashboard
       workItemsByState: groupWorkItemsByState(allWorkItems.value || []),
       workItemsByAssignee: groupWorkItemsByAssignee(allWorkItems.value || []),
-      summary: null, // Will be populated async
-      summaryStatus: 'processing'
+      summary: null, // Will be populated via separate AI endpoint
+      summaryStatus: 'available'
     };
     
     // Send immediate response
     res.json(immediateResponse);
-    
-    // Process AI summary asynchronously (don't await)
-    if (allWorkItems.value && allWorkItems.value.length > 0) {
-      processAISummaryAsync(allWorkItems.value)
-        .then(summary => {
-          // Store summary in cache or database for later retrieval
-          logger.info('AI summary generated successfully', { 
-            itemCount: allWorkItems.value.length,
-            summaryLength: summary.length 
-          });
-          // TODO: Store summary in cache/database
-        })
-        .catch(error => {
-          logger.error('Error generating AI summary:', error);
-        });
-    }
     
   } catch (error) {
     logger.error('Error fetching sprint summary:', error);
