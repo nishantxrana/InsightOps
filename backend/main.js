@@ -170,9 +170,9 @@ async function startServer() {
     // Connect to database first
     await connectToDatabase();
     
-    // Initialize user polling manager
-    await userPollingManager.initializeAllUsers();
-    logger.info('User polling manager initialized');
+    // Initialize user polling manager from database
+    await userPollingManager.initializeFromDatabase();
+    logger.info('User polling manager initialized from database');
     
     const server = app.listen(PORT, () => {
       logger.info(`Azure DevOps Monitoring Agent Backend started on port ${PORT}`);

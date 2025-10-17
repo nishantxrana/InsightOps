@@ -11,6 +11,7 @@ import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workIt
 import { userPollingManager } from '../polling/userPollingManager.js';
 import { validateRequest } from '../middleware/validation.js';
 import { settingsSchema, testConnectionSchema } from '../validators/schemas.js';
+import emergencyRoutes from './emergency.js';
 
 const router = express.Router();
 
@@ -102,10 +103,10 @@ router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
     
     const settings = await updateUserSettings(req.user._id, updates);
     
-    // Restart user polling with new settings if polling settings were updated
+    // Update user polling with new settings if polling settings were updated
     if (updates.polling) {
-      logger.info('Polling settings updated - restarting user polling');
-      await userPollingManager.startUserPolling(req.user._id);
+      logger.info('Polling settings updated - updating user polling configuration');
+      await userPollingManager.updateUserPolling(req.user._id, updates);
     }
     
     res.json({ message: 'Settings updated successfully' });
@@ -358,6 +359,17 @@ router.get('/work-items/overdue', async (req, res) => {
                  statusCode === 404 ? 'Please check your organization and project names' :
                  'Please check your Azure DevOps configuration'
     });
+  }
+});
+
+// Emergency cleanup endpoint (for development/debugging)
+router.post('/polling/emergency-cleanup', async (req, res) => {
+  try {
+    await userPollingManager.emergencyCleanup();
+    res.json({ message: 'Emergency cleanup completed' });
+  } catch (error) {
+    logger.error('Emergency cleanup failed:', error);
+    res.status(500).json({ error: 'Emergency cleanup failed' });
   }
 });
 
@@ -814,5 +826,8 @@ router.get('/webhooks/urls', async (req, res) => {
     });
   }
 });
+
+// Emergency routes
+router.use('/emergency', emergencyRoutes);
 
 export { router as apiRoutes };
