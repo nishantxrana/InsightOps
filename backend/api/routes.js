@@ -388,9 +388,18 @@ router.get('/builds/recent', async (req, res) => {
     
     // Get limit from query parameter, default to 20, min 10, max 50
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 10), 50);
+    const repositoryFilter = req.query.repository;
     
     const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
-    const builds = await client.getRecentBuilds(limit);
+    let builds = await client.getRecentBuilds(limit);
+    
+    // Filter by repository if specified
+    if (repositoryFilter && repositoryFilter !== 'all') {
+      builds.value = builds.value?.filter(build => 
+        build.repository?.name === repositoryFilter ||
+        build.definition?.name?.includes(repositoryFilter)
+      );
+    }
     res.json(builds);
   } catch (error) {
     logger.error('Error fetching recent builds:', error);
