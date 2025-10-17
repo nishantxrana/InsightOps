@@ -11,7 +11,7 @@ import { authRoutes } from './routes/auth.js';
 import { errorHandler } from './utils/errorHandler.js';
 import { userPollingManager } from './polling/userPollingManager.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
-import { env, database, security, rateLimits, isProduction } from './config/env.js';
+import { env, database, security, rateLimits, isProduction, isStaging } from './config/env.js';
 
 // Connect to MongoDB with better error handling
 async function connectToDatabase() {
@@ -86,7 +86,7 @@ app.use(cors({
       return callback(null, true);
     }
     
-    const allowedOrigins = isProduction()
+    const allowedOrigins = (isProduction() || isStaging())
       ? (env.ALLOWED_ORIGINS || env.FRONTEND_URL || '').split(',').filter(Boolean)
       : ['http://localhost:3001', 'https://sure-ant-informally.ngrok-free.app'];
     
