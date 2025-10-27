@@ -52,7 +52,7 @@ const PORT = env.PORT;
 app.set('trust proxy', true);
 
 // Request ID middleware (must be early in the chain)
-// app.use(requestIdMiddleware); // Temporarily disabled
+app.use(requestIdMiddleware);
 
 // Security middleware
 app.use(helmet({
@@ -122,12 +122,15 @@ app.use('/api', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware
+// Request logging middleware (skip static assets)
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path}`, {
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
-  });
+  // Skip logging for static assets to prevent errors
+  if (!req.path.startsWith('/assets/') && !req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+    logger.info(`${req.method} ${req.path}`, {
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+  }
   next();
 });
 
