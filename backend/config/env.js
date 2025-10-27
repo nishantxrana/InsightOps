@@ -49,8 +49,8 @@ const envSchema = z.object({
   RATE_LIMIT_AI_MAX: z.string().regex(/^\d+$/).transform(Number).default('20'),
 
   // Database Connection Pool
-  DB_MIN_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default('2'),
-  DB_MAX_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default('10'),
+  DB_MIN_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default('5'),
+  DB_MAX_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default('20'),
   DB_CONNECTION_TIMEOUT: z.string().regex(/^\d+$/).transform(Number).default('30000'),
 
   // Webhook Configuration (Optional)

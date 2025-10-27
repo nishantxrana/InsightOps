@@ -95,14 +95,18 @@ export const logger = winston.createLogger({
   // Handle uncaught exceptions
   exceptionHandlers: [
     new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'exceptions.log')
+      filename: path.join(process.cwd(), 'logs', 'exceptions.log'),
+      maxsize: 5242880, // 5MB
+      maxFiles: 3
     })
   ],
   
   // Handle unhandled promise rejections
   rejectionHandlers: [
     new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'rejections.log')
+      filename: path.join(process.cwd(), 'logs', 'rejections.log'),
+      maxsize: 5242880, // 5MB
+      maxFiles: 3
     })
   ]
 });

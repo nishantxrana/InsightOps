@@ -32,18 +32,24 @@ async function connectToDatabase() {
   }
 }
 
-// Handle MongoDB connection events
-mongoose.connection.on('error', (err) => {
-  logger.error('MongoDB connection error:', err);
-});
+// Handle MongoDB connection events (only once)
+if (mongoose.connection.listenerCount('error') === 0) {
+  mongoose.connection.on('error', (err) => {
+    logger.error('MongoDB connection error:', err);
+  });
+}
 
-mongoose.connection.on('disconnected', () => {
-  logger.warn('MongoDB disconnected');
-});
+if (mongoose.connection.listenerCount('disconnected') === 0) {
+  mongoose.connection.on('disconnected', () => {
+    logger.warn('MongoDB disconnected');
+  });
+}
 
-mongoose.connection.on('reconnected', () => {
-  logger.info('MongoDB reconnected');
-});
+if (mongoose.connection.listenerCount('reconnected') === 0) {
+  mongoose.connection.on('reconnected', () => {
+    logger.info('MongoDB reconnected');
+  });
+}
 
 const app = express();
 const PORT = env.PORT;
@@ -157,15 +163,32 @@ app.get('*', (req, res) => {
 app.use(errorHandler);
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
+const gracefulShutdown = async (signal) => {
+  logger.info(`${signal} received, shutting down gracefully`);
+  
+  try {
+    // Stop all polling jobs
+    if (userPollingManager) {
+      logger.info('Stopping all polling jobs...');
+      // Add cleanup method to polling manager
+    }
+    
+    // Close database connection
+    if (mongoose.connection.readyState === 1) {
+      logger.info('Closing database connection...');
+      await mongoose.connection.close();
+    }
+    
+    logger.info('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start server
 async function startServer() {
