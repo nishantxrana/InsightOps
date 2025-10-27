@@ -48,8 +48,8 @@ export const HealthProvider = ({ children }) => {
       // Initial check
       checkConnection()
       
-      // Check every 30 seconds
-      const interval = setInterval(checkConnection, 30000)
+      // Check every 5 minutes
+      const interval = setInterval(checkConnection, 300000)
       return () => clearInterval(interval)
     } else {
       // Reset state when no token

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 import path from 'path';
 import mongoose from 'mongoose';
 import { logger } from './utils/logger.js';
@@ -108,6 +109,20 @@ app.use(cors({
   maxAge: 600
 }));
 
+// Compression middleware (gzip/deflate)
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress if client doesn't support it
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Compress everything else
+    return compression.filter(req, res);
+  },
+  level: 6, // Compression level (1-9, 6 is good balance)
+  threshold: 1024 // Only compress files larger than 1KB
+}));
+
 // Rate limiting with proper trust proxy configuration
 const limiter = rateLimit({
   windowMs: rateLimits.windowMs,
@@ -147,12 +162,32 @@ app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api', apiRoutes);
 
-// Serve static files from public folder
-app.use(express.static(path.join(process.cwd(), 'public')));
+// Serve static files from public folder with caching
+app.use(express.static(path.join(process.cwd(), 'public'), {
+  maxAge: '1y', // Cache for 1 year
+  etag: true,   // Enable ETag
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // Different caching for different file types
+    if (path.endsWith('.html')) {
+      // HTML files: short cache (5 minutes)
+      res.setHeader('Cache-Control', 'public, max-age=300');
+    } else if (path.match(/\.(js|css)$/)) {
+      // JS/CSS files: 30 days cache (more conservative)
+      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+    } else if (path.match(/\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+      // Images/fonts: medium cache (1 month)
+      res.setHeader('Cache-Control', 'public, max-age=2592000');
+    }
+  }
+}));
 
 // Serve React app for all non-API routes
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
+    // Set cache headers for HTML
+    res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes
+    res.setHeader('ETag', 'W/"html-' + Date.now() + '"');
     res.sendFile(path.join(process.cwd(), 'public/index.html'));
   } else {
     res.status(404).json({ error: 'API endpoint not found' });
