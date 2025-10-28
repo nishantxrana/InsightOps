@@ -69,6 +69,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://www.clarity.ms"],
       imgSrc: ["'self'", "data:", "https:"],
+      mediaSrc: ["'self'", "https://insightopssa.blob.core.windows.net"],
       connectSrc: ["'self'", "https://dev.azure.com", "https://api.openai.com", "https://api.groq.com", "https://generativelanguage.googleapis.com", "https://www.clarity.ms"],
       fontSrc: ["'self'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
