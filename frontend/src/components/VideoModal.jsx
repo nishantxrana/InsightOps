@@ -63,81 +63,57 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
   }, [isOpen, videoUrl, isLoaded])
 
   return (
-    <>
-      {/* Hidden video element that stays mounted for caching */}
-      <video
-        ref={videoRef}
-        className="hidden"
-        controls
-        preload="metadata"
-        playsInline
-      >
-        <source src={videoUrl} type="video/mp4" />
-      </video>
-
-      {/* Modal overlay - only show when open */}
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="relative w-full max-w-5xl mx-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="absolute -top-12 right-0 text-white hover:bg-white/20 z-10"
-            >
-              <X className="h-6 w-6" />
-            </Button>
-            
-            <div className="relative bg-black rounded-lg overflow-hidden min-h-[400px]">
-              {!videoUrl ? (
-                <div className="bg-black rounded-lg p-8 text-center text-white">
-                  <div className="text-lg mb-2">Video URL not configured</div>
-                  <div className="text-sm opacity-75">Please check environment configuration</div>
-                </div>
-              ) : (
-                <>
-                  {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                      <div className="text-white text-lg">Loading video...</div>
-                    </div>
-                  )}
-                  
-                  {hasError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                      <div className="text-white text-center">
-                        <div className="text-lg mb-2">Video failed to load</div>
-                        <div className="text-sm opacity-75 mb-4">URL: {videoUrl}</div>
-                        <Button 
-                          onClick={() => window.open(videoUrl, '_blank')}
-                          className="bg-white text-black hover:bg-gray-200"
-                        >
-                          Open Video in New Tab
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <video
-                    className="w-full h-auto"
-                    controls
-                    preload="metadata"
-                    playsInline
-                    style={{ minHeight: '400px' }}
-                    src={videoUrl}
-                  >
-                    <p className="text-white p-4">
-                      Your browser does not support the video tag. 
-                      <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="underline ml-2">
-                        Click here to watch the video
-                      </a>
-                    </p>
-                  </video>
-                </>
-              )}
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm ${!isOpen ? 'hidden' : ''}`}>
+      <div className="relative w-full max-w-5xl mx-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="absolute -top-12 right-0 text-white hover:bg-white/20 z-10"
+        >
+          <X className="h-6 w-6" />
+        </Button>
+        
+        <div className="relative bg-black rounded-lg overflow-hidden min-h-[400px]">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+              <div className="text-white text-lg">Loading video...</div>
             </div>
-          </div>
+          )}
+          
+          {hasError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+              <div className="text-white text-center">
+                <div className="text-lg mb-2">Video failed to load</div>
+                <div className="text-sm opacity-75 mb-4">URL: {videoUrl}</div>
+                <Button 
+                  onClick={() => window.open(videoUrl, '_blank')}
+                  className="bg-white text-black hover:bg-gray-200"
+                >
+                  Open Video in New Tab
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          <video
+            ref={videoRef}
+            className="w-full h-auto"
+            controls
+            preload="auto"
+            playsInline
+            style={{ minHeight: '400px' }}
+          >
+            <source src={videoUrl} type="video/mp4" />
+            <p className="text-white p-4">
+              Your browser does not support the video tag. 
+              <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="underline ml-2">
+                Click here to watch the video
+              </a>
+            </p>
+          </video>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   )
 }
