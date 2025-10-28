@@ -7,6 +7,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
   const videoRef = useRef(null)
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false)
   
 
   
@@ -17,6 +18,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
     const handleLoadedData = () => {
       setIsLoading(false)
       setHasError(false)
+      setIsLoaded(true)
     }
 
     const handleError = (e) => {
@@ -34,10 +36,14 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
     video.addEventListener('error', handleError)
 
     if (isOpen && videoUrl) {
-      setIsLoading(true)
+      setIsLoading(!isLoaded)
       setHasError(false)
       video.currentTime = 0
-      video.load()
+      
+      // Only load if not already loaded
+      if (!isLoaded) {
+        video.load()
+      }
       
       // Try to play after a short delay
       setTimeout(() => {
@@ -54,7 +60,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
       video.removeEventListener('loadeddata', handleLoadedData)
       video.removeEventListener('error', handleError)
     }
-  }, [isOpen, videoUrl])
+  }, [isOpen, videoUrl, isLoaded])
 
   if (!isOpen) return null
 
