@@ -16,11 +16,16 @@ class ExecuteAgent extends LightweightAgent {
   /**
    * Send notification with solution
    */
-  async sendNotification(recipient, message, priority = 'normal') {
+  async sendNotification(input) {
+    // Handle both direct params and object input
+    const recipient = input.recipient || input;
+    const message = input.message || input;
+    const priority = input.priority || 'normal';
+
     logger.info('ExecuteAgent sending notification', {
       recipient,
       priority,
-      messageLength: message.length
+      messageLength: typeof message === 'string' ? message.length : JSON.stringify(message).length
     });
 
     return {

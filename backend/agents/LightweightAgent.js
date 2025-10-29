@@ -137,10 +137,23 @@ class LightweightAgent {
   }
 
   /**
-   * AI-based analysis (fallback)
+   * AI-based analysis (fallback) with context
    */
   async aiAnalyze(task) {
-    const prompt = `Analyze this task and suggest an action:
+    // Try to get context from memories
+    let contextStr = '';
+    try {
+      const { contextManager } = await import('../memory/ContextManager.js');
+      const context = await contextManager.buildContext(task, {
+        maxMemories: 3,
+        filterType: task.type
+      });
+      contextStr = context.context;
+    } catch (error) {
+      logger.debug('Context not available, proceeding without it');
+    }
+
+    const prompt = `${contextStr ? contextStr + '\n\n' : ''}Analyze this task and suggest an action:
 Task Type: ${task.type}
 Description: ${task.description || JSON.stringify(task.data)}
 
@@ -233,12 +246,18 @@ Provide:
    */
   async learn(task, result) {
     // Store successful patterns for future use
-    if (result.status === 'completed') {
-      // Could store in database for pattern recognition
-      logger.debug(`Agent ${this.name} learned from success`, {
-        agentId: this.id,
-        taskType: task.type
-      });
+    if (result.status === 'completed' || result.status === 'action_suggested') {
+      try {
+        const { contextManager } = await import('../memory/ContextManager.js');
+        await contextManager.storeTaskOutcome(task, { success: true, result });
+        
+        logger.debug(`Agent ${this.name} learned from success`, {
+          agentId: this.id,
+          taskType: task.type
+        });
+      } catch (error) {
+        logger.debug('Memory storage not available:', error.message);
+      }
     }
   }
 
