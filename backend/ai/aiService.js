@@ -431,7 +431,15 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
       const buildName = build.definition?.name || 'Unknown Build';
       const buildNumber = build.buildNumber || 'Unknown';
       const result = build.result || 'Unknown';
-      const sourceBranch = build.sourceBranch?.replace('refs/heads/', '') || 'Unknown';
+      
+      // Handle PR branches - fallback to master since pipeline YAML rarely changes
+      let sourceBranch = build.sourceBranch || 'Unknown';
+      if (sourceBranch.includes('refs/pull/')) {
+        sourceBranch = 'master'; // Fallback to master for PR builds
+        logger.info(`PR build detected, using master branch for YAML analysis instead of ${build.sourceBranch}`);
+      } else {
+        sourceBranch = sourceBranch.replace('refs/heads/', '');
+      }
       
       // Extract relevant error information from timeline
       const failedJobs = timeline?.records?.filter(record => 
