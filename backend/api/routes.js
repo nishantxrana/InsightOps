@@ -830,4 +830,8 @@ router.get('/webhooks/urls', async (req, res) => {
 // Emergency routes
 router.use('/emergency', emergencyRoutes);
 
+// Cache and performance stats routes
+import cacheStatsRoutes from './cacheStats.js';
+router.use('/performance', cacheStatsRoutes);
+
 export { router as apiRoutes };
