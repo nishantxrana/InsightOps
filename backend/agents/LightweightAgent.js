@@ -248,15 +248,28 @@ Provide:
     // Store successful patterns for future use
     if (result.status === 'completed' || result.status === 'action_suggested') {
       try {
+        // Store in memory system
         const { contextManager } = await import('../memory/ContextManager.js');
         await contextManager.storeTaskOutcome(task, { success: true, result });
+        
+        // Track pattern for rule generation
+        const { patternTracker } = await import('../learning/PatternTracker.js');
+        await patternTracker.trackSuccess(task, result.solution || result.action);
         
         logger.debug(`Agent ${this.name} learned from success`, {
           agentId: this.id,
           taskType: task.type
         });
       } catch (error) {
-        logger.debug('Memory storage not available:', error.message);
+        logger.debug('Learning systems not available:', error.message);
+      }
+    } else if (result.status === 'failed') {
+      try {
+        // Track failure
+        const { patternTracker } = await import('../learning/PatternTracker.js');
+        await patternTracker.trackFailure(task, result.error);
+      } catch (error) {
+        logger.debug('Pattern tracking not available:', error.message);
       }
     }
   }
