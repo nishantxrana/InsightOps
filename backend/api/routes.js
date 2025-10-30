@@ -451,13 +451,36 @@ router.post('/builds/:buildId/analyze', async (req, res) => {
     // Initialize AI service with user settings
     aiService.initializeWithUserSettings(userSettings);
     
-    // Generate AI analysis
-    const analysis = await aiService.summarizeBuildFailure(build, timeline, logs, client);
+    // Initialize FreeModelRouter with user AI config
+    const { freeModelRouter } = await import('../ai/FreeModelRouter.js');
+    freeModelRouter.initialize(userSettings.ai || {
+      provider: userSettings.aiProvider,
+      openaiApiKey: userSettings.openaiApiKey,
+      groqApiKey: userSettings.groqApiKey,
+      geminiApiKey: userSettings.geminiApiKey,
+      model: userSettings.aiModel
+    });
+    
+    // Route through agentic system (cache → rules → AI)
+    const { monitorAgent } = await import('../agents/MonitorAgent.js');
+    const agentResult = await monitorAgent.monitorBuildFailure(build, timeline, logs, client);
+    
+    // Extract analysis from agent result
+    const analysis = agentResult.success 
+      ? (agentResult.result?.solution || agentResult.result?.action || 'Analysis completed')
+      : 'Analysis failed';
     
     res.json({
       buildId: buildId,
       analysis: analysis,
-      status: 'completed'
+      status: 'completed',
+      agentic: {
+        success: agentResult.success,
+        method: agentResult.result?.method || 'unknown',
+        cacheHit: agentResult.stats?.cacheHits > 0,
+        ruleUsed: agentResult.stats?.rulesUsed > 0,
+        duration: agentResult.duration
+      }
     });
     
   } catch (error) {

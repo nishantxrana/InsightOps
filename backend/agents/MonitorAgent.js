@@ -17,12 +17,12 @@ class MonitorAgent extends LightweightAgent {
   /**
    * Monitor build failures
    */
-  async monitorBuildFailure(build, timeline, logs) {
+  async monitorBuildFailure(build, timeline, logs, client) {
     const task = {
       type: 'build_failure',
       category: 'build',
       description: this.extractBuildError(build, timeline),
-      data: { build, timeline, logs }
+      data: { build, timeline, logs, client }
     };
 
     return await this.execute(task);
@@ -120,6 +120,31 @@ class MonitorAgent extends LightweightAgent {
           solution
         };
     }
+  }
+
+  /**
+   * Override AI analysis for build failures to use proper aiService
+   */
+  async aiAnalyze(task) {
+    // For build failures, use the specialized aiService
+    if (task.type === 'build_failure' && task.data.build) {
+      const { aiService } = await import('../ai/aiService.js');
+      const { build, timeline, logs, client } = task.data;
+      
+      const analysis = await aiService.summarizeBuildFailure(build, timeline, logs, client);
+      
+      return {
+        method: 'ai',
+        analysis,
+        solution: analysis,
+        confidence: 0.8,
+        action: 'provide_solution',
+        autoFix: false
+      };
+    }
+    
+    // For other tasks, use parent implementation
+    return await super.aiAnalyze(task);
   }
 
   /**
