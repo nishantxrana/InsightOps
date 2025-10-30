@@ -834,4 +834,8 @@ router.use('/emergency', emergencyRoutes);
 import cacheStatsRoutes from './cacheStats.js';
 router.use('/performance', cacheStatsRoutes);
 
+// Agent dashboard routes
+import agentDashboardRoutes from './agentDashboard.js';
+router.use('/agent-dashboard', agentDashboardRoutes);
+
 export { router as apiRoutes };
