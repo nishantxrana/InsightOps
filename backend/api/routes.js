@@ -267,8 +267,23 @@ router.get('/work-items/ai-summary', async (req, res) => {
     // Initialize AI service with user settings
     aiService.initializeWithUserSettings(userSettings);
     
+    // Check cache first (cache by sprint + item count + last update)
+    const { cacheManager } = await import('../cache/CacheManager.js');
+    const itemIds = allWorkItems.value.map(i => i.id).sort().join(',');
+    const cacheKey = `sprint_summary_${itemIds.substring(0, 50)}_${allWorkItems.value.length}`;
+    const cached = cacheManager.get('ai', cacheKey);
+    
+    if (cached) {
+      logger.info('Sprint summary cache hit', { itemCount: allWorkItems.value.length });
+      return res.json({ summary: cached, status: 'completed', cached: true });
+    }
+    
     const summary = await aiService.summarizeSprintWorkItems(allWorkItems.value);
-    res.json({ summary, status: 'completed' });
+    
+    // Cache for 30 minutes
+    cacheManager.set('ai', cacheKey, summary, 1800);
+    
+    res.json({ summary, status: 'completed', cached: false });
     
   } catch (error) {
     logger.error('Error generating AI summary:', error);
@@ -304,13 +319,32 @@ router.get('/work-items/:id/explain', async (req, res) => {
     
     const item = workItem.value[0];
     
+    // Check cache first
+    const { cacheManager } = await import('../cache/CacheManager.js');
+    const cacheKey = `workitem_explain_${workItemId}_${item.rev}`;
+    const cached = cacheManager.get('ai', cacheKey);
+    
+    if (cached) {
+      logger.info('Work item explanation cache hit', { workItemId });
+      return res.json({
+        workItemId: workItemId,
+        explanation: cached,
+        status: 'completed',
+        cached: true
+      });
+    }
+    
     // Use dedicated AI method for detailed work item explanation
     const explanation = await aiService.explainWorkItem(item);
+    
+    // Cache for 1 hour
+    cacheManager.set('ai', cacheKey, explanation, 3600);
     
     res.json({
       workItemId: workItemId,
       explanation: explanation,
-      status: 'completed'
+      status: 'completed',
+      cached: false
     });
     
   } catch (error) {
@@ -566,15 +600,36 @@ router.get('/pull-requests/:id/explain', async (req, res) => {
       logger.warn('Failed to fetch PR commits:', error.message);
     }
 
+    // Check cache first
+    const { cacheManager } = await import('../cache/CacheManager.js');
+    const cacheKey = `pr_explain_${pullRequestId}_${pullRequest.lastMergeSourceCommit?.commitId || 'initial'}`;
+    const cached = cacheManager.get('ai', cacheKey);
+    
+    if (cached) {
+      logger.info('PR explanation cache hit', { pullRequestId });
+      return res.json({
+        pullRequestId: pullRequestId,
+        explanation: cached,
+        changes: changes,
+        commits: commits,
+        status: 'completed',
+        cached: true
+      });
+    }
+
     // Generate AI explanation
     const explanation = await aiService.explainPullRequest(pullRequest, changes, commits);
+    
+    // Cache for 1 hour
+    cacheManager.set('ai', cacheKey, explanation, 3600);
     
     res.json({
       pullRequestId: pullRequestId,
       explanation: explanation,
       changes: changes,
       commits: commits,
-      status: 'completed'
+      status: 'completed',
+      cached: false
     });
     
   } catch (error) {
