@@ -1,6 +1,11 @@
 import { logger } from './logger.js';
 
 export const errorHandler = (err, req, res, next) => {
+  // Skip error handling for static assets - let Express handle them
+  if (req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+    return next(err);
+  }
+
   // Log the error
   logger.error('Unhandled error:', {
     error: err.message,

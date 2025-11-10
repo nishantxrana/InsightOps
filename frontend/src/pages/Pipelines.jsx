@@ -40,6 +40,9 @@ export default function Pipelines() {
   
   // Filter states
   const [statusFilter, setStatusFilter] = useState('all');
+  const [buildLimit, setBuildLimit] = useState(20);
+  const [repositoryFilter, setRepositoryFilter] = useState('all');
+  const [repositories, setRepositories] = useState([]);
   const { checkConnection } = useHealth();
 
   // Filter builds when filters change
@@ -62,7 +65,7 @@ export default function Pipelines() {
   useEffect(() => {
     loadPipelinesData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [buildLimit, repositoryFilter]);
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadPipelinesData()]);
@@ -73,9 +76,15 @@ export default function Pipelines() {
       setLoading(true);
       setError(null);
 
-      const buildsData = await apiService.getRecentBuilds();
+      const buildsData = await apiService.getRecentBuilds(buildLimit, repositoryFilter);
       const buildsList = buildsData?.value || [];
       setBuilds(buildsList);
+
+      // Extract unique repositories for filter dropdown
+      const uniqueRepos = [...new Set(buildsList.map(build => 
+        build.repository?.name || build.definition?.name || 'Unknown'
+      ))].filter(Boolean).sort();
+      setRepositories(uniqueRepos);
 
       // Calculate stats
       const newStats = {
@@ -401,6 +410,31 @@ export default function Pipelines() {
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            <FilterDropdown
+              options={[
+                { value: 10, label: '10 builds' },
+                { value: 20, label: '20 builds' },
+                { value: 30, label: '30 builds' },
+                { value: 40, label: '40 builds' },
+                { value: 50, label: '50 builds' }
+              ]}
+              value={buildLimit}
+              onChange={setBuildLimit}
+              icon={Building}
+              placeholder="20 builds"
+              minWidth="100px"
+            />
+            <FilterDropdown
+              options={[
+                { value: 'all', label: 'All Repositories' },
+                ...repositories.map(repo => ({ value: repo, label: repo }))
+              ]}
+              value={repositoryFilter}
+              onChange={setRepositoryFilter}
+              icon={GitBranch}
+              placeholder="All Repositories"
+              minWidth="150px"
+            />
             <FilterDropdown
               options={[
                 { value: 'all', label: 'All Status' },

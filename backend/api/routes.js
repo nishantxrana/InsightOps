@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { logger } from '../utils/logger.js';
+import mongoose from 'mongoose';
+import { logger, sanitizeForLogging } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { authenticate } from '../middleware/auth.js';
@@ -8,46 +9,38 @@ import { getUserSettings, updateUserSettings } from '../utils/userSettings.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
 import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workItemStates.js';
 import { userPollingManager } from '../polling/userPollingManager.js';
+import { validateRequest } from '../middleware/validation.js';
+import { settingsSchema, testConnectionSchema } from '../validators/schemas.js';
+import emergencyRoutes from './emergency.js';
 
 const router = express.Router();
 
 // Health check endpoint (public - no auth required)
-router.get('/health', (req, res) => {
-  // Calculate server start time for persistent uptime tracking
+router.get('/health', async (req, res) => {
   const serverStartTime = Date.now() - (process.uptime() * 1000);
   
-  res.json({
+  const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     serverStartTime: serverStartTime,
-    service: 'Azure DevOps Monitoring InsightOps'
-  });
-});
+    service: 'Azure DevOps Monitoring InsightOps',
+    environment: process.env.NODE_ENV,
+    version: process.env.npm_package_version || '1.0.0'
+  };
 
-// Debug endpoint to check token (public - no auth required)
-router.get('/debug/token', (req, res) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  
-  if (!token) {
-    return res.json({ error: 'No token provided', hasToken: false });
-  }
-  
+  // Check database connection
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json({ 
-      hasToken: true, 
-      tokenValid: true, 
-      userId: decoded.userId,
-      exp: new Date(decoded.exp * 1000).toISOString()
-    });
+    await mongoose.connection.db.admin().ping();
+    health.database = 'connected';
   } catch (error) {
-    res.json({ 
-      hasToken: true, 
-      tokenValid: false, 
-      error: error.message 
-    });
+    health.status = 'unhealthy';
+    health.database = 'disconnected';
+    logger.error('Health check: Database connection failed', error);
   }
+
+  const statusCode = health.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // Apply authentication to all other routes
@@ -91,9 +84,9 @@ router.get('/settings', async (req, res) => {
   }
 });
 
-router.put('/settings', async (req, res) => {
+router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
   try {
-    const updates = { ...req.body };
+    const updates = { ...req.validatedData };
     
     // Handle masked values - don't update if value is '***'
     if (updates.azureDevOps?.pat === '***') {
@@ -110,10 +103,10 @@ router.put('/settings', async (req, res) => {
     
     const settings = await updateUserSettings(req.user._id, updates);
     
-    // Restart user polling with new settings if polling settings were updated
+    // Update user polling with new settings if polling settings were updated
     if (updates.polling) {
-      logger.info('Polling settings updated - restarting user polling');
-      await userPollingManager.startUserPolling(req.user._id);
+      logger.info('Polling settings updated - updating user polling configuration');
+      await userPollingManager.updateUserPolling(req.user._id, updates);
     }
     
     res.json({ message: 'Settings updated successfully' });
@@ -123,19 +116,11 @@ router.put('/settings', async (req, res) => {
   }
 });
 
-router.post('/settings/test-connection', async (req, res) => {
+router.post('/settings/test-connection', validateRequest(testConnectionSchema), async (req, res) => {
   try {
-    const { organization, project, pat, baseUrl } = req.body;
+    const { organization, project, pat, baseUrl } = req.validatedData;
     
-    // Validate required fields
-    if (!organization || !project || !pat) {
-      return res.status(400).json({
-        success: false,
-        message: 'Organization, project, and personal access token are required'
-      });
-    }
-    
-    logger.info('Testing Azure DevOps connection...');
+    logger.info('Testing Azure DevOps connection...', sanitizeForLogging({ organization, project }));
     
     // Test the connection with provided credentials
     const testResult = await testAzureDevOpsConnection({
@@ -222,28 +207,12 @@ router.get('/work-items/sprint-summary', async (req, res) => {
       overdue: overdueCount, // Add overdue count for dashboard
       workItemsByState: groupWorkItemsByState(allWorkItems.value || []),
       workItemsByAssignee: groupWorkItemsByAssignee(allWorkItems.value || []),
-      summary: null, // Will be populated async
-      summaryStatus: 'processing'
+      summary: null, // Will be populated via separate AI endpoint
+      summaryStatus: 'available'
     };
     
     // Send immediate response
     res.json(immediateResponse);
-    
-    // Process AI summary asynchronously (don't await)
-    if (allWorkItems.value && allWorkItems.value.length > 0) {
-      processAISummaryAsync(allWorkItems.value)
-        .then(summary => {
-          // Store summary in cache or database for later retrieval
-          logger.info('AI summary generated successfully', { 
-            itemCount: allWorkItems.value.length,
-            summaryLength: summary.length 
-          });
-          // TODO: Store summary in cache/database
-        })
-        .catch(error => {
-          logger.error('Error generating AI summary:', error);
-        });
-    }
     
   } catch (error) {
     logger.error('Error fetching sprint summary:', error);
@@ -393,6 +362,17 @@ router.get('/work-items/overdue', async (req, res) => {
   }
 });
 
+// Emergency cleanup endpoint (for development/debugging)
+router.post('/polling/emergency-cleanup', async (req, res) => {
+  try {
+    await userPollingManager.emergencyCleanup();
+    res.json({ message: 'Emergency cleanup completed' });
+  } catch (error) {
+    logger.error('Emergency cleanup failed:', error);
+    res.status(500).json({ error: 'Emergency cleanup failed' });
+  }
+});
+
 // Builds endpoints
 router.get('/builds/recent', async (req, res) => {
   try {
@@ -402,8 +382,20 @@ router.get('/builds/recent', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
+    // Get limit from query parameter, default to 20, min 10, max 50
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 10), 50);
+    const repositoryFilter = req.query.repository;
+    
     const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
-    const builds = await client.getRecentBuilds(20);
+    let builds = await client.getRecentBuilds(limit);
+    
+    // Filter by repository if specified
+    if (repositoryFilter && repositoryFilter !== 'all') {
+      builds.value = builds.value?.filter(build => 
+        build.repository?.name === repositoryFilter ||
+        build.definition?.name?.includes(repositoryFilter)
+      );
+    }
     res.json(builds);
   } catch (error) {
     logger.error('Error fetching recent builds:', error);
@@ -834,5 +826,8 @@ router.get('/webhooks/urls', async (req, res) => {
     });
   }
 });
+
+// Emergency routes
+router.use('/emergency', emergencyRoutes);
 
 export { router as apiRoutes };

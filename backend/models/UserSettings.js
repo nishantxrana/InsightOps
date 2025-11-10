@@ -54,4 +54,8 @@ userSettingsSchema.pre('save', function(next) {
   next();
 });
 
+// Add database indexes for performance
+userSettingsSchema.index({ 'azureDevOps.organization': 1 });
+userSettingsSchema.index({ updatedAt: -1 });
+
 export const UserSettings = mongoose.model('UserSettings', userSettingsSchema);

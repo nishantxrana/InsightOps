@@ -92,8 +92,12 @@ export const apiService = {
   },
 
   // Builds/Pipelines
-  async getRecentBuilds() {
-    const response = await api.get('/builds/recent')
+  async getRecentBuilds(limit = 20, repository = 'all') {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (repository && repository !== 'all') {
+      params.append('repository', repository);
+    }
+    const response = await api.get(`/builds/recent?${params.toString()}`)
     return response.data
   },
 

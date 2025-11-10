@@ -188,6 +188,13 @@ export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const heroRef = useRef(null);
 
+  // Handle video modal opening with extension bypass
+  const handleWatchDemo = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsVideoModalOpen(true);
+  };
+
   const demoVideoUrl =
     import.meta.env.VITE_DEMO_VIDEO_URL ||
     "https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4";
@@ -419,8 +426,10 @@ export default function LandingPage() {
             </Link>
 
             <button
-              onClick={() => setIsVideoModalOpen(true)}
+              onClick={handleWatchDemo}
+              onMouseDown={handleWatchDemo}
               className="flex items-center space-x-3 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 group"
+              type="button"
             >
               <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center group-hover:bg-slate-200 dark:group-hover:bg-slate-700 transition-colors duration-200">
                 <Play className="w-4 h-4 ml-0.5" />
@@ -703,8 +712,10 @@ export default function LandingPage() {
             </Link>
 
             <button
-              onClick={() => setIsVideoModalOpen(true)}
+              onClick={handleWatchDemo}
+              onMouseDown={handleWatchDemo}
               className="flex items-center space-x-2 text-slate-300 hover:text-white transition-colors duration-200 font-medium"
+              type="button"
             >
               <span>Watch demo</span>
               <ArrowRight className="w-4 h-4" />

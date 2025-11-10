@@ -84,9 +84,11 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
+      const errorData = error.response?.data;
       return { 
         success: false, 
-        error: error.response?.data?.error || 'Login failed' 
+        error: errorData?.error || 'Login failed',
+        details: errorData?.details || null
       };
     }
   };
@@ -107,9 +109,11 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
+      const errorData = error.response?.data;
       return { 
         success: false, 
-        error: error.response?.data?.error || 'Signup failed' 
+        error: errorData?.error || 'Signup failed',
+        details: errorData?.details || null
       };
     }
   };
