@@ -47,7 +47,7 @@ export default function WorkItems() {
   const [overdueItems, setOverdueItems] = useState([])
   const [aiSummaryEnabled, setAiSummaryEnabled] = useState(() => {
     const saved = localStorage.getItem('aiSummaryEnabled');
-    return saved !== null ? JSON.parse(saved) : true; // Default enabled
+    return saved !== null ? JSON.parse(saved) : false; // Default disabled
   });
   
   // Filtering and interaction state
