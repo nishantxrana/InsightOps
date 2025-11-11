@@ -335,7 +335,7 @@ router.get('/work-items/:id/explain', async (req, res) => {
     }
     
     // Use dedicated AI method for detailed work item explanation
-    const explanation = await aiService.explainWorkItem(item);
+    const explanation = await aiService.explainWorkItem(item, userSettings);
     
     // Cache for 1 hour
     cacheManager.set('ai', cacheKey, explanation, 3600);
