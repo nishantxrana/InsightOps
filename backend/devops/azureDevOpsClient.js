@@ -825,6 +825,19 @@ class AzureDevOpsClient {
       throw error;
     }
   }
+
+  // Projects API
+  async getAllProjects() {
+    try {
+      const response = await this.orgClient.get('/projects', {
+        params: { 'api-version': '7.1' }
+      });
+      return response.data;
+    } catch (error) {
+      logger.error('Error fetching projects:', error);
+      throw error;
+    }
+  }
 }
 
 class UserAzureDevOpsClient extends AzureDevOpsClient {
