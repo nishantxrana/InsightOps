@@ -422,12 +422,12 @@ export default function PullRequests() {
               <div className="flex items-center justify-between mb-3">
                 <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                 <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
-                  Idle
+                  Overdue
                 </span>
               </div>
               <div className="mb-3">
                 <div className="text-2xl font-bold text-foreground mb-0.5">{stats.idle}</div>
-                <div className="text-sm text-muted-foreground">Stale (48h+)</div>
+                <div className="text-sm text-muted-foreground">Overdue (48h+)</div>
               </div>
             </>
           )}
@@ -451,7 +451,7 @@ export default function PullRequests() {
                 { value: 'all', label: 'All', count: pullRequests.length },
                 { value: 'under-review', label: 'Under Review', count: stats.active },
                 { value: 'unassigned', label: 'Unassigned', count: stats.unassigned },
-                { value: 'idle', label: 'Idle', count: stats.idle }
+                { value: 'idle', label: 'Overdue', count: stats.idle }
               ].map((option) => (
                 <button
                   key={option.value}

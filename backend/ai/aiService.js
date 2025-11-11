@@ -210,9 +210,16 @@ Summarize what needs to be done, why it's important, and any key technical or bu
     return priorityMap[priority] || `Priority ${priority}`;
   }
 
-  async explainWorkItem(workItem) {
+  async explainWorkItem(workItem, userSettings = null) {
     try {
-      if (!this.initialized) {
+      if (!this.initialized && userSettings) {
+        try {
+          this.initializeWithUserSettings(userSettings);
+        } catch (error) {
+          logger.warn('AI service not configured, returning fallback explanation');
+          return 'AI explanation not available - please configure AI provider in settings.';
+        }
+      } else if (!this.initialized) {
         try {
           this.initializeClient();
         } catch (error) {

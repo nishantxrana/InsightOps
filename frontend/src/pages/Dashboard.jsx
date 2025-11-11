@@ -432,7 +432,7 @@ export default function Dashboard() {
                       <Clock className="w-4 h-4 text-red-600 dark:text-red-400" />
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium text-red-900 dark:text-red-100 text-sm">{stats.workItems.overdue} overdue items</div>
+                      <div className="font-medium text-red-900 dark:text-red-100 text-sm">{stats.workItems.overdue} overdue work items</div>
                       <div className="text-xs text-red-700 dark:text-red-300">Need immediate attention</div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-red-400 dark:text-red-500 group-hover:translate-x-0.5 transition-transform" />
@@ -456,7 +456,7 @@ export default function Dashboard() {
                       <GitPullRequest className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium text-amber-900 dark:text-amber-100 text-sm">{stats.pullRequests.idle} stale PRs</div>
+                      <div className="font-medium text-amber-900 dark:text-amber-100 text-sm">{stats.pullRequests.idle} overdue PRs</div>
                       <div className="text-xs text-amber-700 dark:text-amber-300">No activity for 48h+</div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-amber-400 dark:text-amber-500 group-hover:translate-x-0.5 transition-transform" />
