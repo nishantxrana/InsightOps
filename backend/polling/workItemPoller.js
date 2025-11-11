@@ -110,22 +110,38 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
     }
 
     const { markdownFormatter } = await import('../utils/markdownFormatter.js');
-    const message = markdownFormatter.formatOverdueItemsMessage(overdueItems);
     
-    // Send to enabled notification channels
-    if (userSettings.notifications.teamsEnabled && userSettings.notifications.webhooks?.teams) {
-      await this.sendTeamsNotification(message, userSettings.notifications.webhooks.teams);
+    // Batch processing - 10 items per message with 7 second delay
+    const batchSize = 10;
+    const delayBetweenBatches = 7000; // 7 seconds
+    const totalBatches = Math.ceil(overdueItems.length / batchSize);
+    
+    for (let i = 0; i < overdueItems.length; i += batchSize) {
+      const batch = overdueItems.slice(i, i + batchSize);
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      
+      const message = markdownFormatter.formatOverdueItemsBatch(batch, batchNumber, totalBatches, overdueItems.length);
+      
+      // Send to enabled notification channels
+      if (userSettings.notifications.teamsEnabled && userSettings.notifications.webhooks?.teams) {
+        await this.sendTeamsNotification(message, userSettings.notifications.webhooks.teams);
+      }
+      
+      if (userSettings.notifications.slackEnabled && userSettings.notifications.webhooks?.slack) {
+        await this.sendSlackNotification(message, userSettings.notifications.webhooks.slack);
+      }
+      
+      if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
+        await this.sendGoogleChatNotification(message, userSettings.notifications.webhooks.googleChat);
+      }
+      
+      // Delay before next batch (except for last one)
+      if (i + batchSize < overdueItems.length) {
+        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+      }
     }
     
-    if (userSettings.notifications.slackEnabled && userSettings.notifications.webhooks?.slack) {
-      await this.sendSlackNotification(message, userSettings.notifications.webhooks.slack);
-    }
-    
-    if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
-      await this.sendGoogleChatNotification(message, userSettings.notifications.webhooks.googleChat);
-    }
-    
-    logger.info('Overdue notification sent successfully');
+    logger.info(`Overdue notifications sent in ${totalBatches} batches`);
   } catch (error) {
     logger.error('Failed to send overdue notification:', error);
   }

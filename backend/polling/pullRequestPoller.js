@@ -131,14 +131,30 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
     }
 
     const { markdownFormatter } = await import('../utils/markdownFormatter.js');
-    const message = markdownFormatter.formatIdlePullRequestReminder(idlePRs);
     
-    // Send to enabled notification channels
-    if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
-      await this.sendGoogleChatNotification(message, userSettings.notifications.webhooks.googleChat);
+    // Batch processing - 10 PRs per message with 7 second delay
+    const batchSize = 10;
+    const delayBetweenBatches = 7000; // 7 seconds
+    const totalBatches = Math.ceil(idlePRs.length / batchSize);
+    
+    for (let i = 0; i < idlePRs.length; i += batchSize) {
+      const batch = idlePRs.slice(i, i + batchSize);
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      
+      const message = markdownFormatter.formatIdlePullRequestBatch(batch, batchNumber, totalBatches, idlePRs.length);
+      
+      // Send to enabled notification channels
+      if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
+        await this.sendGoogleChatNotification(message, userSettings.notifications.webhooks.googleChat);
+      }
+      
+      // Delay before next batch (except for last one)
+      if (i + batchSize < idlePRs.length) {
+        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+      }
     }
     
-    logger.info('Idle PR notification sent successfully');
+    logger.info(`Idle PR notifications sent in ${totalBatches} batches`);
   } catch (error) {
     logger.error('Error sending idle PR notification:', error);
   }
