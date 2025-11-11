@@ -20,6 +20,7 @@ import {
 import axios from 'axios'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { CopyButton } from '../components/ui/shadcn-io/copy-button'
 import { Switch } from '../components/ui/switch'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useHealth } from '../contexts/HealthContext'
@@ -726,13 +727,10 @@ export default function Settings() {
                     value={webhookUrls.buildCompleted || 'Loading...'}
                     className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
                   />
-                  <button
-                    onClick={() => copyToClipboard(webhookUrls.buildCompleted)}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    📋
-                  </button>
+                  <CopyButton 
+                    content={webhookUrls.buildCompleted}
+                    variant="outline"
+                  />
                 </div>
               </div>
 
@@ -745,13 +743,10 @@ export default function Settings() {
                     value={webhookUrls.pullRequestCreated || 'Loading...'}
                     className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
                   />
-                  <button
-                    onClick={() => copyToClipboard(webhookUrls.pullRequestCreated)}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    📋
-                  </button>
+                  <CopyButton 
+                    content={webhookUrls.pullRequestCreated}
+                    variant="outline"
+                  />
                 </div>
               </div>
 
@@ -764,13 +759,10 @@ export default function Settings() {
                     value={webhookUrls.pullRequestUpdated || 'Loading...'}
                     className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
                   />
-                  <button
-                    onClick={() => copyToClipboard(webhookUrls.pullRequestUpdated)}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    📋
-                  </button>
+                  <CopyButton 
+                    content={webhookUrls.pullRequestUpdated}
+                    variant="outline"
+                  />
                 </div>
               </div>
 
@@ -783,13 +775,10 @@ export default function Settings() {
                     value={webhookUrls.workItemCreated || 'Loading...'}
                     className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
                   />
-                  <button
-                    onClick={() => copyToClipboard(webhookUrls.workItemCreated)}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    📋
-                  </button>
+                  <CopyButton 
+                    content={webhookUrls.workItemCreated}
+                    variant="outline"
+                  />
                 </div>
               </div>
 
@@ -802,13 +791,10 @@ export default function Settings() {
                     value={webhookUrls.workItemUpdated || 'Loading...'}
                     className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono"
                   />
-                  <button
-                    onClick={() => copyToClipboard(webhookUrls.workItemUpdated)}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    📋
-                  </button>
+                  <CopyButton 
+                    content={webhookUrls.workItemUpdated}
+                    variant="outline"
+                  />
                 </div>
               </div>
             </div>
