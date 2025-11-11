@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { Switch } from '../components/ui/switch'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useHealth } from '../contexts/HealthContext'
@@ -31,6 +32,8 @@ export default function Settings() {
   const [testResult, setTestResult] = useState(null)
   const [validationErrors, setValidationErrors] = useState({})
   const [webhookUrls, setWebhookUrls] = useState({})
+  const [projects, setProjects] = useState([])
+  const [loadingProjects, setLoadingProjects] = useState(false)
   const { isConnected, healthData } = useHealth()
   
   const [settings, setSettings] = useState({
@@ -104,6 +107,13 @@ export default function Settings() {
     loadSettings()
     loadWebhookUrls()
   }, [])
+
+  useEffect(() => {
+    // Initialize projects with current saved project when settings load
+    if (settings.azureDevOps.project && projects.length === 0) {
+      setProjects([{ id: 'current', name: settings.azureDevOps.project }])
+    }
+  }, [settings.azureDevOps.project])
 
   const loadSettings = async () => {
     try {
@@ -287,6 +297,31 @@ export default function Settings() {
     }))
   }
 
+  const fetchProjects = async () => {
+    if (loadingProjects) return
+    
+    setLoadingProjects(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await axios.get('/api/projects', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const fetchedProjects = response.data.value || []
+      
+      // Ensure current project is in the list
+      const currentProject = settings.azureDevOps.project
+      if (currentProject && !fetchedProjects.find(p => p.name === currentProject)) {
+        fetchedProjects.unshift({ id: 'current', name: currentProject })
+      }
+      
+      setProjects(fetchedProjects)
+    } catch (error) {
+      console.error('Failed to fetch projects:', error)
+    } finally {
+      setLoadingProjects(false)
+    }
+  }
+
   if (loading) {
     return <LoadingSpinner />
   }
@@ -415,13 +450,25 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Project</label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
+              <Select
                 value={settings.azureDevOps.project}
-                onChange={(e) => updateSetting('azureDevOps', 'project', e.target.value)}
-                placeholder="your-project"
-              />
+                onValueChange={(value) => updateSetting('azureDevOps', 'project', value)}
+                onOpenChange={(open) => open && fetchProjects()}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a project..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {loadingProjects && (
+                    <SelectItem value="loading" disabled>Loading projects...</SelectItem>
+                  )}
+                  {projects.map(project => (
+                    <SelectItem key={project.id} value={project.name}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {validationErrors.project && (
                 <p className="text-red-600 dark:text-red-400 text-xs mt-1">{validationErrors.project}</p>
               )}
@@ -472,15 +519,19 @@ export default function Settings() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">AI Provider</label>
-              <select
-                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground"
+              <Select
                 value={settings.ai.provider}
-                onChange={(e) => updateSetting('ai', 'provider', e.target.value)}
+                onValueChange={(value) => updateSetting('ai', 'provider', value)}
               >
-                <option value="openai">OpenAI</option>
-                <option value="groq">Groq</option>
-                <option value="gemini">Google Gemini</option>
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select AI provider..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai">OpenAI</SelectItem>
+                  <SelectItem value="groq">Groq</SelectItem>
+                  <SelectItem value="gemini">Google Gemini</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {settings.ai.provider === 'openai' && (
               <div>

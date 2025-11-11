@@ -145,6 +145,18 @@ router.post('/settings/test-connection', validateRequest(testConnectionSchema), 
 });
 
 // Work Items endpoints
+router.get('/projects', async (req, res) => {
+  try {
+    const userSettings = await getUserSettings(req.user._id);
+    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const projects = await client.getAllProjects();
+    res.json(projects);
+  } catch (error) {
+    logger.error('Error fetching projects:', error);
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
 router.get('/work-items', async (req, res) => {
   try {
     const userSettings = await getUserSettings(req.user._id);
