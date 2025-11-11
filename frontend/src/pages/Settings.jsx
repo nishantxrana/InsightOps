@@ -519,15 +519,19 @@ export default function Settings() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">AI Provider</label>
-              <select
-                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground"
+              <Select
                 value={settings.ai.provider}
-                onChange={(e) => updateSetting('ai', 'provider', e.target.value)}
+                onValueChange={(value) => updateSetting('ai', 'provider', value)}
               >
-                <option value="openai">OpenAI</option>
-                <option value="groq">Groq</option>
-                <option value="gemini">Google Gemini</option>
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select AI provider..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai">OpenAI</SelectItem>
+                  <SelectItem value="groq">Groq</SelectItem>
+                  <SelectItem value="gemini">Google Gemini</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {settings.ai.provider === 'openai' && (
               <div>
