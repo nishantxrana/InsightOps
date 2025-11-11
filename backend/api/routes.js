@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { logger } from '../utils/logger.js';
+import mongoose from 'mongoose';
+import { logger, sanitizeForLogging } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { authenticate } from '../middleware/auth.js';
@@ -8,46 +9,38 @@ import { getUserSettings, updateUserSettings } from '../utils/userSettings.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
 import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workItemStates.js';
 import { userPollingManager } from '../polling/userPollingManager.js';
+import { validateRequest } from '../middleware/validation.js';
+import { settingsSchema, testConnectionSchema } from '../validators/schemas.js';
+import emergencyRoutes from './emergency.js';
 
 const router = express.Router();
 
 // Health check endpoint (public - no auth required)
-router.get('/health', (req, res) => {
-  // Calculate server start time for persistent uptime tracking
+router.get('/health', async (req, res) => {
   const serverStartTime = Date.now() - (process.uptime() * 1000);
   
-  res.json({
+  const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     serverStartTime: serverStartTime,
-    service: 'Azure DevOps Monitoring InsightOps'
-  });
-});
+    service: 'Azure DevOps Monitoring InsightOps',
+    environment: process.env.NODE_ENV,
+    version: process.env.npm_package_version || '1.0.0'
+  };
 
-// Debug endpoint to check token (public - no auth required)
-router.get('/debug/token', (req, res) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  
-  if (!token) {
-    return res.json({ error: 'No token provided', hasToken: false });
-  }
-  
+  // Check database connection
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json({ 
-      hasToken: true, 
-      tokenValid: true, 
-      userId: decoded.userId,
-      exp: new Date(decoded.exp * 1000).toISOString()
-    });
+    await mongoose.connection.db.admin().ping();
+    health.database = 'connected';
   } catch (error) {
-    res.json({ 
-      hasToken: true, 
-      tokenValid: false, 
-      error: error.message 
-    });
+    health.status = 'unhealthy';
+    health.database = 'disconnected';
+    logger.error('Health check: Database connection failed', error);
   }
+
+  const statusCode = health.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // Apply authentication to all other routes
@@ -91,9 +84,9 @@ router.get('/settings', async (req, res) => {
   }
 });
 
-router.put('/settings', async (req, res) => {
+router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
   try {
-    const updates = { ...req.body };
+    const updates = { ...req.validatedData };
     
     // Handle masked values - don't update if value is '***'
     if (updates.azureDevOps?.pat === '***') {
@@ -110,10 +103,10 @@ router.put('/settings', async (req, res) => {
     
     const settings = await updateUserSettings(req.user._id, updates);
     
-    // Restart user polling with new settings if polling settings were updated
+    // Update user polling with new settings if polling settings were updated
     if (updates.polling) {
-      logger.info('Polling settings updated - restarting user polling');
-      await userPollingManager.startUserPolling(req.user._id);
+      logger.info('Polling settings updated - updating user polling configuration');
+      await userPollingManager.updateUserPolling(req.user._id, updates);
     }
     
     res.json({ message: 'Settings updated successfully' });
@@ -123,19 +116,11 @@ router.put('/settings', async (req, res) => {
   }
 });
 
-router.post('/settings/test-connection', async (req, res) => {
+router.post('/settings/test-connection', validateRequest(testConnectionSchema), async (req, res) => {
   try {
-    const { organization, project, pat, baseUrl } = req.body;
+    const { organization, project, pat, baseUrl } = req.validatedData;
     
-    // Validate required fields
-    if (!organization || !project || !pat) {
-      return res.status(400).json({
-        success: false,
-        message: 'Organization, project, and personal access token are required'
-      });
-    }
-    
-    logger.info('Testing Azure DevOps connection...');
+    logger.info('Testing Azure DevOps connection...', sanitizeForLogging({ organization, project }));
     
     // Test the connection with provided credentials
     const testResult = await testAzureDevOpsConnection({
@@ -222,28 +207,12 @@ router.get('/work-items/sprint-summary', async (req, res) => {
       overdue: overdueCount, // Add overdue count for dashboard
       workItemsByState: groupWorkItemsByState(allWorkItems.value || []),
       workItemsByAssignee: groupWorkItemsByAssignee(allWorkItems.value || []),
-      summary: null, // Will be populated async
-      summaryStatus: 'processing'
+      summary: null, // Will be populated via separate AI endpoint
+      summaryStatus: 'available'
     };
     
     // Send immediate response
     res.json(immediateResponse);
-    
-    // Process AI summary asynchronously (don't await)
-    if (allWorkItems.value && allWorkItems.value.length > 0) {
-      processAISummaryAsync(allWorkItems.value)
-        .then(summary => {
-          // Store summary in cache or database for later retrieval
-          logger.info('AI summary generated successfully', { 
-            itemCount: allWorkItems.value.length,
-            summaryLength: summary.length 
-          });
-          // TODO: Store summary in cache/database
-        })
-        .catch(error => {
-          logger.error('Error generating AI summary:', error);
-        });
-    }
     
   } catch (error) {
     logger.error('Error fetching sprint summary:', error);
@@ -298,8 +267,23 @@ router.get('/work-items/ai-summary', async (req, res) => {
     // Initialize AI service with user settings
     aiService.initializeWithUserSettings(userSettings);
     
+    // Check cache first (cache by sprint + item count + last update)
+    const { cacheManager } = await import('../cache/CacheManager.js');
+    const itemIds = allWorkItems.value.map(i => i.id).sort().join(',');
+    const cacheKey = `sprint_summary_${itemIds.substring(0, 50)}_${allWorkItems.value.length}`;
+    const cached = cacheManager.get('ai', cacheKey);
+    
+    if (cached) {
+      logger.info('Sprint summary cache hit', { itemCount: allWorkItems.value.length });
+      return res.json({ summary: cached, status: 'completed', cached: true });
+    }
+    
     const summary = await aiService.summarizeSprintWorkItems(allWorkItems.value);
-    res.json({ summary, status: 'completed' });
+    
+    // Cache for 30 minutes
+    cacheManager.set('ai', cacheKey, summary, 1800);
+    
+    res.json({ summary, status: 'completed', cached: false });
     
   } catch (error) {
     logger.error('Error generating AI summary:', error);
@@ -335,13 +319,32 @@ router.get('/work-items/:id/explain', async (req, res) => {
     
     const item = workItem.value[0];
     
+    // Check cache first
+    const { cacheManager } = await import('../cache/CacheManager.js');
+    const cacheKey = `workitem_explain_${workItemId}_${item.rev}`;
+    const cached = cacheManager.get('ai', cacheKey);
+    
+    if (cached) {
+      logger.info('Work item explanation cache hit', { workItemId });
+      return res.json({
+        workItemId: workItemId,
+        explanation: cached,
+        status: 'completed',
+        cached: true
+      });
+    }
+    
     // Use dedicated AI method for detailed work item explanation
     const explanation = await aiService.explainWorkItem(item);
+    
+    // Cache for 1 hour
+    cacheManager.set('ai', cacheKey, explanation, 3600);
     
     res.json({
       workItemId: workItemId,
       explanation: explanation,
-      status: 'completed'
+      status: 'completed',
+      cached: false
     });
     
   } catch (error) {
@@ -393,6 +396,17 @@ router.get('/work-items/overdue', async (req, res) => {
   }
 });
 
+// Emergency cleanup endpoint (for development/debugging)
+router.post('/polling/emergency-cleanup', async (req, res) => {
+  try {
+    await userPollingManager.emergencyCleanup();
+    res.json({ message: 'Emergency cleanup completed' });
+  } catch (error) {
+    logger.error('Emergency cleanup failed:', error);
+    res.status(500).json({ error: 'Emergency cleanup failed' });
+  }
+});
+
 // Builds endpoints
 router.get('/builds/recent', async (req, res) => {
   try {
@@ -402,8 +416,20 @@ router.get('/builds/recent', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
+    // Get limit from query parameter, default to 20, min 10, max 50
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 10), 50);
+    const repositoryFilter = req.query.repository;
+    
     const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
-    const builds = await client.getRecentBuilds(20);
+    let builds = await client.getRecentBuilds(limit);
+    
+    // Filter by repository if specified
+    if (repositoryFilter && repositoryFilter !== 'all') {
+      builds.value = builds.value?.filter(build => 
+        build.repository?.name === repositoryFilter ||
+        build.definition?.name?.includes(repositoryFilter)
+      );
+    }
     res.json(builds);
   } catch (error) {
     logger.error('Error fetching recent builds:', error);
@@ -459,13 +485,36 @@ router.post('/builds/:buildId/analyze', async (req, res) => {
     // Initialize AI service with user settings
     aiService.initializeWithUserSettings(userSettings);
     
-    // Generate AI analysis
-    const analysis = await aiService.summarizeBuildFailure(build, timeline, logs, client);
+    // Initialize FreeModelRouter with user AI config
+    const { freeModelRouter } = await import('../ai/FreeModelRouter.js');
+    freeModelRouter.initialize(userSettings.ai || {
+      provider: userSettings.aiProvider,
+      openaiApiKey: userSettings.openaiApiKey,
+      groqApiKey: userSettings.groqApiKey,
+      geminiApiKey: userSettings.geminiApiKey,
+      model: userSettings.aiModel
+    });
+    
+    // Route through agentic system (cache → rules → AI)
+    const { monitorAgent } = await import('../agents/MonitorAgent.js');
+    const agentResult = await monitorAgent.monitorBuildFailure(build, timeline, logs, client);
+    
+    // Extract analysis from agent result
+    const analysis = agentResult.success 
+      ? (agentResult.result?.solution || agentResult.result?.action || 'Analysis completed')
+      : 'Analysis failed';
     
     res.json({
       buildId: buildId,
       analysis: analysis,
-      status: 'completed'
+      status: 'completed',
+      agentic: {
+        success: agentResult.success,
+        method: agentResult.result?.method || 'unknown',
+        cacheHit: agentResult.stats?.cacheHits > 0,
+        ruleUsed: agentResult.stats?.rulesUsed > 0,
+        duration: agentResult.duration
+      }
     });
     
   } catch (error) {
@@ -551,15 +600,36 @@ router.get('/pull-requests/:id/explain', async (req, res) => {
       logger.warn('Failed to fetch PR commits:', error.message);
     }
 
+    // Check cache first
+    const { cacheManager } = await import('../cache/CacheManager.js');
+    const cacheKey = `pr_explain_${pullRequestId}_${pullRequest.lastMergeSourceCommit?.commitId || 'initial'}`;
+    const cached = cacheManager.get('ai', cacheKey);
+    
+    if (cached) {
+      logger.info('PR explanation cache hit', { pullRequestId });
+      return res.json({
+        pullRequestId: pullRequestId,
+        explanation: cached,
+        changes: changes,
+        commits: commits,
+        status: 'completed',
+        cached: true
+      });
+    }
+
     // Generate AI explanation
     const explanation = await aiService.explainPullRequest(pullRequest, changes, commits);
+    
+    // Cache for 1 hour
+    cacheManager.set('ai', cacheKey, explanation, 3600);
     
     res.json({
       pullRequestId: pullRequestId,
       explanation: explanation,
       changes: changes,
       commits: commits,
-      status: 'completed'
+      status: 'completed',
+      cached: false
     });
     
   } catch (error) {
@@ -834,5 +904,16 @@ router.get('/webhooks/urls', async (req, res) => {
     });
   }
 });
+
+// Emergency routes
+router.use('/emergency', emergencyRoutes);
+
+// Cache and performance stats routes
+import cacheStatsRoutes from './cacheStats.js';
+router.use('/performance', cacheStatsRoutes);
+
+// Agent dashboard routes
+import agentDashboardRoutes from './agentDashboard.js';
+router.use('/agent-dashboard', agentDashboardRoutes);
 
 export { router as apiRoutes };

@@ -2,7 +2,10 @@ import express from 'express';
 import { User } from '../models/User.js';
 import { UserSettings } from '../models/UserSettings.js';
 import { generateToken } from '../middleware/auth.js';
-import { logger } from '../utils/logger.js';
+import { logger, sanitizeForLogging } from '../utils/logger.js';
+import { validateRequest } from '../middleware/validation.js';
+import { registerSchema, loginSchema } from '../validators/schemas.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = express.Router();
 
@@ -12,16 +15,10 @@ router.get('/health', (req, res) => {
 });
 
 // Signup
-router.post('/signup', async (req, res) => {
-  try {
-    logger.info('Signup attempt:', { email: req.body.email });
+router.post('/signup', validateRequest(registerSchema), asyncHandler(async (req, res) => {
+    logger.info('Signup attempt:', sanitizeForLogging({ email: req.validatedData.email }));
     
-    const { email, password, name } = req.body;
-
-    if (!email || !password || !name) {
-      logger.warn('Signup failed: Missing required fields');
-      return res.status(400).json({ error: 'Email, password, and name are required' });
-    }
+    const { email, password, name } = req.validatedData;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -48,26 +45,13 @@ router.post('/signup', async (req, res) => {
         name: user.name
       }
     });
-  } catch (error) {
-    logger.error('Signup error:', error);
-    res.status(500).json({ 
-      error: 'Server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
+}));
 
 // Login
-router.post('/login', async (req, res) => {
-  try {
-    logger.info('Login attempt:', { email: req.body.email });
+router.post('/login', validateRequest(loginSchema), asyncHandler(async (req, res) => {
+    logger.info('Login attempt:', sanitizeForLogging({ email: req.validatedData.email }));
     
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      logger.warn('Login failed: Missing credentials');
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
+    const { email, password } = req.validatedData;
 
     const user = await User.findOne({ email });
     if (!user) {
@@ -75,10 +59,25 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Check if account is locked
+    if (user.isLocked()) {
+      logger.warn('Login failed: Account locked', { email });
+      return res.status(423).json({ 
+        error: 'Account temporarily locked due to too many failed login attempts. Please try again later.' 
+      });
+    }
+
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
-      logger.warn('Login failed: Invalid password', { email });
+      // Increment login attempts
+      await user.incLoginAttempts();
+      logger.warn('Login failed: Invalid password', { email, attempts: user.loginAttempts + 1 });
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Reset login attempts on successful login
+    if (user.loginAttempts > 0) {
+      await user.resetLoginAttempts();
     }
 
     const token = generateToken(user._id);
@@ -101,13 +100,6 @@ router.post('/login', async (req, res) => {
         name: user.name
       }
     });
-  } catch (error) {
-    logger.error('Login error:', error);
-    res.status(500).json({ 
-      error: 'Server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
+}));
 
 export { router as authRoutes };
