@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '../components/ui/select'
 import { CopyButton } from '../components/ui/shadcn-io/copy-button'
 import { Switch } from '../components/ui/switch'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -522,14 +522,16 @@ export default function Settings() {
                   <SelectValue placeholder="Select a project..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {loadingProjects && (
-                    <SelectItem value="loading" disabled>Loading projects...</SelectItem>
-                  )}
-                  {projects.map(project => (
-                    <SelectItem key={project.id} value={project.name}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {loadingProjects && (
+                      <SelectItem value="loading" disabled>Loading projects...</SelectItem>
+                    )}
+                    {projects.map(project => (
+                      <SelectItem key={project.id} value={project.name}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               {validationErrors.project && (
@@ -590,9 +592,11 @@ export default function Settings() {
                   <SelectValue placeholder="Select AI provider..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="openai">OpenAI</SelectItem>
-                  <SelectItem value="groq">Groq</SelectItem>
-                  <SelectItem value="gemini">Google Gemini</SelectItem>
+                  <SelectGroup>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="groq">Groq</SelectItem>
+                    <SelectItem value="gemini">Google Gemini</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -681,15 +685,17 @@ export default function Settings() {
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a model..." />
                 </SelectTrigger>
-                <SelectContent position="item-aligned">
-                  {loadingModels && (
-                    <SelectItem value="loading" disabled>Loading models...</SelectItem>
-                  )}
-                  {models.map(model => (
-                    <SelectItem key={model.value} value={model.value}>
-                      {model.label}
-                    </SelectItem>
-                  ))}
+                <SelectContent>
+                  <SelectGroup>
+                    {loadingModels && (
+                      <SelectItem value="loading" disabled>Loading models...</SelectItem>
+                    )}
+                    {models.map(model => (
+                      <SelectItem key={model.value} value={model.value}>
+                        {model.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
