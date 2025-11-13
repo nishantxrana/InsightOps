@@ -834,16 +834,72 @@ router.get('/ai/providers', (req, res) => {
   }
 });
 
-router.get('/ai/models/:provider', (req, res) => {
+router.get('/ai/models/:provider', async (req, res) => {
   try {
     const { provider } = req.params;
-    const models = getModelsForProvider(provider);
+    const userSettings = await getUserSettings(req.user._id);
+    
+    let models = [];
+    let apiKey = null;
+    
+    // Get API key from correct location
+    if (provider === 'openai') {
+      apiKey = userSettings.ai?.apiKeys?.openai;
+    } else if (provider === 'groq') {
+      apiKey = userSettings.ai?.apiKeys?.groq;
+    } else if (provider === 'gemini') {
+      apiKey = userSettings.ai?.apiKeys?.gemini;
+    }
+    
+    if (provider === 'openai' && apiKey) {
+      const { default: OpenAI } = await import('openai');
+      const openai = new OpenAI({ apiKey });
+      const response = await openai.models.list();
+      models = response.data
+        .filter(model => model.id.includes('gpt'))
+        .map(model => ({
+          value: model.id,
+          label: model.id.toUpperCase(),
+          description: `OpenAI ${model.id}`
+        }));
+    } else if (provider === 'groq' && apiKey) {
+      const { default: Groq } = await import('groq-sdk');
+      const groq = new Groq({ apiKey });
+      const response = await groq.models.list();
+      models = response.data.map(model => ({
+        value: model.id,
+        label: model.id,
+        description: `Groq ${model.id}`
+      }));
+    } else if (provider === 'gemini' && apiKey) {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (response.ok) {
+        const data = await response.json();
+        models = data.models
+          .filter(model => {
+            const supportedMethods = model.supportedGenerationMethods || [];
+            const modelId = model.name.replace('models/', '');
+            return supportedMethods.includes('generateContent') && 
+                   !modelId.toLowerCase().includes('embedding') &&
+                   !modelId.toLowerCase().includes('aqa');
+          })
+          .map(model => ({
+            value: model.name.replace('models/', ''),
+            label: model.displayName || model.name.replace('models/', ''),
+            description: model.description || `Google ${model.name.replace('models/', '')}`
+          }));
+      }
+    } else {
+      // Fallback to static models
+      models = getModelsForProvider(provider);
+    }
+    
     const defaultModel = getDefaultModel(provider);
     
     if (models.length === 0) {
       return res.status(400).json({
         success: false,
-        error: `Unsupported provider: ${provider}`
+        error: `No models available for provider: ${provider}`
       });
     }
     
@@ -851,13 +907,19 @@ router.get('/ai/models/:provider', (req, res) => {
       success: true,
       provider,
       models,
-      defaultModel
+      defaultModel,
+      source: apiKey ? 'live' : 'static'
     });
   } catch (error) {
     logger.error('Error fetching AI models:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch AI models'
+    // Fallback to static models on error
+    const models = getModelsForProvider(req.params.provider);
+    res.json({
+      success: true,
+      provider: req.params.provider,
+      models,
+      defaultModel: getDefaultModel(req.params.provider),
+      source: 'static'
     });
   }
 });

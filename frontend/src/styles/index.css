@@ -243,35 +243,41 @@
   }
 }
 
-/* Prevent scrollbar layout shift */
+/* Create overlay scrollbar like mobile */
 html {
-  overflow-y: scroll;
+  overflow: overlay; /* Overlay scrollbar that doesn't take space */
+  scrollbar-gutter: stable; /* Reserve space for modern browsers */
 }
 
-/* Custom Scrollbar for entire page */
+/* Fallback for browsers that don't support overlay */
+@supports not (overflow: overlay) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
+/* Make scrollbar overlay style */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 12px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: rgba(0, 0, 0, 0.5);
+  background-clip: content-box;
 }
 
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
-}
 /* Theme transition animation */
 .theme-ripple {
   position: fixed;
