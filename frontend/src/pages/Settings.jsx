@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { 
   Save, 
   TestTube, 
@@ -35,6 +35,9 @@ export default function Settings() {
   const [webhookUrls, setWebhookUrls] = useState({})
   const [projects, setProjects] = useState([])
   const [loadingProjects, setLoadingProjects] = useState(false)
+  const [models, setModels] = useState([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const originalProvider = useRef('')
   const { isConnected, healthData } = useHealth()
   
   const [settings, setSettings] = useState({
@@ -110,11 +113,70 @@ export default function Settings() {
   }, [])
 
   useEffect(() => {
+    // Store original provider from DB on first load
+    if (settings.ai.provider && !originalProvider.current) {
+      originalProvider.current = settings.ai.provider
+    }
+  }, [settings.ai.provider])
+
+  const handleProviderChange = (newProvider) => {
+    updateSetting('ai', 'provider', newProvider)
+    
+    // Clear model if provider changed from original DB value
+    if (originalProvider.current && newProvider !== originalProvider.current) {
+      updateSetting('ai', 'model', '')
+      setModels([])
+    }
+  }
+
+  const fetchModels = async () => {
+    if (loadingModels || !settings.ai.provider) return
+    
+    setLoadingModels(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await axios.get(`/api/ai/models/${settings.ai.provider}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const fetchedModels = response.data.models || []
+      
+      // Ensure current model is in the list
+      const currentModel = settings.ai.model
+      if (currentModel && !fetchedModels.find(m => m.value === currentModel)) {
+        fetchedModels.unshift({ value: currentModel, label: currentModel, description: `Current: ${currentModel}` })
+      }
+      
+      setModels(fetchedModels)
+    } catch (error) {
+      console.error('Failed to fetch models:', error)
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
+  useEffect(() => {
     // Initialize projects with current saved project when settings load
     if (settings.azureDevOps.project && projects.length === 0) {
       setProjects([{ id: 'current', name: settings.azureDevOps.project }])
     }
   }, [settings.azureDevOps.project])
+
+  useEffect(() => {
+    // Initialize models with current saved model when settings load
+    if (settings.ai.model && models.length === 0) {
+      setModels([{ value: settings.ai.model, label: settings.ai.model, description: `Current: ${settings.ai.model}` }])
+    }
+  }, [settings.ai.model])
+
+  useEffect(() => {
+    // Reset models when provider changes, then fetch
+    if (settings.ai.provider) {
+      setModels([])
+      if (settings.ai.model) {
+        setModels([{ value: settings.ai.model, label: settings.ai.model, description: `Current: ${settings.ai.model}` }])
+      }
+    }
+  }, [settings.ai.provider])
 
   const loadSettings = async () => {
     try {
@@ -522,7 +584,7 @@ export default function Settings() {
               <label className="block text-sm font-medium text-foreground mb-1">AI Provider</label>
               <Select
                 value={settings.ai.provider}
-                onValueChange={(value) => updateSetting('ai', 'provider', value)}
+                onValueChange={handleProviderChange}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select AI provider..." />
@@ -611,13 +673,25 @@ export default function Settings() {
             )}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Model</label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
+              <Select
                 value={settings.ai.model}
-                onChange={(e) => updateSetting('ai', 'model', e.target.value)}
-                placeholder="gpt-3.5-turbo"
-              />
+                onValueChange={(value) => updateSetting('ai', 'model', value)}
+                onOpenChange={(open) => open && fetchModels()}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a model..." />
+                </SelectTrigger>
+                <SelectContent position="item-aligned">
+                  {loadingModels && (
+                    <SelectItem value="loading" disabled>Loading models...</SelectItem>
+                  )}
+                  {models.map(model => (
+                    <SelectItem key={model.value} value={model.value}>
+                      {model.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
