@@ -12,7 +12,8 @@ import {
   Webhook,
   Clock,
   Shield,
-  Menu
+  Menu,
+  RefreshCw
 } from 'lucide-react'
 import axios from 'axios'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '../components/ui/select'
@@ -153,12 +154,7 @@ export default function Settings() {
     }
   }, [settings.azureDevOps.organization])
 
-  // Pre-load models when provider is available
-  useEffect(() => {
-    if (settings.ai.provider && !loadingModels && models.length <= 1) {
-      fetchModels()
-    }
-  }, [settings.ai.provider])
+  // Don't auto-load models - preserve saved model on page load
 
   const loadSettings = async () => {
     try {
@@ -320,36 +316,68 @@ export default function Settings() {
   }
 
   const handleProviderChange = (newProvider) => {
+    const currentProvider = settings.ai.provider
     updateSetting('ai', 'provider', newProvider)
-    updateSetting('ai', 'model', '')
-    setModels([])
+    
+    // Only reset model if provider actually changed (not on initial load or same provider)
+    if (currentProvider && currentProvider !== newProvider) {
+      updateSetting('ai', 'model', '')
+      setModels([])
+    }
+    // Don't auto-fetch models - wait for user to click model dropdown
   }
 
   const fetchModels = async () => {
     if (loadingModels || !settings.ai.provider) return
     setLoadingModels(true)
+    
     try {
+      // Always try API first, let backend handle API key validation
       const token = localStorage.getItem('token')
       const response = await axios.get(`/api/ai/models/${settings.ai.provider}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       const fetchedModels = response.data.models || []
-      const currentModel = settings.ai.model
-      if (currentModel && !fetchedModels.find(m => m.value === currentModel)) {
-        fetchedModels.unshift({ value: currentModel, label: currentModel, description: `Current: ${currentModel}` })
-      }
       setModels(fetchedModels)
     } catch (error) {
       console.error('Failed to fetch models:', error)
-      setModels([])
-      toast({
-        title: "Failed to load models",
-        description: "Could not fetch available models for this provider",
-        variant: "destructive",
-      })
+      // Fallback to default models on API error
+      const fallbackModels = getFallbackModels(settings.ai.provider)
+      setModels(fallbackModels)
     } finally {
       setLoadingModels(false)
     }
+  }
+
+  // Helper function to check if API key exists for provider
+  const getApiKeyForProvider = (provider) => {
+    switch (provider) {
+      case 'openai': return settings.ai.openaiApiKey && settings.ai.openaiApiKey !== '***'
+      case 'groq': return settings.ai.groqApiKey && settings.ai.groqApiKey !== '***'
+      case 'gemini': return settings.ai.geminiApiKey && settings.ai.geminiApiKey !== '***'
+      default: return false
+    }
+  }
+
+  // Helper function to get fallback models
+  const getFallbackModels = (provider) => {
+    const fallbackModels = {
+      openai: [
+        { value: 'gpt-5-mini', label: 'GPT-5 Mini', description: 'Compact and efficient model' },
+        { value: 'gpt-5-nano', label: 'GPT-5 Nano', description: 'Ultra-lightweight model' }
+      ],
+      groq: [
+        { value: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS 120B', description: 'Large open-source GPT model' },
+        { value: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS 20B', description: 'Medium open-source GPT model' }
+      ],
+      gemini: [
+        { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', description: 'Lightweight and fast model' },
+        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Latest fast inference model' },
+        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', description: 'Fast inference with good performance' },
+        { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite', description: 'Lightweight version' }
+      ]
+    }
+    return fallbackModels[provider] || []
   }
 
   const fetchProjects = async () => {
@@ -602,30 +630,52 @@ export default function Settings() {
           
           <div className="space-y-2">
             <Label htmlFor="model">Model</Label>
-            <Select
-              value={settings.ai.model}
-              onValueChange={(value) => updateSetting('ai', 'model', value)}
-              disabled={!settings.ai.provider || loadingModels}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model..."} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {loadingModels && (
-                    <SelectItem value="loading" disabled>Loading models...</SelectItem>
-                  )}
-                  {!loadingModels && models.length === 0 && (
-                    <SelectItem value="no-models" disabled>No models available</SelectItem>
-                  )}
-                  {models.map(model => (
-                    <SelectItem key={model.value} value={model.value}>
-                      {model.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <div className="flex-1 dropdown-container">
+                <Select
+                  value={settings.ai.model}
+                  onValueChange={(value) => updateSetting('ai', 'model', value)}
+                  disabled={!settings.ai.provider}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      !settings.ai.provider 
+                        ? "Select a provider first..." 
+                        : loadingModels 
+                          ? "Loading models..." 
+                          : models.length === 0
+                            ? "Click refresh to load models"
+                            : "Select a model..."
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {loadingModels && (
+                        <SelectItem value="loading" disabled>Loading models...</SelectItem>
+                      )}
+                      {!loadingModels && models.length === 0 && settings.ai.provider && (
+                        <SelectItem value="no-models" disabled>Click refresh button to load models</SelectItem>
+                      )}
+                      {models.map(model => (
+                        <SelectItem key={model.value} value={model.value}>
+                          {model.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={fetchModels}
+                disabled={!settings.ai.provider || loadingModels}
+                className="px-3"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingModels ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
