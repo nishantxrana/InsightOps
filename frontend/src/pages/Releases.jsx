@@ -16,6 +16,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHealth } from "../contexts/HealthContext";
 import { releaseService } from "../api/releaseService";
 import ReleaseFilterDropdown from "../components/ReleaseFilterDropdown";
+import ReleaseDetailModal from "../components/ReleaseDetailModal";
+import EnvironmentHealthDashboard from "../components/EnvironmentHealthDashboard";
 import ErrorMessage from "../components/ErrorMessage";
 
 // Helper functions for status display
@@ -94,6 +96,10 @@ export default function Releases() {
   const [environments, setEnvironments] = useState([]);
   const [definitions, setDefinitions] = useState([]);
   
+  // Modal state
+  const [selectedRelease, setSelectedRelease] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   const { checkConnection } = useHealth();
 
   useEffect(() => {
@@ -134,6 +140,16 @@ export default function Releases() {
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadReleasesData()]);
+  };
+
+  const openReleaseModal = (release) => {
+    setSelectedRelease(release);
+    setIsModalOpen(true);
+  };
+
+  const closeReleaseModal = () => {
+    setSelectedRelease(null);
+    setIsModalOpen(false);
   };
 
   const loadReleasesData = async () => {
@@ -324,6 +340,14 @@ export default function Releases() {
         </div>
       )}
 
+      {/* Environment Health Dashboard */}
+      {!loading && stats.environmentStats && (
+        <EnvironmentHealthDashboard 
+          environmentStats={stats.environmentStats}
+          releases={releases}
+        />
+      )}
+
       {/* Recent Releases Section */}
       <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -481,6 +505,7 @@ export default function Releases() {
                 {filteredReleases.map((release, index) => (
                   <div 
                     key={release.id} 
+                    onClick={() => openReleaseModal(release)}
                     className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group"
                     title="Click to view details"
                   >
@@ -550,6 +575,13 @@ export default function Releases() {
           </>
         )}
       </div>
+
+      {/* Release Detail Modal */}
+      <ReleaseDetailModal
+        release={selectedRelease}
+        isOpen={isModalOpen}
+        onClose={closeReleaseModal}
+      />
     </div>
   );
 }
