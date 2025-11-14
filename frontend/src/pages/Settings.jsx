@@ -50,8 +50,15 @@ export default function Settings() {
   const [models, setModels] = useState([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [patChanged, setPatChanged] = useState(false) // Track if PAT has been modified
+  const [originalSettings, setOriginalSettings] = useState(null) // Track original settings
   const originalProvider = useRef('')
   const { isConnected, healthData } = useHealth()
+  
+  // Check if settings have changed
+  const hasChanges = () => {
+    if (!originalSettings) return false
+    return JSON.stringify(settings) !== JSON.stringify(originalSettings)
+  }
   
   const [settings, setSettings] = useState({
     azureDevOps: {
@@ -196,6 +203,7 @@ export default function Settings() {
         }
       }
       setSettings(frontendSettings)
+      setOriginalSettings(JSON.parse(JSON.stringify(frontendSettings))) // Deep copy for comparison
     } catch (error) {
       console.error('Failed to load settings:', error)
     } finally {
@@ -215,6 +223,14 @@ export default function Settings() {
   }
 
   const handleSave = async () => {
+    if (!hasChanges()) {
+      toast({
+        title: "No Changes",
+        description: "No changes detected to save.",
+      })
+      return
+    }
+    
     if (!validateSettings()) {
       toast({
         title: "Validation Error",
@@ -265,6 +281,7 @@ export default function Settings() {
         description: "Your settings have been saved successfully!",
       })
       setPatChanged(false) // Reset flag after successful save
+      setOriginalSettings(JSON.parse(JSON.stringify(settings))) // Update original settings
     } catch (error) {
       toast({
         title: "Save Failed",
@@ -979,9 +996,16 @@ export default function Settings() {
           </div>
           
           <div className="flex items-center gap-3">
-            <Button onClick={handleSave} disabled={saving} className="group">
-              <Save className={`h-4 w-4 mr-2 ${saving ? 'animate-pulse' : 'group-hover:scale-110'} transition-transform duration-200`} />
-              {saving ? 'Saving...' : 'Save Settings'}
+            <Button 
+              onClick={handleSave} 
+              disabled={saving || !hasChanges()} 
+              className="group relative overflow-hidden bg-foreground hover:bg-foreground/90 text-background border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+              <Save className={`h-4 w-4 mr-2 relative z-10 ${saving ? 'animate-spin' : 'group-hover:rotate-12 group-hover:scale-110'} transition-all duration-300`} />
+              <span className="relative z-10 font-medium">
+                {saving ? 'Saving...' : 'Save Settings'}
+              </span>
             </Button>
           </div>
         </div>
