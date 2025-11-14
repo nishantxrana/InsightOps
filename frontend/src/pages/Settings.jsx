@@ -111,6 +111,9 @@ export default function Settings() {
     if (!settings.azureDevOps.personalAccessToken.trim() && settings.azureDevOps.personalAccessToken !== '***') {
       errors.personalAccessToken = 'Personal Access Token is required'
     }
+    if (settings.ai.provider && !settings.ai.model.trim()) {
+      errors.aiModel = 'Please select a model for the chosen AI provider'
+    }
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -676,6 +679,9 @@ export default function Settings() {
                 <RefreshCw className={`h-4 w-4 ${loadingModels ? 'animate-spin' : ''}`} />
               </Button>
             </div>
+            {validationErrors.aiModel && (
+              <p className="text-sm text-red-600">{validationErrors.aiModel}</p>
+            )}
           </div>
         </CardContent>
       </Card>
