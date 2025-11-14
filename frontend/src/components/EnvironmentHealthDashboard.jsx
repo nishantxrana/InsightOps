@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 
 const getEnvironmentHealthColor = (successRate) => {
-  if (successRate >= 90) return 'text-green-600 bg-green-50 border-green-200';
-  if (successRate >= 70) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-  return 'text-red-600 bg-red-50 border-red-200';
+  if (successRate >= 90) return 'text-green-600 bg-card dark:bg-[#111111] border-green-200 dark:border-green-800';
+  if (successRate >= 70) return 'text-yellow-600 bg-card dark:bg-[#111111] border-yellow-200 dark:border-yellow-800';
+  return 'text-red-600 bg-card dark:bg-[#111111] border-red-200 dark:border-red-800';
 };
 
 const getEnvironmentHealthIcon = (successRate) => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import ReactMarkdown from 'react-markdown';
 import {
   Rocket,
   CheckCircle,
@@ -18,6 +19,7 @@ import { releaseService } from "../api/releaseService";
 import ReleaseFilterDropdown from "../components/ReleaseFilterDropdown";
 import ReleaseDetailModal from "../components/ReleaseDetailModal";
 import EnvironmentHealthDashboard from "../components/EnvironmentHealthDashboard";
+import AIReleaseInsights from "../components/AIReleaseInsights";
 import ErrorMessage from "../components/ErrorMessage";
 
 // Helper functions for status display
@@ -100,6 +102,12 @@ export default function Releases() {
   const [selectedRelease, setSelectedRelease] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // AI insights state
+  const [aiInsightsEnabled, setAiInsightsEnabled] = useState(() => {
+    const saved = localStorage.getItem('releaseAiInsightsEnabled');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+  
   const { checkConnection } = useHealth();
 
   useEffect(() => {
@@ -150,6 +158,12 @@ export default function Releases() {
   const closeReleaseModal = () => {
     setSelectedRelease(null);
     setIsModalOpen(false);
+  };
+
+  const toggleAiInsights = () => {
+    const newValue = !aiInsightsEnabled;
+    setAiInsightsEnabled(newValue);
+    localStorage.setItem('releaseAiInsightsEnabled', JSON.stringify(newValue));
   };
 
   const loadReleasesData = async () => {
@@ -347,6 +361,12 @@ export default function Releases() {
           releases={releases}
         />
       )}
+
+      {/* AI Release Insights */}
+      <AIReleaseInsights 
+        enabled={aiInsightsEnabled}
+        onToggle={toggleAiInsights}
+      />
 
       {/* Recent Releases Section */}
       <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in">

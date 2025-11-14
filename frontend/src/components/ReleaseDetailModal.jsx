@@ -1,4 +1,6 @@
 import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { buildReleaseUrl } from '../utils/azureDevOpsUrls';
 import {
   Dialog,
   DialogContent,
@@ -73,7 +75,20 @@ const getEnvironmentStatusColor = (status) => {
 };
 
 const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
+  const { user } = useAuth();
+  
   if (!release) return null;
+
+  // Get organization and project from user settings or release data
+  const organization = user?.organization || release.organization;
+  const project = user?.project || release.project;
+
+  const handleViewInAzure = () => {
+    const url = buildReleaseUrl(organization, project, release.id);
+    if (url !== '#') {
+      window.open(url, '_blank');
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
@@ -172,11 +187,7 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
             <button
-              onClick={() => {
-                // Open Azure DevOps release page
-                const url = `https://dev.azure.com/${release.organization}/${release.project}/_release?releaseId=${release.id}`;
-                window.open(url, '_blank');
-              }}
+              onClick={handleViewInAzure}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <ExternalLink className="w-4 h-4" />

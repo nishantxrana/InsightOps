@@ -43,4 +43,10 @@ export const releaseService = {
     const response = await api.get('/releases/approvals');
     return response.data;
   },
+
+  // Get AI-powered release analysis
+  async getAIAnalysis() {
+    const response = await api.get('/releases/ai-analysis');
+    return response.data;
+  },
 };

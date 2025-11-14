@@ -1030,6 +1030,8 @@ router.get('/releases', async (req, res) => {
         definitionName: release.releaseDefinition?.name || 'Unknown',
         status: release.status?.toLowerCase() || 'unknown',
         createdOn: release.createdOn,
+        organization: userSettings.azureDevOps.organization,
+        project: userSettings.azureDevOps.project,
         createdBy: {
           displayName: release.createdBy?.displayName || 'Unknown',
           uniqueName: release.createdBy?.uniqueName || ''
@@ -1209,6 +1211,118 @@ router.get('/releases/approvals', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch release approvals'
+    });
+  }
+});
+
+router.get('/releases/ai-analysis', async (req, res) => {
+  try {
+    const userSettings = await getUserSettings(req.user.id);
+    
+    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+      return res.status(400).json({
+        success: false,
+        error: 'Azure DevOps configuration is incomplete'
+      });
+    }
+
+    const releaseClient = new AzureDevOpsReleaseClient(
+      userSettings.azureDevOps.organization,
+      userSettings.azureDevOps.project,
+      userSettings.azureDevOps.pat,
+      userSettings.azureDevOps.baseUrl
+    );
+
+    try {
+      // Get recent releases for analysis (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const releasesResponse = await releaseClient.getReleases({ 
+        top: 50, 
+        minCreatedTime: thirtyDaysAgo.toISOString() 
+      });
+
+      const releases = releasesResponse.value || [];
+
+      if (releases.length === 0) {
+        return res.json({
+          success: true,
+          data: {
+            summary: "No recent releases found for analysis.",
+            insights: [],
+            recommendations: []
+          }
+        });
+      }
+
+      // Prepare data for AI analysis
+      const analysisData = {
+        totalReleases: releases.length,
+        timeframe: "last 30 days",
+        releases: releases.map(release => ({
+          name: release.name,
+          status: release.status,
+          createdOn: release.createdOn,
+          environments: (release.environments || []).map(env => ({
+            name: env.name,
+            status: env.status,
+            rank: env.rank
+          }))
+        }))
+      };
+
+      // Generate AI analysis
+      const aiPrompt = `Analyze the following Azure DevOps release data and provide insights:
+
+${JSON.stringify(analysisData, null, 2)}
+
+Please provide:
+1. A brief summary of release patterns and trends
+2. Key insights about deployment success rates and environment health
+3. Specific recommendations for improving release processes
+
+Keep the response concise and actionable. Focus on practical insights that would help a DevOps team.`;
+
+      const messages = [
+        {
+          role: 'user',
+          content: aiPrompt
+        }
+      ];
+
+      // Initialize AI service with user settings
+      aiService.initializeWithUserSettings(userSettings);
+      const aiAnalysis = await aiService.generateCompletion(messages);
+
+      res.json({
+        success: true,
+        data: {
+          summary: aiAnalysis,
+          generatedAt: new Date().toISOString(),
+          dataPoints: releases.length
+        }
+      });
+
+    } catch (apiError) {
+      if (apiError.response?.status === 404) {
+        res.json({
+          success: true,
+          data: {
+            summary: "No release pipelines found for analysis.",
+            insights: [],
+            recommendations: []
+          }
+        });
+      } else {
+        throw apiError;
+      }
+    }
+  } catch (error) {
+    logger.error('Error generating AI release analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate AI analysis'
     });
   }
 });
