@@ -69,9 +69,13 @@ export function DevOpsAppSidebar({ ...props }) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 pl-1 pr-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <img src="/icon.svg" alt="InsightOps" className="h-8 w-8 flex-shrink-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10" />
-          <span className="text-lg font-semibold text-foreground group-data-[collapsible=icon]:hidden">
+        <div className="flex h-16 items-center justify-center gap-2 px-4 group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 group-data-[collapsible=icon]:px-2 transition-[height,padding] ease-linear">
+          <img 
+            src="/icon.svg" 
+            alt="InsightOps" 
+            className="h-8 w-8 flex-shrink-0 group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6 transition-[width,height] ease-linear" 
+          />
+          <span className="text-lg font-semibold text-foreground group-data-[collapsible=icon]:hidden transition-opacity ease-linear">
             InsightOps
           </span>
         </div>
