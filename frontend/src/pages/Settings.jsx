@@ -304,10 +304,8 @@ export default function Settings() {
 
   const handleProviderChange = (newProvider) => {
     updateSetting('ai', 'provider', newProvider)
-    if (originalProvider.current && newProvider !== originalProvider.current) {
-      updateSetting('ai', 'model', '')
-      setModels([])
-    }
+    updateSetting('ai', 'model', '')
+    setModels([])
   }
 
   const fetchModels = async () => {
@@ -326,6 +324,12 @@ export default function Settings() {
       setModels(fetchedModels)
     } catch (error) {
       console.error('Failed to fetch models:', error)
+      setModels([])
+      toast({
+        title: "Failed to load models",
+        description: "Could not fetch available models for this provider",
+        variant: "destructive",
+      })
     } finally {
       setLoadingModels(false)
     }
@@ -584,14 +588,18 @@ export default function Settings() {
             <Select
               value={settings.ai.model}
               onValueChange={(value) => updateSetting('ai', 'model', value)}
+              disabled={!settings.ai.provider || loadingModels}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a model..." />
+                <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model..."} />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   {loadingModels && (
                     <SelectItem value="loading" disabled>Loading models...</SelectItem>
+                  )}
+                  {!loadingModels && models.length === 0 && (
+                    <SelectItem value="no-models" disabled>No models available</SelectItem>
                   )}
                   {models.map(model => (
                     <SelectItem key={model.value} value={model.value}>
