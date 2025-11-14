@@ -990,4 +990,90 @@ router.use('/performance', cacheStatsRoutes);
 import agentDashboardRoutes from './agentDashboard.js';
 router.use('/agent-dashboard', agentDashboardRoutes);
 
+// Releases endpoints
+router.get('/releases', async (req, res) => {
+  try {
+    const { limit = 20, environment, status, definitionId, fromDate, toDate } = req.query;
+    
+    // TODO: Implement Azure DevOps Release API integration
+    // Placeholder response for now
+    const releases = [];
+    
+    res.json({
+      success: true,
+      data: {
+        releases,
+        total: 0,
+        hasMore: false
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching releases:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch releases'
+    });
+  }
+});
+
+router.get('/releases/stats', async (req, res) => {
+  try {
+    // TODO: Calculate real statistics from Azure DevOps data
+    const stats = {
+      totalReleases: 0,
+      successRate: 0,
+      pendingApprovals: 0,
+      activeDeployments: 0,
+      environmentStats: {}
+    };
+    
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    logger.error('Error fetching release stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch release statistics'
+    });
+  }
+});
+
+router.get('/releases/definitions', async (req, res) => {
+  try {
+    // TODO: Fetch release definitions from Azure DevOps
+    const definitions = [];
+    
+    res.json({
+      success: true,
+      data: definitions
+    });
+  } catch (error) {
+    logger.error('Error fetching release definitions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch release definitions'
+    });
+  }
+});
+
+router.get('/releases/approvals', async (req, res) => {
+  try {
+    // TODO: Fetch pending approvals from Azure DevOps
+    const approvals = [];
+    
+    res.json({
+      success: true,
+      data: approvals
+    });
+  } catch (error) {
+    logger.error('Error fetching release approvals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch release approvals'
+    });
+  }
+});
+
 export { router as apiRoutes };
