@@ -102,6 +102,21 @@ export default function WorkItems() {
   const [isOverdueStateDropdownOpen, setIsOverdueStateDropdownOpen] = useState(false)
   const [isOverdueAssigneeDropdownOpen, setIsOverdueAssigneeDropdownOpen] = useState(false)
   const [isOverduePriorityDropdownOpen, setIsOverduePriorityDropdownOpen] = useState(false)
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.dropdown-container')) {
+        setIsStateDropdownOpen(false)
+        setIsAssigneeDropdownOpen(false)
+        setIsOverdueStateDropdownOpen(false)
+        setIsOverdueAssigneeDropdownOpen(false)
+        setIsOverduePriorityDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
   
   const { checkConnection } = useHealth()
 
@@ -695,14 +710,14 @@ export default function WorkItems() {
       ) : (
         sprintSummary && (
         <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <h3 className="text-xl font-semibold text-foreground">Work Items</h3>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* State Filter Dropdown */}
-              <div className="relative">
+              <div className="relative dropdown-container">
                 <button
                   onClick={() => {
                     setIsStateDropdownOpen(!isStateDropdownOpen)
@@ -754,7 +769,7 @@ export default function WorkItems() {
               </div>
               
               {/* Assignee Filter Dropdown */}
-              <div className="relative">
+              <div className="relative dropdown-container">
                 <button
                   onClick={() => {
                     setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)
@@ -813,7 +828,7 @@ export default function WorkItems() {
                   placeholder="Search items..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 dark:focus:border-blue-600 w-36 hover:border-muted-foreground transition-colors bg-card dark:bg-[#111111] text-foreground placeholder:text-muted-foreground"
+                  className="pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 dark:focus:border-blue-600 w-full sm:w-36 hover:border-muted-foreground transition-colors bg-card dark:bg-[#111111] text-foreground placeholder:text-muted-foreground"
                 />
               </div>
               
