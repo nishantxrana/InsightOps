@@ -335,7 +335,7 @@ export default function Settings() {
     setLoadingModels(true)
     
     try {
-      // Always try API first, let backend handle API key validation
+      // Always try API first, let backend handle API key validation and fallback
       const token = localStorage.getItem('token')
       const response = await axios.get(`/api/ai/models/${settings.ai.provider}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -344,15 +344,13 @@ export default function Settings() {
       setModels(fetchedModels)
     } catch (error) {
       console.error('Failed to fetch models:', error)
-      // Fallback to default models on API error
-      const fallbackModels = getFallbackModels(settings.ai.provider)
-      setModels(fallbackModels)
+      setModels([])
     } finally {
       setLoadingModels(false)
     }
   }
 
-  // Helper function to check if API key exists for provider
+  // Helper function to check if API key exists for provider (kept for potential future use)
   const getApiKeyForProvider = (provider) => {
     switch (provider) {
       case 'openai': return settings.ai.openaiApiKey && settings.ai.openaiApiKey !== '***'
@@ -360,27 +358,6 @@ export default function Settings() {
       case 'gemini': return settings.ai.geminiApiKey && settings.ai.geminiApiKey !== '***'
       default: return false
     }
-  }
-
-  // Helper function to get fallback models
-  const getFallbackModels = (provider) => {
-    const fallbackModels = {
-      openai: [
-        { value: 'gpt-5-mini', label: 'GPT-5 Mini', description: 'Compact and efficient model' },
-        { value: 'gpt-5-nano', label: 'GPT-5 Nano', description: 'Ultra-lightweight model' }
-      ],
-      groq: [
-        { value: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS 120B', description: 'Large open-source GPT model' },
-        { value: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS 20B', description: 'Medium open-source GPT model' }
-      ],
-      gemini: [
-        { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', description: 'Lightweight and fast model' },
-        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Latest fast inference model' },
-        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', description: 'Fast inference with good performance' },
-        { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite', description: 'Lightweight version' }
-      ]
-    }
-    return fallbackModels[provider] || []
   }
 
   const fetchProjects = async () => {
