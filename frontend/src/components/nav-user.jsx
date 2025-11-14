@@ -30,8 +30,14 @@ import {
 } from "@/components/ui/sidebar"
 
 export function NavUser() {
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const { user, logout } = useAuth()
+
+  const handleSettingsClick = () => {
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
 
   // Use auth user data or fallback to default
   const userData = user || {
@@ -83,7 +89,7 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link to="/settings">
+                <Link to="/settings" onClick={handleSettingsClick}>
                   <Settings />
                   Settings
                 </Link>
