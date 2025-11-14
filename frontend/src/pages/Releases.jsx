@@ -7,11 +7,67 @@ import {
   AlertCircle,
   RefreshCw,
   Server,
+  ChevronRight,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHealth } from "../contexts/HealthContext";
 import { releaseService } from "../api/releaseService";
 import ErrorMessage from "../components/ErrorMessage";
+
+// Helper functions for status display
+const getStatusIcon = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'succeeded':
+      return <CheckCircle className="w-4 h-4 text-green-600" />;
+    case 'failed':
+    case 'rejected':
+      return <XCircle className="w-4 h-4 text-red-600" />;
+    case 'inprogress':
+    case 'deploying':
+      return <Clock className="w-4 h-4 text-blue-600" />;
+    case 'pending':
+    case 'notstarted':
+      return <AlertCircle className="w-4 h-4 text-yellow-600" />;
+    default:
+      return <AlertCircle className="w-4 h-4 text-gray-600" />;
+  }
+};
+
+const getStatusColor = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'succeeded':
+      return 'bg-green-50 text-green-700 border border-green-200';
+    case 'failed':
+    case 'rejected':
+      return 'bg-red-50 text-red-700 border border-red-200';
+    case 'inprogress':
+    case 'deploying':
+      return 'bg-blue-50 text-blue-700 border border-blue-200';
+    case 'pending':
+    case 'notstarted':
+      return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
+    default:
+      return 'bg-gray-50 text-gray-700 border border-gray-200';
+  }
+};
+
+const getEnvironmentStatusColor = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'succeeded':
+      return 'bg-green-500';
+    case 'failed':
+    case 'rejected':
+      return 'bg-red-500';
+    case 'inprogress':
+    case 'deploying':
+      return 'bg-blue-500';
+    case 'pending':
+    case 'notstarted':
+      return 'bg-yellow-500';
+    default:
+      return 'bg-gray-400';
+  }
+};
 
 export default function Releases() {
   const [loading, setLoading] = useState(true);
@@ -233,7 +289,61 @@ export default function Releases() {
           </div>
         ) : (
           <ScrollArea className="h-[40vh] border border-border dark:border-[#1a1a1a] rounded-xl bg-card dark:bg-[#111111]">
-            {/* TODO: Add releases list here */}
+            <div className="divide-y divide-border dark:divide-[#1a1a1a]">
+              {releases.map((release, index) => (
+                <div 
+                  key={release.id} 
+                  className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group"
+                  title="Click to view details"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                        #{release.id}
+                      </span>
+                      <div>
+                        <h4 className="font-medium text-foreground group-hover:text-blue-600 transition-colors">
+                          {release.name}
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          {release.definitionName}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(release.status)}
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStatusColor(release.status)}`}>
+                        {release.status}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Environment progression */}
+                  {release.environments && release.environments.length > 0 && (
+                    <div className="flex items-center gap-2 mb-3">
+                      {release.environments.map((env, envIndex) => (
+                        <div key={env.id} className="flex items-center gap-1">
+                          <div className={`w-2 h-2 rounded-full ${getEnvironmentStatusColor(env.status)}`} />
+                          <span className="text-xs text-muted-foreground">{env.name}</span>
+                          {envIndex < release.environments.length - 1 && (
+                            <ChevronRight className="w-3 h-3 text-muted-foreground mx-1" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      Created by {release.createdBy?.displayName || 'Unknown'}
+                    </span>
+                    <span>
+                      {new Date(release.createdOn).toLocaleDateString()} {new Date(release.createdOn).toLocaleTimeString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </ScrollArea>
         )}
       </div>

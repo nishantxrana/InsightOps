@@ -11,6 +11,7 @@ import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workIt
 import { userPollingManager } from '../polling/userPollingManager.js';
 import { validateRequest } from '../middleware/validation.js';
 import { settingsSchema, testConnectionSchema } from '../validators/schemas.js';
+import { AzureDevOpsReleaseClient } from '../devops/releaseClient.js';
 import emergencyRoutes from './emergency.js';
 
 const router = express.Router();
@@ -994,19 +995,83 @@ router.use('/agent-dashboard', agentDashboardRoutes);
 router.get('/releases', async (req, res) => {
   try {
     const { limit = 20, environment, status, definitionId, fromDate, toDate } = req.query;
+    const userSettings = await getUserSettings(req.user.id);
     
-    // TODO: Implement Azure DevOps Release API integration
-    // Placeholder response for now
-    const releases = [];
-    
-    res.json({
-      success: true,
-      data: {
-        releases,
-        total: 0,
-        hasMore: false
+    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+      return res.status(400).json({
+        success: false,
+        error: 'Azure DevOps configuration is incomplete'
+      });
+    }
+
+    const releaseClient = new AzureDevOpsReleaseClient(
+      userSettings.azureDevOps.organization,
+      userSettings.azureDevOps.project,
+      userSettings.azureDevOps.pat,
+      userSettings.azureDevOps.baseUrl
+    );
+
+    const options = {
+      top: parseInt(limit),
+      definitionId: definitionId ? parseInt(definitionId) : undefined,
+      statusFilter: status,
+      minCreatedTime: fromDate,
+      maxCreatedTime: toDate
+    };
+
+    try {
+      const azureResponse = await releaseClient.getReleases(options);
+      const releases = azureResponse.value || [];
+
+      // Transform Azure DevOps data to our format
+      const transformedReleases = releases.map(release => ({
+        id: release.id,
+        name: release.name,
+        definitionName: release.releaseDefinition?.name || 'Unknown',
+        status: release.status?.toLowerCase() || 'unknown',
+        createdOn: release.createdOn,
+        createdBy: {
+          displayName: release.createdBy?.displayName || 'Unknown',
+          uniqueName: release.createdBy?.uniqueName || ''
+        },
+        environments: (release.environments || []).map(env => ({
+          id: env.id,
+          name: env.name,
+          status: env.status?.toLowerCase() || 'unknown',
+          deployedOn: env.preDeployApprovals?.[0]?.createdOn || env.createdOn,
+          rank: env.rank
+        })).sort((a, b) => a.rank - b.rank),
+        artifacts: (release.artifacts || []).map(artifact => ({
+          alias: artifact.alias,
+          type: artifact.type,
+          definitionReference: artifact.definitionReference
+        }))
+      }));
+      
+      res.json({
+        success: true,
+        data: {
+          releases: transformedReleases,
+          total: releases.length,
+          hasMore: releases.length >= parseInt(limit)
+        }
+      });
+    } catch (apiError) {
+      // If 404, likely no release pipelines exist
+      if (apiError.response?.status === 404) {
+        logger.info('No release pipelines found for project');
+        res.json({
+          success: true,
+          data: {
+            releases: [],
+            total: 0,
+            hasMore: false
+          }
+        });
+      } else {
+        throw apiError;
       }
-    });
+    }
   } catch (error) {
     logger.error('Error fetching releases:', error);
     res.status(500).json({
@@ -1018,19 +1083,91 @@ router.get('/releases', async (req, res) => {
 
 router.get('/releases/stats', async (req, res) => {
   try {
-    // TODO: Calculate real statistics from Azure DevOps data
-    const stats = {
-      totalReleases: 0,
-      successRate: 0,
-      pendingApprovals: 0,
-      activeDeployments: 0,
-      environmentStats: {}
-    };
+    const userSettings = await getUserSettings(req.user.id);
     
-    res.json({
-      success: true,
-      data: stats
-    });
+    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+      return res.status(400).json({
+        success: false,
+        error: 'Azure DevOps configuration is incomplete'
+      });
+    }
+
+    const releaseClient = new AzureDevOpsReleaseClient(
+      userSettings.azureDevOps.organization,
+      userSettings.azureDevOps.project,
+      userSettings.azureDevOps.pat,
+      userSettings.azureDevOps.baseUrl
+    );
+
+    // Get recent releases for statistics (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    try {
+      const [releasesResponse, approvalsResponse] = await Promise.all([
+        releaseClient.getReleases({ 
+          top: 100, 
+          minCreatedTime: thirtyDaysAgo.toISOString() 
+        }),
+        releaseClient.getPendingApprovals().catch(() => ({ value: [] })) // Fallback for approvals
+      ]);
+
+      const releases = releasesResponse.value || [];
+      const approvals = approvalsResponse.value || [];
+
+      // Calculate statistics
+      const totalReleases = releases.length;
+      const succeededReleases = releases.filter(r => r.status === 'succeeded').length;
+      const successRate = totalReleases > 0 ? Math.round((succeededReleases / totalReleases) * 100) : 0;
+      const pendingApprovals = approvals.length;
+      const activeDeployments = releases.filter(r => r.status === 'inProgress').length;
+
+      // Environment statistics
+      const environmentStats = {};
+      releases.forEach(release => {
+        (release.environments || []).forEach(env => {
+          if (!environmentStats[env.name]) {
+            environmentStats[env.name] = { total: 0, success: 0, failed: 0 };
+          }
+          environmentStats[env.name].total++;
+          if (env.status === 'succeeded') {
+            environmentStats[env.name].success++;
+          } else if (env.status === 'failed' || env.status === 'rejected') {
+            environmentStats[env.name].failed++;
+          }
+        });
+      });
+
+      const stats = {
+        totalReleases,
+        successRate,
+        pendingApprovals,
+        activeDeployments,
+        environmentStats
+      };
+      
+      res.json({
+        success: true,
+        data: stats
+      });
+    } catch (apiError) {
+      // If 404, likely no release pipelines exist
+      if (apiError.response?.status === 404) {
+        logger.info('No release pipelines found for project stats');
+        res.json({
+          success: true,
+          data: {
+            totalReleases: 0,
+            successRate: 0,
+            pendingApprovals: 0,
+            activeDeployments: 0,
+            environmentStats: {}
+          }
+        });
+      } else {
+        throw apiError;
+      }
+    }
   } catch (error) {
     logger.error('Error fetching release stats:', error);
     res.status(500).json({
