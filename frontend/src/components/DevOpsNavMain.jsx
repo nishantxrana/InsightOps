@@ -5,10 +5,18 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 export function DevOpsNavMain({ items }) {
   const location = useLocation()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
 
   return (
     <>
@@ -25,7 +33,7 @@ export function DevOpsNavMain({ items }) {
                     tooltip={item.title}
                     isActive={isActive}
                   >
-                    <Link to={item.url}>
+                    <Link to={item.url} onClick={handleNavClick}>
                       {item.icon && <item.icon />}
                       <span>{item.title}</span>
                     </Link>
