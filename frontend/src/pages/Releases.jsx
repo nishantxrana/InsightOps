@@ -217,7 +217,7 @@ export default function Releases() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in max-w-full overflow-hidden">
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
@@ -269,11 +269,11 @@ export default function Releases() {
 
       {/* Stats Cards */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in min-w-0">
           {Array.from({ length: 4 }).map((_, idx) => (
             <div
               key={idx}
-              className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-pulse"
+              className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-pulse min-w-0"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-3">
@@ -287,9 +287,9 @@ export default function Releases() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in min-w-0">
           {/* Total Releases */}
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm min-w-0">
             <div className="flex items-center justify-between mb-3">
               <Rocket className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <span className="text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full">
@@ -369,7 +369,7 @@ export default function Releases() {
       />
 
       {/* Recent Releases Section */}
-      <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in">
+      <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in min-w-0 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Server className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -377,58 +377,57 @@ export default function Releases() {
               Recent Releases
             </h3>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Status Filter */}
-            <ReleaseFilterDropdown
-              options={[
-                { value: 'all', label: 'All Status' },
-                { value: 'succeeded', label: 'Succeeded' },
-                { value: 'failed', label: 'Failed' },
-                { value: 'inprogress', label: 'In Progress' },
-                { value: 'pending', label: 'Pending' }
-              ]}
-              value={statusFilter}
-              onChange={setStatusFilter}
-              icon={Filter}
-              placeholder="All Status"
-              minWidth="120px"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 min-w-0">
+              {/* Status Filter */}
+              <ReleaseFilterDropdown
+                options={[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'succeeded', label: 'Succeeded' },
+                  { value: 'failed', label: 'Failed' },
+                  { value: 'inprogress', label: 'In Progress' },
+                  { value: 'pending', label: 'Pending' }
+                ]}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                icon={Filter}
+                placeholder="All Status"
+              />
 
-            {/* Environment Filter */}
-            <ReleaseFilterDropdown
-              options={[
-                { value: 'all', label: 'All Environments' },
-                ...environments.map(env => ({ value: env, label: env }))
-              ]}
-              value={environmentFilter}
-              onChange={setEnvironmentFilter}
-              icon={Server}
-              placeholder="All Environments"
-              minWidth="150px"
-            />
+              {/* Environment Filter */}
+              <ReleaseFilterDropdown
+                options={[
+                  { value: 'all', label: 'All Environments' },
+                  ...environments.map(env => ({ value: env, label: env }))
+                ]}
+                value={environmentFilter}
+                onChange={setEnvironmentFilter}
+                icon={Server}
+                placeholder="All Environments"
+              />
 
-            {/* Definition Filter */}
-            <ReleaseFilterDropdown
-              options={[
-                { value: 'all', label: 'All Definitions' },
-                ...definitions.map(def => ({ value: def, label: def }))
-              ]}
-              value={definitionFilter}
-              onChange={setDefinitionFilter}
-              icon={Rocket}
-              placeholder="All Definitions"
-              minWidth="150px"
-            />
+              {/* Definition Filter */}
+              <ReleaseFilterDropdown
+                options={[
+                  { value: 'all', label: 'All Definitions' },
+                  ...definitions.map(def => ({ value: def, label: def }))
+                ]}
+                value={definitionFilter}
+                onChange={setDefinitionFilter}
+                icon={Rocket}
+                placeholder="All Definitions"
+              />
+            </div>
 
             {/* Search Input */}
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <Search className="h-3 w-3 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search releases..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-3 py-2 border border-border rounded-full text-base sm:text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 dark:focus:border-blue-600 w-full sm:w-36 hover:border-muted-foreground transition-colors bg-card dark:bg-[#111111] text-foreground placeholder:text-muted-foreground"
+                className="pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 dark:focus:border-blue-600 w-full sm:w-32 hover:border-muted-foreground transition-colors bg-card dark:bg-[#111111] text-foreground placeholder:text-muted-foreground"
               />
             </div>
 
@@ -441,7 +440,7 @@ export default function Releases() {
                   setDefinitionFilter('all');
                   setSearchTerm('');
                 }}
-                className="text-xs text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 px-3 py-2 rounded-full transition-colors"
+                className="text-xs text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 px-3 py-2 rounded-full transition-colors flex-shrink-0"
               >
                 Clear
               </button>

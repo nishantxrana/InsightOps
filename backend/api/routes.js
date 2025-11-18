@@ -1024,31 +1024,102 @@ router.get('/releases', async (req, res) => {
       const releases = azureResponse.value || [];
 
       // Transform Azure DevOps data to our format
-      const transformedReleases = releases.map(release => ({
-        id: release.id,
-        name: release.name,
-        definitionName: release.releaseDefinition?.name || 'Unknown',
-        status: release.status?.toLowerCase() || 'unknown',
-        createdOn: release.createdOn,
-        organization: userSettings.azureDevOps.organization,
-        project: userSettings.azureDevOps.project,
-        createdBy: {
-          displayName: release.createdBy?.displayName || 'Unknown',
-          uniqueName: release.createdBy?.uniqueName || ''
-        },
-        environments: (release.environments || []).map(env => ({
-          id: env.id,
-          name: env.name,
-          status: env.status?.toLowerCase() || 'unknown',
-          deployedOn: env.preDeployApprovals?.[0]?.createdOn || env.createdOn,
-          rank: env.rank
-        })).sort((a, b) => a.rank - b.rank),
-        artifacts: (release.artifacts || []).map(artifact => ({
-          alias: artifact.alias,
-          type: artifact.type,
-          definitionReference: artifact.definitionReference
-        }))
-      }));
+      const transformedReleases = releases.map(release => {
+        // Determine overall status from environment statuses
+        let mappedStatus = 'unknown';
+        
+        if (release.environments && release.environments.length > 0) {
+          const envStatuses = release.environments.map(env => env.status?.toLowerCase());
+          
+          // If any environment failed/rejected, overall status is failed
+          if (envStatuses.some(status => ['failed', 'rejected', 'canceled'].includes(status))) {
+            mappedStatus = 'failed';
+          }
+          // If all environments succeeded, overall status is succeeded
+          else if (envStatuses.every(status => status === 'succeeded')) {
+            mappedStatus = 'succeeded';
+          }
+          // If any environment is in progress, overall status is in progress
+          else if (envStatuses.some(status => ['inprogress', 'queued'].includes(status))) {
+            mappedStatus = 'inprogress';
+          }
+          // If any environment is not started, overall status is pending
+          else if (envStatuses.some(status => ['notstarted', 'undefined'].includes(status))) {
+            mappedStatus = 'pending';
+          }
+          // Default to succeeded if all environments are succeeded
+          else {
+            mappedStatus = 'succeeded';
+          }
+        } else {
+          // Fallback to release status if no environments
+          const azureStatus = release.status?.toLowerCase() || 'unknown';
+          switch (azureStatus) {
+            case 'active':
+              mappedStatus = 'inprogress';
+              break;
+            case 'succeeded':
+              mappedStatus = 'succeeded';
+              break;
+            default:
+              mappedStatus = 'pending';
+          }
+        }
+        
+        return {
+          id: release.id,
+          name: release.name,
+          definitionName: release.releaseDefinition?.name || 'Unknown',
+          status: mappedStatus,
+          createdOn: release.createdOn,
+          organization: userSettings.azureDevOps.organization,
+          project: userSettings.azureDevOps.project,
+          createdBy: {
+            displayName: release.createdBy?.displayName || 'Unknown',
+            uniqueName: release.createdBy?.uniqueName || ''
+          },
+          environments: (release.environments || []).map(env => {
+            // Map environment status using same logic
+            let envMappedStatus = 'unknown';
+            if (env.status) {
+              const azureEnvStatus = env.status.toLowerCase();
+              switch (azureEnvStatus) {
+                case 'inprogress':
+                case 'queued':
+                  envMappedStatus = 'inprogress';
+                  break;
+                case 'succeeded':
+                  envMappedStatus = 'succeeded';
+                  break;
+                case 'failed':
+                case 'rejected':
+                case 'canceled':
+                  envMappedStatus = 'failed';
+                  break;
+                case 'notstarted':
+                case 'undefined':
+                  envMappedStatus = 'pending';
+                  break;
+                default:
+                  envMappedStatus = azureEnvStatus;
+              }
+            }
+            
+            return {
+              id: env.id,
+              name: env.name,
+              status: envMappedStatus,
+              deployedOn: env.preDeployApprovals?.[0]?.createdOn || env.createdOn,
+              rank: env.rank
+            };
+          }).sort((a, b) => a.rank - b.rank),
+          artifacts: (release.artifacts || []).map(artifact => ({
+            alias: artifact.alias,
+            type: artifact.type,
+            definitionReference: artifact.definitionReference
+          }))
+        };
+      });
       
       res.json({
         success: true,
@@ -1079,6 +1150,51 @@ router.get('/releases', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch releases'
+    });
+  }
+});
+
+// Temporary debug endpoint to see raw Azure DevOps data
+router.get('/releases/debug', async (req, res) => {
+  try {
+    const userSettings = await getUserSettings(req.user.id);
+    
+    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+      return res.status(400).json({
+        success: false,
+        error: 'Azure DevOps configuration is incomplete'
+      });
+    }
+
+    const releaseClient = new AzureDevOpsReleaseClient(
+      userSettings.azureDevOps.organization,
+      userSettings.azureDevOps.project,
+      userSettings.azureDevOps.pat,
+      userSettings.azureDevOps.baseUrl
+    );
+
+    const azureResponse = await releaseClient.getReleases({ top: 5 });
+    const releases = azureResponse.value || [];
+    
+    // Return raw data for debugging
+    res.json({
+      success: true,
+      data: {
+        rawReleases: releases.map(r => ({
+          id: r.id,
+          name: r.name,
+          status: r.status,
+          environments: r.environments?.map(env => ({
+            name: env.name,
+            status: env.status
+          }))
+        }))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
@@ -1117,12 +1233,12 @@ router.get('/releases/stats', async (req, res) => {
       const releases = releasesResponse.value || [];
       const approvals = approvalsResponse.value || [];
 
-      // Calculate statistics
+      // Calculate statistics with proper status mapping
       const totalReleases = releases.length;
       const succeededReleases = releases.filter(r => r.status === 'succeeded').length;
-      const successRate = totalReleases > 0 ? Math.round((succeededReleases / totalReleases) * 100) : 0;
+      const successRate = totalReleases > 0 ? Math.round((succeededReleases / totalReleases) * 100 * 10) / 10 : 0;
       const pendingApprovals = approvals.length;
-      const activeDeployments = releases.filter(r => r.status === 'inProgress').length;
+      const activeDeployments = releases.filter(r => r.status === 'active').length; // Azure DevOps uses 'active' for in-progress
 
       // Environment statistics
       const environmentStats = {};
