@@ -1154,51 +1154,6 @@ router.get('/releases', async (req, res) => {
   }
 });
 
-// Temporary debug endpoint to see raw Azure DevOps data
-router.get('/releases/debug', async (req, res) => {
-  try {
-    const userSettings = await getUserSettings(req.user.id);
-    
-    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
-      return res.status(400).json({
-        success: false,
-        error: 'Azure DevOps configuration is incomplete'
-      });
-    }
-
-    const releaseClient = new AzureDevOpsReleaseClient(
-      userSettings.azureDevOps.organization,
-      userSettings.azureDevOps.project,
-      userSettings.azureDevOps.pat,
-      userSettings.azureDevOps.baseUrl
-    );
-
-    const azureResponse = await releaseClient.getReleases({ top: 5 });
-    const releases = azureResponse.value || [];
-    
-    // Return raw data for debugging
-    res.json({
-      success: true,
-      data: {
-        rawReleases: releases.map(r => ({
-          id: r.id,
-          name: r.name,
-          status: r.status,
-          environments: r.environments?.map(env => ({
-            name: env.name,
-            status: env.status
-          }))
-        }))
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
 router.get('/releases/stats', async (req, res) => {
   try {
     const userSettings = await getUserSettings(req.user.id);
