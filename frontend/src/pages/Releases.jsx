@@ -254,7 +254,7 @@ export default function Releases() {
 
       {/* Header */}
       <div className={initialLoad ? "animate-slide-up" : ""}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-semibold text-foreground tracking-tight">
               Releases
