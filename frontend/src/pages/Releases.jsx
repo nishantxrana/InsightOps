@@ -660,7 +660,7 @@ export default function Releases() {
                           )}
                         </div>
                       </div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(release.status)}`}>
+                      <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(release.status)}`}>
                         {getStatusBadgeIcon(release.status)}
                         {release.status === 'succeeded' ? 'Succeeded' :
                          release.status === 'failed' ? 'Failed' :
