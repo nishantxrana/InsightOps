@@ -264,7 +264,7 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
               {description && (
                 <div>
                   <h4 className="font-medium text-foreground mb-2">Description</h4>
-                  <div className="prose prose-sm max-w-none text-muted-foreground bg-muted rounded-lg p-4">
+                  <div className="prose prose-sm max-w-none bg-muted rounded-lg p-4 [&_*]:!text-muted-foreground [&_h1]:!text-foreground [&_h2]:!text-foreground [&_h3]:!text-foreground [&_h4]:!text-foreground [&_h5]:!text-foreground [&_h6]:!text-foreground [&_strong]:!text-foreground">
                     <ReactMarkdown>{description}</ReactMarkdown>
                   </div>
                 </div>
