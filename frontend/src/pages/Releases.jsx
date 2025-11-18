@@ -278,7 +278,7 @@ export default function Releases() {
 
       {/* Stats Cards */}
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
           {Array.from({ length: 4 }).map((_, idx) => (
             <div
               key={idx}
@@ -296,7 +296,7 @@ export default function Releases() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
           {/* Total Releases */}
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -364,11 +364,35 @@ export default function Releases() {
       )}
 
       {/* Environment Health Dashboard */}
-      {!loading && stats.environmentStats && (
-        <EnvironmentHealthDashboard 
-          environmentStats={stats.environmentStats}
-          releases={releases}
-        />
+      {loading ? (
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="shimmer w-5 h-5 rounded" />
+            <div className="shimmer w-40 h-6 rounded" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="p-4 rounded-lg border border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="shimmer w-4 h-4 rounded" />
+                  <div className="shimmer w-8 h-4 rounded" />
+                </div>
+                <div className="space-y-2">
+                  <div className="shimmer w-full h-3 rounded" />
+                  <div className="shimmer w-3/4 h-3 rounded" />
+                  <div className="shimmer w-1/2 h-3 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : stats.environmentStats && (
+        <div className="animate-fade-in" style={{animationDelay: '0.3s'}}>
+          <EnvironmentHealthDashboard 
+            environmentStats={stats.environmentStats}
+            releases={releases}
+          />
+        </div>
       )}
 
       {/* AI Release Insights - Disabled */}
@@ -378,7 +402,7 @@ export default function Releases() {
       /> */}
 
       {/* Recent Releases Section */}
-      <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+      <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.4s'}}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Server className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -498,7 +522,30 @@ export default function Releases() {
           </div>
         )}
 
-        {filteredReleases.length === 0 ? (
+        {loading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="px-6 py-4 border border-border rounded-lg">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="shimmer w-5 h-5 rounded" />
+                    <div className="shimmer w-32 h-5 rounded" />
+                  </div>
+                  <div className="shimmer w-16 h-5 rounded-full" />
+                </div>
+                <div className="space-y-2 mb-3">
+                  <div className="shimmer w-3/4 h-4 rounded" />
+                  <div className="shimmer w-1/2 h-3 rounded" />
+                </div>
+                <div className="flex gap-2">
+                  {Array.from({ length: 3 }).map((_, envIdx) => (
+                    <div key={envIdx} className="shimmer w-20 h-6 rounded-full" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filteredReleases.length === 0 ? (
           <div className="text-center py-12">
             <Rocket className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">
