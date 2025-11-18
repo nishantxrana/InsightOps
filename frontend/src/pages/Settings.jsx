@@ -12,7 +12,8 @@ import {
   Webhook,
   Clock,
   Shield,
-  Menu
+  Menu,
+  RefreshCw
 } from 'lucide-react'
 import axios from 'axios'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '../components/ui/select'
@@ -50,8 +51,15 @@ export default function Settings() {
   const [models, setModels] = useState([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [patChanged, setPatChanged] = useState(false) // Track if PAT has been modified
+  const [originalSettings, setOriginalSettings] = useState(null) // Track original settings
   const originalProvider = useRef('')
   const { isConnected, healthData } = useHealth()
+  
+  // Check if settings have changed
+  const hasChanges = () => {
+    if (!originalSettings) return false
+    return JSON.stringify(settings) !== JSON.stringify(originalSettings)
+  }
   
   const [settings, setSettings] = useState({
     azureDevOps: {
@@ -103,6 +111,9 @@ export default function Settings() {
     if (!settings.azureDevOps.personalAccessToken.trim() && settings.azureDevOps.personalAccessToken !== '***') {
       errors.personalAccessToken = 'Personal Access Token is required'
     }
+    if (settings.ai.provider && !settings.ai.model.trim()) {
+      errors.aiModel = 'Please select a model for the chosen AI provider'
+    }
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -146,12 +157,7 @@ export default function Settings() {
     }
   }, [settings.azureDevOps.organization])
 
-  // Pre-load models when provider is available
-  useEffect(() => {
-    if (settings.ai.provider && !loadingModels && models.length <= 1) {
-      fetchModels()
-    }
-  }, [settings.ai.provider])
+  // Don't auto-load models - preserve saved model on page load
 
   const loadSettings = async () => {
     try {
@@ -196,6 +202,7 @@ export default function Settings() {
         }
       }
       setSettings(frontendSettings)
+      setOriginalSettings(JSON.parse(JSON.stringify(frontendSettings))) // Deep copy for comparison
     } catch (error) {
       console.error('Failed to load settings:', error)
     } finally {
@@ -215,6 +222,14 @@ export default function Settings() {
   }
 
   const handleSave = async () => {
+    if (!hasChanges()) {
+      toast({
+        title: "No Changes",
+        description: "No changes detected to save.",
+      })
+      return
+    }
+    
     if (!validateSettings()) {
       toast({
         title: "Validation Error",
@@ -265,6 +280,7 @@ export default function Settings() {
         description: "Your settings have been saved successfully!",
       })
       setPatChanged(false) // Reset flag after successful save
+      setOriginalSettings(JSON.parse(JSON.stringify(settings))) // Update original settings
     } catch (error) {
       toast({
         title: "Save Failed",
@@ -303,35 +319,44 @@ export default function Settings() {
   }
 
   const handleProviderChange = (newProvider) => {
+    const currentProvider = settings.ai.provider
     updateSetting('ai', 'provider', newProvider)
-    updateSetting('ai', 'model', '')
-    setModels([])
+    
+    // Only reset model if provider actually changed (not on initial load or same provider)
+    if (currentProvider && currentProvider !== newProvider) {
+      updateSetting('ai', 'model', '')
+      setModels([])
+    }
+    // Don't auto-fetch models - wait for user to click model dropdown
   }
 
   const fetchModels = async () => {
     if (loadingModels || !settings.ai.provider) return
     setLoadingModels(true)
+    
     try {
+      // Always try API first, let backend handle API key validation and fallback
       const token = localStorage.getItem('token')
       const response = await axios.get(`/api/ai/models/${settings.ai.provider}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       const fetchedModels = response.data.models || []
-      const currentModel = settings.ai.model
-      if (currentModel && !fetchedModels.find(m => m.value === currentModel)) {
-        fetchedModels.unshift({ value: currentModel, label: currentModel, description: `Current: ${currentModel}` })
-      }
       setModels(fetchedModels)
     } catch (error) {
       console.error('Failed to fetch models:', error)
       setModels([])
-      toast({
-        title: "Failed to load models",
-        description: "Could not fetch available models for this provider",
-        variant: "destructive",
-      })
     } finally {
       setLoadingModels(false)
+    }
+  }
+
+  // Helper function to check if API key exists for provider (kept for potential future use)
+  const getApiKeyForProvider = (provider) => {
+    switch (provider) {
+      case 'openai': return settings.ai.openaiApiKey && settings.ai.openaiApiKey !== '***'
+      case 'groq': return settings.ai.groqApiKey && settings.ai.groqApiKey !== '***'
+      case 'gemini': return settings.ai.geminiApiKey && settings.ai.geminiApiKey !== '***'
+      default: return false
     }
   }
 
@@ -585,30 +610,55 @@ export default function Settings() {
           
           <div className="space-y-2">
             <Label htmlFor="model">Model</Label>
-            <Select
-              value={settings.ai.model}
-              onValueChange={(value) => updateSetting('ai', 'model', value)}
-              disabled={!settings.ai.provider || loadingModels}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model..."} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {loadingModels && (
-                    <SelectItem value="loading" disabled>Loading models...</SelectItem>
-                  )}
-                  {!loadingModels && models.length === 0 && (
-                    <SelectItem value="no-models" disabled>No models available</SelectItem>
-                  )}
-                  {models.map(model => (
-                    <SelectItem key={model.value} value={model.value}>
-                      {model.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <div className="flex-1 dropdown-container">
+                <Select
+                  value={settings.ai.model}
+                  onValueChange={(value) => updateSetting('ai', 'model', value)}
+                  disabled={!settings.ai.provider}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      !settings.ai.provider 
+                        ? "Select a provider first..." 
+                        : loadingModels 
+                          ? "Loading models..." 
+                          : models.length === 0
+                            ? "Click refresh to load models"
+                            : "Select a model..."
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {loadingModels && (
+                        <SelectItem value="loading" disabled>Loading models...</SelectItem>
+                      )}
+                      {!loadingModels && models.length === 0 && settings.ai.provider && (
+                        <SelectItem value="no-models" disabled>Click refresh button to load models</SelectItem>
+                      )}
+                      {models.map(model => (
+                        <SelectItem key={model.value} value={model.value}>
+                          {model.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={fetchModels}
+                disabled={!settings.ai.provider || loadingModels}
+                className="px-3"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingModels ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+            {validationErrors.aiModel && (
+              <p className="text-sm text-red-600">{validationErrors.aiModel}</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -979,9 +1029,16 @@ export default function Settings() {
           </div>
           
           <div className="flex items-center gap-3">
-            <Button onClick={handleSave} disabled={saving} className="group">
-              <Save className={`h-4 w-4 mr-2 ${saving ? 'animate-pulse' : 'group-hover:scale-110'} transition-transform duration-200`} />
-              {saving ? 'Saving...' : 'Save Settings'}
+            <Button 
+              onClick={handleSave} 
+              disabled={saving || !hasChanges()} 
+              className="group relative overflow-hidden bg-foreground hover:bg-foreground/90 text-background border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+              <Save className={`h-4 w-4 mr-2 relative z-10 ${saving ? 'animate-spin' : 'group-hover:rotate-12 group-hover:scale-110'} transition-all duration-300`} />
+              <span className="relative z-10 font-medium">
+                {saving ? 'Saving...' : 'Save Settings'}
+              </span>
             </Button>
           </div>
         </div>

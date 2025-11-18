@@ -402,14 +402,14 @@ export default function Pipelines() {
           className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
           style={{ animationDelay: "0.2s" }}
         >
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Building className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <h3 className="text-xl font-semibold text-foreground">
               Recent Builds
             </h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <FilterDropdown
               options={[
                 { value: 10, label: '10 builds' },
