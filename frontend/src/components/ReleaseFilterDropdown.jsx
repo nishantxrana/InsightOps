@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 const ReleaseFilterDropdown = ({ 
@@ -9,11 +9,23 @@ const ReleaseFilterDropdown = ({
   placeholder = "Select..."
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const selectedOption = options.find(opt => opt.value === value);
 
   return (
-    <div className="relative dropdown-container">
+    <div className="relative dropdown-container" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-1 focus:ring-muted focus:border-border bg-card dark:bg-[#111111] hover:border-muted-foreground transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"

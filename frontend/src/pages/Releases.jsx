@@ -12,6 +12,10 @@ import {
   Filter,
   Search,
   X,
+  Building,
+  User,
+  Calendar,
+  ExternalLink,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHealth } from "../contexts/HealthContext";
@@ -26,36 +30,54 @@ import ErrorMessage from "../components/ErrorMessage";
 const getStatusIcon = (status) => {
   switch (status?.toLowerCase()) {
     case 'succeeded':
-      return <CheckCircle className="w-4 h-4 text-green-600" />;
+      return <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />;
     case 'failed':
     case 'rejected':
-      return <XCircle className="w-4 h-4 text-red-600" />;
+      return <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
     case 'inprogress':
     case 'deploying':
-      return <Clock className="w-4 h-4 text-blue-600" />;
+      return <Clock className="h-5 w-5 text-blue-500 dark:text-blue-400 animate-pulse" />;
     case 'pending':
     case 'notstarted':
-      return <AlertCircle className="w-4 h-4 text-yellow-600" />;
+      return <AlertCircle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />;
     default:
-      return <AlertCircle className="w-4 h-4 text-gray-600" />;
+      return <AlertCircle className="h-5 w-5 text-muted-foreground" />;
+  }
+};
+
+const getStatusBadgeIcon = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'succeeded':
+      return <CheckCircle className="h-3 w-3" />;
+    case 'failed':
+    case 'rejected':
+      return <XCircle className="h-3 w-3" />;
+    case 'inprogress':
+    case 'deploying':
+      return <Clock className="h-3 w-3 animate-pulse" />;
+    case 'pending':
+    case 'notstarted':
+      return <AlertCircle className="h-3 w-3" />;
+    default:
+      return <AlertCircle className="h-3 w-3" />;
   }
 };
 
 const getStatusColor = (status) => {
   switch (status?.toLowerCase()) {
     case 'succeeded':
-      return 'bg-green-50 text-green-700 border border-green-200';
+      return 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200';
     case 'failed':
     case 'rejected':
-      return 'bg-red-50 text-red-700 border border-red-200';
+      return 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200';
     case 'inprogress':
     case 'deploying':
-      return 'bg-blue-50 text-blue-700 border border-blue-200';
+      return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200';
     case 'pending':
     case 'notstarted':
-      return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
+      return 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200';
     default:
-      return 'bg-gray-50 text-gray-700 border border-gray-200';
+      return 'bg-muted text-muted-foreground';
   }
 };
 
@@ -582,49 +604,72 @@ export default function Releases() {
                     className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group"
                     title="Click to view details"
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                          #{release.id}
-                        </span>
-                        <div>
-                          <h4 className="font-medium text-foreground group-hover:text-blue-600 transition-colors">
-                            {release.name}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {release.definitionName}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                         {getStatusIcon(release.status)}
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStatusColor(release.status)}`}>
-                          {release.status}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Environment progression */}
-                    {release.environments && release.environments.length > 0 && (
-                      <div className="flex items-center gap-2 mb-3">
-                        {release.environments.map((env, envIndex) => (
-                          <div key={env.id} className="flex items-center gap-1">
-                            <div className={`w-2 h-2 rounded-full ${getEnvironmentStatusColor(env.status)}`} />
-                            <span className="text-xs text-muted-foreground">{env.name}</span>
-                            {envIndex < release.environments.length - 1 && (
-                              <ChevronRight className="w-3 h-3 text-muted-foreground mx-1" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-medium text-foreground truncate">
+                              {release.name}
+                            </h4>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              #{release.id}
+                            </span>
+                            {release.webUrl && (
+                              <a
+                                href={release.webUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors opacity-0 group-hover:opacity-100"
+                                title="Open in Azure DevOps"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
                             )}
                           </div>
-                        ))}
+
+                          <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Building className="h-3 w-3" />
+                              {release.definitionName}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {release.createdBy?.displayName || 'Unknown'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(release.createdOn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+
+                          {/* Environment progression */}
+                          {release.environments && release.environments.length > 0 && (
+                            <div className="flex items-center gap-2 mt-2">
+                              {release.environments.map((env, envIndex) => (
+                                <div key={env.id} className="flex items-center gap-1">
+                                  <div className={`w-2 h-2 rounded-full ${getEnvironmentStatusColor(env.status)}`} />
+                                  <span className="text-xs text-muted-foreground">{env.name}</span>
+                                  {envIndex < release.environments.length - 1 && (
+                                    <ChevronRight className="w-3 h-3 text-muted-foreground mx-1" />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        Created by {release.createdBy?.displayName || 'Unknown'}
-                      </span>
-                      <span>
-                        {new Date(release.createdOn).toLocaleDateString()} {new Date(release.createdOn).toLocaleTimeString()}
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(release.status)}`}>
+                        {getStatusBadgeIcon(release.status)}
+                        {release.status === 'succeeded' ? 'Succeeded' :
+                         release.status === 'failed' ? 'Failed' :
+                         release.status === 'rejected' ? 'Rejected' :
+                         release.status === 'inprogress' ? 'In Progress' :
+                         release.status === 'deploying' ? 'Deploying' :
+                         release.status === 'pending' ? 'Pending' :
+                         release.status === 'notstarted' ? 'Not Started' :
+                         release.status}
                       </span>
                     </div>
                   </div>

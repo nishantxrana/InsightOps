@@ -17,6 +17,7 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import {
   Tooltip,
@@ -32,6 +33,16 @@ const breadcrumbMap = {
   '/pull-requests': 'Pull Requests',
   '/logs': 'Logs',
   '/settings': 'Settings'
+}
+
+function SidebarWrapper({ children }) {
+  const { open } = useSidebar()
+  
+  useEffect(() => {
+    localStorage.setItem('sidebar-open', JSON.stringify(open))
+  }, [open])
+  
+  return children
 }
 
 export default function Layout({ children }) {
@@ -87,9 +98,10 @@ export default function Layout({ children }) {
 
   return (
     <TooltipProvider>
-      <SidebarProvider>
-        <DevOpsAppSidebar />
-        <SidebarInset>
+      <SidebarProvider defaultOpen={JSON.parse(localStorage.getItem('sidebar-open') ?? 'true')}>
+        <SidebarWrapper>
+          <DevOpsAppSidebar />
+          <SidebarInset>
           <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
             <div className="flex items-center gap-2 px-4">
               <SidebarTrigger className="-ml-1" />
@@ -176,7 +188,8 @@ export default function Layout({ children }) {
               {children}
             </div>
           </div>
-        </SidebarInset>
+          </SidebarInset>
+        </SidebarWrapper>
       </SidebarProvider>
     </TooltipProvider>
   )
