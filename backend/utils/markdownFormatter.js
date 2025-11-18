@@ -410,6 +410,81 @@ class MarkdownFormatter {
     return message;
   }
 
+  formatIdlePullRequestBatch(pullRequests, batchNumber, totalBatches, totalCount) {
+    if (!pullRequests || pullRequests.length === 0) {
+      return '';
+    }
+
+    let message = `*⏰ Overdue Pull Requests (Batch ${batchNumber} of ${totalBatches}) - ${pullRequests.length} of ${totalCount} total* \n\n`;
+    message += `The following pull requests have been inactive for more than 48 hours:\n\n`;
+
+    pullRequests.forEach(pr => {
+      const title = pr.title || 'No title';
+      const createdBy = pr.createdBy?.displayName || 'Unknown';
+      const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
+      const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
+      const project = pr.repository?.project?.name || 'Unknown';
+      const repository = pr.repository?.name || 'Unknown';
+      const sourceBranch = pr.sourceRefName?.replace('refs/heads/', '') || 'unknown';
+      const targetBranch = pr.targetRefName?.replace('refs/heads/', '') || 'unknown';
+      const description = ((pr.description || 'No description').slice(0, 100)) +
+                    ((pr.description?.length ?? 0) > 100 ? '...' : '');
+
+      message += `*Pull Request ID:* ${pr.pullRequestId}\n`;
+      message += `- *Title:* ${title}\n`;
+      message += `- *Created By:* ${createdBy}\n`;
+      message += `- *Project:* ${project}\n`;
+      message += `- *Repository:* ${repository}\n`;
+      message += `- *Source Branch:* ${sourceBranch}\n`;
+      message += `- *Target Branch:* ${targetBranch}\n`;
+      message += `- *Last Activity:* ${daysSinceActivity} days ago\n`;
+      message += `- *PR Url:* <${pr.webUrl || pr.url}|Open Pull Request>\n`;
+      message += `- *Description:* ${description}\n\n`;
+    });
+
+    if (batchNumber === totalBatches) {
+      message += `Please review these pull requests to keep the development process moving.\n`;
+    }
+
+    return message;
+  }
+
+  formatOverdueItemsBatch(overdueItems, batchNumber, totalBatches, totalCount) {
+    if (!overdueItems || overdueItems.length === 0) {
+      return '';
+    }
+
+    let message = `*⚠️ Overdue Work Items (Batch ${batchNumber} of ${totalBatches}) - ${overdueItems.length} of ${totalCount} total* \n\n`;
+    message += `The following work items are past their due date and need attention:\n\n`;
+
+    overdueItems.forEach(item => {
+      const title = item.fields?.['System.Title'] || 'No title';
+      const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+      const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+      const workItemType = item.fields?.['System.WorkItemType'] || 'Item';
+      const state = item.fields?.['System.State'] || 'Unknown';
+      const priority = item.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
+      const createdBy = item.fields?.['System.CreatedBy']?.displayName || 'Unknown';
+      const daysPastDue = dueDate ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+
+      message += `*${workItemType}* #${item.id}: ${title}\n`;
+      message += `- *Assigned To:* ${assignee}\n`;
+      message += `- *State:* ${state}\n`;
+      message += `- *Priority:* ${priority}\n`;
+      message += `- *Due Date:* ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No due date'}\n`;
+      if (dueDate && daysPastDue > 0) {
+        message += `- *Days Overdue:* ${daysPastDue} days\n`;
+      }
+      message += `- *Work Item Url:* <${item.webUrl || azureDevOpsClient.constructWorkItemWebUrl(item)}|Open Work Item>\n\n`;
+    });
+
+    if (batchNumber === totalBatches) {
+      message += `Please review and update the status of these items to keep the project on track.\n`;
+    }
+
+    return message;
+  }
+
   formatOverdueItemsMessage(overdueItems) {
     if (!overdueItems || overdueItems.length === 0) {
       return '';

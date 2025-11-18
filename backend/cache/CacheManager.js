@@ -119,6 +119,24 @@ class CacheManager {
   }
 
   /**
+   * Check if AI response indicates an error/failure
+   */
+  isErrorResponse(response) {
+    if (!response || typeof response !== 'string') return true;
+    
+    // Check for common error patterns
+    const errorPatterns = [
+      'error:', 'failed to', 'unable to', 'could not',
+      'api error', 'rate limit', 'quota exceeded',
+      'invalid request', 'authentication failed'
+    ];
+    
+    const lowerResponse = response.toLowerCase();
+    return errorPatterns.some(pattern => lowerResponse.includes(pattern)) ||
+           response.length < 10; // Too short to be valid
+  }
+
+  /**
    * Wrapper methods for common operations
    */
 
@@ -128,7 +146,12 @@ class CacheManager {
     return this.get('ai', key);
   }
 
-  setAIResponse(prompt, model, response, ttl = 3600) {
+  setAIResponse(prompt, model, response, ttl = 300) {
+    // Don't cache error responses
+    if (this.isErrorResponse(response)) {
+      return;
+    }
+    
     const key = this.generateKey('ai', { prompt, model });
     this.set('ai', key, response, ttl);
   }
@@ -150,7 +173,7 @@ class CacheManager {
     return this.get('api', key);
   }
 
-  setAPIResponse(endpoint, params, response, ttl = 1800) {
+  setAPIResponse(endpoint, params, response, ttl = 300) {
     const key = this.generateKey('api', { endpoint, params });
     this.set('api', key, response, ttl);
   }
@@ -161,7 +184,7 @@ class CacheManager {
     return this.get('analysis', key);
   }
 
-  setAnalysis(type, data, result, ttl = 86400) {
+  setAnalysis(type, data, result, ttl = 300) {
     const key = this.generateKey('analysis', { type, data });
     this.set('analysis', key, result, ttl);
   }

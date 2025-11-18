@@ -41,7 +41,7 @@ class InMemoryCache {
   /**
    * Set value in cache with optional TTL
    */
-  set(key, value, ttl = 3600) {
+  set(key, value, ttl = 300) {
     // Evict oldest if at capacity
     if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
       this.evictOldest();

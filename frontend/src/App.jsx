@@ -13,6 +13,7 @@ import SignUp from './pages/SignUp'
 import { HealthProvider } from './contexts/HealthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { Toaster } from './components/ui/toaster'
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -58,6 +59,7 @@ function App() {
       <AuthProvider>
         <HealthProvider>
           <AppContent />
+          <Toaster />
         </HealthProvider>
       </AuthProvider>
     </ThemeProvider>

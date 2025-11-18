@@ -1,12 +1,9 @@
 "use client"
 
 import {
-  BadgeCheck,
-  Bell,
   ChevronsUpDown,
   LogOut,
   Settings,
-  Sparkles,
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
@@ -33,8 +30,14 @@ import {
 } from "@/components/ui/sidebar"
 
 export function NavUser() {
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const { user, logout } = useAuth()
+
+  const handleSettingsClick = () => {
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
 
   // Use auth user data or fallback to default
   const userData = user || {
@@ -46,7 +49,7 @@ export function NavUser() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
@@ -85,30 +88,15 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Sparkles />
-                Upgrade to Pro
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <BadgeCheck />
-                Account
-              </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/settings">
+                <Link to="/settings" onClick={handleSettingsClick}>
                   <Settings />
                   Settings
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Bell />
-                Notifications
-              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout}>
+            <DropdownMenuItem onClick={logout} className="hover:!text-red-600">
               <LogOut />
               Log out
             </DropdownMenuItem>
