@@ -13,10 +13,10 @@ const ReleaseFilterDropdown = ({
   const selectedOption = options.find(opt => opt.value === value);
 
   return (
-    <div className="relative dropdown-container min-w-0 flex-shrink-0">
+    <div className="relative dropdown-container">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-1 focus:ring-muted focus:border-border bg-card dark:bg-[#111111] hover:border-muted-foreground transition-all cursor-pointer shadow-sm hover:shadow-sm w-full min-w-[100px] max-w-[200px]"
+        className="flex items-center gap-2 pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-1 focus:ring-muted focus:border-border bg-card dark:bg-[#111111] hover:border-muted-foreground transition-all cursor-pointer shadow-sm hover:shadow-sm min-w-[100px]"
       >
         <Icon className="h-3 w-3 absolute left-2.5 text-muted-foreground" />
         <span className="flex-1 text-left text-foreground truncate">
