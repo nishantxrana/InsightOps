@@ -353,31 +353,37 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
             {/* Tab Navigation - Show only if we have logs or approvals to display */}
             {(isFailedRelease || shouldShowApprovals) && (
               <div className="border-t border-border pt-6">
-                <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6">
-                  {isFailedRelease && (
-                    <button
-                      onClick={() => setActiveTab('logs')}
-                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                        activeTab === 'logs'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Task Logs
-                    </button>
-                  )}
-                  {shouldShowApprovals && (
-                    <button
-                      onClick={() => setActiveTab('approvals')}
-                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                        activeTab === 'approvals'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Approvals
-                    </button>
-                  )}
+                <div className="border-b border-border">
+                  <nav className="flex space-x-6 px-1" aria-label="Tabs">
+                    {isFailedRelease && (
+                      <button
+                        onClick={() => setActiveTab('logs')}
+                        className={`group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                          activeTab === 'logs'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
+                        }`}
+                        aria-current={activeTab === 'logs' ? 'page' : undefined}
+                      >
+                        <FileText className={`h-4 w-4 transition-colors ${activeTab === 'logs' ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} />
+                        Task Logs
+                      </button>
+                    )}
+                    {shouldShowApprovals && (
+                      <button
+                        onClick={() => setActiveTab('approvals')}
+                        className={`group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                          activeTab === 'approvals'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
+                        }`}
+                        aria-current={activeTab === 'approvals' ? 'page' : undefined}
+                      >
+                        <UserCheck className={`h-4 w-4 transition-colors ${activeTab === 'approvals' ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} />
+                        Approvals
+                      </button>
+                    )}
+                  </nav>
                 </div>
               </div>
             )}
@@ -542,13 +548,25 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                       </div>
                     </div>
 
-                    {Object.entries(approvals.environmentApprovals).map(([envId, envApproval]) => (
+                    {Object.entries(approvals.environmentApprovals).map(([envId, envApproval]) => {
+                      // Determine overall approval status for this environment
+                      const hasRejected = envApproval.approvals.some(a => a.status?.toLowerCase() === 'rejected');
+                      const hasPending = envApproval.approvals.some(a => a.status?.toLowerCase() === 'pending');
+                      const allApproved = envApproval.approvals.length > 0 && envApproval.approvals.every(a => a.status?.toLowerCase() === 'approved');
+                      
+                      const approvalStatus = hasRejected ? 'rejected' : hasPending ? 'pending' : allApproved ? 'approved' : 'pending';
+                      
+                      return (
                       <div key={envId} className="mb-6 border border-border rounded-lg overflow-hidden">
                         <div className="bg-muted px-4 py-3 border-b border-border">
                           <div className="flex items-center justify-between">
                             <h4 className="font-medium text-foreground">{envApproval.environmentName}</h4>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(envApproval.environmentStatus)}`}>
-                              {envApproval.environmentStatus}
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              approvalStatus === 'approved' ? 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200' :
+                              approvalStatus === 'rejected' ? 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200' :
+                              'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200'
+                            }`}>
+                              {approvalStatus}
                             </span>
                           </div>
                         </div>
@@ -640,7 +658,8 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
