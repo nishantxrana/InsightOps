@@ -40,6 +40,7 @@ const getStatusIcon = (status) => {
       return <Clock className="h-4 w-4" />;
     case 'pending':
     case 'notstarted':
+    case 'notDeployed':
       return <AlertCircle className="h-4 w-4" />;
     default:
       return <AlertCircle className="h-4 w-4" />;
@@ -65,6 +66,7 @@ const getStatusColor = (status) => {
       return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200';
     case 'pending':
     case 'notstarted':
+    case 'notDeployed':
       return 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200';
     default:
       return 'bg-muted text-muted-foreground';
@@ -88,6 +90,7 @@ const getEnvironmentStatusColor = (status) => {
       return 'bg-blue-500';
     case 'pending':
     case 'notstarted':
+    case 'notDeployed':
       return 'bg-yellow-500';
     default:
       return 'bg-gray-400';

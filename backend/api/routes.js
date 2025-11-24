@@ -1029,7 +1029,13 @@ router.get('/releases', async (req, res) => {
         // Determine overall status from environment statuses
         let mappedStatus = 'unknown';
         
-        if (release.environments && release.environments.length > 0) {
+        // Check release-level status first for abandoned/canceled
+        const releaseStatus = release.status?.toLowerCase() || '';
+        if (releaseStatus === 'abandoned') {
+          mappedStatus = 'abandoned';
+        } else if (['canceled', 'cancelled'].includes(releaseStatus)) {
+          mappedStatus = 'canceled';
+        } else if (release.environments && release.environments.length > 0) {
           const envStatuses = release.environments.map(env => env.status?.toLowerCase());
           
           // Debug logging to see actual status values
@@ -1063,9 +1069,9 @@ router.get('/releases', async (req, res) => {
           else if (envStatuses.some(status => ['partiallysucceeded', 'partiallydeployed', 'waitingforapproval', 'pendingapproval'].includes(status))) {
             mappedStatus = 'waitingforapproval';
           }
-          // If any environment is not started, overall status is pending
+          // If any environment is not started, overall status is notDeployed
           else if (envStatuses.some(status => ['notstarted', 'undefined'].includes(status))) {
-            mappedStatus = 'pending';
+            mappedStatus = 'notDeployed';
           }
           // Default to succeeded if all environments are succeeded
           else {
@@ -1145,7 +1151,7 @@ router.get('/releases', async (req, res) => {
                   break;
                 case 'notstarted':
                 case 'undefined':
-                  envMappedStatus = 'pending';
+                  envMappedStatus = 'notDeployed';
                   break;
                 default:
                   envMappedStatus = azureEnvStatus;

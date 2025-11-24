@@ -48,6 +48,7 @@ const getStatusIcon = (status) => {
       return <Clock className="h-5 w-5 text-blue-500 dark:text-blue-400 animate-pulse" />;
     case 'pending':
     case 'notstarted':
+    case 'notDeployed':
       return <AlertCircle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />;
     default:
       return <AlertCircle className="h-5 w-5 text-muted-foreground" />;
@@ -71,6 +72,7 @@ const getStatusBadgeIcon = (status) => {
       return <Clock className="h-3 w-3 animate-pulse" />;
     case 'pending':
     case 'notstarted':
+    case 'notDeployed':
       return <AlertCircle className="h-3 w-3" />;
     default:
       return <AlertCircle className="h-3 w-3" />;
@@ -96,6 +98,7 @@ const getStatusColor = (status) => {
       return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200';
     case 'pending':
     case 'notstarted':
+    case 'notDeployed':
       return 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200';
     default:
       return 'bg-muted text-muted-foreground';
@@ -121,6 +124,7 @@ const getEnvironmentStatusColor = (status) => {
       return 'bg-blue-500';
     case 'pending':
     case 'notstarted':
+    case 'notDeployed':
       return 'bg-yellow-500';
     default:
       return 'bg-gray-400';
@@ -722,6 +726,7 @@ export default function Releases() {
                          release.status === 'deploying' ? 'Deploying' :
                          release.status === 'pending' ? 'Not Deployed' :
                          release.status === 'notstarted' ? 'Not Deployed' :
+                         release.status === 'notDeployed' ? 'Not Deployed' :
                          release.status}
                       </span>
                     </div>
