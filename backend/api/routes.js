@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+import axios from 'axios';
 import { logger, sanitizeForLogging } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
@@ -1031,8 +1032,22 @@ router.get('/releases', async (req, res) => {
         if (release.environments && release.environments.length > 0) {
           const envStatuses = release.environments.map(env => env.status?.toLowerCase());
           
-          // If any environment failed/rejected, overall status is failed
-          if (envStatuses.some(status => ['failed', 'rejected', 'canceled'].includes(status))) {
+          // Debug logging to see actual status values
+          // console.log(`Release ${release.id} environment statuses:`, envStatuses);
+          
+          // If any environment is canceled, overall status is canceled
+          if (envStatuses.some(status => ['canceled', 'cancelled'].includes(status))) {
+            mappedStatus = 'canceled';
+          }
+          // If any environment is rejected, overall status is failed due to approval rejection
+          else if (envStatuses.some(status => ['rejected'].includes(status))) {
+            mappedStatus = 'failed';
+            // Mark as approval rejected for later processing
+            release._hasRejectedEnvironments = true;
+            // console.log(`Release ${release.id} has rejected environments, setting flag`);
+          }
+          // If any environment failed, overall status is failed
+          else if (envStatuses.some(status => ['failed'].includes(status))) {
             mappedStatus = 'failed';
           }
           // If all environments succeeded, overall status is succeeded
@@ -1042,6 +1057,10 @@ router.get('/releases', async (req, res) => {
           // If any environment is in progress, overall status is in progress
           else if (envStatuses.some(status => ['inprogress', 'queued'].includes(status))) {
             mappedStatus = 'inprogress';
+          }
+          // Check for pending approvals (various Azure DevOps statuses that indicate waiting for approval)
+          else if (envStatuses.some(status => ['partiallysucceeded', 'partiallydeployed', 'waitingforapproval', 'pendingapproval'].includes(status))) {
+            mappedStatus = 'waitingforapproval';
           }
           // If any environment is not started, overall status is pending
           else if (envStatuses.some(status => ['notstarted', 'undefined'].includes(status))) {
@@ -1054,12 +1073,26 @@ router.get('/releases', async (req, res) => {
         } else {
           // Fallback to release status if no environments
           const azureStatus = release.status?.toLowerCase() || 'unknown';
+          
+          // Debug logging for release-level status
+          console.log(`Release ${release.id} release-level status:`, azureStatus);
+          
           switch (azureStatus) {
             case 'active':
               mappedStatus = 'inprogress';
               break;
             case 'succeeded':
               mappedStatus = 'succeeded';
+              break;
+            case 'canceled':
+            case 'cancelled':
+              mappedStatus = 'canceled';
+              break;
+            case 'partiallysucceeded':
+            case 'partiallydeployed':
+            case 'waitingforapproval':
+            case 'pendingapproval':
+              mappedStatus = 'waitingforapproval';
               break;
             default:
               mappedStatus = 'pending';
@@ -1071,6 +1104,7 @@ router.get('/releases', async (req, res) => {
           name: release.name,
           definitionName: release.releaseDefinition?.name || 'Unknown',
           status: mappedStatus,
+          _hasRejectedEnvironments: release._hasRejectedEnvironments,
           createdOn: release.createdOn,
           organization: userSettings.azureDevOps.organization,
           project: userSettings.azureDevOps.project,
@@ -1093,8 +1127,17 @@ router.get('/releases', async (req, res) => {
                   break;
                 case 'failed':
                 case 'rejected':
-                case 'canceled':
                   envMappedStatus = 'failed';
+                  break;
+                case 'canceled':
+                case 'cancelled':
+                  envMappedStatus = 'canceled';
+                  break;
+                case 'partiallysucceeded':
+                case 'partiallydeployed':
+                case 'waitingforapproval':
+                case 'pendingapproval':
+                  envMappedStatus = 'waitingforapproval';
                   break;
                 case 'notstarted':
                 case 'undefined':
@@ -1120,11 +1163,81 @@ router.get('/releases', async (req, res) => {
           }))
         };
       });
+
+      // Check for pending approvals on inprogress, failed, and rejected releases
+      const releasesWithApprovalCheck = await Promise.all(
+        transformedReleases.map(async (release) => {
+          if (release.status === 'inprogress' || release.status === 'failed' || release.status === 'rejected') {
+            try {
+              const approvalsResponse = await releaseClient.client.get('/release/approvals', {
+                params: { 
+                  'api-version': '6.0',
+                  'releaseIdsFilter': release.id,
+                  'statusFilter': 'all'
+                }
+              });
+              const approvals = approvalsResponse.data.value || [];
+              // console.log(`Release ${release.id} approvals:`, approvals.map(a => ({ 
+              //   id: a.id, 
+              //   status: a.status, 
+              //   approver: a.approver?.displayName,
+              //   approvedBy: a.approvedBy?.displayName 
+              // })));
+              
+              // If no approvals from API but release has rejected environments, check environment data
+              let hasApprovalData = approvals.length > 0;
+              if (!hasApprovalData && (release.status === 'failed' || release.environments?.some(env => env.status === 'rejected'))) {
+                // Check if any environment has approval data
+                for (const env of release.environments || []) {
+                  // console.log(`Release ${release.id} environment ${env.name} data:`, {
+                  //   status: env.status,
+                  //   preDeployApprovals: env.preDeployApprovals?.length || 0,
+                  //   postDeployApprovals: env.postDeployApprovals?.length || 0,
+                  //   deploySteps: env.deploySteps?.length || 0
+                  // });
+                  
+                  const preApprovals = env.preDeployApprovals || [];
+                  const postApprovals = env.postDeployApprovals || [];
+                  if (preApprovals.length > 0 || postApprovals.length > 0) {
+                    hasApprovalData = true;
+                    console.log(`Release ${release.id} has approval data in environment ${env.name}`);
+                    break;
+                  }
+                }
+              }
+              
+              const hasPendingApprovals = approvals.some(approval => approval.status === 'pending');
+              const hasRejectedApprovals = approvals.some(approval => approval.status === 'rejected');
+              
+              if (hasRejectedApprovals && release.status === 'failed') {
+                console.log(`Release ${release.id} has rejected approvals, marking as approval_rejected failure`);
+                return { ...release, status: 'failed', failureReason: 'approval_rejected' };
+              } else if (hasRejectedApprovals) {
+                console.log(`Release ${release.id} has rejected approvals, changing status to failed`);
+                return { ...release, status: 'failed', failureReason: 'approval_rejected' };
+              } else if (release._hasRejectedEnvironments) {
+                // console.log(`Release ${release.id} has rejected environments flag: ${release._hasRejectedEnvironments}, marking as approval_rejected failure`);
+                return { ...release, status: 'failed', failureReason: 'approval_rejected' };
+              } else if (hasPendingApprovals) {
+                // console.log(`Release ${release.id} has pending approvals, changing status to waitingforapproval`);
+                return { ...release, status: 'waitingforapproval' };
+              } else if (hasApprovalData && release.status === 'failed') {
+                // If release is failed and has approval data, likely failed due to rejection
+                console.log(`Release ${release.id} is failed with approval data, marking as approval_rejected failure`);
+                return { ...release, status: 'failed', failureReason: 'approval_rejected' };
+              }
+            } catch (approvalError) {
+              console.log(`Could not check approvals for release ${release.id}:`, approvalError.message);
+            }
+          }
+          return release;
+        })
+      );
       
       res.json({
         success: true,
         data: {
-          releases: transformedReleases,
+          releases: releasesWithApprovalCheck,
           total: releases.length,
           hasMore: releases.length >= parseInt(limit)
         }
@@ -1282,6 +1395,292 @@ router.get('/releases/approvals', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch release approvals'
+    });
+  }
+});
+
+// Get detailed approval information for a release
+router.get('/releases/:releaseId/approvals', async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    const userSettings = await getUserSettings(req.user.id);
+    
+    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+      return res.status(400).json({
+        success: false,
+        error: 'Azure DevOps configuration not found'
+      });
+    }
+
+    const releaseClient = new AzureDevOpsReleaseClient(
+      userSettings.azureDevOps.organization,
+      userSettings.azureDevOps.project,
+      userSettings.azureDevOps.pat
+    );
+
+    try {
+      // Get release approvals - get all approvals for this release
+      const approvalsResponse = await releaseClient.client.get('/release/approvals', {
+        params: { 
+          'api-version': '6.0',
+          'releaseIdsFilter': releaseId,
+          'statusFilter': 'all'
+        }
+      });
+      
+      const approvals = approvalsResponse.data.value || [];
+      
+      // Get release details for environment info
+      const releaseResponse = await releaseClient.client.get(`/release/releases/${releaseId}`, {
+        params: { 'api-version': '6.0' }
+      });
+      
+      const release = releaseResponse.data;
+      
+      // Process approvals by environment
+      const environmentApprovals = {};
+      
+      for (const env of release.environments || []) {
+        const envApprovals = approvals.filter(approval => 
+          approval.releaseEnvironment?.id === env.id
+        );
+        
+        // If no approvals found via API but environment is rejected, check environment approvals
+        if (envApprovals.length === 0 && (env.status === 'rejected' || env.status === 'failed')) {
+          // Try to get approval info from environment preDeployApprovals and postDeployApprovals
+          const preApprovals = env.preDeployApprovals || [];
+          const postApprovals = env.postDeployApprovals || [];
+          const allEnvApprovals = [...preApprovals, ...postApprovals];
+          
+          // console.log(`Environment ${env.name} approvals from env data:`, allEnvApprovals.map(a => ({
+          //   status: a.status,
+          //   approver: a.approver?.displayName,
+          //   approvedBy: a.approvedBy?.displayName
+          // })));
+          
+          envApprovals.push(...allEnvApprovals.map(approval => ({
+            id: approval.id,
+            status: approval.status,
+            approver: {
+              displayName: approval.approver?.displayName || 'Unknown',
+              uniqueName: approval.approver?.uniqueName || '',
+              imageUrl: approval.approver?.imageUrl
+            },
+            approvedBy: approval.approvedBy ? {
+              displayName: approval.approvedBy.displayName,
+              uniqueName: approval.approvedBy.uniqueName,
+              imageUrl: approval.approvedBy.imageUrl
+            } : null,
+            createdOn: approval.createdOn,
+            modifiedOn: approval.modifiedOn,
+            comments: approval.comments,
+            instructions: approval.instructions,
+            isAutomated: approval.isAutomated,
+            attempt: approval.attempt,
+            rank: approval.rank
+          })));
+        }
+        
+        // Deduplicate approvals - keep only the latest approval per approver
+        const latestApprovals = {};
+        for (const approval of envApprovals) {
+          const approverKey = approval.approver.uniqueName || approval.approver.displayName;
+          const currentTime = new Date(approval.modifiedOn || approval.createdOn).getTime();
+          
+          if (!latestApprovals[approverKey] || 
+              new Date(latestApprovals[approverKey].modifiedOn || latestApprovals[approverKey].createdOn).getTime() < currentTime) {
+            latestApprovals[approverKey] = approval;
+          }
+        }
+        
+        environmentApprovals[env.id] = {
+          environmentName: env.name,
+          environmentId: env.id,
+          environmentStatus: env.status,
+          approvals: Object.values(latestApprovals).map(approval => ({
+            id: approval.id,
+            status: approval.status,
+            approver: {
+              displayName: approval.approver?.displayName || 'Unknown',
+              uniqueName: approval.approver?.uniqueName || '',
+              imageUrl: approval.approver?.imageUrl
+            },
+            approvedBy: approval.approvedBy ? {
+              displayName: approval.approvedBy.displayName,
+              uniqueName: approval.approvedBy.uniqueName,
+              imageUrl: approval.approvedBy.imageUrl
+            } : null,
+            createdOn: approval.createdOn,
+            modifiedOn: approval.modifiedOn,
+            comments: approval.comments,
+            instructions: approval.instructions,
+            isAutomated: approval.isAutomated,
+            attempt: approval.attempt,
+            rank: approval.rank
+          }))
+        };
+      }
+
+      // Calculate totals from all approvals (including environment data)
+      let totalApprovals = 0;
+      let pendingApprovals = 0;
+      let approvedCount = 0;
+      let rejectedCount = 0;
+      
+      for (const envApproval of Object.values(environmentApprovals)) {
+        totalApprovals += envApproval.approvals.length;
+        for (const approval of envApproval.approvals) {
+          if (approval.status === 'pending') pendingApprovals++;
+          else if (approval.status === 'approved') approvedCount++;
+          else if (approval.status === 'rejected') rejectedCount++;
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          releaseId: release.id,
+          releaseName: release.name,
+          environmentApprovals: environmentApprovals,
+          totalApprovals: totalApprovals,
+          pendingApprovals: pendingApprovals,
+          approvedCount: approvedCount,
+          rejectedCount: rejectedCount
+        }
+      });
+
+    } catch (apiError) {
+      if (apiError.response?.status === 404) {
+        return res.json({
+          success: true,
+          data: {
+            releaseId: releaseId,
+            environmentApprovals: {},
+            totalApprovals: 0,
+            pendingApprovals: 0,
+            approvedCount: 0,
+            rejectedCount: 0
+          }
+        });
+      }
+      throw apiError;
+    }
+    
+  } catch (error) {
+    logger.error('Error fetching release approvals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch release approvals'
+    });
+  }
+});
+
+// Get release task logs for failed releases
+router.get('/releases/:releaseId/logs', async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    const userSettings = await getUserSettings(req.user.id);
+    
+    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+      return res.status(400).json({
+        success: false,
+        error: 'Azure DevOps configuration not found'
+      });
+    }
+
+    const releaseClient = new AzureDevOpsReleaseClient(
+      userSettings.azureDevOps.organization,
+      userSettings.azureDevOps.project,
+      userSettings.azureDevOps.pat
+    );
+
+    try {
+      // Get release details with environments
+      const releaseResponse = await releaseClient.client.get(`/release/releases/${releaseId}`, {
+        params: { 'api-version': '6.0' }
+      });
+      
+      const release = releaseResponse.data;
+      const failedTasks = [];
+
+      // Process each environment
+      for (const env of release.environments || []) {
+        try {
+          // Get tasks for this environment
+          const tasksResponse = await releaseClient.client.get(
+            `/release/releases/${releaseId}/environments/${env.id}/tasks`,
+            { params: { 'api-version': '6.0' } }
+          );
+          
+          const tasks = tasksResponse.data.value || [];
+          
+          // Find failed tasks
+          for (const task of tasks) {
+            if (task.status === 'failed' || task.status === 'error') {
+              let logContent = '';
+              
+              // Get task logs if available
+              if (task.logUrl) {
+                try {
+                  // Create a new axios instance for log fetching with proper auth
+                  const logResponse = await axios.get(task.logUrl, {
+                    headers: {
+                      'Authorization': `Basic ${Buffer.from(`:${userSettings.azureDevOps.pat}`).toString('base64')}`,
+                      'Content-Type': 'application/json'
+                    },
+                    timeout: 30000
+                  });
+                  logContent = logResponse.data || '';
+                } catch (logError) {
+                  logger.warn(`Failed to fetch logs for task ${task.id}:`, logError.message);
+                  logContent = 'Log content unavailable';
+                }
+              }
+              
+              failedTasks.push({
+                taskId: task.id,
+                taskName: task.name || 'Unknown Task',
+                environmentName: env.name,
+                environmentId: env.id,
+                status: task.status,
+                startTime: task.startTime,
+                finishTime: task.finishTime,
+                rank: task.rank,
+                logContent: logContent,
+                issues: task.issues || []
+              });
+            }
+          }
+        } catch (taskError) {
+          logger.warn(`Failed to fetch tasks for environment ${env.id}:`, taskError.message);
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          releaseId: release.id,
+          releaseName: release.name,
+          failedTasks: failedTasks,
+          totalFailedTasks: failedTasks.length
+        }
+      });
+
+    } catch (apiError) {
+      if (apiError.response?.status === 404) {
+        return res.status(404).json({
+          success: false,
+          error: 'Release not found'
+        });
+      }
+      throw apiError;
+    }
+    
+  } catch (error) {
+    logger.error('Error fetching release logs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch release logs'
     });
   }
 });

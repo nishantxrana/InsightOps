@@ -16,6 +16,8 @@ import {
   User,
   Calendar,
   ExternalLink,
+  FileText,
+  UserCheck,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHealth } from "../contexts/HealthContext";
@@ -34,6 +36,11 @@ const getStatusIcon = (status) => {
     case 'failed':
     case 'rejected':
       return <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
+    case 'canceled':
+    case 'cancelled':
+      return <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />;
+    case 'waitingforapproval':
+      return <UserCheck className="h-5 w-5 text-orange-500 dark:text-orange-400" />;
     case 'inprogress':
     case 'deploying':
       return <Clock className="h-5 w-5 text-blue-500 dark:text-blue-400 animate-pulse" />;
@@ -52,6 +59,11 @@ const getStatusBadgeIcon = (status) => {
     case 'failed':
     case 'rejected':
       return <XCircle className="h-3 w-3" />;
+    case 'canceled':
+    case 'cancelled':
+      return <X className="h-3 w-3" />;
+    case 'waitingforapproval':
+      return <UserCheck className="h-3 w-3" />;
     case 'inprogress':
     case 'deploying':
       return <Clock className="h-3 w-3 animate-pulse" />;
@@ -70,6 +82,11 @@ const getStatusColor = (status) => {
     case 'failed':
     case 'rejected':
       return 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200';
+    case 'canceled':
+    case 'cancelled':
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
+    case 'waitingforapproval':
+      return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
     case 'inprogress':
     case 'deploying':
       return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200';
@@ -88,6 +105,11 @@ const getEnvironmentStatusColor = (status) => {
     case 'failed':
     case 'rejected':
       return 'bg-red-500';
+    case 'canceled':
+    case 'cancelled':
+      return 'bg-gray-500';
+    case 'waitingforapproval':
+      return 'bg-orange-500';
     case 'inprogress':
     case 'deploying':
       return 'bg-blue-500';
@@ -203,6 +225,7 @@ export default function Releases() {
       const releasesResponse = await releaseService.getReleases({ limit: 50 });
       if (releasesResponse.success) {
         const releasesList = releasesResponse.data.releases || [];
+        // console.log('Received releases:', releasesList.map(r => ({ id: r.id, status: r.status })));
         setReleases(releasesList);
 
         // Extract unique environments
@@ -439,6 +462,8 @@ export default function Releases() {
                 { value: 'all', label: 'All Status' },
                 { value: 'succeeded', label: 'Succeeded' },
                 { value: 'failed', label: 'Failed' },
+                { value: 'canceled', label: 'Canceled' },
+                { value: 'waitingforapproval', label: 'Waiting for Approval' },
                 { value: 'inprogress', label: 'In Progress' },
                 { value: 'pending', label: 'Pending' }
               ]}
@@ -615,6 +640,24 @@ export default function Releases() {
                             <span className="text-xs text-muted-foreground font-mono">
                               #{release.id}
                             </span>
+                            {(release.status === 'failed' || release.status === 'rejected') && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 rounded-full text-xs font-medium">
+                                <FileText className="h-3 w-3" />
+                                {release.failureReason === 'approval_rejected' ? 'Approval Rejected' : 'View Logs'}
+                              </span>
+                            )}
+                            {(release.status === 'canceled' || release.status === 'cancelled') && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-xs font-medium">
+                                <X className="h-3 w-3" />
+                                Canceled
+                              </span>
+                            )}
+                            {release.status === 'waitingforapproval' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 rounded-full text-xs font-medium">
+                                <UserCheck className="h-3 w-3" />
+                                View Approvals
+                              </span>
+                            )}
                             {release.webUrl && (
                               <a
                                 href={release.webUrl}
@@ -665,6 +708,9 @@ export default function Releases() {
                         {release.status === 'succeeded' ? 'Succeeded' :
                          release.status === 'failed' ? 'Failed' :
                          release.status === 'rejected' ? 'Rejected' :
+                         release.status === 'canceled' ? 'Canceled' :
+                         release.status === 'cancelled' ? 'Canceled' :
+                         release.status === 'waitingforapproval' ? 'Waiting for Approval' :
                          release.status === 'inprogress' ? 'In Progress' :
                          release.status === 'deploying' ? 'Deploying' :
                          release.status === 'pending' ? 'Pending' :

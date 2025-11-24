@@ -44,6 +44,18 @@ export const releaseService = {
     return response.data;
   },
 
+  // Get detailed approval information for a release
+  async getReleaseApprovals(releaseId) {
+    const response = await api.get(`/releases/${releaseId}/approvals`);
+    return response.data;
+  },
+
+  // Get failed task logs for a specific release
+  async getReleaseTaskLogs(releaseId) {
+    const response = await api.get(`/releases/${releaseId}/logs`);
+    return response.data;
+  },
+
   // Get AI-powered release analysis
   async getAIAnalysis() {
     const response = await api.get('/releases/ai-analysis');

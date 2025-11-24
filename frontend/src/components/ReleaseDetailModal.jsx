@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { releaseService } from '../api/releaseService';
 import { buildReleaseUrl } from '../utils/azureDevOpsUrls';
 import {
   CheckCircle,
@@ -14,6 +15,10 @@ import {
   X,
   Copy,
   Rocket,
+  FileText,
+  AlertTriangle,
+  RefreshCw,
+  UserCheck,
 } from 'lucide-react';
 
 const getStatusIcon = (status) => {
@@ -23,6 +28,11 @@ const getStatusIcon = (status) => {
     case 'failed':
     case 'rejected':
       return <XCircle className="h-4 w-4" />;
+    case 'canceled':
+    case 'cancelled':
+      return <X className="h-4 w-4" />;
+    case 'waitingforapproval':
+      return <UserCheck className="h-4 w-4" />;
     case 'inprogress':
     case 'deploying':
       return <Clock className="h-4 w-4" />;
@@ -41,6 +51,11 @@ const getStatusColor = (status) => {
     case 'failed':
     case 'rejected':
       return 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200';
+    case 'canceled':
+    case 'cancelled':
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
+    case 'waitingforapproval':
+      return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
     case 'inprogress':
     case 'deploying':
       return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200';
@@ -59,6 +74,11 @@ const getEnvironmentStatusColor = (status) => {
     case 'failed':
     case 'rejected':
       return 'bg-red-500';
+    case 'canceled':
+    case 'cancelled':
+      return 'bg-gray-500';
+    case 'waitingforapproval':
+      return 'bg-orange-500';
     case 'inprogress':
     case 'deploying':
       return 'bg-blue-500';
@@ -73,6 +93,71 @@ const getEnvironmentStatusColor = (status) => {
 const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [approvals, setApprovals] = useState(null);
+  const [loadingApprovals, setLoadingApprovals] = useState(false);
+  const [failedLogs, setFailedLogs] = useState(null);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logsError, setLogsError] = useState(null);
+
+  // Check if release has failed status (but not canceled or approval rejected)
+  const isFailedRelease = (release?.status === 'failed' || release?.status === 'rejected') && 
+                         release?.status !== 'canceled' && release?.status !== 'cancelled' &&
+                         release?.failureReason !== 'approval_rejected';
+  
+  // Check if release is waiting for approval
+  const isWaitingForApproval = release?.status === 'waitingforapproval';
+  
+  // Check if release failed due to approval rejection
+  const isApprovalRejected = release?.status === 'failed' && release?.failureReason === 'approval_rejected';
+
+  // Load failed task logs when modal opens for failed releases
+  useEffect(() => {
+    if (isOpen && isFailedRelease && release?.id) {
+      loadFailedTaskLogs();
+    } else if (isOpen && (isWaitingForApproval || isApprovalRejected) && release?.id) {
+      loadApprovals();
+    } else if (!isOpen) {
+      // Reset state when modal closes
+      setFailedLogs(null);
+      setLogsError(null);
+      setLoadingLogs(false);
+      setApprovals(null);
+      setLoadingApprovals(false);
+    }
+  }, [isOpen, isFailedRelease, isWaitingForApproval, isApprovalRejected, release?.id]);
+
+  const loadFailedTaskLogs = async () => {
+    try {
+      setLoadingLogs(true);
+      setLogsError(null);
+      
+      const response = await releaseService.getReleaseTaskLogs(release.id);
+      if (response.success) {
+        setFailedLogs(response.data);
+      } else {
+        setLogsError('Failed to load task logs');
+      }
+    } catch (error) {
+      console.error('Error loading failed task logs:', error);
+      setLogsError('Failed to load task logs');
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const loadApprovals = async () => {
+    try {
+      setLoadingApprovals(true);
+      const response = await releaseService.getReleaseApprovals(release.id);
+      if (response.success) {
+        setApprovals(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading approvals:', error);
+    } finally {
+      setLoadingApprovals(false);
+    }
+  };
 
   // Handle backdrop click
   const handleBackdropClick = (e) => {
@@ -232,6 +317,265 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                     {release.description}
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* Failed Task Logs - Only show for failed releases */}
+            {isFailedRelease && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    <h3 className="text-lg font-medium text-foreground">Failed Task Logs</h3>
+                  </div>
+                  {!loadingLogs && (
+                    <button
+                      onClick={loadFailedTaskLogs}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-muted hover:bg-muted/80 rounded-md transition-colors"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Refresh
+                    </button>
+                  )}
+                </div>
+
+                {loadingLogs && (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Loading failed task logs...</span>
+                  </div>
+                )}
+
+                {logsError && (
+                  <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
+                      <XCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Error loading logs</span>
+                    </div>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">{logsError}</p>
+                  </div>
+                )}
+
+                {failedLogs && !loadingLogs && (
+                  <div className="space-y-4">
+                    {failedLogs.totalFailedTasks === 0 ? (
+                      <div className="bg-muted/50 p-4 rounded-lg text-center">
+                        <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">No failed tasks found with logs</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-sm text-muted-foreground mb-3">
+                          Found {failedLogs.totalFailedTasks} failed task(s)
+                        </div>
+                        
+                        {failedLogs.failedTasks.map((task, index) => (
+                          <div key={`${task.environmentId}-${task.taskId}`} className="border border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
+                            <div className="bg-red-50 dark:bg-red-950/50 px-4 py-3 border-b border-red-200 dark:border-red-800">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="font-medium text-red-900 dark:text-red-100">
+                                    {task.taskName}
+                                  </h4>
+                                  <div className="flex items-center gap-4 text-xs text-red-700 dark:text-red-300 mt-1">
+                                    <span>Environment: {task.environmentName}</span>
+                                    <span>Status: {task.status}</span>
+                                    {task.startTime && (
+                                      <span>Started: {new Date(task.startTime).toLocaleString()}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Failed
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium text-foreground">Console Output</span>
+                              </div>
+                              
+                              {task.logContent ? (
+                                <div className="bg-gray-900 text-gray-100 p-4 rounded-md text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto">
+                                  <pre className="whitespace-pre-wrap">{task.logContent}</pre>
+                                </div>
+                              ) : (
+                                <div className="bg-muted/50 p-4 rounded-md text-center">
+                                  <p className="text-sm text-muted-foreground">No log content available</p>
+                                </div>
+                              )}
+                              
+                              {task.issues && task.issues.length > 0 && (
+                                <div className="mt-3">
+                                  <span className="text-sm font-medium text-foreground">Issues:</span>
+                                  <ul className="mt-1 space-y-1">
+                                    {task.issues.map((issue, issueIndex) => (
+                                      <li key={issueIndex} className="text-sm text-red-600 dark:text-red-400">
+                                        • {issue.message || issue}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Approval Details - Show for releases waiting for approval or failed due to rejection */}
+            {(isWaitingForApproval || isApprovalRejected) && (
+              <div>
+                <div className="border-t border-border pt-6">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className={`h-5 w-5 ${isApprovalRejected ? 'text-red-500' : 'text-orange-500'}`} />
+                    <h3 className="text-lg font-medium text-foreground">
+                      {isApprovalRejected ? 'Approval History (Rejected)' : 'Pending Approvals'}
+                    </h3>
+                  </div>
+                  {!loadingApprovals && (
+                    <button
+                      onClick={loadApprovals}
+                      className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Refresh Approvals
+                    </button>
+                  )}
+                </div>
+
+                {loadingApprovals && (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Loading approval details...</span>
+                  </div>
+                )}
+
+                {approvals && (
+                  <div className="mt-4">
+                    <div className="grid grid-cols-3 gap-4 mb-6">
+                      <div className="text-center p-3 bg-orange-50 dark:bg-orange-950/50 rounded-lg">
+                        <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                          {approvals.pendingApprovals}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Pending</div>
+                      </div>
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-950/50 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {approvals.approvedCount}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Approved</div>
+                      </div>
+                      <div className="text-center p-3 bg-red-50 dark:bg-red-950/50 rounded-lg">
+                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                          {approvals.rejectedCount}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Rejected</div>
+                      </div>
+                    </div>
+
+                    {isApprovalRejected && approvals.rejectedCount > 0 && (
+                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg">
+                        <p className="text-red-700 dark:text-red-300 font-medium">
+                          ⚠️ This release failed because one or more approvals were rejected.
+                        </p>
+                      </div>
+                    )}
+
+                    {Object.entries(approvals.environmentApprovals).map(([envId, envApproval]) => (
+                      <div key={envId} className="mb-6 border border-border rounded-lg overflow-hidden">
+                        <div className="bg-muted px-4 py-3 border-b border-border">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium text-foreground">{envApproval.environmentName}</h4>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(envApproval.environmentStatus)}`}>
+                              {envApproval.environmentStatus}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {envApproval.approvals.length > 0 ? (
+                          <div className="p-4 space-y-3">
+                            {envApproval.approvals.map((approval) => (
+                              <div key={approval.id} className="flex items-start gap-3 p-3 bg-background rounded border border-border">
+                                <div className="flex-shrink-0">
+                                  {approval.approver.imageUrl ? (
+                                    <img 
+                                      src={approval.approver.imageUrl} 
+                                      alt={approval.approver.displayName}
+                                      className="w-8 h-8 rounded-full"
+                                    />
+                                  ) : (
+                                    <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
+                                      <User className="h-4 w-4 text-muted-foreground" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium text-foreground">
+                                      {approval.approver.displayName}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                        approval.status === 'approved' ? 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200' :
+                                        approval.status === 'rejected' ? 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200' :
+                                        'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200'
+                                      }`}>
+                                        {approval.status}
+                                      </span>
+                                      {approval.status !== 'pending' && (
+                                        <span className="text-xs text-muted-foreground">
+                                          {new Date(approval.modifiedOn).toLocaleString()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {approval.approver.uniqueName}
+                                  </p>
+                                  {approval.instructions && (
+                                    <p className="text-sm text-muted-foreground mt-2">
+                                      <strong>Instructions:</strong> {approval.instructions}
+                                    </p>
+                                  )}
+                                  {approval.comments && (
+                                    <p className="text-sm text-muted-foreground mt-2">
+                                      <strong>Comments:</strong> {approval.comments}
+                                    </p>
+                                  )}
+                                  {approval.approvedBy && (
+                                    <p className="text-sm text-muted-foreground mt-2">
+                                      <strong>{approval.status === 'approved' ? 'Approved' : 'Rejected'} by:</strong> {approval.approvedBy.displayName}
+                                    </p>
+                                  )}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Created: {new Date(approval.createdOn).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 text-center text-muted-foreground">
+                            No approvals required for this environment
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {approvals && Object.keys(approvals.environmentApprovals).length === 0 && !loadingApprovals && (
+                  <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-950/50 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-yellow-700 dark:text-yellow-300">No approval information found for this release.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
