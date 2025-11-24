@@ -1288,15 +1288,15 @@ router.get('/releases/stats', async (req, res) => {
       userSettings.azureDevOps.baseUrl
     );
 
-    // Get recent releases for statistics (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Get recent releases for statistics (last 90 days to include more completed releases)
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     try {
       const [releasesResponse, approvalsResponse] = await Promise.all([
         releaseClient.getReleases({ 
-          top: 100, 
-          minCreatedTime: thirtyDaysAgo.toISOString() 
+          top: 200,
+          minCreatedTime: ninetyDaysAgo.toISOString() 
         }),
         releaseClient.getPendingApprovals().catch(() => ({ value: [] })) // Fallback for approvals
       ]);
@@ -1304,24 +1304,78 @@ router.get('/releases/stats', async (req, res) => {
       const releases = releasesResponse.value || [];
       const approvals = approvalsResponse.value || [];
 
-      // Calculate statistics with proper status mapping
-      const totalReleases = releases.length;
-      const succeededReleases = releases.filter(r => r.status === 'succeeded').length;
+      // Transform releases to use mapped statuses (same logic as /api/releases)
+      const transformedReleases = releases.map(release => {
+        let mappedStatus = 'unknown';
+        
+        const releaseStatus = release.status?.toLowerCase() || '';
+        if (releaseStatus === 'abandoned') {
+          mappedStatus = 'abandoned';
+        } else if (['canceled', 'cancelled'].includes(releaseStatus)) {
+          mappedStatus = 'canceled';
+        } else if (release.environments && release.environments.length > 0) {
+          const envStatuses = release.environments.map(env => env.status?.toLowerCase());
+          
+          if (envStatuses.some(status => ['canceled', 'cancelled'].includes(status))) {
+            mappedStatus = 'canceled';
+          } else if (envStatuses.some(status => ['abandoned'].includes(status))) {
+            mappedStatus = 'abandoned';
+          } else if (envStatuses.some(status => ['rejected'].includes(status))) {
+            mappedStatus = 'failed';
+          } else if (envStatuses.some(status => ['failed'].includes(status))) {
+            mappedStatus = 'failed';
+          } else if (envStatuses.every(status => status === 'succeeded')) {
+            mappedStatus = 'succeeded';
+          } else if (envStatuses.some(status => ['inprogress', 'queued'].includes(status))) {
+            mappedStatus = 'inprogress';
+          } else if (envStatuses.some(status => ['partiallysucceeded', 'partiallydeployed', 'waitingforapproval', 'pendingapproval'].includes(status))) {
+            mappedStatus = 'waitingforapproval';
+          } else if (envStatuses.some(status => ['notstarted', 'undefined'].includes(status))) {
+            mappedStatus = 'notDeployed';
+          } else {
+            mappedStatus = 'succeeded';
+          }
+        } else {
+          const azureStatus = release.status?.toLowerCase() || 'unknown';
+          switch (azureStatus) {
+            case 'active':
+              mappedStatus = 'inprogress';
+              break;
+            case 'succeeded':
+              mappedStatus = 'succeeded';
+              break;
+            default:
+              mappedStatus = 'pending';
+          }
+        }
+        
+        return { ...release, mappedStatus };
+      });
+
+      // Debug: Log transformed status values
+      console.log('Transformed statuses:', transformedReleases.map(r => r.mappedStatus).slice(0, 10));
+
+      // Calculate statistics with transformed statuses
+      const totalReleases = transformedReleases.length;
+      const succeededReleases = transformedReleases.filter(r => r.mappedStatus === 'succeeded').length;
+      console.log('Total releases:', totalReleases, 'Succeeded:', succeededReleases);
       const successRate = totalReleases > 0 ? Math.round((succeededReleases / totalReleases) * 100 * 10) / 10 : 0;
-      const pendingApprovals = approvals.length;
-      const activeDeployments = releases.filter(r => r.status === 'active').length; // Azure DevOps uses 'active' for in-progress
+      const pendingApprovals = approvals.filter(a => a.status?.toLowerCase() === 'pending').length;
+      const activeDeployments = transformedReleases.filter(r => r.mappedStatus === 'inprogress').length;
+      console.log('Active deployments:', activeDeployments, 'Pending approvals:', pendingApprovals);
 
       // Environment statistics
       const environmentStats = {};
-      releases.forEach(release => {
+      transformedReleases.forEach(release => {
         (release.environments || []).forEach(env => {
           if (!environmentStats[env.name]) {
             environmentStats[env.name] = { total: 0, success: 0, failed: 0 };
           }
           environmentStats[env.name].total++;
-          if (env.status === 'succeeded') {
+          const envStatus = env.status?.toLowerCase();
+          if (envStatus === 'succeeded') {
             environmentStats[env.name].success++;
-          } else if (env.status === 'failed' || env.status === 'rejected') {
+          } else if (envStatus === 'failed' || envStatus === 'rejected') {
             environmentStats[env.name].failed++;
           }
         });

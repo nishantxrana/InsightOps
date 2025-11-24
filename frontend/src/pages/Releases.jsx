@@ -473,6 +473,7 @@ export default function Releases() {
                 { value: 'succeeded', label: 'Succeeded' },
                 { value: 'failed', label: 'Failed' },
                 { value: 'canceled', label: 'Canceled' },
+                { value: 'abandoned', label: 'Abandoned' },
                 { value: 'waitingforapproval', label: 'Waiting for Approval' },
                 { value: 'inprogress', label: 'In Progress' },
                 { value: 'pending', label: 'Pending' }
@@ -541,36 +542,36 @@ export default function Releases() {
           <div className="flex items-center gap-2 mb-4 flex-wrap">
             <span className="text-sm text-muted-foreground">Filtered by:</span>
             {statusFilter !== 'all' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium border border-blue-200 dark:border-blue-800">
                 <Filter className="h-3 w-3" />
                 {statusFilter}
                 <button
                   onClick={() => setStatusFilter('all')}
-                  className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                  className="hover:bg-blue-200 dark:hover:bg-blue-900 rounded-full p-0.5 transition-colors"
                 >
                   <X className="h-3 w-3" />
                 </button>
               </span>
             )}
             {environmentFilter !== 'all' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-300 rounded-full text-xs font-medium border border-green-200 dark:border-green-800">
                 <Server className="h-3 w-3" />
                 {environmentFilter}
                 <button
                   onClick={() => setEnvironmentFilter('all')}
-                  className="hover:bg-green-100 rounded-full p-0.5 transition-colors"
+                  className="hover:bg-green-200 dark:hover:bg-green-900 rounded-full p-0.5 transition-colors"
                 >
                   <X className="h-3 w-3" />
                 </button>
               </span>
             )}
             {definitionFilter !== 'all' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs font-medium border border-purple-200">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium border border-purple-200 dark:border-purple-800">
                 <Rocket className="h-3 w-3" />
                 {definitionFilter}
                 <button
                   onClick={() => setDefinitionFilter('all')}
-                  className="hover:bg-purple-100 rounded-full p-0.5 transition-colors"
+                  className="hover:bg-purple-200 dark:hover:bg-purple-900 rounded-full p-0.5 transition-colors"
                 >
                   <X className="h-3 w-3" />
                 </button>
