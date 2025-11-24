@@ -31,6 +31,8 @@ const getStatusIcon = (status) => {
     case 'canceled':
     case 'cancelled':
       return <X className="h-4 w-4" />;
+    case 'abandoned':
+      return <X className="h-4 w-4" />;
     case 'waitingforapproval':
       return <UserCheck className="h-4 w-4" />;
     case 'inprogress':
@@ -54,6 +56,8 @@ const getStatusColor = (status) => {
     case 'canceled':
     case 'cancelled':
       return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
+    case 'abandoned':
+      return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
     case 'waitingforapproval':
       return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
     case 'inprogress':
@@ -99,23 +103,37 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [logsError, setLogsError] = useState(null);
 
-  // Check if release has failed status (but not canceled or approval rejected)
-  const isFailedRelease = (release?.status === 'failed' || release?.status === 'rejected') && 
-                         release?.status !== 'canceled' && release?.status !== 'cancelled' &&
-                         release?.failureReason !== 'approval_rejected';
+  // Check if release has failed status and should show logs
+  const isFailedRelease = (release?.status === 'failed');
   
   // Check if release is waiting for approval
   const isWaitingForApproval = release?.status === 'waitingforapproval';
   
   // Check if release failed due to approval rejection
   const isApprovalRejected = release?.status === 'failed' && release?.failureReason === 'approval_rejected';
+  
+  // Check if we should show approval details (waiting for approval OR any failed release)
+  const shouldShowApprovals = isWaitingForApproval || isFailedRelease;
+
+  // Set default active tab based on available content
+  const getDefaultTab = () => {
+    if (isFailedRelease) return 'logs';
+    if (shouldShowApprovals) return 'approvals';
+    return 'details';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getDefaultTab());
 
   // Load failed task logs when modal opens for failed releases
   useEffect(() => {
-    if (isOpen && isFailedRelease && release?.id) {
-      loadFailedTaskLogs();
-    } else if (isOpen && (isWaitingForApproval || isApprovalRejected) && release?.id) {
-      loadApprovals();
+    if (isOpen && release?.id) {
+      setActiveTab(getDefaultTab());
+      if (isFailedRelease) {
+        loadFailedTaskLogs();
+      }
+      if (shouldShowApprovals) {
+        loadApprovals();
+      }
     } else if (!isOpen) {
       // Reset state when modal closes
       setFailedLogs(null);
@@ -124,7 +142,7 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
       setApprovals(null);
       setLoadingApprovals(false);
     }
-  }, [isOpen, isFailedRelease, isWaitingForApproval, isApprovalRejected, release?.id]);
+  }, [isOpen, isFailedRelease, shouldShowApprovals, release?.id]);
 
   const loadFailedTaskLogs = async () => {
     try {
@@ -150,10 +168,19 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
       setLoadingApprovals(true);
       const response = await releaseService.getReleaseApprovals(release.id);
       if (response.success) {
-        setApprovals(response.data);
+        // Only set approvals if there's actual approval data
+        const hasActualApprovals = response.data.totalApprovals > 0 || 
+          Object.values(response.data.environmentApprovals).some(env => env.approvals.length > 0);
+        
+        if (hasActualApprovals) {
+          setApprovals(response.data);
+        } else {
+          setApprovals(null);
+        }
       }
     } catch (error) {
       console.error('Error loading approvals:', error);
+      setApprovals(null);
     } finally {
       setLoadingApprovals(false);
     }
@@ -320,8 +347,40 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
               </div>
             )}
 
-            {/* Failed Task Logs - Only show for failed releases */}
-            {isFailedRelease && (
+            {/* Tab Navigation - Show only if we have logs or approvals to display */}
+            {(isFailedRelease || shouldShowApprovals) && (
+              <div className="border-t border-border pt-6">
+                <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6">
+                  {isFailedRelease && (
+                    <button
+                      onClick={() => setActiveTab('logs')}
+                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                        activeTab === 'logs'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Task Logs
+                    </button>
+                  )}
+                  {shouldShowApprovals && (
+                    <button
+                      onClick={() => setActiveTab('approvals')}
+                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                        activeTab === 'approvals'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Approvals
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tab Content - Task Logs */}
+            {activeTab === 'logs' && isFailedRelease && (
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -430,14 +489,14 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
               </div>
             )}
 
-            {/* Approval Details - Show for releases waiting for approval or failed due to rejection */}
-            {(isWaitingForApproval || isApprovalRejected) && (
+            {/* Tab Content - Approvals */}
+            {activeTab === 'approvals' && shouldShowApprovals && (
               <div>
                 <div className="border-t border-border pt-6">
                   <div className="flex items-center gap-2">
                     <UserCheck className={`h-5 w-5 ${isApprovalRejected ? 'text-red-500' : 'text-orange-500'}`} />
                     <h3 className="text-lg font-medium text-foreground">
-                      {isApprovalRejected ? 'Approval History (Rejected)' : 'Pending Approvals'}
+                      {isWaitingForApproval ? 'Pending Approvals' : 'Approval History'}
                     </h3>
                   </div>
                   {!loadingApprovals && (
@@ -480,14 +539,6 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                       </div>
                     </div>
 
-                    {isApprovalRejected && approvals.rejectedCount > 0 && (
-                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg">
-                        <p className="text-red-700 dark:text-red-300 font-medium">
-                          ⚠️ This release failed because one or more approvals were rejected.
-                        </p>
-                      </div>
-                    )}
-
                     {Object.entries(approvals.environmentApprovals).map(([envId, envApproval]) => (
                       <div key={envId} className="mb-6 border border-border rounded-lg overflow-hidden">
                         <div className="bg-muted px-4 py-3 border-b border-border">
@@ -509,12 +560,28 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                                       src={approval.approver.imageUrl} 
                                       alt={approval.approver.displayName}
                                       className="w-8 h-8 rounded-full"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.nextSibling.style.display = 'flex';
+                                      }}
                                     />
-                                  ) : (
-                                    <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                                      <User className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                  )}
+                                  ) : null}
+                                  <div 
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-white ${
+                                      approval.approver.imageUrl ? 'hidden' : 'flex'
+                                    }`}
+                                    style={{
+                                      backgroundColor: `hsl(${approval.approver.displayName.charCodeAt(0) * 137.508 % 360}, 70%, 50%)`
+                                    }}
+                                  >
+                                    {approval.approver.displayName
+                                      .split(' ')
+                                      .map(name => name.charAt(0))
+                                      .join('')
+                                      .substring(0, 2)
+                                      .toUpperCase()
+                                    }
+                                  </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between">
@@ -537,7 +604,10 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                                     </div>
                                   </div>
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    {approval.approver.uniqueName}
+                                    {approval.approver.uniqueName?.startsWith('vstfs:') ? 
+                                      (approval.approvedBy?.uniqueName || `Team: ${approval.approver.displayName}`) : 
+                                      approval.approver.uniqueName
+                                    }
                                   </p>
                                   {approval.instructions && (
                                     <p className="text-sm text-muted-foreground mt-2">

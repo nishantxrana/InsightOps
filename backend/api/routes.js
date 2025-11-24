@@ -1039,12 +1039,13 @@ router.get('/releases', async (req, res) => {
           if (envStatuses.some(status => ['canceled', 'cancelled'].includes(status))) {
             mappedStatus = 'canceled';
           }
-          // If any environment is rejected, overall status is failed due to approval rejection
+          // If any environment is abandoned, overall status is abandoned
+          else if (envStatuses.some(status => ['abandoned'].includes(status))) {
+            mappedStatus = 'abandoned';
+          }
+          // If any environment is rejected, overall status is failed
           else if (envStatuses.some(status => ['rejected'].includes(status))) {
             mappedStatus = 'failed';
-            // Mark as approval rejected for later processing
-            release._hasRejectedEnvironments = true;
-            // console.log(`Release ${release.id} has rejected environments, setting flag`);
           }
           // If any environment failed, overall status is failed
           else if (envStatuses.some(status => ['failed'].includes(status))) {
@@ -1133,6 +1134,9 @@ router.get('/releases', async (req, res) => {
                 case 'cancelled':
                   envMappedStatus = 'canceled';
                   break;
+                case 'abandoned':
+                  envMappedStatus = 'abandoned';
+                  break;
                 case 'partiallysucceeded':
                 case 'partiallydeployed':
                 case 'waitingforapproval':
@@ -1210,21 +1214,14 @@ router.get('/releases', async (req, res) => {
               const hasRejectedApprovals = approvals.some(approval => approval.status === 'rejected');
               
               if (hasRejectedApprovals && release.status === 'failed') {
-                console.log(`Release ${release.id} has rejected approvals, marking as approval_rejected failure`);
+                // console.log(`Release ${release.id} has rejected approvals, marking as approval_rejected failure`);
                 return { ...release, status: 'failed', failureReason: 'approval_rejected' };
               } else if (hasRejectedApprovals) {
-                console.log(`Release ${release.id} has rejected approvals, changing status to failed`);
-                return { ...release, status: 'failed', failureReason: 'approval_rejected' };
-              } else if (release._hasRejectedEnvironments) {
-                // console.log(`Release ${release.id} has rejected environments flag: ${release._hasRejectedEnvironments}, marking as approval_rejected failure`);
+                // console.log(`Release ${release.id} has rejected approvals, changing status to failed`);
                 return { ...release, status: 'failed', failureReason: 'approval_rejected' };
               } else if (hasPendingApprovals) {
                 // console.log(`Release ${release.id} has pending approvals, changing status to waitingforapproval`);
                 return { ...release, status: 'waitingforapproval' };
-              } else if (hasApprovalData && release.status === 'failed') {
-                // If release is failed and has approval data, likely failed due to rejection
-                console.log(`Release ${release.id} is failed with approval data, marking as approval_rejected failure`);
-                return { ...release, status: 'failed', failureReason: 'approval_rejected' };
               }
             } catch (approvalError) {
               console.log(`Could not check approvals for release ${release.id}:`, approvalError.message);
@@ -1458,7 +1455,14 @@ router.get('/releases/:releaseId/approvals', async (req, res) => {
           //   approvedBy: a.approvedBy?.displayName
           // })));
           
-          envApprovals.push(...allEnvApprovals.map(approval => ({
+          // Filter out system-generated approvals (those without real approvers)
+          const realApprovals = allEnvApprovals.filter(approval => 
+            approval.approver?.displayName && 
+            approval.approver.displayName !== 'Unknown' &&
+            approval.approver.displayName.trim() !== ''
+          );
+          
+          envApprovals.push(...realApprovals.map(approval => ({
             id: approval.id,
             status: approval.status,
             approver: {

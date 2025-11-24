@@ -39,6 +39,8 @@ const getStatusIcon = (status) => {
     case 'canceled':
     case 'cancelled':
       return <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />;
+    case 'abandoned':
+      return <X className="h-5 w-5 text-orange-500 dark:text-orange-400" />;
     case 'waitingforapproval':
       return <UserCheck className="h-5 w-5 text-orange-500 dark:text-orange-400" />;
     case 'inprogress':
@@ -85,6 +87,8 @@ const getStatusColor = (status) => {
     case 'canceled':
     case 'cancelled':
       return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
+    case 'abandoned':
+      return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
     case 'waitingforapproval':
       return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
     case 'inprogress':
@@ -108,6 +112,8 @@ const getEnvironmentStatusColor = (status) => {
     case 'canceled':
     case 'cancelled':
       return 'bg-gray-500';
+    case 'abandoned':
+      return 'bg-orange-500';
     case 'waitingforapproval':
       return 'bg-orange-500';
     case 'inprogress':
@@ -710,11 +716,12 @@ export default function Releases() {
                          release.status === 'rejected' ? 'Rejected' :
                          release.status === 'canceled' ? 'Canceled' :
                          release.status === 'cancelled' ? 'Canceled' :
+                         release.status === 'abandoned' ? 'Abandoned' :
                          release.status === 'waitingforapproval' ? 'Waiting for Approval' :
                          release.status === 'inprogress' ? 'In Progress' :
                          release.status === 'deploying' ? 'Deploying' :
-                         release.status === 'pending' ? 'Pending' :
-                         release.status === 'notstarted' ? 'Not Started' :
+                         release.status === 'pending' ? 'Not Deployed' :
+                         release.status === 'notstarted' ? 'Not Deployed' :
                          release.status}
                       </span>
                     </div>
