@@ -117,6 +117,12 @@ export const apiService = {
     return response.data
   },
 
+  // Releases
+  async getReleaseStats() {
+    const response = await api.get('/releases/stats')
+    return response.data
+  },
+
   // Pull request AI explanation
   async explainPullRequest(pullRequestId) {
     const response = await api.get(`/pull-requests/${pullRequestId}/explain`)

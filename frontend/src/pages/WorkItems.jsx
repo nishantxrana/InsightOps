@@ -1102,9 +1102,9 @@ export default function WorkItems() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              <div className="h-6 bg-amber-200 dark:bg-amber-800/50 rounded w-48 animate-pulse"></div>
+              <div className="h-6 bg-muted animate-pulse rounded w-48"></div>
             </div>
-            <div className="h-6 bg-amber-200 dark:bg-amber-800/50 rounded-full w-32 animate-pulse"></div>
+            <div className="h-6 bg-muted animate-pulse rounded-full w-32"></div>
           </div>
           <SkeletonTable rows={3} />
         </div>
@@ -1468,10 +1468,10 @@ export default function WorkItems() {
 
       {/* No Data State */}
       {!sprintSummary && overdueItems.length === 0 && (
-        <div className="card text-center py-12">
-          <CheckSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Work Items Found</h3>
-          <p className="text-gray-600">
+        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm text-center py-12">
+          <CheckSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">No Work Items Found</h3>
+          <p className="text-muted-foreground">
             No work items found in the current sprint. Check your Azure DevOps configuration.
           </p>
         </div>

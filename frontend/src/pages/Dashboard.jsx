@@ -11,7 +11,7 @@ import {
   Activity,
   RefreshCw,
   ChevronRight,
-  Zap
+  Rocket
 } from 'lucide-react'
 import { apiService } from '../api/apiService'
 import { useHealth } from '../contexts/HealthContext'
@@ -24,13 +24,15 @@ export default function Dashboard() {
     workItems: true,
     builds: true,
     pullRequests: true,
+    releases: true,
     logs: true
   })
   const [error, setError] = useState(null)
   const [stats, setStats] = useState({
     workItems: { total: 0, active: 0, completed: 0, overdue: 0 },
     builds: { total: 0, succeeded: 0, failed: 0 },
-    pullRequests: { total: 0, active: 0, idle: 0 }
+    pullRequests: { total: 0, active: 0, idle: 0 },
+    releases: { total: 0, successRate: 0 }
   })
   const [recentActivity, setRecentActivity] = useState([])
   const [liveUptime, setLiveUptime] = useState(0)
@@ -89,6 +91,7 @@ export default function Dashboard() {
         workItems: true,
         builds: true,
         pullRequests: true,
+        releases: true,
         logs: true
       })
 
@@ -114,10 +117,11 @@ export default function Dashboard() {
         setLoadingStates(prev => ({ ...prev, workItems: false }))
       }
 
-      const [builds, pullRequests, idlePRs, logs] = await Promise.allSettled([
+      const [builds, pullRequests, idlePRs, releases, logs] = await Promise.allSettled([
         apiService.getRecentBuilds(),
         apiService.getPullRequests(),
         apiService.getIdlePullRequests(),
+        apiService.getReleaseStats(),
         apiService.getLogs({ limit: 10 })
       ])
 
@@ -158,6 +162,23 @@ export default function Dashboard() {
       }
       setLoadingStates(prev => ({ ...prev, pullRequests: false }))
 
+      if (releases.status === 'fulfilled') {
+        const releaseData = releases.value.data || releases.value
+        setStats(prev => ({
+          ...prev,
+          releases: {
+            total: releaseData.totalReleases || 0,
+            successRate: releaseData.successRate || 0
+          }
+        }))
+      } else {
+        setStats(prev => ({
+          ...prev,
+          releases: { total: 0, successRate: 0 }
+        }))
+      }
+      setLoadingStates(prev => ({ ...prev, releases: false }))
+
       if (logs.status === 'fulfilled') {
         setRecentActivity(logs.value.logs || [])
       } else {
@@ -173,7 +194,8 @@ export default function Dashboard() {
       setStats({
         workItems: { total: 0, active: 0, completed: 0, overdue: 0 },
         builds: { total: 0, succeeded: 0, failed: 0 },
-        pullRequests: { total: 0, active: 0, idle: 0 }
+        pullRequests: { total: 0, active: 0, idle: 0 },
+        releases: { total: 0, successRate: 0 }
       })
       setRecentActivity([])
       setLoadingStates({
@@ -343,6 +365,44 @@ export default function Dashboard() {
           </div>
         </Link>
 
+        {/* Releases */}
+        <Link to="/releases" className="block">
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm cursor-pointer">
+            {loadingStates.releases ? (
+              <div className="space-y-3">
+                <div className="shimmer h-4 rounded w-16"></div>
+                <div className="shimmer h-8 rounded w-12"></div>
+                <div className="shimmer h-2 rounded w-full"></div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <Rocket className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  <span className="text-xs font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 px-2 py-0.5 rounded-full">
+                    Recent
+                  </span>
+                </div>
+                <div className="mb-3">
+                  <div className="text-2xl font-bold text-foreground mb-0.5">{stats.releases?.total || 0}</div>
+                  <div className="text-sm text-muted-foreground">Releases</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Success Rate</span>
+                    <span className="font-medium text-foreground">{stats.releases?.successRate || 0}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-1.5">
+                    <div 
+                      className="progress-bar bg-orange-600 dark:bg-orange-500 h-1.5 rounded-full"
+                      style={{ width: `${stats.releases?.successRate || 0}%` }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </Link>
+
         {/* Pull Requests */}
         <Link to="/pull-requests" className="block">
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm cursor-pointer">
@@ -375,27 +435,6 @@ export default function Dashboard() {
             )}
           </div>
         </Link>
-
-        {/* System */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <Zap className={`w-5 h-5 ${isConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`} />
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-              isConnected ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50' : 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50'
-            }`}>
-              {isConnected ? 'Online' : 'Offline'}
-            </span>
-          </div>
-          <div className="mb-3">
-            <div className="text-2xl font-bold text-foreground mb-0.5">
-              {isConnected ? formatUptime(liveUptime) : '—'}
-            </div>
-            <div className="text-sm text-muted-foreground">Uptime</div>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {isConnected ? 'All systems operational' : 'Connection lost'}
-          </div>
-        </div>
       </div>
 
       {/* Content Grid */}
