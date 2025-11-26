@@ -3,6 +3,7 @@ import {
   Home,
   CheckSquare,
   GitBranch,
+  Rocket,
   GitPullRequest,
   FileText,
   Settings,
@@ -44,6 +45,11 @@ const data = {
           title: "Pipelines", 
           url: "/pipelines",
           icon: GitBranch,
+        },
+        {
+          title: "Releases",
+          url: "/releases",
+          icon: Rocket,
         },
         {
           title: "Pull Requests",

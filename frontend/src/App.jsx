@@ -6,6 +6,7 @@ import Settings from './pages/Settings'
 import Logs from './pages/Logs'
 import WorkItems from './pages/WorkItems'
 import Pipelines from './pages/Pipelines'
+import Releases from './pages/Releases'
 import PullRequests from './pages/PullRequests'
 import LandingPage from './pages/LandingPage'
 import SignIn from './pages/SignIn'
@@ -44,6 +45,7 @@ function AppContent() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/work-items" element={<WorkItems />} />
         <Route path="/pipelines" element={<Pipelines />} />
+        <Route path="/releases" element={<Releases />} />
         <Route path="/pull-requests" element={<PullRequests />} />
         <Route path="/logs" element={<Logs />} />
         <Route path="/settings" element={<Settings />} />
