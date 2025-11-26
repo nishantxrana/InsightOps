@@ -1057,16 +1057,16 @@ router.get('/releases', async (req, res) => {
           else if (envStatuses.some(status => ['failed'].includes(status))) {
             mappedStatus = 'failed';
           }
-          // If all environments succeeded, overall status is succeeded
-          else if (envStatuses.every(status => status === 'succeeded')) {
+          // If all environments succeeded or partially succeeded, overall status is succeeded
+          else if (envStatuses.every(status => status === 'succeeded' || status === 'partiallysucceeded')) {
             mappedStatus = 'succeeded';
           }
           // If any environment is in progress, overall status is in progress
           else if (envStatuses.some(status => ['inprogress', 'queued'].includes(status))) {
             mappedStatus = 'inprogress';
           }
-          // Check for pending approvals (various Azure DevOps statuses that indicate waiting for approval)
-          else if (envStatuses.some(status => ['partiallysucceeded', 'partiallydeployed', 'waitingforapproval', 'pendingapproval'].includes(status))) {
+          // Check for pending approvals
+          else if (envStatuses.some(status => ['waitingforapproval', 'pendingapproval'].includes(status))) {
             mappedStatus = 'waitingforapproval';
           }
           // If any environment is not started, overall status is notDeployed
@@ -1130,6 +1130,7 @@ router.get('/releases', async (req, res) => {
                   envMappedStatus = 'inprogress';
                   break;
                 case 'succeeded':
+                case 'partiallysucceeded':
                   envMappedStatus = 'succeeded';
                   break;
                 case 'failed':
@@ -1143,8 +1144,6 @@ router.get('/releases', async (req, res) => {
                 case 'abandoned':
                   envMappedStatus = 'abandoned';
                   break;
-                case 'partiallysucceeded':
-                case 'partiallydeployed':
                 case 'waitingforapproval':
                 case 'pendingapproval':
                   envMappedStatus = 'waitingforapproval';
@@ -1324,11 +1323,11 @@ router.get('/releases/stats', async (req, res) => {
             mappedStatus = 'failed';
           } else if (envStatuses.some(status => ['failed'].includes(status))) {
             mappedStatus = 'failed';
-          } else if (envStatuses.every(status => status === 'succeeded')) {
+          } else if (envStatuses.every(status => status === 'succeeded' || status === 'partiallysucceeded')) {
             mappedStatus = 'succeeded';
           } else if (envStatuses.some(status => ['inprogress', 'queued'].includes(status))) {
             mappedStatus = 'inprogress';
-          } else if (envStatuses.some(status => ['partiallysucceeded', 'partiallydeployed', 'waitingforapproval', 'pendingapproval'].includes(status))) {
+          } else if (envStatuses.some(status => ['waitingforapproval', 'pendingapproval'].includes(status))) {
             mappedStatus = 'waitingforapproval';
           } else if (envStatuses.some(status => ['notstarted', 'undefined'].includes(status))) {
             mappedStatus = 'notDeployed';
