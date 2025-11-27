@@ -995,7 +995,7 @@ router.use('/agent-dashboard', agentDashboardRoutes);
 // Releases endpoints
 router.get('/releases', async (req, res) => {
   try {
-    const { limit = 20, environment, status, definitionId, fromDate, toDate } = req.query;
+    const { limit = 50, environment, status, definitionId, fromDate, toDate, continuationToken } = req.query;
     const userSettings = await getUserSettings(req.user.id);
     
     if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
@@ -1013,16 +1013,18 @@ router.get('/releases', async (req, res) => {
     );
 
     const options = {
-      top: parseInt(limit),
+      top: Math.min(parseInt(limit), 100), // Azure DevOps max is 100
       definitionId: definitionId ? parseInt(definitionId) : undefined,
       statusFilter: status,
       minCreatedTime: fromDate,
-      maxCreatedTime: toDate
+      maxCreatedTime: toDate,
+      continuationToken: continuationToken
     };
 
     try {
       const azureResponse = await releaseClient.getReleases(options);
       const releases = azureResponse.value || [];
+      const nextContinuationToken = azureResponse.continuationToken;
 
       // Transform Azure DevOps data to our format
       const transformedReleases = releases.map(release => {
@@ -1241,7 +1243,8 @@ router.get('/releases', async (req, res) => {
         data: {
           releases: releasesWithApprovalCheck,
           total: releases.length,
-          hasMore: releases.length >= parseInt(limit)
+          hasMore: !!nextContinuationToken,
+          continuationToken: nextContinuationToken
         }
       });
     } catch (apiError) {
@@ -1253,7 +1256,8 @@ router.get('/releases', async (req, res) => {
           data: {
             releases: [],
             total: 0,
-            hasMore: false
+            hasMore: false,
+            continuationToken: null
           }
         });
       } else {

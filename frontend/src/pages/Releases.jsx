@@ -135,9 +135,12 @@ const getEnvironmentStatusColor = (status) => {
 export default function Releases() {
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [releases, setReleases] = useState([]);
   const [filteredReleases, setFilteredReleases] = useState([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [continuationToken, setContinuationToken] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
     successRate: 0,
@@ -229,51 +232,75 @@ export default function Releases() {
     localStorage.setItem('releaseAiInsightsEnabled', JSON.stringify(newValue));
   };
 
-  const loadReleasesData = async () => {
+  const loadReleasesData = async (append = false) => {
     try {
-      setLoading(true);
+      if (!append) {
+        setLoading(true);
+        setContinuationToken(null);
+      } else {
+        setLoadingMore(true);
+      }
       setError(null);
       
-      // Fetch release statistics with time range
-      const statsResponse = await releaseService.getReleaseStats({
-        fromDate: timeRange.from.toISOString(),
-        toDate: timeRange.to.toISOString()
-      });
-      if (statsResponse.success) {
-        setStats(statsResponse.data);
+      // Fetch release statistics with time range (only on initial load)
+      if (!append) {
+        const statsResponse = await releaseService.getReleaseStats({
+          fromDate: timeRange.from.toISOString(),
+          toDate: timeRange.to.toISOString()
+        });
+        if (statsResponse.success) {
+          setStats(statsResponse.data);
+        }
       }
       
-      // Fetch releases with time range (no limit, use date range instead)
+      // Fetch releases with time range and pagination
       const releasesResponse = await releaseService.getReleases({ 
         fromDate: timeRange.from.toISOString(),
-        toDate: timeRange.to.toISOString()
+        toDate: timeRange.to.toISOString(),
+        limit: 50,
+        continuationToken: append ? continuationToken : undefined
       });
+      
       if (releasesResponse.success) {
         const releasesList = releasesResponse.data.releases || [];
-        // console.log('Received releases:', releasesList.map(r => ({ id: r.id, status: r.status })));
-        setReleases(releasesList);
+        
+        // Append or replace releases
+        if (append) {
+          setReleases(prev => [...prev, ...releasesList]);
+        } else {
+          setReleases(releasesList);
+        }
+        
+        // Update pagination state
+        setHasMore(releasesResponse.data.hasMore || false);
+        setContinuationToken(releasesResponse.data.continuationToken || null);
 
-        // Extract unique environments
-        const uniqueEnvironments = [...new Set(
-          releasesList.flatMap(release => 
-            (release.environments || []).map(env => env.name)
-          )
-        )].filter(Boolean).sort();
-        setEnvironments(uniqueEnvironments);
+        // Extract unique environments (only on initial load)
+        if (!append) {
+          const allReleases = releasesList;
+          const uniqueEnvironments = [...new Set(
+            allReleases.flatMap(release => 
+              (release.environments || []).map(env => env.name)
+            )
+          )].filter(Boolean).sort();
+          setEnvironments(uniqueEnvironments);
 
-        // Extract unique definitions
-        const uniqueDefinitions = [...new Set(
-          releasesList.map(release => release.definitionName)
-        )].filter(Boolean).sort();
-        setDefinitions(uniqueDefinitions);
+          // Extract unique definitions
+          const uniqueDefinitions = [...new Set(
+            allReleases.map(release => release.definitionName)
+          )].filter(Boolean).sort();
+          setDefinitions(uniqueDefinitions);
+        }
       }
       
       setLoading(false);
+      setLoadingMore(false);
       setInitialLoad(false);
     } catch (err) {
       setError("Failed to load releases data");
       console.error("Releases error:", err);
       setLoading(false);
+      setLoadingMore(false);
       setInitialLoad(false);
     }
   };
@@ -767,6 +794,26 @@ export default function Releases() {
                   </span>
                 )}
               </div>
+              
+              {/* Load More Button */}
+              {hasMore && !loading && (
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => loadReleasesData(true)}
+                    disabled={loadingMore}
+                    className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-60 transition-colors"
+                  >
+                    {loadingMore ? (
+                      <span className="flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Loading...
+                      </span>
+                    ) : (
+                      'Load More Releases'
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}
