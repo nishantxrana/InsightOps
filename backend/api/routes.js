@@ -1271,6 +1271,7 @@ router.get('/releases', async (req, res) => {
 
 router.get('/releases/stats', async (req, res) => {
   try {
+    const { fromDate, toDate } = req.query;
     const userSettings = await getUserSettings(req.user.id);
     
     if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
@@ -1287,15 +1288,16 @@ router.get('/releases/stats', async (req, res) => {
       userSettings.azureDevOps.baseUrl
     );
 
-    // Get recent releases for statistics (last 90 days to include more completed releases)
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    // Use provided date range or default to last 90 days
+    const minCreatedTime = fromDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const maxCreatedTime = toDate || new Date().toISOString();
 
     try {
       const [releasesResponse, approvalsResponse] = await Promise.all([
         releaseClient.getReleases({ 
-          top: 200,
-          minCreatedTime: ninetyDaysAgo.toISOString() 
+          top: 500, // Increased to get all releases in range
+          minCreatedTime,
+          maxCreatedTime
         }),
         releaseClient.getPendingApprovals().catch(() => ({ value: [] })) // Fallback for approvals
       ]);

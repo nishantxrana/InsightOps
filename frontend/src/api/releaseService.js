@@ -27,8 +27,8 @@ export const releaseService = {
   },
 
   // Get release statistics
-  async getReleaseStats() {
-    const response = await api.get('/releases/stats');
+  async getReleaseStats(params = {}) {
+    const response = await api.get('/releases/stats', { params });
     return response.data;
   },
 

@@ -26,6 +26,7 @@ import ReleaseFilterDropdown from "../components/ReleaseFilterDropdown";
 import ReleaseDetailModal from "../components/ReleaseDetailModal";
 import EnvironmentHealthDashboard from "../components/EnvironmentHealthDashboard";
 import AIReleaseInsights from "../components/AIReleaseInsights";
+import TimeRangeSelector from "../components/TimeRangeSelector";
 import ErrorMessage from "../components/ErrorMessage";
 
 // Helper functions for status display
@@ -144,6 +145,14 @@ export default function Releases() {
     activeDeployments: 0,
   });
   
+  // Time range state
+  const [timeRange, setTimeRange] = useState({
+    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+    to: new Date(),
+    label: '30 Days',
+    value: '30d'
+  });
+  
   // Filter states
   const [statusFilter, setStatusFilter] = useState('all');
   const [environmentFilter, setEnvironmentFilter] = useState('all');
@@ -166,7 +175,7 @@ export default function Releases() {
 
   useEffect(() => {
     loadReleasesData();
-  }, []);
+  }, [timeRange]); // Reload when time range changes
 
   // Filter releases when filters change
   useEffect(() => {
@@ -225,14 +234,20 @@ export default function Releases() {
       setLoading(true);
       setError(null);
       
-      // Fetch release statistics
-      const statsResponse = await releaseService.getReleaseStats();
+      // Fetch release statistics with time range
+      const statsResponse = await releaseService.getReleaseStats({
+        fromDate: timeRange.from.toISOString(),
+        toDate: timeRange.to.toISOString()
+      });
       if (statsResponse.success) {
         setStats(statsResponse.data);
       }
       
-      // Fetch recent releases
-      const releasesResponse = await releaseService.getReleases({ limit: 50 });
+      // Fetch releases with time range (no limit, use date range instead)
+      const releasesResponse = await releaseService.getReleases({ 
+        fromDate: timeRange.from.toISOString(),
+        toDate: timeRange.to.toISOString()
+      });
       if (releasesResponse.success) {
         const releasesList = releasesResponse.data.releases || [];
         // console.log('Received releases:', releasesList.map(r => ({ id: r.id, status: r.status })));
@@ -319,6 +334,10 @@ export default function Releases() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <TimeRangeSelector 
+              value={timeRange}
+              onChange={setTimeRange}
+            />
             <button
               onClick={handleSync}
               disabled={loading}
