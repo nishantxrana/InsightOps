@@ -264,6 +264,12 @@ export default function Releases() {
       if (releasesResponse.success) {
         const releasesList = releasesResponse.data.releases || [];
         
+        console.log('Pagination info:', {
+          hasMore: releasesResponse.data.hasMore,
+          continuationToken: releasesResponse.data.continuationToken,
+          releasesCount: releasesList.length
+        });
+        
         // Append or replace releases
         if (append) {
           setReleases(prev => [...prev, ...releasesList]);

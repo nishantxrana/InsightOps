@@ -32,7 +32,8 @@ class AzureDevOpsReleaseClient {
         environmentStatusFilter,
         statusFilter,
         minCreatedTime,
-        maxCreatedTime
+        maxCreatedTime,
+        continuationToken
       } = options;
 
       const params = {
@@ -46,9 +47,17 @@ class AzureDevOpsReleaseClient {
       if (statusFilter) params.statusFilter = statusFilter;
       if (minCreatedTime) params.minCreatedTime = minCreatedTime;
       if (maxCreatedTime) params.maxCreatedTime = maxCreatedTime;
+      if (continuationToken) params.continuationToken = continuationToken;
 
       const response = await this.client.get('/release/releases', { params });
-      return response.data;
+      
+      // Azure DevOps returns continuation token in response header
+      const nextContinuationToken = response.headers['x-ms-continuationtoken'];
+      
+      return {
+        ...response.data,
+        continuationToken: nextContinuationToken
+      };
     } catch (error) {
       logger.error('Error fetching releases from Azure DevOps:', error);
       throw error;
