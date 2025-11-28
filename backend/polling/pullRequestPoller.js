@@ -129,26 +129,22 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
     if (!userSettings.notifications?.enabled) {
       return;
     }
-
-    const { markdownFormatter } = await import('../utils/markdownFormatter.js');
     
-    // Batch processing - 10 PRs per message with 7 second delay
+    // Batch processing - 10 PRs per card with 7 second delay
     const batchSize = 10;
-    const delayBetweenBatches = 7000; // 7 seconds
+    const delayBetweenBatches = 7000;
     const totalBatches = Math.ceil(idlePRs.length / batchSize);
     
     for (let i = 0; i < idlePRs.length; i += batchSize) {
       const batch = idlePRs.slice(i, i + batchSize);
       const batchNumber = Math.floor(i / batchSize) + 1;
       
-      const message = markdownFormatter.formatIdlePullRequestBatch(batch, batchNumber, totalBatches, idlePRs.length);
+      const card = this.formatIdlePRCard(batch, batchNumber, totalBatches, idlePRs.length);
       
-      // Send to enabled notification channels
       if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
-        await this.sendGoogleChatNotification(message, userSettings.notifications.webhooks.googleChat);
+        await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
       }
       
-      // Delay before next batch (except for last one)
       if (i + batchSize < idlePRs.length) {
         await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
       }
@@ -160,12 +156,103 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
   }
 };
 
-PullRequestPoller.prototype.sendGoogleChatNotification = async function(message, webhookUrl) {
+PullRequestPoller.prototype.formatIdlePRCard = function(pullRequests, batchNumber, totalBatches, totalCount) {
+  const prSections = pullRequests.map(pr => {
+    const title = pr.title || 'No title';
+    const createdBy = pr.createdBy?.displayName || 'Unknown';
+    const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
+    const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
+    const repository = pr.repository?.name || 'Unknown';
+    const sourceBranch = pr.sourceRefName?.replace('refs/heads/', '') || 'unknown';
+    const targetBranch = pr.targetRefName?.replace('refs/heads/', '') || 'unknown';
+    const description = ((pr.description || 'No description').slice(0, 150)) +
+                       ((pr.description?.length ?? 0) > 150 ? '...' : '');
+    const prUrl = pr.webUrl || pr.url;
+
+    return {
+      header: `🔀 PR #${pr.pullRequestId} - ${title}`,
+      collapsible: true,
+      uncollapsibleWidgetsCount: 1,
+      widgets: [
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'CLOCK' },
+            topLabel: 'Idle Duration',
+            text: `<font color="#ff9800"><b>${daysSinceActivity} days</b></font>`
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'PERSON' },
+            topLabel: 'Created By',
+            text: createdBy
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'DESCRIPTION' },
+            topLabel: 'Repository',
+            text: repository
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'BOOKMARK' },
+            topLabel: 'Branches',
+            text: `${sourceBranch} → ${targetBranch}`
+          }
+        },
+        {
+          textParagraph: {
+            text: `<b>Description:</b> ${description}`
+          }
+        },
+        {
+          buttonList: {
+            buttons: [{
+              text: 'Review Pull Request',
+              icon: { knownIcon: 'OPEN_IN_NEW' },
+              onClick: { openLink: { url: prUrl } }
+            }]
+          }
+        }
+      ]
+    };
+  });
+
+  const allSections = [
+    ...prSections,
+    ...(batchNumber === totalBatches ? [{
+      widgets: [{
+        textParagraph: {
+          text: '⚠️ <b>Action Required:</b> Please review these pull requests to keep the development process moving.'
+        }
+      }]
+    }] : [])
+  ];
+
+  return {
+    cardsV2: [{
+      cardId: `idle-prs-batch-${batchNumber}`,
+      card: {
+        header: {
+          title: `⏰ Idle Pull Requests - Batch ${batchNumber}/${totalBatches}`,
+          subtitle: `${pullRequests.length} of ${totalCount} PRs inactive for more than 48 hours`,
+          imageUrl: 'https://img.icons8.com/color/96/pull-request.png',
+          imageType: 'CIRCLE'
+        },
+        sections: allSections
+      }
+    }]
+  };
+};
+
+PullRequestPoller.prototype.sendGoogleChatCard = async function(card, webhookUrl) {
   try {
     const axios = (await import('axios')).default;
-    await axios.post(webhookUrl, { text: message });
+    await axios.post(webhookUrl, card);
   } catch (error) {
-    logger.error('Error sending Google Chat notification:', error);
+    logger.error('Error sending Google Chat card:', error);
     throw error;
   }
 };
