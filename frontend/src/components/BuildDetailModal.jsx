@@ -254,7 +254,7 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
                 )}
                 
                 {aiAnalysis && (
-                  <div className="prose prose-sm max-w-none text-blue-800 dark:text-blue-200 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-900 dark:prose-code:text-blue-100 prose-code:bg-blue-100 dark:prose-code:bg-blue-900/30">
+                  <div className="prose prose-sm max-w-none text-blue-800 dark:text-blue-200 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-900 dark:prose-code:text-blue-100 prose-code:bg-blue-100 dark:prose-code:bg-blue-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
                     <ReactMarkdown>{aiAnalysis}</ReactMarkdown>
                   </div>
                 )}
