@@ -294,9 +294,16 @@ Provide a concise explanation (3-5 sentences max) based on this data.`
     }
   }
 
-  async explainPullRequest(pullRequest, changes = null, commits = null) {
+  async explainPullRequest(pullRequest, changes = null, commits = null, userSettings = null) {
     try {
-      if (!this.initialized) {
+      if (!this.initialized && userSettings) {
+        try {
+          this.initializeWithUserSettings(userSettings);
+        } catch (error) {
+          logger.warn('AI service not configured, returning fallback explanation');
+          return 'AI explanation not available - please configure AI provider in settings.';
+        }
+      } else if (!this.initialized) {
         try {
           this.initializeClient();
         } catch (error) {

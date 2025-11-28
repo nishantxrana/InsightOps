@@ -60,13 +60,13 @@ export default function TimeRangeSelector({ value, onChange }) {
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className="justify-between min-w-[140px] bg-background"
+            className="justify-between min-w-[140px] bg-background rounded-full"
           >
             <span className="text-sm">{getCurrentLabel()}</span>
             <ChevronDown className="h-4 w-4 ml-2 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-48 p-2" align="start">
+        <PopoverContent className="w-[140px] p-2" align="start">
           <div className="space-y-1">
             {TIME_RANGES.map((range) => (
               <button

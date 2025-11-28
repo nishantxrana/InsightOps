@@ -115,14 +115,13 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
   // Check if release failed due to approval rejection
   const isApprovalRejected = release?.status === 'failed' && release?.failureReason === 'approval_rejected';
   
-  // Check if we should show approval details (waiting for approval OR any failed release)
-  const shouldShowApprovals = isWaitingForApproval || isFailedRelease;
+  // Show approval details for all releases (everyone can have approvals)
+  const shouldShowApprovals = true;
 
   // Set default active tab based on available content
   const getDefaultTab = () => {
     if (isFailedRelease) return 'logs';
-    if (shouldShowApprovals) return 'approvals';
-    return 'details';
+    return 'approvals'; // Default to approvals for all other releases
   };
   
   const [activeTab, setActiveTab] = useState(getDefaultTab());
@@ -170,16 +169,12 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
     try {
       setLoadingApprovals(true);
       const response = await releaseService.getReleaseApprovals(release.id);
+      console.log('Approvals response for release', release.id, ':', response);
       if (response.success) {
-        // Only set approvals if there's actual approval data
-        const hasActualApprovals = response.data.totalApprovals > 0 || 
-          Object.values(response.data.environmentApprovals).some(env => env.approvals.length > 0);
-        
-        if (hasActualApprovals) {
-          setApprovals(response.data);
-        } else {
-          setApprovals(null);
-        }
+        // Always set approvals data, even if empty
+        setApprovals(response.data);
+      } else {
+        setApprovals(null);
       }
     } catch (error) {
       console.error('Error loading approvals:', error);
@@ -664,8 +659,12 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                 )}
 
                 {approvals && Object.keys(approvals.environmentApprovals).length === 0 && !loadingApprovals && (
-                  <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-950/50 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <p className="text-yellow-700 dark:text-yellow-300">No approval information found for this release.</p>
+                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-blue-700 dark:text-blue-300">
+                      {release.status === 'succeeded' 
+                        ? 'Approval history is not available for completed releases. All required approvals were granted.'
+                        : 'No approval gates configured for this release pipeline.'}
+                    </p>
                   </div>
                 )}
               </div>

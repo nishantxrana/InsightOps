@@ -632,7 +632,7 @@ router.get('/pull-requests/:id/explain', async (req, res) => {
     }
 
     // Generate AI explanation
-    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits);
+    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits, userSettings);
     
     // Cache for 1 hour
     cacheManager.set('ai', cacheKey, explanation, 3600);
@@ -1526,52 +1526,53 @@ router.get('/releases/:releaseId/approvals', async (req, res) => {
           approval.releaseEnvironment?.id === env.id
         );
         
-        // If no approvals found via API but environment is rejected, check environment approvals
-        if (envApprovals.length === 0 && (env.status === 'rejected' || env.status === 'failed')) {
-          // Try to get approval info from environment preDeployApprovals and postDeployApprovals
-          const preApprovals = env.preDeployApprovals || [];
-          const postApprovals = env.postDeployApprovals || [];
-          const allEnvApprovals = [...preApprovals, ...postApprovals];
-          
-          // console.log(`Environment ${env.name} approvals from env data:`, allEnvApprovals.map(a => ({
-          //   status: a.status,
-          //   approver: a.approver?.displayName,
-          //   approvedBy: a.approvedBy?.displayName
-          // })));
-          
-          // Filter out system-generated approvals (those without real approvers)
-          const realApprovals = allEnvApprovals.filter(approval => 
-            approval.approver?.displayName && 
-            approval.approver.displayName !== 'Unknown' &&
-            approval.approver.displayName.trim() !== ''
-          );
-          
-          envApprovals.push(...realApprovals.map(approval => ({
-            id: approval.id,
-            status: approval.status,
-            approver: {
-              displayName: approval.approver?.displayName || 'Unknown',
-              uniqueName: approval.approver?.uniqueName || '',
-              imageUrl: approval.approver?.imageUrl
-            },
-            approvedBy: approval.approvedBy ? {
-              displayName: approval.approvedBy.displayName,
-              uniqueName: approval.approvedBy.uniqueName,
-              imageUrl: approval.approvedBy.imageUrl
-            } : null,
-            createdOn: approval.createdOn,
-            modifiedOn: approval.modifiedOn,
-            comments: approval.comments,
-            instructions: approval.instructions,
-            isAutomated: approval.isAutomated,
-            attempt: approval.attempt,
-            rank: approval.rank
-          })));
+        // Always check environment preDeployApprovals and postDeployApprovals
+        // These contain the approval history even after release completes
+        const preApprovals = env.preDeployApprovals || [];
+        const postApprovals = env.postDeployApprovals || [];
+        const allEnvApprovals = [...preApprovals, ...postApprovals];
+        
+        // Filter out system-generated approvals (those without real approvers)
+        const realApprovals = allEnvApprovals.filter(approval => 
+          approval.approver?.displayName && 
+          approval.approver.displayName !== 'Unknown' &&
+          approval.approver.displayName.trim() !== ''
+        );
+        
+        // Merge API approvals with environment approvals
+        const mergedApprovals = [...envApprovals];
+        
+        for (const approval of realApprovals) {
+          // Only add if not already in the list from API
+          const exists = mergedApprovals.some(a => a.id === approval.id);
+          if (!exists) {
+            mergedApprovals.push({
+              id: approval.id,
+              status: approval.status,
+              approver: {
+                displayName: approval.approver?.displayName || 'Unknown',
+                uniqueName: approval.approver?.uniqueName || '',
+                imageUrl: approval.approver?.imageUrl
+              },
+              approvedBy: approval.approvedBy ? {
+                displayName: approval.approvedBy.displayName,
+                uniqueName: approval.approvedBy.uniqueName,
+                imageUrl: approval.approvedBy.imageUrl
+              } : null,
+              createdOn: approval.createdOn,
+              modifiedOn: approval.modifiedOn,
+              comments: approval.comments,
+              instructions: approval.instructions,
+              isAutomated: approval.isAutomated,
+              attempt: approval.attempt,
+              rank: approval.rank
+            });
+          }
         }
         
         // Deduplicate approvals - keep only the latest approval per approver
         const latestApprovals = {};
-        for (const approval of envApprovals) {
+        for (const approval of mergedApprovals) {
           const approverKey = approval.approver.uniqueName || approval.approver.displayName;
           const currentTime = new Date(approval.modifiedOn || approval.createdOn).getTime();
           

@@ -150,10 +150,10 @@ export default function Releases() {
   
   // Time range state
   const [timeRange, setTimeRange] = useState({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+    from: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
     to: new Date(),
-    label: '30 Days',
-    value: '30d'
+    label: '1 Day',
+    value: '1d'
   });
   
   // Filter states
