@@ -304,17 +304,26 @@ class ReleaseWebhook {
               widgets: detailWidgets
             },
             {
-              widgets: [{
-                buttonList: {
-                  buttons: [{
-                    text: 'View Release in Azure DevOps',
-                    icon: { knownIcon: 'OPEN_IN_NEW' },
-                    onClick: {
-                      openLink: { url: webUrl }
-                    }
-                  }]
+              widgets: [
+                {
+                  decoratedText: {
+                    topLabel: 'Release URL',
+                    text: `<a href="${webUrl}">${webUrl}</a>`,
+                    wrapText: true
+                  }
+                },
+                {
+                  buttonList: {
+                    buttons: [{
+                      text: 'Open Release',
+                      icon: { knownIcon: 'OPEN_IN_NEW' },
+                      onClick: {
+                        openLink: { url: webUrl }
+                      }
+                    }]
+                  }
                 }
-              }]
+              ]
             }
           ]
         }
@@ -427,17 +436,26 @@ class ReleaseWebhook {
               widgets: logWidgets
             },
             {
-              widgets: [{
-                buttonList: {
-                  buttons: [{
-                    text: 'View Release in Azure DevOps',
-                    icon: { knownIcon: 'OPEN_IN_NEW' },
-                    onClick: {
-                      openLink: { url: webUrl }
-                    }
-                  }]
+              widgets: [
+                {
+                  decoratedText: {
+                    topLabel: 'Release URL',
+                    text: `<a href="${webUrl}">${webUrl}</a>`,
+                    wrapText: true
+                  }
+                },
+                {
+                  buttonList: {
+                    buttons: [{
+                      text: 'Open Release',
+                      icon: { knownIcon: 'OPEN_IN_NEW' },
+                      onClick: {
+                        openLink: { url: webUrl }
+                      }
+                    }]
+                  }
                 }
-              }]
+              ]
             }
           ]
         }
