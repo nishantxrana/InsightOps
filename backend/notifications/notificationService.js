@@ -153,7 +153,6 @@ class NotificationService {
       'build-succeeded': '107C10', // Green
       'build-failed': 'D13438', // Red
       'pull-request-created': '8764B8', // Purple
-      'pull-request-updated': '5C2D91', // Dark Purple
       'pull-request-reviewer-assigned': 'FF8C00', // Orange
       'overdue-reminder': 'FF4B4B', // Bright Red
       'sprint-summary': '00A4EF', // Azure Blue
@@ -170,7 +169,6 @@ class NotificationService {
       'build-succeeded': 'good',
       'build-failed': 'danger',
       'pull-request-created': '#8764B8',
-      'pull-request-updated': '#5C2D91',
       'pull-request-reviewer-assigned': 'warning',
       'overdue-reminder': 'danger',
       'sprint-summary': '#00A4EF',
@@ -187,7 +185,6 @@ class NotificationService {
       'build-succeeded': '✅ Build Succeeded',
       'build-failed': '❌ Build Failed',
       'pull-request-created': '🔀 New Pull Request',
-      'pull-request-updated': '🔄 Pull Request Updated',
       'pull-request-reviewer-assigned': '👥 Reviewer Assigned',
       'overdue-reminder': '⏰ Overdue Items Reminder',
       'sprint-summary': '📊 Sprint Summary',

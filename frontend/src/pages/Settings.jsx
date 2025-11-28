@@ -850,21 +850,6 @@ export default function Settings() {
           </div>
 
           <div>
-            <Label className="text-sm font-medium mb-2 block">Pull Request Updated Events</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.pullRequestUpdated || 'Loading...'}
-                className="font-mono text-sm bg-muted"
-              />
-              <CopyButton 
-                content={webhookUrls.pullRequestUpdated}
-                variant="outline"
-              />
-            </div>
-          </div>
-
-          <div>
             <Label className="text-sm font-medium mb-2 block">Work Item Created Events</Label>
             <div className="flex items-center gap-2">
               <Input
