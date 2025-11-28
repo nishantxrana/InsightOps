@@ -108,34 +108,22 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
     if (!userSettings.notifications?.enabled) {
       return;
     }
-
-    const { markdownFormatter } = await import('../utils/markdownFormatter.js');
     
-    // Batch processing - 10 items per message with 7 second delay
+    // Batch processing - 10 items per card with 7 second delay
     const batchSize = 10;
-    const delayBetweenBatches = 7000; // 7 seconds
+    const delayBetweenBatches = 7000;
     const totalBatches = Math.ceil(overdueItems.length / batchSize);
     
     for (let i = 0; i < overdueItems.length; i += batchSize) {
       const batch = overdueItems.slice(i, i + batchSize);
       const batchNumber = Math.floor(i / batchSize) + 1;
       
-      const message = markdownFormatter.formatOverdueItemsBatch(batch, batchNumber, totalBatches, overdueItems.length);
-      
-      // Send to enabled notification channels
-      if (userSettings.notifications.teamsEnabled && userSettings.notifications.webhooks?.teams) {
-        await this.sendTeamsNotification(message, userSettings.notifications.webhooks.teams);
-      }
-      
-      if (userSettings.notifications.slackEnabled && userSettings.notifications.webhooks?.slack) {
-        await this.sendSlackNotification(message, userSettings.notifications.webhooks.slack);
-      }
+      const card = this.formatOverdueItemsCard(batch, batchNumber, totalBatches, overdueItems.length);
       
       if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
-        await this.sendGoogleChatNotification(message, userSettings.notifications.webhooks.googleChat);
+        await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
       }
       
-      // Delay before next batch (except for last one)
       if (i + batchSize < overdueItems.length) {
         await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
       }
@@ -147,17 +135,136 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
   }
 };
 
-WorkItemPoller.prototype.sendTeamsNotification = async function(message, webhookUrl) {
-  const axios = (await import('axios')).default;
-  await axios.post(webhookUrl, { text: message });
+WorkItemPoller.prototype.formatOverdueItemsCard = function(overdueItems, batchNumber, totalBatches, totalCount) {
+  const getPriorityColor = (priority) => {
+    const priorityMap = {
+      1: '#d32f2f', // Critical - Red
+      2: '#ff9800', // High - Orange
+      3: '#fbc02d', // Medium - Yellow
+      4: '#757575'  // Low - Gray
+    };
+    return priorityMap[priority] || '#757575';
+  };
+
+  const getPriorityText = (priority) => {
+    const priorityMap = {
+      1: 'Critical',
+      2: 'High',
+      3: 'Medium',
+      4: 'Low'
+    };
+    return priorityMap[priority] || `Priority ${priority}`;
+  };
+
+  const workItemSections = overdueItems.map(item => {
+    const title = item.fields?.['System.Title'] || 'No title';
+    const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+    const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+    const workItemType = item.fields?.['System.WorkItemType'] || 'Item';
+    const state = item.fields?.['System.State'] || 'Unknown';
+    const priority = item.fields?.['Microsoft.VSTS.Common.Priority'] || 4;
+    const daysPastDue = dueDate ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+    const itemUrl = item.webUrl || item._links?.html?.href || `#${item.id}`;
+
+    const priorityColor = getPriorityColor(priority);
+    const priorityText = getPriorityText(priority);
+    const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    }) : 'No due date';
+
+    // Determine icon based on work item type
+    const typeIcon = workItemType.toLowerCase().includes('bug') ? '🐛' : 
+                     workItemType.toLowerCase().includes('task') ? '✅' :
+                     workItemType.toLowerCase().includes('user story') ? '📖' : '📋';
+
+    return {
+      header: `${typeIcon} ${workItemType} #${item.id} - ${title}`,
+      collapsible: true,
+      uncollapsibleWidgetsCount: 1,
+      widgets: [
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'CLOCK' },
+            topLabel: 'Days Overdue',
+            text: `<b>${daysPastDue} days</b>`
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'PERSON' },
+            topLabel: 'Assigned To',
+            text: assignee
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'STAR' },
+            topLabel: 'Priority',
+            text: `<font color="${priorityColor}"><b>${priorityText}</b></font>`
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'CALENDAR_TODAY' },
+            topLabel: 'Due Date',
+            text: dueDateFormatted
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'BOOKMARK' },
+            topLabel: 'State',
+            text: state
+          }
+        },
+        {
+          buttonList: {
+            buttons: [{
+              text: 'Open Work Item',
+              icon: { knownIcon: 'OPEN_IN_NEW' },
+              onClick: { openLink: { url: itemUrl } }
+            }]
+          }
+        }
+      ]
+    };
+  });
+
+  const allSections = [
+    ...workItemSections,
+    ...(batchNumber === totalBatches ? [{
+      widgets: [{
+        textParagraph: {
+          text: '⚠️ <b>Action Required:</b> Please review and update the status of these items to keep the project on track.'
+        }
+      }]
+    }] : [])
+  ];
+
+  return {
+    cardsV2: [{
+      cardId: `overdue-items-batch-${batchNumber}`,
+      card: {
+        header: {
+          title: `⚠️ Overdue Work Items - Batch ${batchNumber}/${totalBatches}`,
+          subtitle: `${overdueItems.length} of ${totalCount} items past their due date`,
+          imageUrl: 'https://img.icons8.com/color/96/overtime.png',
+          imageType: 'CIRCLE'
+        },
+        sections: allSections
+      }
+    }]
+  };
 };
 
-WorkItemPoller.prototype.sendSlackNotification = async function(message, webhookUrl) {
-  const axios = (await import('axios')).default;
-  await axios.post(webhookUrl, { text: message });
-};
-
-WorkItemPoller.prototype.sendGoogleChatNotification = async function(message, webhookUrl) {
-  const axios = (await import('axios')).default;
-  await axios.post(webhookUrl, { text: message });
+WorkItemPoller.prototype.sendGoogleChatCard = async function(card, webhookUrl) {
+  try {
+    const axios = (await import('axios')).default;
+    await axios.post(webhookUrl, card);
+  } catch (error) {
+    logger.error('Error sending Google Chat card:', error);
+    throw error;
+  }
 };

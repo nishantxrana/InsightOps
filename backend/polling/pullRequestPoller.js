@@ -178,7 +178,7 @@ PullRequestPoller.prototype.formatIdlePRCard = function(pullRequests, batchNumbe
           decoratedText: {
             startIcon: { knownIcon: 'CLOCK' },
             topLabel: 'Idle Duration',
-            text: `<font color="#ff9800"><b>${daysSinceActivity} days</b></font>`
+            text: `<b>${daysSinceActivity} days</b>`
           }
         },
         {
