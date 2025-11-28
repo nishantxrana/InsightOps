@@ -1703,9 +1703,11 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
           
           const tasks = tasksResponse.data.value || [];
           
-          // Find failed tasks
+          // Find failed tasks (exclude agent jobs)
           for (const task of tasks) {
-            if (task.status === 'failed' || task.status === 'error') {
+            if ((task.status === 'failed' || task.status === 'error') && 
+                task.name && 
+                !task.name.toLowerCase().includes('agent job')) {
               let logContent = '';
               
               // Get task logs if available
@@ -1770,6 +1772,103 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch release logs'
+    });
+  }
+});
+
+// Analyze failed release task logs with AI
+router.get('/releases/:releaseId/analyze', async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    const userSettings = await getUserSettings(req.user.id);
+    
+    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+      return res.status(400).json({
+        success: false,
+        error: 'Azure DevOps configuration not found'
+      });
+    }
+
+    const releaseClient = new AzureDevOpsReleaseClient(
+      userSettings.azureDevOps.organization,
+      userSettings.azureDevOps.project,
+      userSettings.azureDevOps.pat
+    );
+
+    // Get release with failed task logs
+    const releaseResponse = await releaseClient.client.get(`/release/releases/${releaseId}`, {
+      params: { 'api-version': '6.0' }
+    });
+    
+    const release = releaseResponse.data;
+    const failedTasks = [];
+
+    // Collect failed tasks with logs
+    for (const env of release.environments || []) {
+      try {
+        const tasksResponse = await releaseClient.client.get(
+          `/release/releases/${releaseId}/environments/${env.id}/tasks`,
+          { params: { 'api-version': '6.0' } }
+        );
+        
+        const tasks = tasksResponse.data.value || [];
+        
+        for (const task of tasks) {
+          if ((task.status === 'failed' || task.status === 'error') && 
+              task.name && 
+              !task.name.toLowerCase().includes('agent job')) {
+            let logContent = '';
+            
+            if (task.logUrl) {
+              try {
+                const logResponse = await axios.get(task.logUrl, {
+                  headers: {
+                    'Authorization': `Basic ${Buffer.from(`:${userSettings.azureDevOps.pat}`).toString('base64')}`,
+                    'Content-Type': 'application/json'
+                  },
+                  timeout: 30000
+                });
+                logContent = logResponse.data || '';
+              } catch (logError) {
+                logContent = 'Log content unavailable';
+              }
+            }
+            
+            failedTasks.push({
+              taskName: task.name || 'Unknown Task',
+              environmentName: env.name,
+              status: task.status,
+              logContent: logContent,
+              issues: task.issues || []
+            });
+          }
+        }
+      } catch (taskError) {
+        logger.warn(`Failed to fetch tasks for environment ${env.id}:`, taskError.message);
+      }
+    }
+
+    if (failedTasks.length === 0) {
+      return res.json({
+        success: true,
+        analysis: 'No failed tasks found in this release.'
+      });
+    }
+
+    // Generate AI analysis
+    await aiService.initializeWithUserSettings(userSettings);
+    const analysis = await aiService.analyzeReleaseFailure(release, failedTasks);
+
+    res.json({
+      success: true,
+      analysis: analysis
+    });
+
+  } catch (error) {
+    logger.error('Error analyzing release:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze release'
     });
   }
 });

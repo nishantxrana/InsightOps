@@ -864,6 +864,53 @@ Do NOT repeat the raw data - focus on analysis and actionable insights only.`
       return 'Unable to generate sprint insights at this time.';
     }
   }
+
+  async analyzeReleaseFailure(release, failedTasks) {
+    try {
+      const tasksSummary = failedTasks.map(task => {
+        const logPreview = task.logContent.length > 2000 
+          ? task.logContent.slice(-2000) 
+          : task.logContent;
+        
+        return `Task: ${task.taskName}
+Environment: ${task.environmentName}
+Status: ${task.status}
+${task.issues.length > 0 ? `Issues: ${task.issues.map(i => i.message || i).join(', ')}` : ''}
+Log Output (last 2000 chars):
+${logPreview}`;
+      }).join('\n\n---\n\n');
+
+      const messages = [
+        {
+          role: 'system',
+          content: `You are an expert DevOps engineer analyzing release deployment failures. Explain why the deployment failed in simple, clear terms. Focus on:
+- What went wrong (the root cause)
+- Which component or step failed
+- The specific error or issue
+DO NOT provide fixes or solutions - only explain what happened and why it failed.`
+        },
+        {
+          role: 'user',
+          content: `Release: ${release.name}
+Failed Tasks: ${failedTasks.length}
+
+${tasksSummary}
+
+Explain in simple terms why this release failed. Focus on the root cause and what went wrong, not how to fix it.`
+        }
+      ];
+
+      const analysis = await this.generateCompletion(messages, {
+        max_tokens: 500,
+        temperature: 0.3
+      });
+
+      return analysis;
+    } catch (error) {
+      logger.error('Error analyzing release failure:', error);
+      return 'Unable to analyze release failure at this time.';
+    }
+  }
 }
 
 export const aiService = new AIService();

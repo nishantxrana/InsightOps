@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../contexts/AuthContext';
 import { releaseService } from '../api/releaseService';
 import { buildReleaseUrl } from '../utils/azureDevOpsUrls';
@@ -19,6 +20,8 @@ import {
   AlertTriangle,
   RefreshCw,
   UserCheck,
+  Bot,
+  Loader2,
 } from 'lucide-react';
 
 const getStatusIcon = (status) => {
@@ -105,6 +108,8 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
   const [failedLogs, setFailedLogs] = useState(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [logsError, setLogsError] = useState(null);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [loadingAI, setLoadingAI] = useState(false);
 
   // Check if release has failed status and should show logs
   const isFailedRelease = (release?.status === 'failed');
@@ -143,6 +148,8 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
       setLoadingLogs(false);
       setApprovals(null);
       setLoadingApprovals(false);
+      setAiAnalysis(null);
+      setLoadingAI(false);
     }
   }, [isOpen, isFailedRelease, shouldShowApprovals, release?.id]);
 
@@ -181,6 +188,21 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
       setApprovals(null);
     } finally {
       setLoadingApprovals(false);
+    }
+  };
+
+  const loadAIAnalysis = async () => {
+    try {
+      setLoadingAI(true);
+      const response = await releaseService.analyzeRelease(release.id);
+      if (response.success) {
+        setAiAnalysis(response.analysis);
+      }
+    } catch (error) {
+      console.error('Error loading AI analysis:', error);
+      setAiAnalysis('Failed to generate AI analysis. Please try again.');
+    } finally {
+      setLoadingAI(false);
     }
   };
 
@@ -430,6 +452,43 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                       <>
                         <div className="text-sm text-muted-foreground mb-3">
                           Found {failedLogs.totalFailedTasks} failed task(s)
+                        </div>
+
+                        {/* AI Explanation Section */}
+                        <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800/30 mb-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <Bot className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                              <h4 className="font-medium text-blue-900 dark:text-blue-100">AI Explanation</h4>
+                            </div>
+                            {!aiAnalysis && !loadingAI && (
+                              <button
+                                onClick={loadAIAnalysis}
+                                className="px-3 py-1 text-sm bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                              >
+                                🤖 Explain Failures
+                              </button>
+                            )}
+                          </div>
+                          
+                          {loadingAI && (
+                            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span className="text-sm">AI is analyzing the failed tasks...</span>
+                            </div>
+                          )}
+                          
+                          {aiAnalysis && (
+                            <div className="prose prose-sm max-w-none text-blue-800 dark:text-blue-200 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-900 dark:prose-code:text-blue-100 prose-code:bg-blue-100 dark:prose-code:bg-blue-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                              <ReactMarkdown>{aiAnalysis}</ReactMarkdown>
+                            </div>
+                          )}
+                          
+                          {!aiAnalysis && !loadingAI && (
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              Click "Explain Failures" to get AI-powered insights about why this release failed.
+                            </p>
+                          )}
                         </div>
                         
                         {failedLogs.failedTasks.map((task, index) => (

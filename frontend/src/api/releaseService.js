@@ -61,4 +61,10 @@ export const releaseService = {
     const response = await api.get('/releases/ai-analysis');
     return response.data;
   },
+
+  // Analyze failed release task logs with AI
+  async analyzeRelease(releaseId) {
+    const response = await api.get(`/releases/${releaseId}/analyze`);
+    return response.data;
+  },
 };
