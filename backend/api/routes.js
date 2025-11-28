@@ -1297,16 +1297,43 @@ router.get('/releases/stats', async (req, res) => {
     const maxCreatedTime = toDate || new Date().toISOString();
 
     try {
-      const [releasesResponse, approvalsResponse] = await Promise.all([
-        releaseClient.getReleases({ 
-          top: 500, // Increased to get all releases in range
-          minCreatedTime,
-          maxCreatedTime
-        }),
+      // Helper function to fetch all releases using continuation token
+      // Fetch minimal data (no $expand) for faster stats calculation
+      const fetchAllReleasesForStats = async () => {
+        let allReleases = [];
+        let continuationToken = null;
+        let hasMore = true;
+        
+        while (hasMore && allReleases.length < 1000) { // Safety limit of 1000
+          const params = {
+            'api-version': '6.0',
+            '$top': 100,
+            minCreatedTime,
+            maxCreatedTime
+          };
+          
+          if (continuationToken) {
+            params.continuationToken = continuationToken;
+          }
+          
+          // Direct API call without $expand for faster response
+          const response = await releaseClient.client.get('/release/releases', { params });
+          
+          const releases = response.data.value || [];
+          allReleases = [...allReleases, ...releases];
+          
+          continuationToken = response.headers['x-ms-continuationtoken'];
+          hasMore = !!continuationToken && releases.length > 0;
+        }
+        
+        return allReleases;
+      };
+
+      const [releases, approvalsResponse] = await Promise.all([
+        fetchAllReleasesForStats(),
         releaseClient.getPendingApprovals().catch(() => ({ value: [] })) // Fallback for approvals
       ]);
 
-      const releases = releasesResponse.value || [];
       const approvals = approvalsResponse.value || [];
 
       // Transform releases to use mapped statuses (same logic as /api/releases)
