@@ -130,9 +130,9 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
       return;
     }
     
-    // Batch processing - 10 PRs per card with 7 second delay
+    // Batch processing - 10 PRs per card with 5 second delay
     const batchSize = 10;
-    const delayBetweenBatches = 7000;
+    const delayBetweenBatches = 5000;
     const totalBatches = Math.ceil(idlePRs.length / batchSize);
     
     for (let i = 0; i < idlePRs.length; i += batchSize) {
@@ -148,6 +148,23 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
       if (i + batchSize < idlePRs.length) {
         await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
       }
+    }
+    
+    // Send divider after all batches are complete
+    if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
+      const dividerCard = {
+        cardsV2: [{
+          cardId: `divider-idle-prs-${Date.now()}`,
+          card: {
+            sections: [{
+              widgets: [{
+                divider: {}
+              }]
+            }]
+          }
+        }]
+      };
+      await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
     }
     
     logger.info(`Idle PR notifications sent in ${totalBatches} batches`);

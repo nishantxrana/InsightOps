@@ -109,9 +109,9 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
       return;
     }
     
-    // Batch processing - 10 items per card with 7 second delay
+    // Batch processing - 10 items per card with 5 second delay
     const batchSize = 10;
-    const delayBetweenBatches = 7000;
+    const delayBetweenBatches = 5000;
     const totalBatches = Math.ceil(overdueItems.length / batchSize);
     
     for (let i = 0; i < overdueItems.length; i += batchSize) {
@@ -127,6 +127,23 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
       if (i + batchSize < overdueItems.length) {
         await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
       }
+    }
+    
+    // Send divider after all batches are complete
+    if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
+      const dividerCard = {
+        cardsV2: [{
+          cardId: `divider-overdue-${Date.now()}`,
+          card: {
+            sections: [{
+              widgets: [{
+                divider: {}
+              }]
+            }]
+          }
+        }]
+      };
+      await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
     }
     
     logger.info(`Overdue notifications sent in ${totalBatches} batches`);

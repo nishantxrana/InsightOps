@@ -199,6 +199,21 @@ class ReleaseWebhook {
           await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
         }
         
+        // Send divider card after each notification
+        const dividerCard = {
+          cardsV2: [{
+            cardId: `divider-release-${Date.now()}`,
+            card: {
+              sections: [{
+                widgets: [{
+                  divider: {}
+                }]
+              }]
+            }
+          }]
+        };
+        await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
+        
         logger.info('Release notification sent via Google Chat');
       }
     } catch (error) {
