@@ -12,6 +12,19 @@ class WorkItemWebhook {
         return res.status(400).json({ error: 'Missing resource in webhook payload' });
       }
 
+      // Check for 'silent' tag to skip notifications
+      const tags = resource.fields?.['System.Tags'] || '';
+      if (tags.toLowerCase().includes('silent')) {
+        logger.info('Work item has "silent" tag, skipping notification', {
+          workItemId: resource.id
+        });
+        return res.json({
+          message: 'Work item created but notification skipped due to silent tag',
+          workItemId: resource.id,
+          timestamp: new Date().toISOString()
+        });
+      }
+
       logger.info('Work item created webhook received', {
         workItemId: resource.id,
         workItemType: resource.fields?.['System.WorkItemType'],
@@ -104,6 +117,20 @@ class WorkItemWebhook {
       const workItemId = resource.workItemId || resource.revision?.id || resource.id;
       const revision = resource.revision || resource;
       const fields = revision.fields || resource.fields || {};
+      
+      // Check for 'silent' tag to skip notifications
+      const tags = fields['System.Tags'] || '';
+      if (tags.toLowerCase().includes('silent')) {
+        logger.info('Work item has "silent" tag, skipping notification', {
+          workItemId
+        });
+        return res.json({
+          message: 'Work item updated but notification skipped due to silent tag',
+          workItemId,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       const workItemType = fields['System.WorkItemType'] || 'Work Item';
       const title = fields['System.Title'] || 'No title';
       const state = fields['System.State'] || 'Unknown';
@@ -144,10 +171,29 @@ class WorkItemWebhook {
       // Format notification message with user config for proper URL construction
       const message = markdownFormatter.formatWorkItemUpdated(webhookData, userConfig);
       
+      // Check if any significant fields changed
+      const changedFields = resource.fields || {};
+      const hasSignificantChanges = 
+        changedFields['System.State'] ||
+        changedFields['System.AssignedTo'] ||
+        changedFields['Microsoft.VSTS.Common.Priority'] ||
+        changedFields['Microsoft.VSTS.Scheduling.DueDate'] ||
+        changedFields['System.IterationPath'] ||
+        changedFields['System.AreaPath'];
+      
+      if (!hasSignificantChanges) {
+        logger.info('No significant changes detected, skipping notification', { workItemId });
+        return res.json({
+          message: 'Work item updated but no significant changes to notify',
+          workItemId,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       // Send notification
       if (userId) {
-        // User-specific notification
-        await this.sendUserNotification(message, userId, 'work-item-updated');
+        // User-specific notification with card format
+        await this.sendUserNotification(message, userId, 'work-item-updated', webhookData, userConfig);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, 'work-item-updated');
@@ -168,7 +214,7 @@ class WorkItemWebhook {
     }
   }
 
-  async sendUserNotification(message, userId, notificationType, workItem, aiSummary, userConfig) {
+  async sendUserNotification(message, userId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -180,8 +226,17 @@ class WorkItemWebhook {
 
       // Send to enabled notification channels
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
-        // Send as card instead of text
-        const card = this.formatWorkItemCard(workItem, aiSummary, userConfig);
+        let card;
+        
+        // Determine if this is created or updated
+        if (notificationType === 'work-item-created') {
+          const aiSummary = aiSummaryOrUserConfig;
+          card = this.formatWorkItemCard(workItemOrWebhookData, aiSummary, userConfig);
+        } else if (notificationType === 'work-item-updated') {
+          const actualUserConfig = aiSummaryOrUserConfig;
+          card = this.formatWorkItemUpdatedCard(workItemOrWebhookData, actualUserConfig);
+        }
+        
         await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
         
         // Send divider after work item notification
@@ -464,6 +519,234 @@ class WorkItemWebhook {
             title: `${typeIcon} New ${workItemType} Created`,
             subtitle: title,
             imageUrl: 'https://img.icons8.com/color/96/task.png',
+            imageType: 'CIRCLE'
+          },
+          sections: sections
+        }
+      }]
+    };
+  }
+
+  formatWorkItemUpdatedCard(webhookData, userConfig) {
+    const { resource } = webhookData;
+    const workItemId = resource.workItemId || resource.revision?.id || resource.id;
+    const revision = resource.revision || resource;
+    const fields = revision.fields || resource.fields || {};
+    const changedFields = resource.fields || {};
+    
+    const title = fields['System.Title'] || 'No title';
+    const workItemType = fields['System.WorkItemType'] || 'Work Item';
+    const currentState = fields['System.State'] || 'Unknown';
+    const currentAssignedTo = fields['System.AssignedTo'] || 'Unassigned';
+    const priority = fields['Microsoft.VSTS.Common.Priority'] || 'Not set';
+    const changedBy = fields['System.ChangedBy'] || 'Unknown';
+    const changedDate = fields['System.ChangedDate'] || new Date().toISOString();
+
+    // Extract display name helper
+    const extractDisplayName = (userString) => {
+      if (!userString) return 'Unassigned';
+      if (typeof userString === 'string') {
+        const match = userString.match(/^([^<]+)<.*>$/) || userString.match(/^(.+)$/);
+        return match ? match[1].trim() : userString;
+      }
+      return userString.displayName || userString.name || 'Unknown';
+    };
+
+    // Get priority text
+    const getPriorityText = (priority) => {
+      const priorityMap = { 1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low' };
+      return priorityMap[priority] || `Priority ${priority}`;
+    };
+
+    // Format date
+    const formatDate = (dateString) => {
+      if (!dateString) return 'Not set';
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    // Extract changes
+    const changeWidgets = [];
+    
+    if (changedFields['System.State']) {
+      const oldState = changedFields['System.State'].oldValue || 'Unknown';
+      const newState = changedFields['System.State'].newValue || currentState;
+      changeWidgets.push({
+        decoratedText: {
+          startIcon: { knownIcon: 'DESCRIPTION' },
+          topLabel: 'State Changed',
+          text: `${oldState} → <b>${newState}</b>`
+        }
+      });
+    }
+    
+    if (changedFields['System.AssignedTo']) {
+      const oldAssignee = extractDisplayName(changedFields['System.AssignedTo'].oldValue) || 'Unassigned';
+      const newAssignee = extractDisplayName(changedFields['System.AssignedTo'].newValue) || 'Unassigned';
+      changeWidgets.push({
+        decoratedText: {
+          startIcon: { knownIcon: 'PERSON' },
+          topLabel: 'Assignment Changed',
+          text: `${oldAssignee} → <b>${newAssignee}</b>`
+        }
+      });
+    }
+    
+    if (changedFields['Microsoft.VSTS.Common.Priority']) {
+      const oldPriority = getPriorityText(changedFields['Microsoft.VSTS.Common.Priority'].oldValue);
+      const newPriority = getPriorityText(changedFields['Microsoft.VSTS.Common.Priority'].newValue);
+      changeWidgets.push({
+        decoratedText: {
+          startIcon: { knownIcon: 'STAR' },
+          topLabel: 'Priority Changed',
+          text: `${oldPriority} → <b>${newPriority}</b>`
+        }
+      });
+    }
+
+    if (changedFields['Microsoft.VSTS.Scheduling.DueDate']) {
+      const oldDueDate = changedFields['Microsoft.VSTS.Scheduling.DueDate'].oldValue;
+      const newDueDate = changedFields['Microsoft.VSTS.Scheduling.DueDate'].newValue;
+      const oldFormatted = oldDueDate ? formatDate(oldDueDate) : 'Not set';
+      const newFormatted = newDueDate ? formatDate(newDueDate) : 'Not set';
+      changeWidgets.push({
+        decoratedText: {
+          startIcon: { knownIcon: 'CLOCK' },
+          topLabel: 'Due Date Changed',
+          text: `${oldFormatted} → <b>${newFormatted}</b>`
+        }
+      });
+    }
+
+    if (changedFields['System.IterationPath']) {
+      const oldIteration = changedFields['System.IterationPath'].oldValue?.split('\\').pop() || 'Not set';
+      const newIteration = changedFields['System.IterationPath'].newValue?.split('\\').pop() || 'Not set';
+      changeWidgets.push({
+        decoratedText: {
+          startIcon: { knownIcon: 'CLOCK' },
+          topLabel: 'Iteration Changed',
+          text: `${oldIteration} → <b>${newIteration}</b>`
+        }
+      });
+    }
+
+    if (changedFields['System.AreaPath']) {
+      const oldArea = changedFields['System.AreaPath'].oldValue?.split('\\').pop() || 'Not set';
+      const newArea = changedFields['System.AreaPath'].newValue?.split('\\').pop() || 'Not set';
+      changeWidgets.push({
+        decoratedText: {
+          startIcon: { knownIcon: 'BOOKMARK' },
+          topLabel: 'Area Changed',
+          text: `${oldArea} → <b>${newArea}</b>`
+        }
+      });
+    }
+
+    // Construct work item URL
+    let webUrl = resource._links?.html?.href || revision._links?.html?.href;
+    if (!webUrl && userConfig && userConfig.organization && userConfig.project) {
+      const organization = userConfig.organization;
+      const project = fields['System.TeamProject'] || userConfig.project;
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const encodedProject = encodeURIComponent(project);
+      webUrl = `${baseUrl}/${organization}/${encodedProject}/_workitems/edit/${workItemId}`;
+    }
+
+    // Determine icon based on work item type
+    const typeIcon = workItemType.toLowerCase().includes('bug') ? '🐛' :
+                     workItemType.toLowerCase().includes('task') ? '✅' :
+                     workItemType.toLowerCase().includes('user story') ? '📖' :
+                     workItemType.toLowerCase().includes('feature') ? '🎯' : '📋';
+
+    const sections = [];
+
+    // Add changes section if there are changes
+    if (changeWidgets.length > 0) {
+      sections.push({
+        header: '🔄 Changes Made',
+        widgets: changeWidgets
+      });
+    }
+
+    // Add current details section
+    sections.push({
+      header: '📋 Current Details',
+      widgets: [
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'DESCRIPTION' },
+            topLabel: 'State',
+            text: currentState
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'PERSON' },
+            topLabel: 'Assigned To',
+            text: extractDisplayName(currentAssignedTo)
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'STAR' },
+            topLabel: 'Priority',
+            text: getPriorityText(priority)
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'PERSON' },
+            topLabel: 'Updated By',
+            text: extractDisplayName(changedBy)
+          }
+        },
+        {
+          decoratedText: {
+            startIcon: { knownIcon: 'CLOCK' },
+            topLabel: 'Updated',
+            text: formatDate(changedDate)
+          }
+        }
+      ]
+    });
+
+    // Add URL section
+    sections.push({
+      widgets: [
+        {
+          decoratedText: {
+            topLabel: 'Work Item URL',
+            text: `<a href="${webUrl}">${webUrl}</a>`,
+            wrapText: true
+          }
+        },
+        {
+          buttonList: {
+            buttons: [{
+              text: 'View Work Item',
+              icon: { knownIcon: 'OPEN_IN_NEW' },
+              onClick: {
+                openLink: { url: webUrl }
+              }
+            }]
+          }
+        }
+      ]
+    });
+
+    return {
+      cardsV2: [{
+        cardId: `workitem-updated-${workItemId}`,
+        card: {
+          header: {
+            title: `${typeIcon} ${workItemType} Updated`,
+            subtitle: title,
+            imageUrl: 'https://img.icons8.com/color/96/edit.png',
             imageType: 'CIRCLE'
           },
           sections: sections
