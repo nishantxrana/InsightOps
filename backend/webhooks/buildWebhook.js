@@ -72,7 +72,7 @@ class BuildWebhook {
           ]);
 
           // Generate AI summary if user has AI configured
-          if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys) {
+          if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys?.[userSettings.ai.provider]) {
             try {
               aiService.initializeWithUserSettings(userSettings);
               aiSummary = await aiService.summarizeBuildFailure(resource, timeline, logs, client);

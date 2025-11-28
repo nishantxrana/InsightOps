@@ -43,7 +43,7 @@ class WorkItemWebhook {
 
       // Generate AI summary if configured
       let aiSummary = null;
-      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys) {
+      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys?.[userSettings.ai.provider]) {
         try {
           logger.info(`Generating AI summary for work item ${resource.id}`, {
             provider: userSettings.ai.provider,

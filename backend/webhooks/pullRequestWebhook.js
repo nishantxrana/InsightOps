@@ -53,7 +53,7 @@ class PullRequestWebhook {
 
       // Generate AI summary if configured
       let aiSummary = null;
-      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys) {
+      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys?.[userSettings.ai.provider]) {
         try {
           aiService.initializeWithUserSettings(userSettings);
           aiSummary = await aiService.summarizePullRequest(resource);
