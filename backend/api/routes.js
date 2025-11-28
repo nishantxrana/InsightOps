@@ -965,7 +965,8 @@ router.get('/webhooks/urls', async (req, res) => {
       pullRequestCreated: `${baseUrl}/api/webhooks/${userId}/pullrequest/created`,
       pullRequestUpdated: `${baseUrl}/api/webhooks/${userId}/pullrequest/updated`,
       workItemCreated: `${baseUrl}/api/webhooks/${userId}/workitem/created`,
-      workItemUpdated: `${baseUrl}/api/webhooks/${userId}/workitem/updated`
+      workItemUpdated: `${baseUrl}/api/webhooks/${userId}/workitem/updated`,
+      releaseDeployment: `${baseUrl}/api/webhooks/${userId}/release/deployment`
     };
     
     res.json({

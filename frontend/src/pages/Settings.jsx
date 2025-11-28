@@ -811,6 +811,21 @@ export default function Settings() {
             </div>
           </div>
 
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Release Deployment Events (Production Only)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={webhookUrls.releaseDeployment || 'Loading...'}
+                className="font-mono text-sm bg-muted"
+              />
+              <CopyButton 
+                content={webhookUrls.releaseDeployment}
+                variant="outline"
+              />
+            </div>
+          </div>
+
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Setup Instructions:</h4>
             <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
