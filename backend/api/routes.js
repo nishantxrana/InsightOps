@@ -1298,31 +1298,23 @@ router.get('/releases/stats', async (req, res) => {
 
     try {
       // Helper function to fetch all releases using continuation token
-      // Fetch minimal data (no $expand) for faster stats calculation
       const fetchAllReleasesForStats = async () => {
         let allReleases = [];
         let continuationToken = null;
         let hasMore = true;
         
         while (hasMore && allReleases.length < 1000) { // Safety limit of 1000
-          const params = {
-            'api-version': '6.0',
-            '$top': 100,
+          const response = await releaseClient.getReleases({ 
+            top: 100, // Max per request
             minCreatedTime,
-            maxCreatedTime
-          };
+            maxCreatedTime,
+            continuationToken
+          });
           
-          if (continuationToken) {
-            params.continuationToken = continuationToken;
-          }
-          
-          // Direct API call without $expand for faster response
-          const response = await releaseClient.client.get('/release/releases', { params });
-          
-          const releases = response.data.value || [];
+          const releases = response.value || [];
           allReleases = [...allReleases, ...releases];
           
-          continuationToken = response.headers['x-ms-continuationtoken'];
+          continuationToken = response.continuationToken;
           hasMore = !!continuationToken && releases.length > 0;
         }
         
