@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import cronstrue from 'cronstrue'
 import { 
   Save, 
   TestTube, 
@@ -36,6 +37,86 @@ const settingsSections = [
   { id: 'polling', name: 'Polling', icon: Clock },
   { id: 'security', name: 'Security', icon: Shield }
 ]
+
+const getCronDescription = (cronExpression) => {
+  try {
+    return cronstrue.toString(cronExpression)
+  } catch (error) {
+    return 'Invalid cron expression'
+  }
+}
+
+const PollingSection = React.memo(({ settings, updateSetting }) => {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Clock className="h-5 w-5 text-blue-600" />
+          Polling Intervals
+        </CardTitle>
+        <CardDescription>Configure how often to check for updates</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label>Work Items Polling</Label>
+            <Switch
+              checked={settings.polling.workItemsEnabled}
+              onCheckedChange={(checked) => updateSetting('polling', 'workItemsEnabled', checked)}
+            />
+          </div>
+          <Input
+            placeholder="*/15 * * * *"
+            value={settings.polling.workItemsInterval}
+            onChange={(e) => updateSetting('polling', 'workItemsInterval', e.target.value)}
+            disabled={!settings.polling.workItemsEnabled}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            {settings.polling.workItemsInterval ? getCronDescription(settings.polling.workItemsInterval) : 'Enter cron expression'}
+          </p>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label>Pull Requests Polling</Label>
+            <Switch
+              checked={settings.polling.pullRequestEnabled}
+              onCheckedChange={(checked) => updateSetting('polling', 'pullRequestEnabled', checked)}
+            />
+          </div>
+          <Input
+            placeholder="0 */10 * * *"
+            value={settings.polling.pullRequestInterval}
+            onChange={(e) => updateSetting('polling', 'pullRequestInterval', e.target.value)}
+            disabled={!settings.polling.pullRequestEnabled}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            {settings.polling.pullRequestInterval ? getCronDescription(settings.polling.pullRequestInterval) : 'Enter cron expression'}
+          </p>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label>Overdue Check Polling</Label>
+            <Switch
+              checked={settings.polling.overdueCheckEnabled}
+              onCheckedChange={(checked) => updateSetting('polling', 'overdueCheckEnabled', checked)}
+            />
+          </div>
+          <Input
+            placeholder="0 9 * * *"
+            value={settings.polling.overdueCheckInterval}
+            onChange={(e) => updateSetting('polling', 'overdueCheckInterval', e.target.value)}
+            disabled={!settings.polling.overdueCheckEnabled}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            {settings.polling.overdueCheckInterval ? getCronDescription(settings.polling.overdueCheckInterval) : 'Enter cron expression'}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+})
 
 export default function Settings() {
   const { toast } = useToast()
@@ -811,6 +892,21 @@ export default function Settings() {
             </div>
           </div>
 
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Release Deployment Events (Production Only)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={webhookUrls.releaseDeployment || 'Loading...'}
+                className="font-mono text-sm bg-muted"
+              />
+              <CopyButton 
+                content={webhookUrls.releaseDeployment}
+                variant="outline"
+              />
+            </div>
+          </div>
+
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Setup Instructions:</h4>
             <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
@@ -820,72 +916,6 @@ export default function Settings() {
               <li>Use the corresponding webhook URL above</li>
               <li>Events will be routed to your configured notification channels</li>
             </ol>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  function PollingSection() {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-blue-600" />
-            Polling Intervals
-          </CardTitle>
-          <CardDescription>Configure how often to check for updates</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>Work Items Polling</Label>
-              <Switch
-                checked={settings.polling.workItemsEnabled}
-                onCheckedChange={(checked) => updateSetting('polling', 'workItemsEnabled', checked)}
-              />
-            </div>
-            <Input
-              placeholder="*/15 * * * *"
-              value={settings.polling.workItemsInterval}
-              onChange={(e) => updateSetting('polling', 'workItemsInterval', e.target.value)}
-              disabled={!settings.polling.workItemsEnabled}
-            />
-            <p className="text-xs text-muted-foreground mt-1">Every 15 minutes</p>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>Pull Requests Polling</Label>
-              <Switch
-                checked={settings.polling.pullRequestEnabled}
-                onCheckedChange={(checked) => updateSetting('polling', 'pullRequestEnabled', checked)}
-              />
-            </div>
-            <Input
-              placeholder="0 */10 * * *"
-              value={settings.polling.pullRequestInterval}
-              onChange={(e) => updateSetting('polling', 'pullRequestInterval', e.target.value)}
-              disabled={!settings.polling.pullRequestEnabled}
-            />
-            <p className="text-xs text-muted-foreground mt-1">Every 10 hours</p>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>Overdue Check Polling</Label>
-              <Switch
-                checked={settings.polling.overdueCheckEnabled}
-                onCheckedChange={(checked) => updateSetting('polling', 'overdueCheckEnabled', checked)}
-              />
-            </div>
-            <Input
-              placeholder="0 9 * * *"
-              value={settings.polling.overdueCheckInterval}
-              onChange={(e) => updateSetting('polling', 'overdueCheckInterval', e.target.value)}
-              disabled={!settings.polling.overdueCheckEnabled}
-            />
-            <p className="text-xs text-muted-foreground mt-1">Daily at 9 AM</p>
           </div>
         </CardContent>
       </Card>
@@ -1065,7 +1095,7 @@ export default function Settings() {
           {activeSection === 'ai' && <AIConfigSection />}
           {activeSection === 'notifications' && <NotificationsSection />}
           {activeSection === 'webhooks' && <WebhooksSection />}
-          {activeSection === 'polling' && <PollingSection />}
+          {activeSection === 'polling' && <PollingSection settings={settings} updateSetting={updateSetting} />}
           {activeSection === 'security' && <SecuritySection />}
         </div>
       </div>

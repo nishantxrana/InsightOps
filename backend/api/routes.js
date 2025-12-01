@@ -632,7 +632,7 @@ router.get('/pull-requests/:id/explain', async (req, res) => {
     }
 
     // Generate AI explanation
-    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits);
+    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits, userSettings);
     
     // Cache for 1 hour
     cacheManager.set('ai', cacheKey, explanation, 3600);
@@ -965,7 +965,8 @@ router.get('/webhooks/urls', async (req, res) => {
       pullRequestCreated: `${baseUrl}/api/webhooks/${userId}/pullrequest/created`,
       pullRequestUpdated: `${baseUrl}/api/webhooks/${userId}/pullrequest/updated`,
       workItemCreated: `${baseUrl}/api/webhooks/${userId}/workitem/created`,
-      workItemUpdated: `${baseUrl}/api/webhooks/${userId}/workitem/updated`
+      workItemUpdated: `${baseUrl}/api/webhooks/${userId}/workitem/updated`,
+      releaseDeployment: `${baseUrl}/api/webhooks/${userId}/release/deployment`
     };
     
     res.json({
@@ -995,7 +996,7 @@ router.use('/agent-dashboard', agentDashboardRoutes);
 // Releases endpoints
 router.get('/releases', async (req, res) => {
   try {
-    const { limit = 20, environment, status, definitionId, fromDate, toDate } = req.query;
+    const { limit = 50, environment, status, definitionId, fromDate, toDate, continuationToken } = req.query;
     const userSettings = await getUserSettings(req.user.id);
     
     if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
@@ -1013,16 +1014,18 @@ router.get('/releases', async (req, res) => {
     );
 
     const options = {
-      top: parseInt(limit),
+      top: Math.min(parseInt(limit), 100), // Azure DevOps max is 100
       definitionId: definitionId ? parseInt(definitionId) : undefined,
       statusFilter: status,
       minCreatedTime: fromDate,
-      maxCreatedTime: toDate
+      maxCreatedTime: toDate,
+      continuationToken: continuationToken
     };
 
     try {
       const azureResponse = await releaseClient.getReleases(options);
       const releases = azureResponse.value || [];
+      const nextContinuationToken = azureResponse.continuationToken;
 
       // Transform Azure DevOps data to our format
       const transformedReleases = releases.map(release => {
@@ -1241,7 +1244,8 @@ router.get('/releases', async (req, res) => {
         data: {
           releases: releasesWithApprovalCheck,
           total: releases.length,
-          hasMore: releases.length >= parseInt(limit)
+          hasMore: !!nextContinuationToken,
+          continuationToken: nextContinuationToken
         }
       });
     } catch (apiError) {
@@ -1253,7 +1257,8 @@ router.get('/releases', async (req, res) => {
           data: {
             releases: [],
             total: 0,
-            hasMore: false
+            hasMore: false,
+            continuationToken: null
           }
         });
       } else {
@@ -1271,6 +1276,7 @@ router.get('/releases', async (req, res) => {
 
 router.get('/releases/stats', async (req, res) => {
   try {
+    const { fromDate, toDate } = req.query;
     const userSettings = await getUserSettings(req.user.id);
     
     if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
@@ -1287,20 +1293,40 @@ router.get('/releases/stats', async (req, res) => {
       userSettings.azureDevOps.baseUrl
     );
 
-    // Get recent releases for statistics (last 90 days to include more completed releases)
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    // Use provided date range or default to last 90 days
+    const minCreatedTime = fromDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const maxCreatedTime = toDate || new Date().toISOString();
 
     try {
-      const [releasesResponse, approvalsResponse] = await Promise.all([
-        releaseClient.getReleases({ 
-          top: 200,
-          minCreatedTime: ninetyDaysAgo.toISOString() 
-        }),
+      // Helper function to fetch all releases using continuation token
+      const fetchAllReleasesForStats = async () => {
+        let allReleases = [];
+        let continuationToken = null;
+        let hasMore = true;
+        
+        while (hasMore && allReleases.length < 1000) { // Safety limit of 1000
+          const response = await releaseClient.getReleases({ 
+            top: 100, // Max per request
+            minCreatedTime,
+            maxCreatedTime,
+            continuationToken
+          });
+          
+          const releases = response.value || [];
+          allReleases = [...allReleases, ...releases];
+          
+          continuationToken = response.continuationToken;
+          hasMore = !!continuationToken && releases.length > 0;
+        }
+        
+        return allReleases;
+      };
+
+      const [releases, approvalsResponse] = await Promise.all([
+        fetchAllReleasesForStats(),
         releaseClient.getPendingApprovals().catch(() => ({ value: [] })) // Fallback for approvals
       ]);
 
-      const releases = releasesResponse.value || [];
       const approvals = approvalsResponse.value || [];
 
       // Transform releases to use mapped statuses (same logic as /api/releases)
@@ -1501,52 +1527,53 @@ router.get('/releases/:releaseId/approvals', async (req, res) => {
           approval.releaseEnvironment?.id === env.id
         );
         
-        // If no approvals found via API but environment is rejected, check environment approvals
-        if (envApprovals.length === 0 && (env.status === 'rejected' || env.status === 'failed')) {
-          // Try to get approval info from environment preDeployApprovals and postDeployApprovals
-          const preApprovals = env.preDeployApprovals || [];
-          const postApprovals = env.postDeployApprovals || [];
-          const allEnvApprovals = [...preApprovals, ...postApprovals];
-          
-          // console.log(`Environment ${env.name} approvals from env data:`, allEnvApprovals.map(a => ({
-          //   status: a.status,
-          //   approver: a.approver?.displayName,
-          //   approvedBy: a.approvedBy?.displayName
-          // })));
-          
-          // Filter out system-generated approvals (those without real approvers)
-          const realApprovals = allEnvApprovals.filter(approval => 
-            approval.approver?.displayName && 
-            approval.approver.displayName !== 'Unknown' &&
-            approval.approver.displayName.trim() !== ''
-          );
-          
-          envApprovals.push(...realApprovals.map(approval => ({
-            id: approval.id,
-            status: approval.status,
-            approver: {
-              displayName: approval.approver?.displayName || 'Unknown',
-              uniqueName: approval.approver?.uniqueName || '',
-              imageUrl: approval.approver?.imageUrl
-            },
-            approvedBy: approval.approvedBy ? {
-              displayName: approval.approvedBy.displayName,
-              uniqueName: approval.approvedBy.uniqueName,
-              imageUrl: approval.approvedBy.imageUrl
-            } : null,
-            createdOn: approval.createdOn,
-            modifiedOn: approval.modifiedOn,
-            comments: approval.comments,
-            instructions: approval.instructions,
-            isAutomated: approval.isAutomated,
-            attempt: approval.attempt,
-            rank: approval.rank
-          })));
+        // Always check environment preDeployApprovals and postDeployApprovals
+        // These contain the approval history even after release completes
+        const preApprovals = env.preDeployApprovals || [];
+        const postApprovals = env.postDeployApprovals || [];
+        const allEnvApprovals = [...preApprovals, ...postApprovals];
+        
+        // Filter out system-generated approvals (those without real approvers)
+        const realApprovals = allEnvApprovals.filter(approval => 
+          approval.approver?.displayName && 
+          approval.approver.displayName !== 'Unknown' &&
+          approval.approver.displayName.trim() !== ''
+        );
+        
+        // Merge API approvals with environment approvals
+        const mergedApprovals = [...envApprovals];
+        
+        for (const approval of realApprovals) {
+          // Only add if not already in the list from API
+          const exists = mergedApprovals.some(a => a.id === approval.id);
+          if (!exists) {
+            mergedApprovals.push({
+              id: approval.id,
+              status: approval.status,
+              approver: {
+                displayName: approval.approver?.displayName || 'Unknown',
+                uniqueName: approval.approver?.uniqueName || '',
+                imageUrl: approval.approver?.imageUrl
+              },
+              approvedBy: approval.approvedBy ? {
+                displayName: approval.approvedBy.displayName,
+                uniqueName: approval.approvedBy.uniqueName,
+                imageUrl: approval.approvedBy.imageUrl
+              } : null,
+              createdOn: approval.createdOn,
+              modifiedOn: approval.modifiedOn,
+              comments: approval.comments,
+              instructions: approval.instructions,
+              isAutomated: approval.isAutomated,
+              attempt: approval.attempt,
+              rank: approval.rank
+            });
+          }
         }
         
         // Deduplicate approvals - keep only the latest approval per approver
         const latestApprovals = {};
-        for (const approval of envApprovals) {
+        for (const approval of mergedApprovals) {
           const approverKey = approval.approver.uniqueName || approval.approver.displayName;
           const currentTime = new Date(approval.modifiedOn || approval.createdOn).getTime();
           
@@ -1677,9 +1704,11 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
           
           const tasks = tasksResponse.data.value || [];
           
-          // Find failed tasks
+          // Find failed tasks (exclude agent jobs)
           for (const task of tasks) {
-            if (task.status === 'failed' || task.status === 'error') {
+            if ((task.status === 'failed' || task.status === 'error') && 
+                task.name && 
+                !task.name.toLowerCase().includes('agent job')) {
               let logContent = '';
               
               // Get task logs if available
@@ -1744,6 +1773,103 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch release logs'
+    });
+  }
+});
+
+// Analyze failed release task logs with AI
+router.get('/releases/:releaseId/analyze', async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    const userSettings = await getUserSettings(req.user.id);
+    
+    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+      return res.status(400).json({
+        success: false,
+        error: 'Azure DevOps configuration not found'
+      });
+    }
+
+    const releaseClient = new AzureDevOpsReleaseClient(
+      userSettings.azureDevOps.organization,
+      userSettings.azureDevOps.project,
+      userSettings.azureDevOps.pat
+    );
+
+    // Get release with failed task logs
+    const releaseResponse = await releaseClient.client.get(`/release/releases/${releaseId}`, {
+      params: { 'api-version': '6.0' }
+    });
+    
+    const release = releaseResponse.data;
+    const failedTasks = [];
+
+    // Collect failed tasks with logs
+    for (const env of release.environments || []) {
+      try {
+        const tasksResponse = await releaseClient.client.get(
+          `/release/releases/${releaseId}/environments/${env.id}/tasks`,
+          { params: { 'api-version': '6.0' } }
+        );
+        
+        const tasks = tasksResponse.data.value || [];
+        
+        for (const task of tasks) {
+          if ((task.status === 'failed' || task.status === 'error') && 
+              task.name && 
+              !task.name.toLowerCase().includes('agent job')) {
+            let logContent = '';
+            
+            if (task.logUrl) {
+              try {
+                const logResponse = await axios.get(task.logUrl, {
+                  headers: {
+                    'Authorization': `Basic ${Buffer.from(`:${userSettings.azureDevOps.pat}`).toString('base64')}`,
+                    'Content-Type': 'application/json'
+                  },
+                  timeout: 30000
+                });
+                logContent = logResponse.data || '';
+              } catch (logError) {
+                logContent = 'Log content unavailable';
+              }
+            }
+            
+            failedTasks.push({
+              taskName: task.name || 'Unknown Task',
+              environmentName: env.name,
+              status: task.status,
+              logContent: logContent,
+              issues: task.issues || []
+            });
+          }
+        }
+      } catch (taskError) {
+        logger.warn(`Failed to fetch tasks for environment ${env.id}:`, taskError.message);
+      }
+    }
+
+    if (failedTasks.length === 0) {
+      return res.json({
+        success: true,
+        analysis: 'No failed tasks found in this release.'
+      });
+    }
+
+    // Generate AI analysis
+    await aiService.initializeWithUserSettings(userSettings);
+    const analysis = await aiService.analyzeReleaseFailure(release, failedTasks);
+
+    res.json({
+      success: true,
+      analysis: analysis
+    });
+
+  } catch (error) {
+    logger.error('Error analyzing release:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze release'
     });
   }
 });

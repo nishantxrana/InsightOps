@@ -4,6 +4,7 @@ import { configLoader } from '../config/settings.js';
 import { workItemWebhook } from './workItemWebhook.js';
 import { buildWebhook } from './buildWebhook.js';
 import { pullRequestWebhook } from './pullRequestWebhook.js';
+import { releaseWebhook } from './releaseWebhook.js';
 import { validateWebhookSignature } from '../utils/webhookValidator.js';
 
 const router = express.Router();
@@ -69,6 +70,11 @@ router.post('/:userId/pullrequest/created', (req, res) => {
 router.post('/:userId/pullrequest/updated', (req, res) => {
   logger.info('User-specific pullrequest/updated route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
   pullRequestWebhook.handleUpdated(req, res, req.params.userId);
+});
+
+router.post('/:userId/release/deployment', (req, res) => {
+  logger.info('User-specific release/deployment route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
+  releaseWebhook.handleDeploymentCompleted(req, res, req.params.userId);
 });
 
 // Legacy global webhooks (for backward compatibility)

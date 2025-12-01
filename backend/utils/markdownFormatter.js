@@ -518,6 +518,79 @@ class MarkdownFormatter {
 
     return message;
   }
+
+  formatReleaseDeployment(resource, userConfig = null) {
+    const release = resource.release || {};
+    const environment = resource.environment || {};
+    const deployment = resource.deployment || {};
+    
+    // Extract release info from nested structures
+    const releaseId = environment.releaseId || release.id;
+    const releaseName = environment.preDeployApprovals?.[0]?.release?.name || 
+                       environment.postDeployApprovals?.[0]?.release?.name ||
+                       release.name || 
+                       `Release-${releaseId}`;
+    const releaseDefinitionName = environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
+                                 environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
+                                 release.releaseDefinition?.name ||
+                                 'Unknown Pipeline';
+    
+    const environmentName = environment.name || 'Unknown Environment';
+    const status = (environment.status || deployment.deploymentStatus || 'unknown').toLowerCase();
+    const requestedFor = deployment.requestedFor?.displayName || 
+                        environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
+                        release.createdBy?.displayName || 
+                        'Unknown';
+    const completedOn = deployment.completedOn || environment.modifiedOn || new Date().toISOString();
+    
+    // Construct release URL
+    let webUrl = release.webAccessUri || release._links?.web?.href;
+    if (!webUrl && releaseId && userConfig && userConfig.organization && userConfig.project) {
+      const organization = userConfig.organization;
+      const project = userConfig.project;
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const encodedProject = encodeURIComponent(project);
+      webUrl = `${baseUrl}/${organization}/${encodedProject}/_release?releaseId=${releaseId}&_a=release-summary`;
+    }
+    
+    // Map status to emoji and text
+    let emoji, statusText;
+    switch (status) {
+      case 'succeeded':
+        emoji = '🚀';
+        statusText = 'Succeeded';
+        break;
+      case 'partiallysucceeded':
+        emoji = '⚠️';
+        statusText = 'Partially Succeeded';
+        break;
+      case 'failed':
+      case 'rejected':
+        emoji = '❌';
+        statusText = 'Failed';
+        break;
+      case 'canceled':
+        emoji = '🚫';
+        statusText = 'Canceled';
+        break;
+      default:
+        emoji = '❓';
+        statusText = status.charAt(0).toUpperCase() + status.slice(1);
+    }
+    
+    let message = `*${emoji} Production Deployment ${statusText}*\n\n`;
+    message += `*Pipeline*: ${releaseDefinitionName}\n`;
+    message += `*Release*: ${releaseName}\n`;
+    message += `*Environment*: ${environmentName}\n`;
+    message += `*Status*: ${statusText}\n`;
+    message += `*Deployed By*: ${requestedFor}\n`;
+    message += `*Completed*: ${this.formatLocalTime(completedOn)}\n`;
+    if (webUrl) {
+      message += `*Release URL*: <${webUrl}|View Release>\n`;
+    }
+    
+    return message;
+  }
 }
 
 export const markdownFormatter = new MarkdownFormatter();

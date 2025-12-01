@@ -27,8 +27,8 @@ export const releaseService = {
   },
 
   // Get release statistics
-  async getReleaseStats() {
-    const response = await api.get('/releases/stats');
+  async getReleaseStats(params = {}) {
+    const response = await api.get('/releases/stats', { params });
     return response.data;
   },
 
@@ -59,6 +59,12 @@ export const releaseService = {
   // Get AI-powered release analysis
   async getAIAnalysis() {
     const response = await api.get('/releases/ai-analysis');
+    return response.data;
+  },
+
+  // Analyze failed release task logs with AI
+  async analyzeRelease(releaseId) {
+    const response = await api.get(`/releases/${releaseId}/analyze`);
     return response.data;
   },
 };
