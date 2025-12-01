@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 const TIME_RANGES = [
   { label: '12 Hours', value: '12h', hours: 12 },
@@ -15,10 +16,17 @@ const TIME_RANGES = [
 ];
 
 export default function TimeRangeSelector({ value, onChange }) {
+  const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [startDate, setStartDate] = useState(value?.from || null);
   const [endDate, setEndDate] = useState(value?.to || null);
+
+  // Sync local state with prop changes
+  useEffect(() => {
+    setStartDate(value?.from || null);
+    setEndDate(value?.to || null);
+  }, [value]);
 
   const handleRangeSelect = (range) => {
     if (range.value === 'custom') {
@@ -35,13 +43,29 @@ export default function TimeRangeSelector({ value, onChange }) {
 
   const handleApplyCustomRange = () => {
     if (startDate && endDate) {
+      const now = new Date();
+      
+      // Check if end date is in the future
+      if (endDate > now) {
+        toast({
+          title: "Invalid Date Range",
+          description: "End date cannot be in the future. Please select a date up to today.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Calculate difference in days
       const diffTime = Math.abs(endDate - startDate);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
       // Check if range exceeds 90 days (3 months)
       if (diffDays > 90) {
-        alert('Please select a date range of 3 months (90 days) or less to avoid excessive data load.');
+        toast({
+          title: "Date Range Too Large",
+          description: "Please select a date range of 3 months (90 days) or less to avoid excessive data load.",
+          variant: "destructive",
+        });
         return;
       }
 
