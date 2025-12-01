@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js';
 import { aiService } from '../ai/aiService.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
+import notificationHistoryService from '../services/notificationHistoryService.js';
 
 class WorkItemWebhook {
   async handleCreated(req, res, userId = null) {
@@ -224,38 +225,56 @@ class WorkItemWebhook {
         return;
       }
 
-      // Send to enabled notification channels
+      const channels = [];
+      let card, aiSummary, workItem;
+
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
-        let card;
-        
-        // Determine if this is created or updated
         if (notificationType === 'work-item-created') {
-          const aiSummary = aiSummaryOrUserConfig;
-          card = this.formatWorkItemCard(workItemOrWebhookData, aiSummary, userConfig);
+          aiSummary = aiSummaryOrUserConfig;
+          workItem = workItemOrWebhookData;
+          card = this.formatWorkItemCard(workItem, aiSummary, userConfig);
         } else if (notificationType === 'work-item-updated') {
           const actualUserConfig = aiSummaryOrUserConfig;
+          workItem = workItemOrWebhookData.resource;
           card = this.formatWorkItemUpdatedCard(workItemOrWebhookData, actualUserConfig);
         }
         
-        await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
-        
-        // Send divider after work item notification
-        const dividerCard = {
-          cardsV2: [{
-            cardId: `divider-workitem-${Date.now()}`,
-            card: {
-              sections: [{
-                widgets: [{
-                  divider: {}
-                }]
-              }]
-            }
-          }]
-        };
-        await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
-        
-        logger.info(`Work item notification sent to user ${userId} via Google Chat`);
+        try {
+          await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
+          
+          const dividerCard = {
+            cardsV2: [{
+              cardId: `divider-workitem-${Date.now()}`,
+              card: { sections: [{ widgets: [{ divider: {} }] }] }
+            }]
+          };
+          await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
+          
+          channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          logger.info(`Work item notification sent to user ${userId} via Google Chat`);
+        } catch (error) {
+          channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          logger.error(`Failed to send to Google Chat:`, error);
+        }
       }
+
+      const fields = workItem?.fields || {};
+      await notificationHistoryService.saveNotification(userId, {
+        type: 'work-item',
+        subType: notificationType === 'work-item-created' ? 'created' : 'updated',
+        title: `${fields['System.WorkItemType']}: ${fields['System.Title']}`,
+        message,
+        source: 'webhook',
+        card,
+        aiSummary,
+        metadata: {
+          workItemId: workItem?.id,
+          workItemType: fields['System.WorkItemType'],
+          state: fields['System.State']
+        },
+        channels
+      });
+
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);
     }

@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
 import axios from 'axios';
+import notificationHistoryService from '../services/notificationHistoryService.js';
 
 class ReleaseWebhook {
   async handleDeploymentCompleted(req, res, userId = null) {
@@ -185,37 +186,60 @@ class ReleaseWebhook {
         return;
       }
 
-      // Send to Google Chat if enabled
+      const channels = [];
+      let card;
+
       if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
         const isFailed = notificationType === 'release-failed';
         
-        if (isFailed && failedLogs) {
-          // Send as Card with logs for failures
-          const card = this.formatReleaseCard(resource, userSettings.azureDevOps, failedLogs);
-          await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
-        } else {
-          // Send as Card for success/partial/canceled
-          const card = this.formatSuccessCard(resource, userSettings.azureDevOps, notificationType);
-          await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+        try {
+          if (isFailed && failedLogs) {
+            card = this.formatReleaseCard(resource, userSettings.azureDevOps, failedLogs);
+            await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+          } else {
+            card = this.formatSuccessCard(resource, userSettings.azureDevOps, notificationType);
+            await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+          }
+          
+          const dividerCard = {
+            cardsV2: [{
+              cardId: `divider-release-${Date.now()}`,
+              card: { sections: [{ widgets: [{ divider: {} }] }] }
+            }]
+          };
+          await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
+          
+          channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          logger.info('Release notification sent via Google Chat');
+        } catch (error) {
+          channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          logger.error('Failed to send to Google Chat:', error);
         }
-        
-        // Send divider card after each notification
-        const dividerCard = {
-          cardsV2: [{
-            cardId: `divider-release-${Date.now()}`,
-            card: {
-              sections: [{
-                widgets: [{
-                  divider: {}
-                }]
-              }]
-            }
-          }]
-        };
-        await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
-        
-        logger.info('Release notification sent via Google Chat');
       }
+
+      const environment = resource.environment || {};
+      const release = resource.release || {};
+      const releaseId = environment.releaseId || release.id;
+      const releaseName = environment.preDeployApprovals?.[0]?.release?.name || 
+                         environment.postDeployApprovals?.[0]?.release?.name ||
+                         `Release-${releaseId}`;
+
+      await notificationHistoryService.saveNotification(userSettings._id || userSettings.userId, {
+        type: 'release',
+        subType: notificationType.replace('release-', ''),
+        title: `Release: ${releaseName} - ${environment.name}`,
+        message: `Release deployment ${notificationType.replace('release-', '')}`,
+        source: 'webhook',
+        card,
+        metadata: {
+          releaseId,
+          releaseName,
+          environmentName: environment.name,
+          status: environment.status
+        },
+        channels
+      });
+
     } catch (error) {
       logger.error('Error sending user notification:', error);
     }

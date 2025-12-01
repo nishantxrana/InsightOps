@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
+import notificationHistoryService from '../services/notificationHistoryService.js';
 
 class PullRequestPoller {
   constructor() {
@@ -52,7 +53,7 @@ class PullRequestPoller {
           const { getUserSettings } = await import('../utils/userSettings.js');
           const settings = await getUserSettings(userId);
           if (settings.notifications?.enabled) {
-            await this.sendIdlePRNotification(idlePRs.value, settings);
+            await this.sendIdlePRNotification(idlePRs.value, settings, userId);
           }
         } else {
           // Fallback for global notifications
@@ -124,16 +125,16 @@ class PullRequestPoller {
 }
 
 // Add notification methods to the class
-PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, userSettings) {
+PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, userSettings, userId) {
   try {
     if (!userSettings.notifications?.enabled) {
       return;
     }
     
-    // Batch processing - 10 PRs per card with 5 second delay
     const batchSize = 10;
     const delayBetweenBatches = 5000;
     const totalBatches = Math.ceil(idlePRs.length / batchSize);
+    const channels = [];
     
     for (let i = 0; i < idlePRs.length; i += batchSize) {
       const batch = idlePRs.slice(i, i + batchSize);
@@ -142,7 +143,12 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
       const card = this.formatIdlePRCard(batch, batchNumber, totalBatches, idlePRs.length);
       
       if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
-        await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+        try {
+          await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+          if (i === 0) channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+        } catch (error) {
+          if (i === 0) channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+        }
       }
       
       if (i + batchSize < idlePRs.length) {
@@ -150,21 +156,25 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
       }
     }
     
-    // Send divider after all batches are complete
     if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
       const dividerCard = {
         cardsV2: [{
           cardId: `divider-idle-prs-${Date.now()}`,
-          card: {
-            sections: [{
-              widgets: [{
-                divider: {}
-              }]
-            }]
-          }
+          card: { sections: [{ widgets: [{ divider: {} }] }] }
         }]
       };
       await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
+    }
+    
+    if (userId) {
+      await notificationHistoryService.saveNotification(userId, {
+        type: 'idle-pr',
+        title: `${idlePRs.length} Idle Pull Requests`,
+        message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
+        source: 'poller',
+        metadata: { count: idlePRs.length, pullRequests: idlePRs.map(pr => pr.pullRequestId) },
+        channels
+      });
     }
     
     logger.info(`Idle PR notifications sent in ${totalBatches} batches`);

@@ -8,6 +8,7 @@ import WorkItems from './pages/WorkItems'
 import Pipelines from './pages/Pipelines'
 import Releases from './pages/Releases'
 import PullRequests from './pages/PullRequests'
+import NotificationHistory from './pages/NotificationHistory'
 import LandingPage from './pages/LandingPage'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
@@ -48,6 +49,7 @@ function AppContent() {
         <Route path="/releases" element={<Releases />} />
         <Route path="/pull-requests" element={<PullRequests />} />
         <Route path="/logs" element={<Logs />} />
+        <Route path="/notifications" element={<NotificationHistory />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

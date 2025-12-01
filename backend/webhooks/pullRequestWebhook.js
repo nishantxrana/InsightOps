@@ -3,6 +3,7 @@ import { aiService } from '../ai/aiService.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
+import notificationHistoryService from '../services/notificationHistoryService.js';
 
 class PullRequestWebhook {
   async handleCreated(req, res, userId = null) {
@@ -67,7 +68,7 @@ class PullRequestWebhook {
       
       // Send notification
       if (userId) {
-        await this.sendUserNotification(card, userId);
+        await this.sendUserNotification(card, userId, resource, aiSummary);
       } else {
         await notificationService.sendNotification(card, 'pull-request-created');
       }
@@ -98,7 +99,7 @@ class PullRequestWebhook {
     return resource?.reviewers?.map(r => r.displayName) || [];
   }
 
-  async sendUserNotification(card, userId) {
+  async sendUserNotification(card, userId, pr, aiSummary) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -108,23 +109,45 @@ class PullRequestWebhook {
         return;
       }
 
+      const channels = [];
+
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
-        await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
-        
-        const dividerCard = {
-          cardsV2: [{
-            cardId: `divider-pr-${Date.now()}`,
-            card: {
-              sections: [{
-                widgets: [{ divider: {} }]
-              }]
-            }
-          }]
-        };
-        await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
-        
-        logger.info(`PR notification sent to user ${userId} via Google Chat`);
+        try {
+          await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
+          
+          const dividerCard = {
+            cardsV2: [{
+              cardId: `divider-pr-${Date.now()}`,
+              card: { sections: [{ widgets: [{ divider: {} }] }] }
+            }]
+          };
+          await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
+          
+          channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          logger.info(`PR notification sent to user ${userId} via Google Chat`);
+        } catch (error) {
+          channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          logger.error(`Failed to send to Google Chat:`, error);
+        }
       }
+
+      await notificationHistoryService.saveNotification(userId, {
+        type: 'pull-request',
+        subType: 'created',
+        title: `PR: ${pr.title}`,
+        message: `Pull request created by ${pr.createdBy?.displayName}`,
+        source: 'webhook',
+        card,
+        aiSummary,
+        metadata: {
+          pullRequestId: pr.pullRequestId,
+          repository: pr.repository?.name,
+          sourceBranch: pr.sourceRefName,
+          targetBranch: pr.targetRefName
+        },
+        channels
+      });
+
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);
     }

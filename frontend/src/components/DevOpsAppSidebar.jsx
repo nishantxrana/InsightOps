@@ -7,6 +7,7 @@ import {
   GitPullRequest,
   FileText,
   Settings,
+  Bell,
 } from "lucide-react"
 
 import { DevOpsNavMain } from "@/components/DevOpsNavMain"
@@ -61,6 +62,11 @@ const data = {
     {
       title: "Operations",
       items: [
+        {
+          title: "Notifications",
+          url: "/notifications",
+          icon: Bell,
+        },
         {
           title: "Logs",
           url: "/logs",
