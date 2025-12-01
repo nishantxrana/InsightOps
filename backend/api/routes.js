@@ -963,7 +963,6 @@ router.get('/webhooks/urls', async (req, res) => {
     const webhookUrls = {
       buildCompleted: `${baseUrl}/api/webhooks/${userId}/build/completed`,
       pullRequestCreated: `${baseUrl}/api/webhooks/${userId}/pullrequest/created`,
-      pullRequestUpdated: `${baseUrl}/api/webhooks/${userId}/pullrequest/updated`,
       workItemCreated: `${baseUrl}/api/webhooks/${userId}/workitem/created`,
       workItemUpdated: `${baseUrl}/api/webhooks/${userId}/workitem/updated`,
       releaseDeployment: `${baseUrl}/api/webhooks/${userId}/release/deployment`
@@ -996,7 +995,7 @@ router.use('/agent-dashboard', agentDashboardRoutes);
 // Releases endpoints
 router.get('/releases', async (req, res) => {
   try {
-    const { limit = 50, environment, status, definitionId, fromDate, toDate, continuationToken } = req.query;
+    const { limit = 50, status, definitionId, fromDate, toDate, continuationToken } = req.query;
     const userSettings = await getUserSettings(req.user.id);
     
     if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
@@ -1804,8 +1803,8 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
     const release = releaseResponse.data;
     const failedTasks = [];
 
-    // Collect failed tasks with logs
-    for (const env of release.environments || []) {
+    // Collect failed tasks with logs (parallel processing)
+    const environmentPromises = (release.environments || []).map(async (env) => {
       try {
         const tasksResponse = await releaseClient.client.get(
           `/release/releases/${releaseId}/environments/${env.id}/tasks`,
@@ -1813,6 +1812,7 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
         );
         
         const tasks = tasksResponse.data.value || [];
+        const envFailedTasks = [];
         
         for (const task of tasks) {
           if ((task.status === 'failed' || task.status === 'error') && 
@@ -1835,7 +1835,7 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
               }
             }
             
-            failedTasks.push({
+            envFailedTasks.push({
               taskName: task.name || 'Unknown Task',
               environmentName: env.name,
               status: task.status,
@@ -1844,10 +1844,16 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
             });
           }
         }
+        
+        return envFailedTasks;
       } catch (taskError) {
         logger.warn(`Failed to fetch tasks for environment ${env.id}:`, taskError.message);
+        return [];
       }
-    }
+    });
+
+    const allFailedTasks = await Promise.all(environmentPromises);
+    failedTasks.push(...allFailedTasks.flat());
 
     if (failedTasks.length === 0) {
       return res.json({
