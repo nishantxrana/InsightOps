@@ -57,6 +57,7 @@ const PollingSection = React.memo(({ settings, updateSetting }) => {
         <CardDescription>Configure how often to check for updates</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Work Items Polling - DISABLED (no notifications sent, only logs sprint count) 
         <div>
           <div className="flex items-center justify-between mb-2">
             <Label>Work Items Polling</Label>
@@ -66,7 +67,7 @@ const PollingSection = React.memo(({ settings, updateSetting }) => {
             />
           </div>
           <Input
-            placeholder="*/15 * * * *"
+            placeholder="* /15 * * * *"
             value={settings.polling.workItemsInterval}
             onChange={(e) => updateSetting('polling', 'workItemsInterval', e.target.value)}
             disabled={!settings.polling.workItemsEnabled}
@@ -75,6 +76,7 @@ const PollingSection = React.memo(({ settings, updateSetting }) => {
             {settings.polling.workItemsInterval ? getCronDescription(settings.polling.workItemsInterval) : 'Enter cron expression'}
           </p>
         </div>
+        */}
 
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -842,21 +844,6 @@ export default function Settings() {
               />
               <CopyButton 
                 content={webhookUrls.pullRequestCreated}
-                variant="outline"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Pull Request Updated Events</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.pullRequestUpdated || 'Loading...'}
-                className="font-mono text-sm bg-muted"
-              />
-              <CopyButton 
-                content={webhookUrls.pullRequestUpdated}
                 variant="outline"
               />
             </div>

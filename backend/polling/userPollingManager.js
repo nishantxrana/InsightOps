@@ -395,8 +395,11 @@ class UserPollingManager {
         // Execute the appropriate poller
         switch (jobType) {
           case 'workItems':
-            logger.debug(`📋 [POLLING] Executing work items poller for ${executionId} (user ${userId})`);
-            await workItemPoller.pollWorkItems(userId);
+            // DISABLED: Work items polling currently only logs sprint count, no notifications sent
+            // Uncomment below to re-enable when functionality is added
+            // logger.debug(`📋 [POLLING] Executing work items poller for ${executionId} (user ${userId})`);
+            // await workItemPoller.pollWorkItems(userId);
+            logger.info(`⏭️ [POLLING] Work items polling is disabled for ${executionId} (user ${userId})`);
             break;
           case 'pullRequests':
             logger.debug(`🔀 [POLLING] Executing pull requests poller for ${executionId} (user ${userId})`);

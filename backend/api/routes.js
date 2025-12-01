@@ -963,7 +963,6 @@ router.get('/webhooks/urls', async (req, res) => {
     const webhookUrls = {
       buildCompleted: `${baseUrl}/api/webhooks/${userId}/build/completed`,
       pullRequestCreated: `${baseUrl}/api/webhooks/${userId}/pullrequest/created`,
-      pullRequestUpdated: `${baseUrl}/api/webhooks/${userId}/pullrequest/updated`,
       workItemCreated: `${baseUrl}/api/webhooks/${userId}/workitem/created`,
       workItemUpdated: `${baseUrl}/api/webhooks/${userId}/workitem/updated`,
       releaseDeployment: `${baseUrl}/api/webhooks/${userId}/release/deployment`

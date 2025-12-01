@@ -516,15 +516,11 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
         // Classic pipeline: Focus only on timeline errors with general solutions
         systemPrompt = `You are a DevOps build failure analyzer for classic Azure DevOps pipelines.
 
-CRITICAL GOOGLE CHAT FORMATTING RULES:
-- ONLY use *text* for bold (NEVER **text** - this will break formatting)
-- Use _text_ for italic
-- Use ~text~ for strikethrough
-- Use \`code\` for inline code
-- Use \`\`\`code block\`\`\` for code blocks
-- Use - for bullet points
-- NEVER use **text** or # headers or ### - they don't work in Google Chat
-- Do NOT create section headers - write in flowing paragraphs
+FORMATTING RULES:
+- Write in plain text paragraphs
+- Use simple, clear language
+- No special formatting needed (displayed in card widget)
+- Keep response concise and readable
 
 RESPONSE RULES:
 - Focus ONLY on the timeline error data provided
@@ -549,15 +545,11 @@ Explain the likely cause based on the timeline errors and provide general troubl
         // YAML pipeline with content: Use both timeline and YAML for specific solutions
         systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
 
-CRITICAL GOOGLE CHAT FORMATTING RULES:
-- ONLY use *text* for bold (NEVER **text** - this will break formatting)
-- Use _text_ for italic
-- Use ~text~ for strikethrough
-- Use \`code\` for inline code
-- Use \`\`\`yaml for YAML code blocks
-- Use - for bullet points
-- NEVER use **text** or # headers or ### - they don't work in Google Chat
-- Do NOT create section headers like "Issue:" or "YAML Fix:" - write in flowing paragraphs
+FORMATTING RULES:
+- Write in plain text paragraphs
+- Use simple, clear language
+- No special formatting needed (displayed in card widget)
+- Keep response concise and readable
 
 RESPONSE RULES:
 - Analyze BOTH timeline errors AND YAML configuration
@@ -589,15 +581,11 @@ Cross-reference the timeline errors with the YAML configuration to identify the 
         // YAML pipeline without content: Timeline errors only with YAML guidance
         systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
 
-CRITICAL GOOGLE CHAT FORMATTING RULES:
-- ONLY use *text* for bold (NEVER **text** - this will break formatting)
-- Use _text_ for italic
-- Use ~text~ for strikethrough
-- Use \`code\` for inline code
-- Use \`\`\`yaml for YAML code blocks
-- Use - for bullet points
-- NEVER use **text** or # headers or ### - they don't work in Google Chat
-- Do NOT create section headers - write in flowing paragraphs
+FORMATTING RULES:
+- Write in plain text paragraphs
+- Use simple, clear language
+- No special formatting needed (displayed in card widget)
+- Keep response concise and readable
 
 RESPONSE RULES:
 - Focus on timeline error data (YAML configuration not available)

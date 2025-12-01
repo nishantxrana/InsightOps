@@ -67,11 +67,6 @@ router.post('/:userId/pullrequest/created', (req, res) => {
   pullRequestWebhook.handleCreated(req, res, req.params.userId);
 });
 
-router.post('/:userId/pullrequest/updated', (req, res) => {
-  logger.info('User-specific pullrequest/updated route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
-  pullRequestWebhook.handleUpdated(req, res, req.params.userId);
-});
-
 router.post('/:userId/release/deployment', (req, res) => {
   logger.info('User-specific release/deployment route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
   releaseWebhook.handleDeploymentCompleted(req, res, req.params.userId);
@@ -96,11 +91,6 @@ router.post('/build/completed', (req, res) => {
 router.post('/pullrequest/created', (req, res) => {
   logger.info('Legacy pullrequest/created route hit');
   pullRequestWebhook.handleCreated(req, res);
-});
-
-router.post('/pullrequest/updated', (req, res) => {
-  logger.info('Legacy pullrequest/updated route hit');
-  pullRequestWebhook.handleUpdated(req, res);
 });
 
 // Generic webhook endpoint for testing

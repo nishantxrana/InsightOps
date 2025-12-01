@@ -53,7 +53,7 @@ class PullRequestWebhook {
 
       // Generate AI summary if configured
       let aiSummary = null;
-      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys) {
+      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys?.[userSettings.ai.provider]) {
         try {
           aiService.initializeWithUserSettings(userSettings);
           aiSummary = await aiService.summarizePullRequest(resource);
@@ -62,16 +62,14 @@ class PullRequestWebhook {
         }
       }
 
-      // Format notification message with user config
-      const message = markdownFormatter.formatPullRequestCreated(resource, aiSummary, userConfig);
+      // Format notification card with user config
+      const card = this.formatPRCreatedCard(resource, aiSummary, userConfig);
       
       // Send notification
       if (userId) {
-        // User-specific notification
-        await this.sendUserNotification(message, userId, 'pull-request-created');
+        await this.sendUserNotification(card, userId);
       } else {
-        // Legacy global notification
-        await notificationService.sendNotification(message, 'pull-request-created');
+        await notificationService.sendNotification(card, 'pull-request-created');
       }
       
       res.json({
@@ -89,79 +87,6 @@ class PullRequestWebhook {
     }
   }
 
-  async handleUpdated(req, res, userId = null) {
-    try {
-      const { resource } = req.body;
-      
-      if (!resource) {
-        return res.status(400).json({ error: 'Missing resource in webhook payload' });
-      }
-
-      const pullRequestId = resource.pullRequestId;
-      const title = resource.title;
-      const status = resource.status;
-      const updatedBy = resource.lastMergeCommit?.author?.name || 'Unknown';
-
-      logger.info('Pull request updated webhook received', {
-        pullRequestId,
-        title,
-        status,
-        updatedBy,
-        userId: userId || 'legacy-global',
-        hasUserId: !!userId
-      });
-
-      // Get user settings for URL construction
-      let userConfig = null;
-      if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          const settings = await getUserSettings(userId);
-          userConfig = settings.azureDevOps;
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
-        }
-      } else {
-        logger.warn('No userId provided - using legacy webhook handler');
-      }
-
-      // Check if this is a reviewer assignment
-      const isReviewerAssignment = this.isReviewerAssignment(resource);
-      
-      if (isReviewerAssignment) {
-        const newReviewers = this.getNewReviewers(resource);
-        const message = markdownFormatter.formatPullRequestReviewerAssigned(resource, newReviewers, userConfig);
-        
-        if (userId) {
-          await this.sendUserNotification(message, userId, 'pull-request-reviewer-assigned');
-        } else {
-          await notificationService.sendNotification(message, 'pull-request-reviewer-assigned');
-        }
-      } else {
-        const message = markdownFormatter.formatPullRequestUpdated(resource, userConfig);
-        
-        if (userId) {
-          await this.sendUserNotification(message, userId, 'pull-request-updated');
-        } else {
-          await notificationService.sendNotification(message, 'pull-request-updated');
-        }
-      }
-      
-      res.json({
-        message: 'Pull request updated webhook processed successfully',
-        pullRequestId,
-        timestamp: new Date().toISOString()
-      });
-
-    } catch (error) {
-      logger.error('Error processing pull request updated webhook:', error);
-      res.status(500).json({
-        error: 'Failed to process pull request updated webhook',
-        message: error.message
-      });
-    }
-  }
-
   isReviewerAssignment(resource) {
     // For now, treat all PR updates as general updates rather than reviewer assignments
     // This can be enhanced later to detect actual reviewer changes by comparing with previous state
@@ -173,7 +98,7 @@ class PullRequestWebhook {
     return resource?.reviewers?.map(r => r.displayName) || [];
   }
 
-  async sendUserNotification(message, userId, notificationType) {
+  async sendUserNotification(card, userId) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -183,9 +108,21 @@ class PullRequestWebhook {
         return;
       }
 
-      // Send to enabled notification channels
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
-        await this.sendGoogleChatNotification(message, settings.notifications.webhooks.googleChat);
+        await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
+        
+        const dividerCard = {
+          cardsV2: [{
+            cardId: `divider-pr-${Date.now()}`,
+            card: {
+              sections: [{
+                widgets: [{ divider: {} }]
+              }]
+            }
+          }]
+        };
+        await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
+        
         logger.info(`PR notification sent to user ${userId} via Google Chat`);
       }
     } catch (error) {
@@ -193,14 +130,136 @@ class PullRequestWebhook {
     }
   }
 
-  async sendGoogleChatNotification(message, webhookUrl) {
+  async sendGoogleChatCard(card, webhookUrl) {
     try {
       const axios = (await import('axios')).default;
-      await axios.post(webhookUrl, { text: message });
+      await axios.post(webhookUrl, card);
     } catch (error) {
-      logger.error('Error sending Google Chat notification:', error);
+      logger.error('Error sending Google Chat card:', error);
       throw error;
     }
+  }
+
+  formatPRCreatedCard(pullRequest, aiSummary, userConfig) {
+    const title = pullRequest.title || 'No title';
+    const createdBy = pullRequest.createdBy?.displayName || 'Unknown';
+    const project = pullRequest.repository?.project?.name || 'Unknown';
+    const repository = pullRequest.repository?.name || 'Unknown';
+    const sourceBranch = pullRequest.sourceRefName?.replace('refs/heads/', '') || 'unknown';
+    const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
+    const description = pullRequest.description || 'No description';
+    const reviewers = pullRequest.reviewers?.map(r => r.displayName).filter(Boolean) || [];
+
+    let prUrl = pullRequest._links?.web?.href;
+    if (!prUrl && userConfig?.organization && userConfig?.project) {
+      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      prUrl = `${baseUrl}/${userConfig.organization}/${encodeURIComponent(userConfig.project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
+    }
+
+    const detailWidgets = [
+      {
+        decoratedText: {
+          startIcon: { knownIcon: 'BOOKMARK' },
+          topLabel: 'PR ID',
+          text: `<b>#${pullRequest.pullRequestId}</b>`
+        }
+      },
+      {
+        decoratedText: {
+          startIcon: { knownIcon: 'PERSON' },
+          topLabel: 'Created By',
+          text: createdBy
+        }
+      },
+      {
+        decoratedText: {
+          startIcon: { knownIcon: 'DESCRIPTION' },
+          topLabel: 'Repository',
+          text: repository
+        }
+      },
+      {
+        decoratedText: {
+          startIcon: { knownIcon: 'STAR' },
+          topLabel: 'Source → Target',
+          text: `${sourceBranch} → ${targetBranch}`
+        }
+      }
+    ];
+
+    if (reviewers.length > 0) {
+      detailWidgets.push({
+        decoratedText: {
+          startIcon: { knownIcon: 'PERSON' },
+          topLabel: 'Reviewers',
+          text: reviewers.join(', ')
+        }
+      });
+    }
+
+    const sections = [
+      {
+        header: '📋 Pull Request Details',
+        widgets: detailWidgets
+      }
+    ];
+
+    if (description && description !== 'No description') {
+      const truncatedDesc = description.length > 300 ? description.substring(0, 300) + '...' : description;
+      sections.push({
+        header: '📝 Description',
+        collapsible: true,
+        widgets: [{
+          textParagraph: {
+            text: truncatedDesc
+          }
+        }]
+      });
+    }
+
+    if (aiSummary) {
+      sections.push({
+        header: '🤖 AI Summary',
+        collapsible: true,
+        widgets: [{
+          textParagraph: {
+            text: aiSummary
+          }
+        }]
+      });
+    }
+
+    if (prUrl) {
+      sections.push({
+        widgets: [{
+          buttonList: {
+            buttons: [{
+              text: 'Review Pull Request',
+              onClick: {
+                openLink: {
+                  url: prUrl
+                }
+              }
+            }]
+          }
+        }]
+      });
+    }
+
+    return {
+      cardsV2: [{
+        cardId: `pr-created-${pullRequest.pullRequestId}-${Date.now()}`,
+        card: {
+          header: {
+            title: '🔀 New Pull Request',
+            subtitle: title,
+            imageUrl: 'https://img.icons8.com/color/96/pull-request.png',
+            imageType: 'CIRCLE'
+          },
+          sections
+        }
+      }]
+    };
   }
 }
 
