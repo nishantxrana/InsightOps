@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import cronstrue from 'cronstrue'
 import { 
   Save, 
@@ -118,7 +118,9 @@ const PollingSection = React.memo(({ settings, updateSetting }) => {
       </CardContent>
     </Card>
   )
-})
+});
+
+PollingSection.displayName = 'PollingSection';
 
 export default function Settings() {
   const { toast } = useToast()

@@ -264,39 +264,33 @@ export default function Releases() {
       if (releasesResponse.success) {
         const releasesList = releasesResponse.data.releases || [];
         
-        console.log('Pagination info:', {
-          hasMore: releasesResponse.data.hasMore,
-          continuationToken: releasesResponse.data.continuationToken,
-          releasesCount: releasesList.length
-        });
-        
         // Append or replace releases
+        let updatedReleases;
         if (append) {
-          setReleases(prev => [...prev, ...releasesList]);
+          updatedReleases = [...releases, ...releasesList];
+          setReleases(updatedReleases);
         } else {
-          setReleases(releasesList);
+          updatedReleases = releasesList;
+          setReleases(updatedReleases);
         }
         
         // Update pagination state
         setHasMore(releasesResponse.data.hasMore || false);
         setContinuationToken(releasesResponse.data.continuationToken || null);
 
-        // Extract unique environments (only on initial load)
-        if (!append) {
-          const allReleases = releasesList;
-          const uniqueEnvironments = [...new Set(
-            allReleases.flatMap(release => 
-              (release.environments || []).map(env => env.name)
-            )
-          )].filter(Boolean).sort();
-          setEnvironments(uniqueEnvironments);
+        // Extract unique environments from all loaded releases
+        const uniqueEnvironments = [...new Set(
+          updatedReleases.flatMap(release => 
+            (release.environments || []).map(env => env.name)
+          )
+        )].filter(Boolean).sort();
+        setEnvironments(uniqueEnvironments);
 
-          // Extract unique definitions
-          const uniqueDefinitions = [...new Set(
-            allReleases.map(release => release.definitionName)
-          )].filter(Boolean).sort();
-          setDefinitions(uniqueDefinitions);
-        }
+        // Extract unique definitions from all loaded releases
+        const uniqueDefinitions = [...new Set(
+          updatedReleases.map(release => release.definitionName)
+        )].filter(Boolean).sort();
+        setDefinitions(uniqueDefinitions);
       }
       
       setLoading(false);
