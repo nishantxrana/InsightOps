@@ -292,6 +292,33 @@ class WorkItemWebhook {
         ? `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${userConfig.project}/_workitems/edit/${finalWorkItemData.id}`
         : null;
       
+      // Extract changes for updated notifications
+      let changes = [];
+      if (notificationType === 'work-item-updated' && workItemOrWebhookData.resource?.fields) {
+        const changedFields = workItemOrWebhookData.resource.fields;
+        const significantFields = [
+          'System.State',
+          'System.AssignedTo',
+          'Microsoft.VSTS.Common.Priority',
+          'Microsoft.VSTS.Scheduling.DueDate',
+          'System.IterationPath',
+          'System.AreaPath'
+        ];
+        
+        Object.keys(changedFields).forEach(fieldName => {
+          if (significantFields.includes(fieldName)) {
+            const change = changedFields[fieldName];
+            if (change && typeof change === 'object' && 'oldValue' in change) {
+              changes.push({
+                field: fieldName.split('.').pop(),
+                oldValue: change.oldValue?.displayName || change.oldValue,
+                newValue: change.newValue?.displayName || change.newValue
+              });
+            }
+          }
+        });
+      }
+      
       await notificationHistoryService.saveNotification(userId, {
         type: 'work-item',
         subType: notificationType === 'work-item-created' ? 'created' : 'updated',
@@ -303,6 +330,16 @@ class WorkItemWebhook {
           workItemType: finalWorkItemData.type,
           state: finalWorkItemData.state,
           assignedTo: finalWorkItemData.assignedTo,
+          priority: workItem?.fields?.['Microsoft.VSTS.Common.Priority'],
+          severity: workItem?.fields?.['Microsoft.VSTS.Common.Severity'],
+          areaPath: workItem?.fields?.['System.AreaPath'],
+          iterationPath: workItem?.fields?.['System.IterationPath'],
+          tags: workItem?.fields?.['System.Tags'],
+          createdBy: workItem?.fields?.['System.CreatedBy']?.displayName,
+          createdDate: workItem?.fields?.['System.CreatedDate'],
+          changedBy: workItem?.fields?.['System.ChangedBy']?.displayName,
+          changedDate: workItem?.fields?.['System.ChangedDate'],
+          changes: changes.length > 0 ? changes : null,
           url: workItemUrl
         },
         channels

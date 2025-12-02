@@ -172,7 +172,20 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
         title: `${idlePRs.length} Idle Pull Requests`,
         message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
         source: 'poller',
-        metadata: { count: idlePRs.length, pullRequests: idlePRs.map(pr => pr.pullRequestId) },
+        metadata: { 
+          count: idlePRs.length,
+          pullRequests: idlePRs.map(pr => ({
+            id: pr.pullRequestId,
+            title: pr.title,
+            repository: pr.repository?.name,
+            sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
+            targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
+            createdBy: pr.createdBy?.displayName,
+            createdDate: pr.creationDate,
+            idleDays: Math.floor((Date.now() - new Date(pr.creationDate)) / (1000 * 60 * 60 * 24)),
+            url: pr.url || `https://dev.azure.com/${userSettings.azureDevOps?.organization}/${userSettings.azureDevOps?.project}/_git/${pr.repository?.name}/pullrequest/${pr.pullRequestId}`
+          }))
+        },
         channels
       });
     }

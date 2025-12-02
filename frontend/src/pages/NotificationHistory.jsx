@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle } from 'lucide-react';
+import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle, AlertCircle, FolderTree } from 'lucide-react';
 import { CopyButton } from '../components/ui/shadcn-io/copy-button';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -126,7 +126,8 @@ const NotificationHistory = () => {
           <TabsTrigger value="release">Releases {counts.release || ''}</TabsTrigger>
           <TabsTrigger value="work-item">Work Items {counts['work-item'] || ''}</TabsTrigger>
           <TabsTrigger value="pull-request">PRs {counts['pull-request'] || ''}</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue {counts.overdue || ''}</TabsTrigger>
+          <TabsTrigger value="overdue">Overdue Work Items {counts.overdue || ''}</TabsTrigger>
+          <TabsTrigger value="idle-pr">Idle PRs {counts['idle-pr'] || ''}</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="space-y-4 mt-4">
@@ -174,7 +175,7 @@ const NotificationHistory = () => {
                   <AccordionContent className="px-3 sm:px-6 pb-4 pt-4">
                     <div className="space-y-4">
                       {/* Type-specific metadata */}
-                      {notification.metadata && (
+                      {notification.metadata && (notification.type === 'build' || notification.type === 'release') && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md">
                           {/* Build-specific */}
                           {notification.type === 'build' && (
@@ -211,7 +212,22 @@ const NotificationHistory = () => {
                                   <GitCommit className="h-4 w-4 text-muted-foreground mt-0.5" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Commit</p>
-                                    <p className="font-mono text-xs">{notification.metadata.commit}</p>
+                                    <p className="font-mono">{notification.metadata.commit}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {notification.metadata.commitMessage && (
+                                <div className="col-span-full">
+                                  <p className="text-xs text-muted-foreground mb-1">Commit Message</p>
+                                  <p className="text-sm italic text-muted-foreground line-clamp-2">{notification.metadata.commitMessage}</p>
+                                </div>
+                              )}
+                              {notification.metadata.reason && (
+                                <div className="flex items-start gap-2">
+                                  <Rocket className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Trigger</p>
+                                    <p className="font-medium text-xs capitalize">{notification.metadata.reason.replace(/([A-Z])/g, ' $1').trim()}</p>
                                   </div>
                                 </div>
                               )}
@@ -358,8 +374,71 @@ const NotificationHistory = () => {
                                   </div>
                                 </div>
                               )}
+                              {notification.metadata.priority && (
+                                <div className="flex items-start gap-2">
+                                  <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Priority</p>
+                                    <p className="font-medium">{notification.metadata.priority === 1 ? 'Critical' : notification.metadata.priority === 2 ? 'High' : notification.metadata.priority === 3 ? 'Medium' : 'Low'}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {notification.metadata.areaPath && (
+                                <div className="flex items-start gap-2">
+                                  <FolderTree className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Area</p>
+                                    <p className="font-medium truncate">{notification.metadata.areaPath.split('\\').pop()}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {notification.metadata.iterationPath && (
+                                <div className="flex items-start gap-2">
+                                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Iteration</p>
+                                    <p className="font-medium truncate">{notification.metadata.iterationPath.split('\\').pop()}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {notification.metadata.createdBy && (
+                                <div className="flex items-start gap-2">
+                                  <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Created By</p>
+                                    <p className="font-medium">{notification.metadata.createdBy}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {notification.metadata.tags && (
+                                <div className="col-span-full">
+                                  <p className="text-xs text-muted-foreground mb-1">Tags</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {notification.metadata.tags.split(';').filter(t => t.trim()).map((tag, idx) => (
+                                      <Badge key={idx} variant="secondary" className="text-xs">{tag.trim()}</Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
+                      
+                      {/* Work Item Changes */}
+                      {notification.type === 'work-item' && notification.subType === 'updated' && notification.metadata?.changes && notification.metadata.changes.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium">Changes Made:</div>
+                          <div className="space-y-1">
+                            {notification.metadata.changes.map((change, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-xs bg-muted/50 p-2 rounded">
+                                <span className="font-medium">{change.field}:</span>
+                                <span className="text-muted-foreground line-through">{change.oldValue || 'None'}</span>
+                                <span>→</span>
+                                <span className="text-primary font-medium">{change.newValue || 'None'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                           
                           {/* Pull Request-specific */}
                           {notification.type === 'pull-request' && notification.metadata && (
@@ -479,10 +558,68 @@ const NotificationHistory = () => {
                           )}
                           
                           {/* Idle PR - just show count */}
-                          {notification.type === 'idle-pr' && notification.metadata.count && (
-                            <div className="text-center py-4">
-                              <p className="text-xs text-muted-foreground mb-1">Idle Pull Requests</p>
-                              <p className="font-medium text-2xl">{notification.metadata.count} items</p>
+                          {notification.type === 'idle-pr' && notification.metadata.pullRequests && (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <span className="text-orange-600">{notification.metadata.count} Idle Pull Requests</span>
+                              </div>
+                              <div className="space-y-2 max-h-96 overflow-y-auto">
+                                {notification.metadata.pullRequests.map((pr, idx) => (
+                                  <div key={idx} className="border rounded-md p-3 bg-background hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <Hash className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                        <span className="font-medium text-sm truncate">#{pr.id}</span>
+                                      </div>
+                                      {pr.idleDays > 0 && (
+                                        <Badge variant="outline" className="text-xs flex-shrink-0 border-orange-600 text-orange-600">
+                                          {pr.idleDays}d idle
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm font-medium mb-2 line-clamp-2">{pr.title}</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs mb-2">
+                                      {pr.repository && (
+                                        <div className="flex items-center gap-1.5">
+                                          <Package className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">{pr.repository}</span>
+                                        </div>
+                                      )}
+                                      {pr.createdBy && (
+                                        <div className="flex items-center gap-1.5">
+                                          <User className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">{pr.createdBy}</span>
+                                        </div>
+                                      )}
+                                      {pr.sourceBranch && (
+                                        <div className="flex items-center gap-1.5">
+                                          <GitBranch className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">{pr.sourceBranch} → {pr.targetBranch}</span>
+                                        </div>
+                                      )}
+                                      {pr.createdDate && (
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">Created: {new Date(pr.createdDate).toLocaleDateString()}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {pr.url && (
+                                      <div className="flex items-center gap-2">
+                                        <a 
+                                          href={pr.url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                                        >
+                                          View PR <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                        <CopyButton content={pr.url} variant="ghost" />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                       
