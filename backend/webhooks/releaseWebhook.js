@@ -254,7 +254,12 @@ class ReleaseWebhook {
           status: environment.status,
           deployedBy: requestedFor,
           duration,
-          url: webUrl
+          url: webUrl,
+          failedTasks: failedLogs ? failedLogs.map(task => ({
+            taskName: task.taskName,
+            environmentName: task.environmentName,
+            logContent: task.logContent
+          })) : null
         },
         channels
       });

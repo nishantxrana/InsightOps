@@ -154,7 +154,22 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
         title: `${overdueItems.length} Overdue Work Items`,
         message: `Found ${overdueItems.length} overdue work items`,
         source: 'poller',
-        metadata: { count: overdueItems.length, items: overdueItems.map(i => i.id) },
+        metadata: { 
+          count: overdueItems.length,
+          items: overdueItems.map(item => ({
+            id: item.id,
+            title: item.fields?.['System.Title'],
+            type: item.fields?.['System.WorkItemType'],
+            state: item.fields?.['System.State'],
+            assignedTo: item.fields?.['System.AssignedTo']?.displayName,
+            priority: item.fields?.['Microsoft.VSTS.Common.Priority'],
+            dueDate: item.fields?.['Microsoft.VSTS.Scheduling.DueDate'],
+            daysPastDue: item.fields?.['Microsoft.VSTS.Scheduling.DueDate'] 
+              ? Math.floor((Date.now() - new Date(item.fields['Microsoft.VSTS.Scheduling.DueDate'])) / (1000 * 60 * 60 * 24))
+              : 0,
+            url: item.webUrl || item._links?.html?.href
+          }))
+        },
         channels
       });
     }

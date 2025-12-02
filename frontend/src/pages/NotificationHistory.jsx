@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket } from 'lucide-react';
+import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle } from 'lucide-react';
 import { CopyButton } from '../components/ui/shadcn-io/copy-button';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -149,9 +149,9 @@ const NotificationHistory = () => {
             <Accordion type="single" collapsible className="space-y-3">
               {filteredNotifications.map((notification) => (
                 <AccordionItem key={notification._id} value={notification._id} className="border rounded-lg overflow-hidden">
-                  <AccordionTrigger className="hover:no-underline px-6 py-4 [&[data-state=open]]:border-b">
-                    <div className="flex items-center gap-4 w-full text-left">
-                      <div className="flex items-center gap-2">
+                  <AccordionTrigger className="hover:no-underline px-3 sm:px-6 py-3 sm:py-4 [&[data-state=open]]:border-b">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full text-left">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant={notification.subType === 'failed' ? 'destructive' : notification.subType === 'succeeded' ? 'default' : 'secondary'}>
                           {notification.type}
                         </Badge>
@@ -162,7 +162,7 @@ const NotificationHistory = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-base mb-1 truncate">{notification.title}</h3>
+                        <h3 className="font-semibold text-sm sm:text-base mb-1 truncate">{notification.title}</h3>
                         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                           <Clock className="h-3 w-3" />
                           {new Date(notification.createdAt).toLocaleString()}
@@ -171,24 +171,30 @@ const NotificationHistory = () => {
                     </div>
                   </AccordionTrigger>
                   
-                  <AccordionContent className="px-6 pb-4 pt-4">
+                  <AccordionContent className="px-3 sm:px-6 pb-4 pt-4">
                     <div className="space-y-4">
                       {/* Type-specific metadata */}
                       {notification.metadata && (
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm bg-muted/30 p-4 rounded-md">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md">
                           {/* Build-specific */}
                           {notification.type === 'build' && (
                             <>
                               {notification.metadata.buildNumber && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Build Number</p>
-                                  <p className="font-medium">#{notification.metadata.buildNumber}</p>
+                                <div className="flex items-start gap-2">
+                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Build Number</p>
+                                    <p className="font-medium">#{notification.metadata.buildNumber}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.repository && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Repository</p>
-                                  <p className="font-medium">{notification.metadata.repository}</p>
+                                <div className="flex items-start gap-2">
+                                  <Package className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Repository</p>
+                                    <p className="font-medium">{notification.metadata.repository}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.branch && (
@@ -201,9 +207,12 @@ const NotificationHistory = () => {
                                 </div>
                               )}
                               {notification.metadata.commit && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Commit</p>
-                                  <p className="font-mono text-xs">{notification.metadata.commit}</p>
+                                <div className="flex items-start gap-2">
+                                  <GitCommit className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Commit</p>
+                                    <p className="font-mono text-xs">{notification.metadata.commit}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.requestedBy && (
@@ -249,9 +258,12 @@ const NotificationHistory = () => {
                                 </div>
                               )}
                               {notification.metadata.environmentName && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Environment</p>
-                                  <p className="font-medium">{notification.metadata.environmentName}</p>
+                                <div className="flex items-start gap-2">
+                                  <Rocket className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Environment</p>
+                                    <p className="font-medium">{notification.metadata.environmentName}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.deployedBy && (
@@ -274,26 +286,67 @@ const NotificationHistory = () => {
                               )}
                             </>
                           )}
-                          
-                          {/* Work Item-specific */}
-                          {notification.type === 'work-item' && (
-                            <>
-                              {notification.metadata.workItemId && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Work Item ID</p>
-                                  <p className="font-medium">#{notification.metadata.workItemId}</p>
+                        </div>
+                      )}
+                      
+                      {/* Failed Tasks for Release */}
+                      {notification.type === 'release' && notification.metadata?.failedTasks && notification.metadata.failedTasks.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                            <span>Failed Tasks ({notification.metadata.failedTasks.length})</span>
+                          </div>
+                          <div className="space-y-2">
+                            {notification.metadata.failedTasks.map((task, idx) => (
+                              <div key={idx} className="border border-destructive/20 rounded-md p-3 bg-destructive/5">
+                                <div className="flex items-start gap-2 mb-2">
+                                  <Badge variant="destructive" className="text-xs">Failed</Badge>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm">{task.taskName}</p>
+                                    <p className="text-xs text-muted-foreground">{task.environmentName}</p>
+                                  </div>
+                                </div>
+                                {task.logContent && (
+                                  <div className="mt-2">
+                                    <p className="text-xs font-medium text-muted-foreground mb-1">Error Logs:</p>
+                                    <pre className="text-xs bg-background border rounded p-2 overflow-x-auto max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
+                                      {task.logContent}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Work Item-specific */}
+                      {notification.type === 'work-item' && notification.metadata && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md">
+                          {notification.metadata.workItemId && (
+                                <div className="flex items-start gap-2">
+                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Work Item ID</p>
+                                    <p className="font-medium">#{notification.metadata.workItemId}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.workItemType && typeof notification.metadata.workItemType !== 'object' && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Type</p>
-                                  <p className="font-medium">{notification.metadata.workItemType}</p>
+                                <div className="flex items-start gap-2">
+                                  <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Type</p>
+                                    <p className="font-medium">{notification.metadata.workItemType}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.state && typeof notification.metadata.state !== 'object' && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">State</p>
-                                  <p className="font-medium">{notification.metadata.state}</p>
+                                <div className="flex items-start gap-2">
+                                  <CheckCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">State</p>
+                                    <p className="font-medium">{notification.metadata.state}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.assignedTo && typeof notification.metadata.assignedTo !== 'object' && (
@@ -305,22 +358,28 @@ const NotificationHistory = () => {
                                   </div>
                                 </div>
                               )}
-                            </>
+                            </div>
                           )}
                           
                           {/* Pull Request-specific */}
-                          {notification.type === 'pull-request' && (
-                            <>
+                          {notification.type === 'pull-request' && notification.metadata && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md">
                               {notification.metadata.pullRequestId && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">PR ID</p>
-                                  <p className="font-medium">#{notification.metadata.pullRequestId}</p>
+                                <div className="flex items-start gap-2">
+                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">PR ID</p>
+                                    <p className="font-medium">#{notification.metadata.pullRequestId}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.repository && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Repository</p>
-                                  <p className="font-medium">{notification.metadata.repository}</p>
+                                <div className="flex items-start gap-2">
+                                  <Package className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Repository</p>
+                                    <p className="font-medium">{notification.metadata.repository}</p>
+                                  </div>
                                 </div>
                               )}
                               {notification.metadata.sourceBranch && (
@@ -350,31 +409,91 @@ const NotificationHistory = () => {
                                   </div>
                                 </div>
                               )}
-                            </>
+                            </div>
+                          )}
+                      
+                      {/* Overdue - detailed list */}
+                      {notification.type === 'overdue' && notification.metadata.items && (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <span className="text-destructive">{notification.metadata.count} Overdue Items</span>
+                              </div>
+                              <div className="space-y-2 max-h-96 overflow-y-auto">
+                                {notification.metadata.items.map((item, idx) => (
+                                  <div key={idx} className="border rounded-md p-3 bg-background hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <Hash className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                        <span className="font-medium text-sm truncate">#{item.id}</span>
+                                        <Badge variant="outline" className="text-xs flex-shrink-0">{item.type}</Badge>
+                                      </div>
+                                      {item.daysPastDue > 0 && (
+                                        <Badge variant="destructive" className="text-xs flex-shrink-0">
+                                          {item.daysPastDue}d overdue
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm font-medium mb-2 line-clamp-2">{item.title}</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                      {item.assignedTo && (
+                                        <div className="flex items-center gap-1.5">
+                                          <User className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">{item.assignedTo}</span>
+                                        </div>
+                                      )}
+                                      {item.priority && (
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-muted-foreground">Priority: {item.priority === 1 ? 'Critical' : item.priority === 2 ? 'High' : item.priority === 3 ? 'Medium' : 'Low'}</span>
+                                        </div>
+                                      )}
+                                      {item.state && (
+                                        <div className="flex items-center gap-1.5">
+                                          <CheckCircle className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">{item.state}</span>
+                                        </div>
+                                      )}
+                                      {item.dueDate && (
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">Due: {new Date(item.dueDate).toLocaleDateString()}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {item.url && (
+                                      <div className="mt-2 flex items-center gap-2">
+                                        <a 
+                                          href={item.url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                                        >
+                                          View Item <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                        <CopyButton content={item.url} variant="ghost" />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                           
-                          {/* Overdue/Idle PR - just show count */}
-                          {(notification.type === 'overdue' || notification.type === 'idle-pr') && (
-                            <>
-                              {notification.metadata.count && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Count</p>
-                                  <p className="font-medium text-lg">{notification.metadata.count} items</p>
-                                </div>
-                              )}
-                            </>
+                          {/* Idle PR - just show count */}
+                          {notification.type === 'idle-pr' && notification.metadata.count && (
+                            <div className="text-center py-4">
+                              <p className="text-xs text-muted-foreground mb-1">Idle Pull Requests</p>
+                              <p className="font-medium text-2xl">{notification.metadata.count} items</p>
+                            </div>
                           )}
-                        </div>
-                      )}
                       
                       {/* Azure DevOps Link */}
                       {notification.metadata?.url && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                           <a 
                             href={notification.metadata.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline px-4 py-2 bg-primary/5 rounded-md hover:bg-primary/10 transition-colors"
+                            className="inline-flex items-center justify-center gap-2 text-sm font-medium text-primary hover:underline px-4 py-2 bg-primary/5 rounded-md hover:bg-primary/10 transition-colors"
                           >
                             View in Azure DevOps
                             <ExternalLink className="h-4 w-4" />
@@ -385,7 +504,7 @@ const NotificationHistory = () => {
                       
                       {/* Channel Status */}
                       {notification.channels && notification.channels.length > 0 && (
-                        <div className="flex items-center gap-2 text-xs">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
                           <span className="text-muted-foreground">Delivery:</span>
                           {notification.channels.map((channel, idx) => (
                             <Badge 
