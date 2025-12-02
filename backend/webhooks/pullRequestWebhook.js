@@ -131,19 +131,22 @@ class PullRequestWebhook {
         }
       }
 
+      const prUrl = pr._links?.web?.href || 
+                    (userConfig ? `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${userConfig.project}/_git/${pr.repository?.name}/pullrequest/${pr.pullRequestId}` : null);
+
       await notificationHistoryService.saveNotification(userId, {
         type: 'pull-request',
         subType: 'created',
         title: `PR: ${pr.title}`,
         message: `Pull request created by ${pr.createdBy?.displayName}`,
         source: 'webhook',
-        card,
-        aiSummary,
         metadata: {
           pullRequestId: pr.pullRequestId,
           repository: pr.repository?.name,
-          sourceBranch: pr.sourceRefName,
-          targetBranch: pr.targetRefName
+          sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
+          targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
+          createdBy: pr.createdBy?.displayName,
+          url: prUrl
         },
         channels
       });

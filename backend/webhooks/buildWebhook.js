@@ -151,19 +151,39 @@ class BuildWebhook {
         }
       }
 
+      // Calculate duration
+      let duration = '';
+      if (build.startTime && build.finishTime) {
+        const durationMs = new Date(build.finishTime) - new Date(build.startTime);
+        const durationSec = Math.round(durationMs / 1000);
+        duration = durationSec < 60 ? `${durationSec}s` : `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
+      }
+
+      // Construct build URL
+      let buildUrl = build._links?.web?.href;
+      if (!buildUrl && userConfig && userConfig.organization && userConfig.project) {
+        const organization = userConfig.organization;
+        const project = userConfig.project;
+        const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+        buildUrl = `${baseUrl}/${organization}/${project}/_build/results?buildId=${build.id}`;
+      }
+
       await notificationHistoryService.saveNotification(userId, {
         type: 'build',
         subType: build.result?.toLowerCase(),
         title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
         message,
         source: 'webhook',
-        card,
-        aiSummary,
         metadata: {
           buildId: build.id,
           buildNumber: build.buildNumber,
           result: build.result,
-          repository: build.repository?.name
+          repository: build.repository?.name,
+          branch: build.sourceBranch?.replace('refs/heads/', ''),
+          commit: build.sourceVersion?.substring(0, 8),
+          requestedBy: build.requestedBy?.displayName,
+          duration,
+          url: buildUrl
         },
         channels
       });

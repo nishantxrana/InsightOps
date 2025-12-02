@@ -194,7 +194,15 @@ class WorkItemWebhook {
       // Send notification
       if (userId) {
         // User-specific notification with card format
-        await this.sendUserNotification(message, userId, 'work-item-updated', webhookData, userConfig);
+        const workItemData = {
+          id: workItemId,
+          workItemType,
+          title,
+          state,
+          assignedTo
+        };
+        console.log('About to pass workItemData:', workItemData);
+        await this.sendUserNotification(message, userId, 'work-item-updated', webhookData, userConfig, userConfig, workItemData);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, 'work-item-updated');
@@ -215,7 +223,7 @@ class WorkItemWebhook {
     }
   }
 
-  async sendUserNotification(message, userId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig) {
+  async sendUserNotification(message, userId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig, workItemData = null) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -225,18 +233,40 @@ class WorkItemWebhook {
         return;
       }
 
+      // Extract workItem and aiSummary based on notification type
+      let workItem, aiSummary, finalWorkItemData;
+      if (notificationType === 'work-item-created') {
+        workItem = workItemOrWebhookData;
+        aiSummary = aiSummaryOrUserConfig;
+        finalWorkItemData = {
+          id: workItem?.id,
+          type: workItem?.fields?.['System.WorkItemType'],
+          title: workItem?.fields?.['System.Title'],
+          state: workItem?.fields?.['System.State'],
+          assignedTo: workItem?.fields?.['System.AssignedTo']?.displayName
+        };
+      } else if (notificationType === 'work-item-updated') {
+        workItem = workItemOrWebhookData.resource;
+        // Use the passed workItemData for updated notifications
+        finalWorkItemData = {
+          id: workItemData?.id || workItem?.id,
+          type: workItemData?.workItemType,
+          title: workItemData?.title,
+          state: workItemData?.state,
+          assignedTo: workItemData?.assignedTo
+        };
+      }
+      
+      console.log('Final work item data:', finalWorkItemData);
+
       const channels = [];
-      let card, aiSummary, workItem;
 
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
+        let card;
         if (notificationType === 'work-item-created') {
-          aiSummary = aiSummaryOrUserConfig;
-          workItem = workItemOrWebhookData;
           card = this.formatWorkItemCard(workItem, aiSummary, userConfig);
         } else if (notificationType === 'work-item-updated') {
-          const actualUserConfig = aiSummaryOrUserConfig;
-          workItem = workItemOrWebhookData.resource;
-          card = this.formatWorkItemUpdatedCard(workItemOrWebhookData, actualUserConfig);
+          card = this.formatWorkItemUpdatedCard(workItemOrWebhookData, aiSummaryOrUserConfig);
         }
         
         try {
@@ -257,20 +287,23 @@ class WorkItemWebhook {
           logger.error(`Failed to send to Google Chat:`, error);
         }
       }
-
-      const fields = workItem?.fields || {};
+      
+      const workItemUrl = userConfig 
+        ? `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${userConfig.project}/_workitems/edit/${finalWorkItemData.id}`
+        : null;
+      
       await notificationHistoryService.saveNotification(userId, {
         type: 'work-item',
         subType: notificationType === 'work-item-created' ? 'created' : 'updated',
-        title: `${fields['System.WorkItemType']}: ${fields['System.Title']}`,
+        title: `${finalWorkItemData.type}: ${finalWorkItemData.title}`,
         message,
         source: 'webhook',
-        card,
-        aiSummary,
         metadata: {
-          workItemId: workItem?.id,
-          workItemType: fields['System.WorkItemType'],
-          state: fields['System.State']
+          workItemId: finalWorkItemData.id,
+          workItemType: finalWorkItemData.type,
+          state: finalWorkItemData.state,
+          assignedTo: finalWorkItemData.assignedTo,
+          url: workItemUrl
         },
         channels
       });

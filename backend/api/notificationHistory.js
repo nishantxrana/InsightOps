@@ -8,6 +8,8 @@ router.get('/', async (req, res) => {
   try {
     const { userId, type, read, starred, limit, skip } = req.query;
     
+    console.log('GET /api/notifications - Query params:', { userId, type, read, starred, limit, skip });
+    
     if (!userId) {
       return res.status(400).json({ error: 'userId is required' });
     }
@@ -20,10 +22,11 @@ router.get('/', async (req, res) => {
       skip: skip ? parseInt(skip) : 0
     });
 
+    console.log(`Found ${notifications.length} notifications for user ${userId}`);
     res.json(notifications);
   } catch (error) {
     console.error('Error fetching notifications:', error);
-    res.status(500).json({ error: 'Failed to fetch notifications' });
+    res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
   }
 });
 

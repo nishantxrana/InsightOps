@@ -74,7 +74,7 @@ class ReleaseWebhook {
       const notificationType = this.getNotificationType(status);
       
       if (userId) {
-        await this.sendUserNotification(resource, userSettings, notificationType, failedLogs);
+        await this.sendUserNotification(resource, userSettings, notificationType, failedLogs, userId);
       }
       
       res.json({
@@ -179,7 +179,7 @@ class ReleaseWebhook {
     }
   }
 
-  async sendUserNotification(resource, userSettings, notificationType, failedLogs) {
+  async sendUserNotification(resource, userSettings, notificationType, failedLogs, userId) {
     try {
       if (!userSettings?.notifications?.enabled) {
         logger.info('Notifications disabled for user');
@@ -219,23 +219,42 @@ class ReleaseWebhook {
 
       const environment = resource.environment || {};
       const release = resource.release || {};
+      const deployment = resource.deployment || {};
       const releaseId = environment.releaseId || release.id;
       const releaseName = environment.preDeployApprovals?.[0]?.release?.name || 
                          environment.postDeployApprovals?.[0]?.release?.name ||
                          `Release-${releaseId}`;
+      const releaseDefinitionName = environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
+                                   environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
+                                   'Unknown Pipeline';
+      const requestedFor = environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
+                          release.createdBy?.displayName || 
+                          'Unknown';
+      const webUrl = deployment.release?.webAccessUri || release.webAccessUri || 
+                    `https://dev.azure.com/${userSettings.azureDevOps?.organization}/${userSettings.azureDevOps?.project}/_release?releaseId=${releaseId}&_a=release-summary`;
+      
+      const timeToDeploy = environment.timeToDeploy || deployment.timeToDeploy;
+      let duration = '';
+      if (timeToDeploy) {
+        const seconds = Math.round(timeToDeploy * 60);
+        duration = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+      }
 
-      await notificationHistoryService.saveNotification(userSettings._id || userSettings.userId, {
+      await notificationHistoryService.saveNotification(userId, {
         type: 'release',
         subType: notificationType.replace('release-', ''),
         title: `Release: ${releaseName} - ${environment.name}`,
         message: `Release deployment ${notificationType.replace('release-', '')}`,
         source: 'webhook',
-        card,
         metadata: {
           releaseId,
           releaseName,
+          releaseDefinitionName,
           environmentName: environment.name,
-          status: environment.status
+          status: environment.status,
+          deployedBy: requestedFor,
+          duration,
+          url: webUrl
         },
         channels
       });
