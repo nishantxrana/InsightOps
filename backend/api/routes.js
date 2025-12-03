@@ -992,6 +992,10 @@ router.use('/performance', cacheStatsRoutes);
 import agentDashboardRoutes from './agentDashboard.js';
 router.use('/agent-dashboard', agentDashboardRoutes);
 
+// Notification history routes
+import notificationHistoryRoutes from './notificationHistory.js';
+router.use('/notifications', notificationHistoryRoutes);
+
 // Releases endpoints
 router.get('/releases', async (req, res) => {
   try {
