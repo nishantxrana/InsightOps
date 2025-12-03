@@ -43,10 +43,10 @@ const envSchema = z.object({
   NOTIFICATIONS_ENABLED: z.string().transform(val => val === 'true').default('false'),
 
   // Rate Limiting Configuration
-  RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).transform(Number).default('900000'),
-  RATE_LIMIT_MAX: z.string().regex(/^\d+$/).transform(Number).default('100'),
-  RATE_LIMIT_AUTH_MAX: z.string().regex(/^\d+$/).transform(Number).default('5'),
-  RATE_LIMIT_AI_MAX: z.string().regex(/^\d+$/).transform(Number).default('20'),
+  RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).transform(Number).default('300000'), // 5 minutes
+  RATE_LIMIT_MAX: z.string().regex(/^\d+$/).transform(Number).default('500'), // 500 requests per 5 min
+  RATE_LIMIT_AUTH_MAX: z.string().regex(/^\d+$/).transform(Number).default('10'), // 10 auth attempts per 5 min
+  RATE_LIMIT_AI_MAX: z.string().regex(/^\d+$/).transform(Number).default('100'), // 100 AI requests per 5 min
 
   // Database Connection Pool
   DB_MIN_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default('5'),
