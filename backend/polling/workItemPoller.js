@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { getUserSettings } from '../utils/userSettings.js';
+import notificationHistoryService from '../services/notificationHistoryService.js';
 
 class WorkItemPoller {
   constructor() {
@@ -86,7 +87,7 @@ class WorkItemPoller {
         if (userId) {
           const settings = await getUserSettings(userId);
           if (settings.notifications?.enabled) {
-            await this.sendOverdueNotification(overdueItems.value, settings);
+            await this.sendOverdueNotification(overdueItems.value, settings, userId);
           }
         } else {
           await notificationService.sendOverdueReminder(overdueItems.value);
@@ -103,7 +104,7 @@ class WorkItemPoller {
 export const workItemPoller = new WorkItemPoller();
 
 // Add notification methods to the class
-WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, userSettings) {
+WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, userSettings, userId) {
   try {
     if (!userSettings.notifications?.enabled) {
       return;
@@ -113,6 +114,7 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
     const batchSize = 10;
     const delayBetweenBatches = 5000;
     const totalBatches = Math.ceil(overdueItems.length / batchSize);
+    const channels = [];
     
     for (let i = 0; i < overdueItems.length; i += batchSize) {
       const batch = overdueItems.slice(i, i + batchSize);
@@ -121,7 +123,12 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
       const card = this.formatOverdueItemsCard(batch, batchNumber, totalBatches, overdueItems.length);
       
       if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
-        await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+        try {
+          await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+          if (i === 0) channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+        } catch (error) {
+          if (i === 0) channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+        }
       }
       
       if (i + batchSize < overdueItems.length) {
@@ -129,21 +136,42 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
       }
     }
     
-    // Send divider after all batches are complete
+    // Send divider
     if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
       const dividerCard = {
         cardsV2: [{
           cardId: `divider-overdue-${Date.now()}`,
-          card: {
-            sections: [{
-              widgets: [{
-                divider: {}
-              }]
-            }]
-          }
+          card: { sections: [{ widgets: [{ divider: {} }] }] }
         }]
       };
       await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
+    }
+    
+    // Save to notification history
+    if (userId) {
+      await notificationHistoryService.saveNotification(userId, {
+        type: 'overdue',
+        title: `${overdueItems.length} Overdue Work Items`,
+        message: `Found ${overdueItems.length} overdue work items`,
+        source: 'poller',
+        metadata: { 
+          count: overdueItems.length,
+          items: overdueItems.map(item => ({
+            id: item.id,
+            title: item.fields?.['System.Title'],
+            type: item.fields?.['System.WorkItemType'],
+            state: item.fields?.['System.State'],
+            assignedTo: item.fields?.['System.AssignedTo']?.displayName,
+            priority: item.fields?.['Microsoft.VSTS.Common.Priority'],
+            dueDate: item.fields?.['Microsoft.VSTS.Scheduling.DueDate'],
+            daysPastDue: item.fields?.['Microsoft.VSTS.Scheduling.DueDate'] 
+              ? Math.floor((Date.now() - new Date(item.fields['Microsoft.VSTS.Scheduling.DueDate'])) / (1000 * 60 * 60 * 24))
+              : 0,
+            url: item.webUrl || item._links?.html?.href
+          }))
+        },
+        channels
+      });
     }
     
     logger.info(`Overdue notifications sent in ${totalBatches} batches`);

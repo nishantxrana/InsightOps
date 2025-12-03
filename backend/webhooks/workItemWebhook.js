@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js';
 import { aiService } from '../ai/aiService.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
+import notificationHistoryService from '../services/notificationHistoryService.js';
 
 class WorkItemWebhook {
   async handleCreated(req, res, userId = null) {
@@ -193,7 +194,15 @@ class WorkItemWebhook {
       // Send notification
       if (userId) {
         // User-specific notification with card format
-        await this.sendUserNotification(message, userId, 'work-item-updated', webhookData, userConfig);
+        const workItemData = {
+          id: workItemId,
+          workItemType,
+          title,
+          state,
+          assignedTo
+        };
+        console.log('About to pass workItemData:', workItemData);
+        await this.sendUserNotification(message, userId, 'work-item-updated', webhookData, userConfig, userConfig, workItemData);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, 'work-item-updated');
@@ -214,7 +223,7 @@ class WorkItemWebhook {
     }
   }
 
-  async sendUserNotification(message, userId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig) {
+  async sendUserNotification(message, userId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig, workItemData = null) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -224,38 +233,118 @@ class WorkItemWebhook {
         return;
       }
 
-      // Send to enabled notification channels
+      // Extract workItem and aiSummary based on notification type
+      let workItem, aiSummary, finalWorkItemData;
+      if (notificationType === 'work-item-created') {
+        workItem = workItemOrWebhookData;
+        aiSummary = aiSummaryOrUserConfig;
+        finalWorkItemData = {
+          id: workItem?.id,
+          type: workItem?.fields?.['System.WorkItemType'],
+          title: workItem?.fields?.['System.Title'],
+          state: workItem?.fields?.['System.State'],
+          assignedTo: workItem?.fields?.['System.AssignedTo']?.displayName
+        };
+      } else if (notificationType === 'work-item-updated') {
+        workItem = workItemOrWebhookData.resource;
+        // Use the passed workItemData for updated notifications
+        finalWorkItemData = {
+          id: workItemData?.id || workItem?.id,
+          type: workItemData?.workItemType,
+          title: workItemData?.title,
+          state: workItemData?.state,
+          assignedTo: workItemData?.assignedTo
+        };
+      }
+      
+      console.log('Final work item data:', finalWorkItemData);
+
+      const channels = [];
+
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
         let card;
-        
-        // Determine if this is created or updated
         if (notificationType === 'work-item-created') {
-          const aiSummary = aiSummaryOrUserConfig;
-          card = this.formatWorkItemCard(workItemOrWebhookData, aiSummary, userConfig);
+          card = this.formatWorkItemCard(workItem, aiSummary, userConfig);
         } else if (notificationType === 'work-item-updated') {
-          const actualUserConfig = aiSummaryOrUserConfig;
-          card = this.formatWorkItemUpdatedCard(workItemOrWebhookData, actualUserConfig);
+          card = this.formatWorkItemUpdatedCard(workItemOrWebhookData, aiSummaryOrUserConfig);
         }
         
-        await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
-        
-        // Send divider after work item notification
-        const dividerCard = {
-          cardsV2: [{
-            cardId: `divider-workitem-${Date.now()}`,
-            card: {
-              sections: [{
-                widgets: [{
-                  divider: {}
-                }]
-              }]
-            }
-          }]
-        };
-        await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
-        
-        logger.info(`Work item notification sent to user ${userId} via Google Chat`);
+        try {
+          await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
+          
+          const dividerCard = {
+            cardsV2: [{
+              cardId: `divider-workitem-${Date.now()}`,
+              card: { sections: [{ widgets: [{ divider: {} }] }] }
+            }]
+          };
+          await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
+          
+          channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          logger.info(`Work item notification sent to user ${userId} via Google Chat`);
+        } catch (error) {
+          channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          logger.error(`Failed to send to Google Chat:`, error);
+        }
       }
+      
+      const workItemUrl = userConfig 
+        ? `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${userConfig.project}/_workitems/edit/${finalWorkItemData.id}`
+        : null;
+      
+      // Extract changes for updated notifications
+      let changes = [];
+      if (notificationType === 'work-item-updated' && workItemOrWebhookData.resource?.fields) {
+        const changedFields = workItemOrWebhookData.resource.fields;
+        const significantFields = [
+          'System.State',
+          'System.AssignedTo',
+          'Microsoft.VSTS.Common.Priority',
+          'Microsoft.VSTS.Scheduling.DueDate',
+          'System.IterationPath',
+          'System.AreaPath'
+        ];
+        
+        Object.keys(changedFields).forEach(fieldName => {
+          if (significantFields.includes(fieldName)) {
+            const change = changedFields[fieldName];
+            if (change && typeof change === 'object' && 'oldValue' in change) {
+              changes.push({
+                field: fieldName.split('.').pop(),
+                oldValue: change.oldValue?.displayName || change.oldValue,
+                newValue: change.newValue?.displayName || change.newValue
+              });
+            }
+          }
+        });
+      }
+      
+      await notificationHistoryService.saveNotification(userId, {
+        type: 'work-item',
+        subType: notificationType === 'work-item-created' ? 'created' : 'updated',
+        title: `${finalWorkItemData.type}: ${finalWorkItemData.title}`,
+        message,
+        source: 'webhook',
+        metadata: {
+          workItemId: finalWorkItemData.id,
+          workItemType: finalWorkItemData.type,
+          state: finalWorkItemData.state,
+          assignedTo: finalWorkItemData.assignedTo,
+          priority: workItem?.fields?.['Microsoft.VSTS.Common.Priority'],
+          severity: workItem?.fields?.['Microsoft.VSTS.Common.Severity'],
+          areaPath: workItem?.fields?.['System.AreaPath'],
+          iterationPath: workItem?.fields?.['System.IterationPath'],
+          tags: workItem?.fields?.['System.Tags'],
+          createdBy: workItem?.fields?.['System.CreatedBy']?.displayName,
+          createdDate: workItem?.fields?.['System.CreatedDate'],
+          changedBy: workItem?.fields?.['System.ChangedBy']?.displayName,
+          changedDate: workItem?.fields?.['System.ChangedDate'],
+          changes: changes.length > 0 ? changes : null,
+          url: workItemUrl
+        },
+        channels
+      });
+
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);
     }

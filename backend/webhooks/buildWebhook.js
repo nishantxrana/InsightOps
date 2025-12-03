@@ -3,6 +3,7 @@ import { aiService } from '../ai/aiService.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
+import notificationHistoryService from '../services/notificationHistoryService.js';
 
 class BuildWebhook {
   async handleCompleted(req, res, userId = null) {
@@ -127,29 +128,73 @@ class BuildWebhook {
         return;
       }
 
-      // Send to enabled notification channels
+      const card = this.formatBuildCard(build, aiSummary, userConfig);
+      const channels = [];
+
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
-        // Send as card instead of text
-        const card = this.formatBuildCard(build, aiSummary, userConfig);
-        await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
-        
-        // Send divider after build notification
-        const dividerCard = {
-          cardsV2: [{
-            cardId: `divider-build-${Date.now()}`,
-            card: {
-              sections: [{
-                widgets: [{
-                  divider: {}
-                }]
-              }]
-            }
-          }]
-        };
-        await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
-        
-        logger.info(`Build notification sent to user ${userId} via Google Chat`);
+        try {
+          await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
+          
+          const dividerCard = {
+            cardsV2: [{
+              cardId: `divider-build-${Date.now()}`,
+              card: { sections: [{ widgets: [{ divider: {} }] }] }
+            }]
+          };
+          await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
+          
+          channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          logger.info(`Build notification sent to user ${userId} via Google Chat`);
+        } catch (error) {
+          channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          logger.error(`Failed to send to Google Chat:`, error);
+        }
       }
+
+      // Calculate duration
+      let duration = '';
+      if (build.startTime && build.finishTime) {
+        const durationMs = new Date(build.finishTime) - new Date(build.startTime);
+        const durationSec = Math.round(durationMs / 1000);
+        duration = durationSec < 60 ? `${durationSec}s` : `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
+      }
+
+      // Construct build URL
+      let buildUrl = build._links?.web?.href;
+      if (!buildUrl && userConfig && userConfig.organization && userConfig.project) {
+        const organization = userConfig.organization;
+        const project = userConfig.project;
+        const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+        buildUrl = `${baseUrl}/${organization}/${project}/_build/results?buildId=${build.id}`;
+      }
+
+      await notificationHistoryService.saveNotification(userId, {
+        type: 'build',
+        subType: build.result?.toLowerCase(),
+        title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
+        message,
+        source: 'webhook',
+        metadata: {
+          buildId: build.id,
+          buildNumber: build.buildNumber,
+          result: build.result,
+          status: build.status,
+          repository: build.repository?.name,
+          branch: build.sourceBranch?.replace('refs/heads/', ''),
+          commit: build.sourceVersion?.substring(0, 8),
+          commitMessage: build.triggerInfo?.['ci.message'],
+          requestedBy: build.requestedBy?.displayName,
+          requestedFor: build.requestedFor?.displayName,
+          reason: build.reason,
+          queueTime: build.queueTime,
+          startTime: build.startTime,
+          finishTime: build.finishTime,
+          duration,
+          url: buildUrl
+        },
+        channels
+      });
+
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);
     }
@@ -338,44 +383,6 @@ class BuildWebhook {
     } catch (error) {
       logger.error('Error sending Google Chat card:', error);
       throw error;
-    }
-  }
-
-  async sendUserNotification(message, userId, notificationType, build, aiSummary, userConfig) {
-    try {
-      const { getUserSettings } = await import('../utils/userSettings.js');
-      const settings = await getUserSettings(userId);
-      
-      if (!settings.notifications?.enabled) {
-        logger.info(`Notifications disabled for user ${userId}`);
-        return;
-      }
-
-      // Send to enabled notification channels
-      if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
-        // Send as card instead of text
-        const card = this.formatBuildCard(build, aiSummary, userConfig);
-        await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
-        
-        // Send divider after build notification
-        const dividerCard = {
-          cardsV2: [{
-            cardId: `divider-build-${Date.now()}`,
-            card: {
-              sections: [{
-                widgets: [{
-                  divider: {}
-                }]
-              }]
-            }
-          }]
-        };
-        await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
-        
-        logger.info(`Build notification sent to user ${userId} via Google Chat`);
-      }
-    } catch (error) {
-      logger.error(`Error sending user notification for ${userId}:`, error);
     }
   }
 
