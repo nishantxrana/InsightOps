@@ -890,16 +890,16 @@ export default function WorkItems() {
                     className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group"
                     title="Click to view details"
                   >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                  <div className="flex items-start justify-between mb-3 gap-2">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span className="font-mono text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md shrink-0">
                         #{item.id}
                       </span>
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStateColor(item.state)}`}>
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStateColor(item.state)} shrink-0`}>
                         {item.state}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm text-foreground font-medium truncate">
                         {item.assignee}
                       </span>
