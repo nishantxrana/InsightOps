@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle, AlertCircle, FolderTree } from 'lucide-react';
 import { CopyButton } from '../components/ui/shadcn-io/copy-button';
@@ -120,7 +121,26 @@ const NotificationHistory = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        {/* Mobile: Dropdown */}
+        <div className="sm:hidden">
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select notification type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All {counts.total ? `(${counts.total})` : ''}</SelectItem>
+              <SelectItem value="build">Builds {counts.build ? `(${counts.build})` : ''}</SelectItem>
+              <SelectItem value="release">Releases {counts.release ? `(${counts.release})` : ''}</SelectItem>
+              <SelectItem value="work-item">Work Items {counts['work-item'] ? `(${counts['work-item']})` : ''}</SelectItem>
+              <SelectItem value="pull-request">PRs {counts['pull-request'] ? `(${counts['pull-request']})` : ''}</SelectItem>
+              <SelectItem value="overdue">Overdue Work Items {counts.overdue ? `(${counts.overdue})` : ''}</SelectItem>
+              <SelectItem value="idle-pr">Idle PRs {counts['idle-pr'] ? `(${counts['idle-pr']})` : ''}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* Desktop: Tabs */}
+        <TabsList className="hidden sm:inline-flex">
           <TabsTrigger value="all">All {counts.total || ''}</TabsTrigger>
           <TabsTrigger value="build">Builds {counts.build || ''}</TabsTrigger>
           <TabsTrigger value="release">Releases {counts.release || ''}</TabsTrigger>
@@ -150,14 +170,17 @@ const NotificationHistory = () => {
             <Accordion type="single" collapsible className="space-y-3">
               {filteredNotifications.map((notification) => (
                 <AccordionItem key={notification._id} value={notification._id} className="border rounded-lg overflow-hidden">
-                  <AccordionTrigger className="hover:no-underline px-3 sm:px-6 py-3 sm:py-4 [&[data-state=open]]:border-b">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full text-left">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant={notification.subType === 'failed' ? 'destructive' : notification.subType === 'succeeded' ? 'default' : 'secondary'}>
+                  <AccordionTrigger className="hover:no-underline px-3 sm:px-6 py-3 sm:py-4 [&[data-state=open]]:border-b grid grid-cols-[1fr_auto] gap-2 items-center">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-left min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:min-w-[240px] shrink-0">
+                        <Badge variant="secondary" className="text-xs rounded-full">
                           {notification.type}
                         </Badge>
                         {notification.subType && (
-                          <Badge variant="outline" className="capitalize">
+                          <Badge 
+                            variant={notification.subType === 'failed' ? 'destructive' : 'outline'} 
+                            className={`capitalize text-xs rounded-full ${notification.subType === 'succeeded' ? 'bg-green-100 text-green-800 border-green-100 dark:bg-green-900 dark:text-green-100 dark:border-green-900' : ''}`}
+                          >
                             {notification.subType}
                           </Badge>
                         )}
@@ -165,8 +188,8 @@ const NotificationHistory = () => {
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-sm sm:text-base mb-1 truncate">{notification.title}</h3>
                         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Clock className="h-3 w-3" />
-                          {new Date(notification.createdAt).toLocaleString()}
+                          <Clock className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{new Date(notification.createdAt).toLocaleString()}</span>
                         </p>
                       </div>
                     </div>
@@ -625,12 +648,12 @@ const NotificationHistory = () => {
                       
                       {/* Azure DevOps Link */}
                       {notification.metadata?.url && (
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <div className="flex items-center gap-2">
                           <a 
                             href={notification.metadata.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-2 text-sm font-medium text-primary hover:underline px-4 py-2 bg-primary/5 rounded-md hover:bg-primary/10 transition-colors"
+                            className="inline-flex items-center justify-center gap-2 text-sm font-medium text-primary hover:underline px-4 py-2 bg-primary/5 rounded-md hover:bg-primary/10 transition-colors flex-1"
                           >
                             View in Azure DevOps
                             <ExternalLink className="h-4 w-4" />
