@@ -196,46 +196,45 @@ const NotificationHistory = () => {
                   </AccordionTrigger>
                   
                   <AccordionContent className="px-3 sm:px-6 pb-4 pt-4">
-                    <div className="space-y-4">
-                      {/* Type-specific metadata */}
+                    <div className="space-y-4 overflow-hidden w-full">{/* Type-specific metadata */}
                       {notification.metadata && (notification.type === 'build' || notification.type === 'release') && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md overflow-hidden">
                           {/* Build-specific */}
                           {notification.type === 'build' && (
                             <>
                               {notification.metadata.buildNumber && (
-                                <div className="flex items-start gap-2">
-                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                  <div>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                  <div className="min-w-0 flex-1">
                                     <p className="text-xs text-muted-foreground">Build Number</p>
-                                    <p className="font-medium">#{notification.metadata.buildNumber}</p>
+                                    <p className="font-medium break-words">#{notification.metadata.buildNumber}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.repository && (
-                                <div className="flex items-start gap-2">
-                                  <Package className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                  <div>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Package className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                  <div className="min-w-0 flex-1">
                                     <p className="text-xs text-muted-foreground">Repository</p>
-                                    <p className="font-medium">{notification.metadata.repository}</p>
+                                    <p className="font-medium break-words">{notification.metadata.repository}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.branch && (
-                                <div className="flex items-start gap-2">
-                                  <GitBranch className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                  <div>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <GitBranch className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                  <div className="min-w-0 flex-1">
                                     <p className="text-xs text-muted-foreground">Branch</p>
-                                    <p className="font-medium">{notification.metadata.branch}</p>
+                                    <p className="font-medium break-words">{notification.metadata.branch}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.commit && (
-                                <div className="flex items-start gap-2">
-                                  <GitCommit className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                  <div>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <GitCommit className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                  <div className="min-w-0 flex-1">
                                     <p className="text-xs text-muted-foreground">Commit</p>
-                                    <p className="font-mono">{notification.metadata.commit}</p>
+                                    <p className="font-mono break-all">{notification.metadata.commit}</p>
                                   </div>
                                 </div>
                               )}
@@ -246,29 +245,29 @@ const NotificationHistory = () => {
                                 </div>
                               )}
                               {notification.metadata.reason && (
-                                <div className="flex items-start gap-2">
-                                  <Rocket className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                  <div>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Rocket className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                  <div className="min-w-0 flex-1">
                                     <p className="text-xs text-muted-foreground">Trigger</p>
-                                    <p className="font-medium text-xs capitalize">{notification.metadata.reason.replace(/([A-Z])/g, ' $1').trim()}</p>
+                                    <p className="font-medium text-xs capitalize break-words">{notification.metadata.reason.replace(/([A-Z])/g, ' $1').trim()}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.requestedBy && (
-                                <div className="flex items-start gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                  <div>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                  <div className="min-w-0 flex-1">
                                     <p className="text-xs text-muted-foreground">Requested By</p>
-                                    <p className="font-medium">{notification.metadata.requestedBy}</p>
+                                    <p className="font-medium break-all">{notification.metadata.requestedBy}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.duration && (
-                                <div className="flex items-start gap-2">
-                                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                  <div>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                  <div className="min-w-0 flex-1">
                                     <p className="text-xs text-muted-foreground">Duration</p>
-                                    <p className="font-medium">{notification.metadata.duration}</p>
+                                    <p className="font-medium break-words">{notification.metadata.duration}</p>
                                   </div>
                                 </div>
                               )}
@@ -279,47 +278,47 @@ const NotificationHistory = () => {
                           {notification.type === 'release' && (
                             <>
                               {notification.metadata.releaseDefinitionName && (
-                                <div className="flex items-start gap-2">
-                                  <Package className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Package className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Pipeline</p>
-                                    <p className="font-medium">{notification.metadata.releaseDefinitionName}</p>
+                                    <p className="font-medium break-all">{notification.metadata.releaseDefinitionName}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.releaseName && (
-                                <div className="flex items-start gap-2">
-                                  <Rocket className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Rocket className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Release</p>
-                                    <p className="font-medium">{notification.metadata.releaseName}</p>
+                                    <p className="font-medium break-all">{notification.metadata.releaseName}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.environmentName && (
-                                <div className="flex items-start gap-2">
-                                  <Rocket className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Rocket className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Environment</p>
-                                    <p className="font-medium">{notification.metadata.environmentName}</p>
+                                    <p className="font-medium break-all">{notification.metadata.environmentName}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.deployedBy && (
-                                <div className="flex items-start gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Deployed By</p>
-                                    <p className="font-medium">{notification.metadata.deployedBy}</p>
+                                    <p className="font-medium break-all">{notification.metadata.deployedBy}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.duration && (
-                                <div className="flex items-start gap-2">
-                                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Duration</p>
-                                    <p className="font-medium">{notification.metadata.duration}</p>
+                                    <p className="font-medium break-all">{notification.metadata.duration}</p>
                                   </div>
                                 </div>
                               )}
@@ -360,55 +359,55 @@ const NotificationHistory = () => {
                       
                       {/* Work Item-specific */}
                       {notification.type === 'work-item' && notification.metadata && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md overflow-hidden">
                           {notification.metadata.workItemId && (
-                                <div className="flex items-start gap-2">
-                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Work Item ID</p>
-                                    <p className="font-medium">#{notification.metadata.workItemId}</p>
+                                    <p className="font-medium break-all">#{notification.metadata.workItemId}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.workItemType && typeof notification.metadata.workItemType !== 'object' && (
-                                <div className="flex items-start gap-2">
-                                  <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Type</p>
-                                    <p className="font-medium">{notification.metadata.workItemType}</p>
+                                    <p className="font-medium break-all">{notification.metadata.workItemType}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.state && typeof notification.metadata.state !== 'object' && (
-                                <div className="flex items-start gap-2">
-                                  <CheckCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <CheckCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">State</p>
-                                    <p className="font-medium">{notification.metadata.state}</p>
+                                    <p className="font-medium break-all">{notification.metadata.state}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.assignedTo && typeof notification.metadata.assignedTo !== 'object' && (
-                                <div className="flex items-start gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Assigned To</p>
-                                    <p className="font-medium">{notification.metadata.assignedTo}</p>
+                                    <p className="font-medium break-all">{notification.metadata.assignedTo}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.priority && (
-                                <div className="flex items-start gap-2">
-                                  <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Priority</p>
-                                    <p className="font-medium">{notification.metadata.priority === 1 ? 'Critical' : notification.metadata.priority === 2 ? 'High' : notification.metadata.priority === 3 ? 'Medium' : 'Low'}</p>
+                                    <p className="font-medium break-all">{notification.metadata.priority === 1 ? 'Critical' : notification.metadata.priority === 2 ? 'High' : notification.metadata.priority === 3 ? 'Medium' : 'Low'}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.areaPath && (
-                                <div className="flex items-start gap-2">
-                                  <FolderTree className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <FolderTree className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Area</p>
                                     <p className="font-medium truncate">{notification.metadata.areaPath.split('\\').pop()}</p>
@@ -416,8 +415,8 @@ const NotificationHistory = () => {
                                 </div>
                               )}
                               {notification.metadata.iterationPath && (
-                                <div className="flex items-start gap-2">
-                                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Iteration</p>
                                     <p className="font-medium truncate">{notification.metadata.iterationPath.split('\\').pop()}</p>
@@ -425,11 +424,11 @@ const NotificationHistory = () => {
                                 </div>
                               )}
                               {notification.metadata.createdBy && (
-                                <div className="flex items-start gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Created By</p>
-                                    <p className="font-medium">{notification.metadata.createdBy}</p>
+                                    <p className="font-medium break-all">{notification.metadata.createdBy}</p>
                                   </div>
                                 </div>
                               )}
@@ -452,11 +451,14 @@ const NotificationHistory = () => {
                           <div className="text-sm font-medium">Changes Made:</div>
                           <div className="space-y-1">
                             {notification.metadata.changes.map((change, idx) => (
-                              <div key={idx} className="flex items-center gap-2 text-xs bg-muted/50 p-2 rounded">
-                                <span className="font-medium">{change.field}:</span>
-                                <span className="text-muted-foreground line-through">{change.oldValue || 'None'}</span>
-                                <span>→</span>
-                                <span className="text-primary font-medium">{change.newValue || 'None'}</span>
+                              <div key={idx} className="text-xs bg-muted/50 p-2 rounded">
+                                <p className="font-medium mb-1">{change.field}:</p>
+                                <p className="text-muted-foreground line-through break-words" style={{wordBreak: 'break-word', overflowWrap: 'break-word'}}>
+                                  From: {change.oldValue || 'None'}
+                                </p>
+                                <p className="text-primary font-medium break-words" style={{wordBreak: 'break-word', overflowWrap: 'break-word'}}>
+                                  To: {change.newValue || 'None'}
+                                </p>
                               </div>
                             ))}
                           </div>
@@ -465,49 +467,49 @@ const NotificationHistory = () => {
                           
                           {/* Pull Request-specific */}
                           {notification.type === 'pull-request' && notification.metadata && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm bg-muted/30 p-3 sm:p-4 rounded-md overflow-hidden">
                               {notification.metadata.pullRequestId && (
-                                <div className="flex items-start gap-2">
-                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">PR ID</p>
-                                    <p className="font-medium">#{notification.metadata.pullRequestId}</p>
+                                    <p className="font-medium break-all">#{notification.metadata.pullRequestId}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.repository && (
-                                <div className="flex items-start gap-2">
-                                  <Package className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <Package className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Repository</p>
-                                    <p className="font-medium">{notification.metadata.repository}</p>
+                                    <p className="font-medium break-all">{notification.metadata.repository}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.sourceBranch && (
-                                <div className="flex items-start gap-2">
-                                  <GitBranch className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <GitBranch className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Source</p>
-                                    <p className="font-medium">{notification.metadata.sourceBranch}</p>
+                                    <p className="font-medium break-all">{notification.metadata.sourceBranch}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.targetBranch && (
-                                <div className="flex items-start gap-2">
-                                  <GitBranch className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <GitBranch className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Target</p>
-                                    <p className="font-medium">{notification.metadata.targetBranch}</p>
+                                    <p className="font-medium break-all">{notification.metadata.targetBranch}</p>
                                   </div>
                                 </div>
                               )}
                               {notification.metadata.createdBy && (
-                                <div className="flex items-start gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                                   <div>
                                     <p className="text-xs text-muted-foreground">Created By</p>
-                                    <p className="font-medium">{notification.metadata.createdBy}</p>
+                                    <p className="font-medium break-all">{notification.metadata.createdBy}</p>
                                   </div>
                                 </div>
                               )}
