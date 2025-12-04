@@ -270,7 +270,9 @@ class WorkItemWebhook {
         }
         
         try {
-          await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
+          const { sendGoogleChatNotification } = await import('../utils/notificationWrapper.js');
+          
+          await sendGoogleChatNotification(userId, card, settings.notifications.webhooks.googleChat);
           
           const dividerCard = {
             cardsV2: [{
@@ -278,13 +280,13 @@ class WorkItemWebhook {
               card: { sections: [{ widgets: [{ divider: {} }] }] }
             }]
           };
-          await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
+          await sendGoogleChatNotification(userId, dividerCard, settings.notifications.webhooks.googleChat);
           
           channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
-          logger.info(`Work item notification sent to user ${userId} via Google Chat`);
+          logger.info(`Work item notification queued for user ${userId} via Google Chat`);
         } catch (error) {
           channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
-          logger.error(`Failed to send to Google Chat:`, error);
+          logger.error(`Failed to queue Google Chat notification:`, error);
         }
       }
       
