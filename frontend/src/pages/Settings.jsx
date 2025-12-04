@@ -114,10 +114,51 @@ const PollingSection = React.memo(({ settings, updateSetting }) => {
           <p className="text-xs text-muted-foreground mt-1">
             {settings.polling.overdueCheckInterval ? getCronDescription(settings.polling.overdueCheckInterval) : 'Enter cron expression'}
           </p>
+          
+          {/* Overdue Filter Settings */}
+          <div className="mt-4 space-y-3 p-3 border rounded-md bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Limit to Recent Overdue Items</Label>
+                <p className="text-xs text-muted-foreground">Only show items overdue within a specific timeframe</p>
+              </div>
+              <Switch
+                checked={settings.polling.overdueFilterEnabled !== false}
+                onCheckedChange={(checked) => updateSetting('polling', 'overdueFilterEnabled', checked)}
+                disabled={!settings.polling.overdueCheckEnabled}
+              />
+            </div>
+            
+            {settings.polling.overdueFilterEnabled !== false && (
+              <div>
+                <Label className="text-sm">Maximum Days Overdue</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={settings.polling.overdueMaxDays ?? 60}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val >= 1) {
+                      updateSetting('polling', 'overdueMaxDays', val);
+                    }
+                  }}
+                  disabled={!settings.polling.overdueCheckEnabled}
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Only notify about items overdue within the last {settings.polling.overdueMaxDays ?? 60} days
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
   )
+}, (prevProps, nextProps) => {
+  // Only re-render if polling settings actually changed
+  return JSON.stringify(prevProps.settings.polling) === JSON.stringify(nextProps.settings.polling);
 });
 
 PollingSection.displayName = 'PollingSection';
@@ -175,7 +216,9 @@ export default function Settings() {
       overdueCheckInterval: '4',
       workItemsEnabled: true,
       pullRequestEnabled: true,
-      overdueCheckEnabled: true
+      overdueCheckEnabled: true,
+      overdueFilterEnabled: true,
+      overdueMaxDays: 60
     },
     security: {
       webhookSecret: '',
@@ -277,7 +320,9 @@ export default function Settings() {
           overdueCheckInterval: '0 */10 * * *',
           workItemsEnabled: true,
           pullRequestEnabled: true,
-          overdueCheckEnabled: true
+          overdueCheckEnabled: true,
+          overdueFilterEnabled: true,
+          overdueMaxDays: 60
         },
         security: response.data.security || {
           webhookSecret: '',
@@ -339,6 +384,7 @@ export default function Settings() {
         polling: settings.polling,
         security: settings.security
       }
+      console.log('Saving polling settings:', settings.polling);
       if (settings.azureDevOps.personalAccessToken && settings.azureDevOps.personalAccessToken !== '***') {
         backendSettings.azureDevOps.pat = settings.azureDevOps.personalAccessToken;
       }

@@ -40,6 +40,8 @@ const userSettingsSchema = new mongoose.Schema({
     workItemsEnabled: { type: Boolean, default: false },
     pullRequestEnabled: { type: Boolean, default: false },
     overdueCheckEnabled: { type: Boolean, default: false },
+    overdueFilterEnabled: { type: Boolean, default: true },
+    overdueMaxDays: { type: Number, default: 60 }
   },
   updatedAt: {
     type: Date,
