@@ -9,6 +9,7 @@ import { logger } from './utils/logger.js';
 import { webhookRoutes } from './webhooks/routes.js';
 import { apiRoutes } from './api/routes.js';
 import { authRoutes } from './routes/auth.js';
+import queueStatusRoutes from './api/queueStatus.js';
 import { errorHandler } from './utils/errorHandler.js';
 import { userPollingManager } from './polling/userPollingManager.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
@@ -168,6 +169,7 @@ app.use('/api/auth', authRoutes);
 
 // API Routes (BEFORE static files)
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/queue', queueStatusRoutes);
 app.use('/api', apiRoutes);
 
 // Serve static files from public folder with caching

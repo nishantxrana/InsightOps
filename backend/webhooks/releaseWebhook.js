@@ -193,12 +193,14 @@ class ReleaseWebhook {
         const isFailed = notificationType === 'release-failed';
         
         try {
+          const { sendGoogleChatNotification } = await import('../utils/notificationWrapper.js');
+          
           if (isFailed && failedLogs) {
             card = this.formatReleaseCard(resource, userSettings.azureDevOps, failedLogs);
-            await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+            await sendGoogleChatNotification(userId, card, userSettings.notifications.webhooks.googleChat);
           } else {
             card = this.formatSuccessCard(resource, userSettings.azureDevOps, notificationType);
-            await this.sendGoogleChatCard(card, userSettings.notifications.webhooks.googleChat);
+            await sendGoogleChatNotification(userId, card, userSettings.notifications.webhooks.googleChat);
           }
           
           const dividerCard = {
@@ -207,13 +209,13 @@ class ReleaseWebhook {
               card: { sections: [{ widgets: [{ divider: {} }] }] }
             }]
           };
-          await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
+          await sendGoogleChatNotification(userId, dividerCard, userSettings.notifications.webhooks.googleChat);
           
           channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
-          logger.info('Release notification sent via Google Chat');
+          logger.info(`Release notification queued for user ${userId} via Google Chat`);
         } catch (error) {
           channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
-          logger.error('Failed to send to Google Chat:', error);
+          logger.error(`Failed to queue Google Chat notification:`, error);
         }
       }
 
