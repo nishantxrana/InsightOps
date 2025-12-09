@@ -5,9 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle, AlertCircle, FolderTree } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle, AlertCircle, FolderTree, Download } from 'lucide-react';
 import { CopyButton } from '../components/ui/shadcn-io/copy-button';
 import { useAuth } from '@/contexts/AuthContext';
+import { exportNotificationToCSV } from '@/utils/csvExport';
 
 const NotificationHistory = () => {
   const { user } = useAuth();
@@ -557,8 +559,19 @@ const NotificationHistory = () => {
                       {/* Overdue - detailed list */}
                       {notification.type === 'overdue' && notification.metadata.items && (
                             <div className="space-y-3">
-                              <div className="flex items-center gap-2 text-sm font-medium">
-                                <span className="text-destructive">{notification.metadata.count} Overdue Items</span>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                  <span className="text-destructive">{notification.metadata.count} Overdue Items</span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => exportNotificationToCSV(notification)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Download className="h-4 w-4" />
+                                  Export CSV
+                                </Button>
                               </div>
                               <div className="space-y-2 max-h-96 overflow-y-auto">
                                 {notification.metadata.items.map((item, idx) => (
@@ -623,8 +636,19 @@ const NotificationHistory = () => {
                           {/* Idle PR - just show count */}
                           {notification.type === 'idle-pr' && notification.metadata.pullRequests && (
                             <div className="space-y-3">
-                              <div className="flex items-center gap-2 text-sm font-medium">
-                                <span className="text-orange-600">{notification.metadata.count} Idle Pull Requests</span>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                  <span className="text-orange-600">{notification.metadata.count} Idle Pull Requests</span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => exportNotificationToCSV(notification)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Download className="h-4 w-4" />
+                                  Export CSV
+                                </Button>
                               </div>
                               <div className="space-y-2 max-h-96 overflow-y-auto">
                                 {notification.metadata.pullRequests.map((pr, idx) => (
