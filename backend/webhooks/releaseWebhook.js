@@ -232,8 +232,17 @@ class ReleaseWebhook {
       const requestedFor = environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
                           release.createdBy?.displayName || 
                           'Unknown';
-      const webUrl = deployment.release?.webAccessUri || release.webAccessUri || 
-                    `https://dev.azure.com/${userSettings.azureDevOps?.organization}/${userSettings.azureDevOps?.project}/_release?releaseId=${releaseId}&_a=release-summary`;
+      
+      // Construct web URL - prefer direct URL from payload, fallback to constructed URL using project from payload
+      let webUrl = deployment.release?.webAccessUri || release.webAccessUri;
+      if (!webUrl && userSettings.azureDevOps?.organization) {
+        const projectName = resource.project?.name || 
+                           resource.environment?.release?.project?.name ||
+                           resource.deployment?.release?.project?.name;
+        if (projectName) {
+          webUrl = `https://dev.azure.com/${userSettings.azureDevOps.organization}/${encodeURIComponent(projectName)}/_release?releaseId=${releaseId}&_a=release-summary`;
+        }
+      }
       
       const timeToDeploy = environment.timeToDeploy || deployment.timeToDeploy;
       let duration = '';
@@ -421,14 +430,17 @@ class ReleaseWebhook {
       durationText = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
     }
 
-    // Use direct web URL from webhook or construct fallback
+    // Use direct web URL from webhook or construct fallback using project from payload
     let webUrl = deployment.release?.webAccessUri || release.webAccessUri;
-    if (!webUrl && releaseId && userConfig && userConfig.organization && userConfig.project) {
-      const organization = userConfig.organization;
-      const project = userConfig.project;
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
-      const encodedProject = encodeURIComponent(project);
-      webUrl = `${baseUrl}/${organization}/${encodedProject}/_release?releaseId=${releaseId}&_a=release-summary`;
+    if (!webUrl && releaseId && userConfig?.organization) {
+      const projectName = resource.project?.name || 
+                         environment.release?.project?.name ||
+                         deployment.release?.project?.name;
+      if (projectName) {
+        const organization = userConfig.organization;
+        const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+        webUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_release?releaseId=${releaseId}&_a=release-summary`;
+      }
     }
 
     // Build log sections - make entire line red and bold if it contains ##[error]

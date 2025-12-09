@@ -53,7 +53,7 @@ class PullRequestPoller {
           const { getUserSettings } = await import('../utils/userSettings.js');
           const settings = await getUserSettings(userId);
           if (settings.notifications?.enabled) {
-            await this.sendIdlePRNotification(idlePRs.value, settings, userId);
+            await this.sendIdlePRNotification(idlePRs.value, settings, userId, client);
           }
         } else {
           // Fallback for global notifications
@@ -125,7 +125,7 @@ class PullRequestPoller {
 }
 
 // Add notification methods to the class
-PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, userSettings, userId) {
+PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, userSettings, userId, client) {
   try {
     if (!userSettings.notifications?.enabled) {
       return;
@@ -140,7 +140,7 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
       const batch = idlePRs.slice(i, i + batchSize);
       const batchNumber = Math.floor(i / batchSize) + 1;
       
-      const card = this.formatIdlePRCard(batch, batchNumber, totalBatches, idlePRs.length);
+      const card = this.formatIdlePRCard(batch, batchNumber, totalBatches, idlePRs.length, userSettings.azureDevOps);
       
       if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
         try {
@@ -174,17 +174,30 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
         source: 'poller',
         metadata: { 
           count: idlePRs.length,
-          pullRequests: idlePRs.map(pr => ({
-            id: pr.pullRequestId,
-            title: pr.title,
-            repository: pr.repository?.name,
-            sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
-            targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
-            createdBy: pr.createdBy?.displayName,
-            createdDate: pr.creationDate,
-            idleDays: Math.floor((Date.now() - new Date(pr.creationDate)) / (1000 * 60 * 60 * 24)),
-            url: pr.url || `https://dev.azure.com/${userSettings.azureDevOps?.organization}/${userSettings.azureDevOps?.project}/_git/${pr.repository?.name}/pullrequest/${pr.pullRequestId}`
-          }))
+          pullRequests: idlePRs.map(pr => {
+            const baseUrl = userSettings.azureDevOps?.baseUrl || 'https://dev.azure.com';
+            const org = userSettings.azureDevOps?.organization;
+            const project = userSettings.azureDevOps?.project;
+            const repo = pr.repository?.name;
+            
+            // Use web URL from _links, or construct proper web UI URL
+            const prUrl = pr._links?.web?.href || 
+                         (org && project && repo ? 
+                          `${baseUrl}/${org}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${pr.pullRequestId}` : 
+                          null);
+            
+            return {
+              id: pr.pullRequestId,
+              title: pr.title,
+              repository: repo,
+              sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
+              targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
+              createdBy: pr.createdBy?.displayName,
+              createdDate: pr.creationDate,
+              idleDays: Math.floor((Date.now() - new Date(pr.creationDate)) / (1000 * 60 * 60 * 24)),
+              url: prUrl
+            };
+          })
         },
         channels
       });
@@ -196,7 +209,7 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
   }
 };
 
-PullRequestPoller.prototype.formatIdlePRCard = function(pullRequests, batchNumber, totalBatches, totalCount) {
+PullRequestPoller.prototype.formatIdlePRCard = function(pullRequests, batchNumber, totalBatches, totalCount, userConfig) {
   const prSections = pullRequests.map(pr => {
     const title = pr.title || 'No title';
     const createdBy = pr.createdBy?.displayName || 'Unknown';
@@ -207,7 +220,15 @@ PullRequestPoller.prototype.formatIdlePRCard = function(pullRequests, batchNumbe
     const targetBranch = pr.targetRefName?.replace('refs/heads/', '') || 'unknown';
     const description = ((pr.description || 'No description').slice(0, 150)) +
                        ((pr.description?.length ?? 0) > 150 ? '...' : '');
-    const prUrl = pr.webUrl || pr.url;
+    
+    // Use web URL from _links, or construct proper web UI URL
+    const baseUrl = userConfig?.baseUrl || 'https://dev.azure.com';
+    const org = userConfig?.organization;
+    const project = userConfig?.project;
+    const prUrl = pr._links?.web?.href || 
+                 (org && project && repository ? 
+                  `${baseUrl}/${org}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pr.pullRequestId}` : 
+                  null);
 
     return {
       header: `🔀 PR #${pr.pullRequestId} - ${title}`,
