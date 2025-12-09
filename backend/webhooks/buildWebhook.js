@@ -133,7 +133,9 @@ class BuildWebhook {
 
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
         try {
-          await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
+          const { sendGoogleChatNotification } = await import('../utils/notificationWrapper.js');
+          
+          await sendGoogleChatNotification(userId, card, settings.notifications.webhooks.googleChat);
           
           const dividerCard = {
             cardsV2: [{
@@ -141,13 +143,13 @@ class BuildWebhook {
               card: { sections: [{ widgets: [{ divider: {} }] }] }
             }]
           };
-          await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
+          await sendGoogleChatNotification(userId, dividerCard, settings.notifications.webhooks.googleChat);
           
           channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
-          logger.info(`Build notification sent to user ${userId} via Google Chat`);
+          logger.info(`Build notification queued for user ${userId} via Google Chat`);
         } catch (error) {
           channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
-          logger.error(`Failed to send to Google Chat:`, error);
+          logger.error(`Failed to queue Google Chat notification:`, error);
         }
       }
 
@@ -161,11 +163,11 @@ class BuildWebhook {
 
       // Construct build URL
       let buildUrl = build._links?.web?.href;
-      if (!buildUrl && userConfig && userConfig.organization && userConfig.project) {
+      if (!buildUrl && userConfig?.organization && build.project?.name) {
         const organization = userConfig.organization;
-        const project = userConfig.project;
+        const project = build.project.name;
         const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
-        buildUrl = `${baseUrl}/${organization}/${project}/_build/results?buildId=${build.id}`;
+        buildUrl = `${baseUrl}/${organization}/${encodeURIComponent(project)}/_build/results?buildId=${build.id}`;
       }
 
       await notificationHistoryService.saveNotification(userId, {
@@ -231,11 +233,11 @@ class BuildWebhook {
 
     // Construct build URL
     let buildUrl = build._links?.web?.href;
-    if (!buildUrl && userConfig && userConfig.organization && userConfig.project) {
+    if (!buildUrl && userConfig?.organization && build.project?.name) {
       const organization = userConfig.organization;
-      const project = userConfig.project;
+      const project = build.project.name;
       const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
-      buildUrl = `${baseUrl}/${organization}/${project}/_build/results?buildId=${build.id}`;
+      buildUrl = `${baseUrl}/${organization}/${encodeURIComponent(project)}/_build/results?buildId=${build.id}`;
     }
 
     // Determine card styling based on result

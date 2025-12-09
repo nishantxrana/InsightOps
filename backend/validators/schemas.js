@@ -50,7 +50,9 @@ export const settingsSchema = z.object({
     overdueCheckInterval: z.string().regex(/^[*\d\s,\-\/]+$/, 'Invalid cron expression').optional(),
     workItemsEnabled: z.boolean().optional(),
     pullRequestEnabled: z.boolean().optional(),
-    overdueCheckEnabled: z.boolean().optional()
+    overdueCheckEnabled: z.boolean().optional(),
+    overdueFilterEnabled: z.boolean().optional(),
+    overdueMaxDays: z.number().int().min(1).max(365).optional()
   }).optional(),
   security: z.object({
     webhookSecret: z.string().optional(),

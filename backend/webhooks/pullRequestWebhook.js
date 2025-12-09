@@ -113,7 +113,9 @@ class PullRequestWebhook {
 
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
         try {
-          await this.sendGoogleChatCard(card, settings.notifications.webhooks.googleChat);
+          const { sendGoogleChatNotification } = await import('../utils/notificationWrapper.js');
+          
+          await sendGoogleChatNotification(userId, card, settings.notifications.webhooks.googleChat);
           
           const dividerCard = {
             cardsV2: [{
@@ -121,18 +123,20 @@ class PullRequestWebhook {
               card: { sections: [{ widgets: [{ divider: {} }] }] }
             }]
           };
-          await this.sendGoogleChatCard(dividerCard, settings.notifications.webhooks.googleChat);
+          await sendGoogleChatNotification(userId, dividerCard, settings.notifications.webhooks.googleChat);
           
           channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
-          logger.info(`PR notification sent to user ${userId} via Google Chat`);
+          logger.info(`PR notification queued for user ${userId} via Google Chat`);
         } catch (error) {
           channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
-          logger.error(`Failed to send to Google Chat:`, error);
+          logger.error(`Failed to queue Google Chat notification:`, error);
         }
       }
 
       const prUrl = pr._links?.web?.href || 
-                    (userConfig ? `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${userConfig.project}/_git/${pr.repository?.name}/pullrequest/${pr.pullRequestId}` : null);
+                    (userConfig?.organization && pr.repository?.project?.name ? 
+                     `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${encodeURIComponent(pr.repository.project.name)}/_git/${encodeURIComponent(pr.repository?.name)}/pullrequest/${pr.pullRequestId}` : 
+                     null);
 
       await notificationHistoryService.saveNotification(userId, {
         type: 'pull-request',
@@ -177,9 +181,10 @@ class PullRequestWebhook {
     const reviewers = pullRequest.reviewers?.map(r => r.displayName).filter(Boolean) || [];
 
     let prUrl = pullRequest._links?.web?.href;
-    if (!prUrl && userConfig?.organization && userConfig?.project) {
+    if (!prUrl && userConfig?.organization && pullRequest.repository?.project?.name) {
       const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
-      prUrl = `${baseUrl}/${userConfig.organization}/${encodeURIComponent(userConfig.project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
+      const project = pullRequest.repository.project.name;
+      prUrl = `${baseUrl}/${userConfig.organization}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
     }
 
     const detailWidgets = [

@@ -15,8 +15,12 @@ const NotificationHistory = () => {
   const [counts, setCounts] = useState({});
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
 
   console.log('NotificationHistory component rendered, user:', user);
 
@@ -32,16 +36,24 @@ const NotificationHistory = () => {
     }
   }, [user, activeTab]); // Refetch when tab changes
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (loadMore = false) => {
     try {
-      setLoading(true);
+      if (loadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setPage(0);
+        setNotifications([]);
+      }
       setError(null);
       const userId = user._id || user.id;
-      console.log('Fetching notifications for user:', userId, 'tab:', activeTab);
+      const currentPage = loadMore ? page + 1 : 0;
+      console.log('Fetching notifications for user:', userId, 'tab:', activeTab, 'page:', currentPage);
       
-      const params = new URLSearchParams({ userId, limit: 50 });
+      const limit = 20;
+      const params = new URLSearchParams({ userId, limit, skip: currentPage * limit });
       if (activeTab !== 'all') {
-        params.append('type', activeTab); // Only fetch for active tab
+        params.append('type', activeTab);
       }
       
       const token = localStorage.getItem('token');
@@ -60,12 +72,21 @@ const NotificationHistory = () => {
       
       const data = await response.json();
       console.log('Fetched notifications:', data.length, 'items for tab:', activeTab);
-      setNotifications(data);
+      
+      if (loadMore) {
+        setNotifications(prev => [...prev, ...data]);
+        setPage(currentPage);
+      } else {
+        setNotifications(data);
+      }
+      
+      setHasMore(data.length === limit);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
       setError(error.message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -93,10 +114,16 @@ const NotificationHistory = () => {
     }
   };
 
-  const filteredNotifications = notifications.filter(n =>
-    n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    n.message.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredNotifications = notifications
+    .filter(n =>
+      n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.message.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const dateA = new Date(a.createdAt);
+      const dateB = new Date(b.createdAt);
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    });
 
   return (
     <div className="p-6 space-y-6">
@@ -110,14 +137,25 @@ const NotificationHistory = () => {
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search notifications..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search notifications..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={sortOrder} onValueChange={setSortOrder}>
+          <SelectTrigger className="w-full sm:w-[150px]">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="desc">Newest first</SelectItem>
+            <SelectItem value="asc">Oldest first</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -684,6 +722,19 @@ const NotificationHistory = () => {
                 </AccordionItem>
               ))}
             </Accordion>
+          )}
+          
+          {/* Load More Button */}
+          {!loading && !error && filteredNotifications.length > 0 && hasMore && (
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={() => fetchNotifications(true)}
+                disabled={loadingMore}
+                className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loadingMore ? 'Loading...' : 'Load More'}
+              </button>
+            </div>
           )}
         </TabsContent>
       </Tabs>

@@ -81,16 +81,41 @@ class WorkItemPoller {
       logger.info(`Overdue check result: ${overdueItems.count} items found${userId ? ` for user ${userId}` : ''}`);
       
       if (overdueItems.count > 0) {
-        logger.warn(`Found ${overdueItems.count} overdue work items${userId ? ` for user ${userId}` : ''}`);
+        // Apply date filter if enabled
+        let filteredItems = overdueItems.value;
+        
+        if (userId) {
+          const settings = await getUserSettings(userId);
+          const filterEnabled = settings.polling?.overdueFilterEnabled !== false; // default true
+          const maxDays = settings.polling?.overdueMaxDays || 60;
+          
+          if (filterEnabled && maxDays > 0) {
+            const cutoffDate = Date.now() - (maxDays * 24 * 60 * 60 * 1000);
+            filteredItems = overdueItems.value.filter(item => {
+              const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+              if (!dueDate) return false;
+              return new Date(dueDate).getTime() >= cutoffDate;
+            });
+            
+            logger.info(`Filtered to ${filteredItems.length} items within last ${maxDays} days (from ${overdueItems.count} total)`);
+          }
+        }
+        
+        if (filteredItems.length === 0) {
+          logger.info(`No overdue items within configured date range${userId ? ` for user ${userId}` : ''}`);
+          return;
+        }
+        
+        logger.warn(`Found ${filteredItems.length} overdue work items${userId ? ` for user ${userId}` : ''}`);
         
         // Send notification with user-specific settings
         if (userId) {
           const settings = await getUserSettings(userId);
           if (settings.notifications?.enabled) {
-            await this.sendOverdueNotification(overdueItems.value, settings, userId);
+            await this.sendOverdueNotification(filteredItems, settings, userId);
           }
         } else {
-          await notificationService.sendOverdueReminder(overdueItems.value);
+          await notificationService.sendOverdueReminder(filteredItems);
         }
       } else {
         logger.info(`No overdue work items found${userId ? ` for user ${userId}` : ''}`);
