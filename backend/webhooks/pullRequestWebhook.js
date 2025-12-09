@@ -134,7 +134,9 @@ class PullRequestWebhook {
       }
 
       const prUrl = pr._links?.web?.href || 
-                    (userConfig ? `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${userConfig.project}/_git/${pr.repository?.name}/pullrequest/${pr.pullRequestId}` : null);
+                    (userConfig?.organization && pr.repository?.project?.name ? 
+                     `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${encodeURIComponent(pr.repository.project.name)}/_git/${encodeURIComponent(pr.repository?.name)}/pullrequest/${pr.pullRequestId}` : 
+                     null);
 
       await notificationHistoryService.saveNotification(userId, {
         type: 'pull-request',
@@ -179,9 +181,10 @@ class PullRequestWebhook {
     const reviewers = pullRequest.reviewers?.map(r => r.displayName).filter(Boolean) || [];
 
     let prUrl = pullRequest._links?.web?.href;
-    if (!prUrl && userConfig?.organization && userConfig?.project) {
+    if (!prUrl && userConfig?.organization && pullRequest.repository?.project?.name) {
       const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
-      prUrl = `${baseUrl}/${userConfig.organization}/${encodeURIComponent(userConfig.project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
+      const project = pullRequest.repository.project.name;
+      prUrl = `${baseUrl}/${userConfig.organization}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
     }
 
     const detailWidgets = [

@@ -163,11 +163,11 @@ class BuildWebhook {
 
       // Construct build URL
       let buildUrl = build._links?.web?.href;
-      if (!buildUrl && userConfig && userConfig.organization && userConfig.project) {
+      if (!buildUrl && userConfig?.organization && build.project?.name) {
         const organization = userConfig.organization;
-        const project = userConfig.project;
+        const project = build.project.name;
         const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
-        buildUrl = `${baseUrl}/${organization}/${project}/_build/results?buildId=${build.id}`;
+        buildUrl = `${baseUrl}/${organization}/${encodeURIComponent(project)}/_build/results?buildId=${build.id}`;
       }
 
       await notificationHistoryService.saveNotification(userId, {
@@ -233,11 +233,11 @@ class BuildWebhook {
 
     // Construct build URL
     let buildUrl = build._links?.web?.href;
-    if (!buildUrl && userConfig && userConfig.organization && userConfig.project) {
+    if (!buildUrl && userConfig?.organization && build.project?.name) {
       const organization = userConfig.organization;
-      const project = userConfig.project;
+      const project = build.project.name;
       const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
-      buildUrl = `${baseUrl}/${organization}/${project}/_build/results?buildId=${build.id}`;
+      buildUrl = `${baseUrl}/${organization}/${encodeURIComponent(project)}/_build/results?buildId=${build.id}`;
     }
 
     // Determine card styling based on result
