@@ -62,9 +62,7 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 - **Polling**: Configurable backup monitoring for webhook reliability
 
 ### 📢 Smart Notifications
-- **Microsoft Teams**: Rich card notifications with interactive buttons
 - **Google Chat**: Formatted alerts with markdown compatibility
-- **Slack**: Comprehensive webhooks with custom formatting
 - **Context-Aware**: AI-enhanced messages with actionable insights
 - **Configurable**: Customizable notification rules and schedules
 
@@ -72,14 +70,8 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 - **Build Failure Workflow**: Auto-analyze failed builds and notify teams
 - **PR Monitoring Workflow**: Track idle pull requests and send reminders
 - **Sprint Monitoring Workflow**: Generate daily sprint summaries
-- **Custom Workflows**: Define JSON-based workflows for any scenario
 - **Event-Driven**: Trigger workflows from webhooks or scheduled jobs
 
-### 💾 Advanced Memory System
-- **Vector Storage**: MongoDB-based semantic search for historical context
-- **Pattern Tracking**: Learn from past events to improve predictions
-- **Context Manager**: Maintain conversation history for multi-turn AI interactions
-- **Rule Generation**: Automatically create rules from observed patterns
 
 ### 🎨 Modern React UI
 - **Dashboard**: Real-time overview of work items, builds, PRs, and releases
@@ -639,63 +631,9 @@ npm run lint            # Lint code with ESLint
 
 ---
 
-## 🤝 Contributing
 
-Contributions are welcome! Here's how you can help:
 
-### How to Contribute
 
-1. **Fork the Repository**
-   ```bash
-   git clone https://github.com/nishantxrana/InsightOps.git
-   cd InsightOps
-   ```
-
-2. **Create a Feature Branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-3. **Make Your Changes**
-   - Follow the existing code style
-   - Add comments for complex logic
-   - Test your changes thoroughly
-
-4. **Commit Your Changes**
-   ```bash
-   git add .
-   git commit -m "Add: Brief description of your feature"
-   ```
-
-5. **Push and Create Pull Request**
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-   Then open a Pull Request on GitHub
-
-### Code Style Guidelines
-
-- **Backend**: Follow Node.js best practices, use async/await
-- **Frontend**: Follow React best practices, use functional components
-- **Formatting**: ESLint is configured for code consistency
-- **Commits**: Use clear, descriptive commit messages
-
-### Areas for Contribution
-
-- 🐛 Bug fixes and improvements
-- ✨ New AI providers or models
-- 📚 Documentation improvements
-- 🎨 UI/UX enhancements
-- 🧪 Test coverage
-- 🌐 Internationalization
-
----
-
-## 📄 License
-
-This project is licensed under the **MIT License** - you are free to use, modify, and distribute this software.
-
----
 
 ## 🆘 Troubleshooting
 
@@ -738,55 +676,19 @@ Then check logs at:
 - `backend/logs/combined.log` - All logs
 - `backend/logs/error.log` - Errors only
 
-### Getting Help
 
-- 🐛 **Report Bugs**: [GitHub Issues](https://github.com/nishantxrana/InsightOps/issues)
-- ⭐ **Feature Requests**: [GitHub Issues](https://github.com/nishantxrana/InsightOps/issues)
-- 💬 **Discussions**: Use GitHub Discussions for questions
 
----
 
-## 🔮 Roadmap & Future Enhancements
 
-### 🚧 In Progress
-- [ ] GitHub integration (alongside Azure DevOps)
-- [ ] Advanced caching for improved performance
-- [ ] Custom workflow builder UI
-- [ ] Real-time WebSocket notifications
-
-### 🎯 Planned Features
-- [ ] **GitLab Support**: Extend beyond Azure DevOps
-- [ ] **Claude & Cohere**: Additional AI provider integrations
-- [ ] **DORA Metrics**: Automated DevOps performance tracking
-- [ ] **Custom Dashboards**: User-configurable metric panels
-- [ ] **Advanced Analytics**: Predictive insights and trend analysis
-- [ ] **Team Collaboration**: Shared workspaces and team views
-- [ ] **Mobile App**: React Native iOS/Android companion
-- [ ] **Plugin System**: Extensible architecture for custom integrations
-
-### 🔒 Security & Enterprise
-- [ ] **SSO Integration**: SAML, OAuth2, Azure AD
-- [ ] **RBAC**: Role-based access control
-- [ ] **Audit Logging**: Comprehensive activity tracking
-- [ ] **Multi-tenancy**: Organization-level isolation
-- [ ] **Compliance**: SOC2, GDPR certification
-
-### ⚡ Performance
-- [ ] **Redis Caching**: Reduce database load
-- [ ] **GraphQL API**: More efficient data fetching
-- [ ] **Database Optimization**: Indexing and query improvements
-- [ ] **Kubernetes Deployment**: Scalable container orchestration
-
----
 
 ## 🌟 Live Demo
 
-🚀 **Try InsightOps**: [TODO: Add live demo URL]
+🚀 **Try InsightOps**: [https://stginsightops.azurewebsites.net/]
 
 **Demo Credentials:**
 ```
-Email: TODO: demo@insightops.dev
-Password: TODO: demo123
+Email: demo@insightops.dev
+Password: W6%Q5=?!;f4f
 ```
 
 *Note: Demo resets every 24 hours. Your data will not be persisted.*
@@ -796,44 +698,15 @@ Password: TODO: demo123
 ## 📸 Screenshots
 
 ### Dashboard
-![Dashboard](TODO: Add screenshot URL)
+![Dashboard](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Dashboard.png)
 *Real-time overview of work items, builds, PRs, and releases*
 
 ### Pipeline Analysis
-![Pipeline Analysis](TODO: Add screenshot URL)
+![Pipeline Analysis](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Release.png)
 *AI-powered build failure analysis with actionable insights*
 
 ### Settings
-![Settings](TODO: Add screenshot URL)
+![Settings](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Settings.png)
 *Configure Azure DevOps, AI providers, and notifications*
 
 ---
-
-## 🙏 Acknowledgments
-
-This project leverages amazing open-source technologies:
-
-- **[shadcn/ui](https://ui.shadcn.com/)** - Beautiful and accessible React components
-- **[Radix UI](https://www.radix-ui.com/)** - Unstyled, accessible component primitives
-- **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
-- **[Lucide Icons](https://lucide.dev/)** - Beautiful & consistent icon set
-- **[Azure DevOps REST API](https://learn.microsoft.com/en-us/rest/api/azure/devops/)** - Comprehensive DevOps integration
-- **[OpenAI](https://openai.com/)**, **[Groq](https://groq.com/)**, **[Google Gemini](https://ai.google.dev/)** - AI capabilities
-
-Special thanks to the open-source community for inspiration and contributions! 🎉
-
----
-
-<div align="center">
-
-### 💫 Built with passion for better DevOps workflows
-
-**[⭐ Star this repo](https://github.com/nishantxrana/InsightOps)** • **[🐛 Report Bug](https://github.com/nishantxrana/InsightOps/issues)** • **[✨ Request Feature](https://github.com/nishantxrana/InsightOps/issues)**
-
----
-
-Made with ❤️ by [Nishant Rana](https://github.com/nishantxrana)
-
-*If you find this project helpful, please consider giving it a star!* ⭐
-
-</div>
