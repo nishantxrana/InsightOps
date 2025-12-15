@@ -20,6 +20,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { useHealth } from "../contexts/HealthContext";
 import { releaseService } from "../api/releaseService";
 import ReleaseFilterDropdown from "../components/ReleaseFilterDropdown";
@@ -134,13 +135,14 @@ const getEnvironmentStatusColor = (status) => {
 
 export default function Releases() {
   const [loading, setLoading] = useState(true);
+  const [paginationLoading, setPaginationLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [releases, setReleases] = useState([]);
   const [filteredReleases, setFilteredReleases] = useState([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [continuationToken, setContinuationToken] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const itemsPerPage = 50;
   const [stats, setStats] = useState({
     total: 0,
     successRate: 0,
@@ -177,8 +179,15 @@ export default function Releases() {
   const { checkConnection } = useHealth();
 
   useEffect(() => {
+    setCurrentPage(1); // Reset to first page when time range changes
     loadReleasesData();
-  }, [timeRange]); // Reload when time range changes
+  }, [timeRange]); // Reset page and reload when time range changes
+
+  useEffect(() => {
+    if (currentPage > 1) { // Only load if not first page (first page loads from time range effect)
+      loadReleasesData(true); // Pass true for pagination
+    }
+  }, [currentPage]); // Reload when page changes
 
   // Filter releases when filters change
   useEffect(() => {
@@ -232,75 +241,62 @@ export default function Releases() {
     localStorage.setItem('releaseAiInsightsEnabled', JSON.stringify(newValue));
   };
 
-  const loadReleasesData = async (append = false) => {
+  const loadReleasesData = async (isPagination = false) => {
     try {
-      if (!append) {
-        setLoading(true);
-        setContinuationToken(null);
+      if (isPagination) {
+        setPaginationLoading(true);
       } else {
-        setLoadingMore(true);
+        setLoading(true);
       }
       setError(null);
       
-      // Fetch release statistics with time range (only on initial load)
-      if (!append) {
-        const statsResponse = await releaseService.getReleaseStats({
-          fromDate: timeRange.from.toISOString(),
-          toDate: timeRange.to.toISOString()
-        });
-        if (statsResponse.success) {
-          setStats(statsResponse.data);
-        }
+      // Fetch release statistics with time range
+      const statsResponse = await releaseService.getReleaseStats({
+        fromDate: timeRange.from.toISOString(),
+        toDate: timeRange.to.toISOString()
+      });
+      if (statsResponse.success) {
+        setStats(statsResponse.data);
+        // Calculate total pages based on total releases
+        const totalReleases = statsResponse.data.totalReleases || 0;
+        setTotalPages(Math.ceil(totalReleases / itemsPerPage));
       }
       
       // Fetch releases with time range and pagination
       const releasesResponse = await releaseService.getReleases({ 
         fromDate: timeRange.from.toISOString(),
         toDate: timeRange.to.toISOString(),
-        limit: 50,
-        continuationToken: append ? continuationToken : undefined
+        limit: itemsPerPage,
+        skip: (currentPage - 1) * itemsPerPage
       });
       
       if (releasesResponse.success) {
         const releasesList = releasesResponse.data.releases || [];
-        
-        // Append or replace releases
-        let updatedReleases;
-        if (append) {
-          updatedReleases = [...releases, ...releasesList];
-          setReleases(updatedReleases);
-        } else {
-          updatedReleases = releasesList;
-          setReleases(updatedReleases);
-        }
-        
-        // Update pagination state
-        setHasMore(releasesResponse.data.hasMore || false);
-        setContinuationToken(releasesResponse.data.continuationToken || null);
+        setReleases(releasesList);
 
-        // Extract unique environments from all loaded releases
+        // Extract unique environments from releases
         const uniqueEnvironments = [...new Set(
-          updatedReleases.flatMap(release => 
+          releasesList.flatMap(release => 
             (release.environments || []).map(env => env.name)
           )
         )].filter(Boolean).sort();
         setEnvironments(uniqueEnvironments);
 
-        // Extract unique definitions from all loaded releases
+        // Extract unique definitions from releases
         const uniqueDefinitions = [...new Set(
-          updatedReleases.map(release => release.definitionName)
+          releasesList.map(release => release.definitionName)
         )].filter(Boolean).sort();
         setDefinitions(uniqueDefinitions);
       }
       
       setLoading(false);
-      setLoadingMore(false);
+      setPaginationLoading(false);
       setInitialLoad(false);
     } catch (err) {
       setError("Failed to load releases data");
       console.error("Releases error:", err);
       setLoading(false);
-      setLoadingMore(false);
+      setPaginationLoading(false);
       setInitialLoad(false);
     }
   };
@@ -315,7 +311,7 @@ export default function Releases() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
@@ -491,7 +487,6 @@ export default function Releases() {
         <div className="animate-fade-in" style={{animationDelay: '0.3s'}}>
           <EnvironmentHealthDashboard 
             environmentStats={stats.environmentStats}
-            releases={releases}
           />
         </div>
       )}
@@ -678,7 +673,13 @@ export default function Releases() {
         ) : (
           <>
             <ScrollArea className="h-[40vh] border border-border dark:border-[#1a1a1a] rounded-xl bg-card dark:bg-[#111111]">
-              <div className="divide-y divide-border dark:divide-[#1a1a1a]">
+              {paginationLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Loading...</span>
+                </div>
+              ) : (
+                <div className="divide-y divide-border dark:divide-[#1a1a1a]">
                 {filteredReleases.map((release, index) => (
                   <div 
                     key={release.id} 
@@ -780,13 +781,14 @@ export default function Releases() {
                   </div>
                 ))}
               </div>
+              )}
             </ScrollArea>
 
             {/* Results Summary */}
             <div className="mt-4 pt-4 border-t border-border">
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>
-                  Showing {filteredReleases.length} of {releases.length} releases
+                  Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, stats.totalReleases || 0)} of {stats.totalReleases || releases.length} releases
                 </span>
                 {(statusFilter !== 'all' || environmentFilter !== 'all' || definitionFilter !== 'all' || searchTerm) && (
                   <span className="text-blue-600">
@@ -795,23 +797,51 @@ export default function Releases() {
                 )}
               </div>
               
-              {/* Load More Button */}
-              {hasMore && !loading && (
-                <div className="mt-4 text-center">
-                  <button
-                    onClick={() => loadReleasesData(true)}
-                    disabled={loadingMore}
-                    className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-60 transition-colors"
-                  >
-                    {loadingMore ? (
-                      <span className="flex items-center gap-2">
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        Loading...
-                      </span>
-                    ) : (
-                      'Load More Releases'
-                    )}
-                  </button>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-4 flex justify-center">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          className={currentPage === 1 || paginationLoading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                      
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <PaginationItem key={pageNum}>
+                            <PaginationLink
+                              onClick={() => !paginationLoading && setCurrentPage(pageNum)}
+                              isActive={currentPage === pageNum}
+                              className={paginationLoading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            >
+                              {pageNum}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      })}
+                      
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                          className={currentPage === totalPages || paginationLoading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
                 </div>
               )}
             </div>

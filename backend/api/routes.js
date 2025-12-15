@@ -999,7 +999,7 @@ router.use('/notifications', notificationHistoryRoutes);
 // Releases endpoints
 router.get('/releases', async (req, res) => {
   try {
-    const { limit = 50, status, definitionId, fromDate, toDate, continuationToken } = req.query;
+    const { limit = 50, skip = 0, status, definitionId, fromDate, toDate } = req.query;
     const userSettings = await getUserSettings(req.user.id);
     
     if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
@@ -1021,14 +1021,53 @@ router.get('/releases', async (req, res) => {
       definitionId: definitionId ? parseInt(definitionId) : undefined,
       statusFilter: status,
       minCreatedTime: fromDate,
-      maxCreatedTime: toDate,
-      continuationToken: continuationToken
+      maxCreatedTime: toDate
     };
 
     try {
-      const azureResponse = await releaseClient.getReleases(options);
-      const releases = azureResponse.value || [];
-      const nextContinuationToken = azureResponse.continuationToken;
+      let releases = [];
+      const targetSkip = parseInt(skip);
+      const targetLimit = parseInt(limit);
+      
+      if (targetSkip === 0) {
+        // First page - fetch directly
+        const azureResponse = await releaseClient.getReleases({
+          ...options,
+          top: targetLimit
+        });
+        releases = azureResponse.value || [];
+      } else {
+        // Skip pages efficiently then fetch target page
+        let continuationToken = null;
+        let fetchedCount = 0;
+        
+        // Skip through pages
+        while (fetchedCount < targetSkip) {
+          const skipBatchSize = Math.min(100, targetSkip - fetchedCount);
+          const azureResponse = await releaseClient.getReleases({
+            ...options,
+            top: skipBatchSize,
+            continuationToken
+          });
+          
+          const batchReleases = azureResponse.value || [];
+          if (batchReleases.length === 0) break;
+          
+          fetchedCount += batchReleases.length;
+          continuationToken = azureResponse.continuationToken;
+          if (!continuationToken) break;
+        }
+        
+        // Fetch the actual page
+        if (continuationToken) {
+          const azureResponse = await releaseClient.getReleases({
+            ...options,
+            top: targetLimit,
+            continuationToken
+          });
+          releases = azureResponse.value || [];
+        }
+      }
 
       // Transform Azure DevOps data to our format
       const transformedReleases = releases.map(release => {
@@ -1247,8 +1286,8 @@ router.get('/releases', async (req, res) => {
         data: {
           releases: releasesWithApprovalCheck,
           total: releases.length,
-          hasMore: !!nextContinuationToken,
-          continuationToken: nextContinuationToken
+          hasMore: releases.length === targetLimit, // Has more if we got a full page
+          continuationToken: null
         }
       });
     } catch (apiError) {
