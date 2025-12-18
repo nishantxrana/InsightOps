@@ -29,7 +29,7 @@ const getEnvironmentHealthIcon = (successRate) => {
   return <XCircle className="w-5 h-5 text-red-600" />;
 };
 
-export default function EnvironmentHealthDashboard({ environmentStats, releases }) {
+export default function EnvironmentHealthDashboard({ environmentStats }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   
   if (!environmentStats || Object.keys(environmentStats).length === 0) {
@@ -67,23 +67,7 @@ export default function EnvironmentHealthDashboard({ environmentStats, releases 
     });
   };
 
-  // Get last deployment for each environment
-  const getLastDeployment = (envName) => {
-    const envReleases = releases
-      .filter(release => release.environments?.some(env => env.name === envName))
-      .sort((a, b) => new Date(b.createdOn) - new Date(a.createdOn));
-    
-    if (envReleases.length === 0) return null;
-    
-    const lastRelease = envReleases[0];
-    const envData = lastRelease.environments.find(env => env.name === envName);
-    
-    return {
-      releaseName: lastRelease.name,
-      status: envData?.status || 'unknown',
-      deployedOn: envData?.deployedOn || lastRelease.createdOn
-    };
-  };
+  // Remove getLastDeployment function since we don't have releases data
 
   return (
     <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
@@ -130,7 +114,6 @@ export default function EnvironmentHealthDashboard({ environmentStats, releases 
             <CarouselContent className="">
               {environments.map(([envName, stats]) => {
                 const successRate = stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
-                const lastDeployment = getLastDeployment(envName);
                 
                 return (
                   <CarouselItem key={envName} className="basis-full">
@@ -169,24 +152,6 @@ export default function EnvironmentHealthDashboard({ environmentStats, releases 
                         </div>
                       </div>
 
-                      {/* Last Deployment */}
-                      {lastDeployment && (
-                        <div className="pt-4 border-t border-border dark:border-[#1a1a1a]">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                            <Calendar className="w-3 h-3 flex-shrink-0" />
-                            <span className="font-medium">Last Deployment</span>
-                          </div>
-                          <div className="text-sm font-medium text-foreground truncate">{lastDeployment.releaseName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(lastDeployment.deployedOn).toLocaleDateString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </CarouselItem>
                 );
@@ -204,7 +169,6 @@ export default function EnvironmentHealthDashboard({ environmentStats, releases 
               .slice(currentIndex, currentIndex + cardsPerPage)
               .map(([envName, stats]) => {
                 const successRate = stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
-                const lastDeployment = getLastDeployment(envName);
                 
                 return (
                   <div key={envName} className="min-w-[280px] max-w-[400px] mx-auto w-full group relative overflow-hidden bg-gradient-to-br from-card to-card/50 dark:from-[#111111] dark:to-[#0a0a0a] p-6 rounded-xl border border-border dark:border-[#1a1a1a] shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.02]">
@@ -242,24 +206,6 @@ export default function EnvironmentHealthDashboard({ environmentStats, releases 
                       </div>
                     </div>
 
-                    {/* Last Deployment */}
-                    {lastDeployment && (
-                      <div className="pt-4 border-t border-border dark:border-[#1a1a1a]">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                          <Calendar className="w-3 h-3 flex-shrink-0" />
-                          <span className="font-medium">Last Deployment</span>
-                        </div>
-                        <div className="text-sm font-medium text-foreground truncate">{lastDeployment.releaseName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(lastDeployment.deployedOn).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
