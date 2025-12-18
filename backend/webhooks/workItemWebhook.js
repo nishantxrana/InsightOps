@@ -3,14 +3,23 @@ import { aiService } from '../ai/aiService.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
 import notificationHistoryService from '../services/notificationHistoryService.js';
+import BaseWebhook from './BaseWebhook.js';
 
-class WorkItemWebhook {
+class WorkItemWebhook extends BaseWebhook {
   async handleCreated(req, res, userId = null) {
     try {
       const { resource } = req.body;
       
       if (!resource) {
         return res.status(400).json({ error: 'Missing resource in webhook payload' });
+      }
+
+      const workItemId = resource.id;
+      
+      // Check for duplicate webhook
+      const dupeCheck = this.isDuplicate(workItemId, userId, 'workitem');
+      if (dupeCheck.isDuplicate) {
+        return res.json(this.createDuplicateResponse(workItemId, 'workitem', dupeCheck.timeSince));
       }
 
       // Check for 'silent' tag to skip notifications

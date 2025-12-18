@@ -4,8 +4,9 @@ import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import notificationHistoryService from '../services/notificationHistoryService.js';
+import BaseWebhook from './BaseWebhook.js';
 
-class BuildWebhook {
+class BuildWebhook extends BaseWebhook {
   async handleCompleted(req, res, userId = null) {
     try {
       // Validate userId parameter
@@ -21,6 +22,13 @@ class BuildWebhook {
       }
 
       const buildId = resource.id;
+      
+      // Check for duplicate webhook
+      const dupeCheck = this.isDuplicate(buildId, userId, 'build');
+      if (dupeCheck.isDuplicate) {
+        return res.json(this.createDuplicateResponse(buildId, 'build', dupeCheck.timeSince));
+      }
+
       const buildNumber = resource.buildNumber;
       const status = resource.status;
       const result = resource.result;

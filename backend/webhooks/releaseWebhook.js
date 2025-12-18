@@ -2,8 +2,9 @@ import { logger } from '../utils/logger.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
 import axios from 'axios';
 import notificationHistoryService from '../services/notificationHistoryService.js';
+import BaseWebhook from './BaseWebhook.js';
 
-class ReleaseWebhook {
+class ReleaseWebhook extends BaseWebhook {
   async handleDeploymentCompleted(req, res, userId = null) {
     try {
       const { resource } = req.body;
@@ -13,10 +14,20 @@ class ReleaseWebhook {
       }
 
       const releaseId = resource.environment?.releaseId;
+      const environmentName = resource.environment?.name;
+      
+      // For releases, use releaseId + environment as unique identifier
+      const eventId = `${releaseId}-${environmentName}`;
+      
+      // Check for duplicate webhook
+      const dupeCheck = this.isDuplicate(eventId, userId, 'release');
+      if (dupeCheck.isDuplicate) {
+        return res.json(this.createDuplicateResponse(eventId, 'release', dupeCheck.timeSince));
+      }
+
       const releaseName = resource.environment?.preDeployApprovals?.[0]?.release?.name || 
                          resource.environment?.postDeployApprovals?.[0]?.release?.name ||
                          `Release-${releaseId}`;
-      const environmentName = resource.environment?.name;
       const environmentStatus = resource.environment?.status;
       const deploymentStatus = resource.deployment?.deploymentStatus;
       
