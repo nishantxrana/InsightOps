@@ -4,8 +4,9 @@ import { notificationService } from '../notifications/notificationService.js';
 import { markdownFormatter } from '../utils/markdownFormatter.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import notificationHistoryService from '../services/notificationHistoryService.js';
+import BaseWebhook from './BaseWebhook.js';
 
-class PullRequestWebhook {
+class PullRequestWebhook extends BaseWebhook {
   async handleCreated(req, res, userId = null) {
     try {
       const { resource } = req.body;
@@ -15,6 +16,13 @@ class PullRequestWebhook {
       }
 
       const pullRequestId = resource.pullRequestId;
+      
+      // Check for duplicate webhook
+      const dupeCheck = this.isDuplicate(pullRequestId, userId, 'pullrequest');
+      if (dupeCheck.isDuplicate) {
+        return res.json(this.createDuplicateResponse(pullRequestId, 'pullrequest', dupeCheck.timeSince));
+      }
+
       const title = resource.title;
       const createdBy = resource.createdBy?.displayName;
       const sourceBranch = resource.sourceRefName;
