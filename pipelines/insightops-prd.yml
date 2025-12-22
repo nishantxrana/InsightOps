@@ -48,25 +48,3 @@ steps:
     inputs:
       PathtoPublish: "$(Build.ArtifactStagingDirectory)/insightops_production.zip"
       ArtifactName: "InsightOpsArtifact_Prd"
-
-  - script: |
-      set -euo pipefail
-
-      ZIP_PATH="$(Build.ArtifactStagingDirectory)/insightops_production.zip"
-
-      echo "Deploying to: https://$KUDU_SCM_URL/api/zipdeploy"
-
-      curl -X POST \
-        -u "$KUDU_USERNAME:$KUDU_PASSWORD" \
-        --retry 3 \
-        --retry-delay 5 \
-        --fail \
-        "https://$KUDU_SCM_URL/api/zipdeploy" \
-        -F "file=@${ZIP_PATH}"
-    displayName: "Deploy via Kudu ZipDeploy"
-    env:
-      KUDU_SCM_URL: $(KUDU_SCM_URL)
-      KUDU_USERNAME: $(KUDU_USERNAME)
-      KUDU_PASSWORD: $(KUDU_PASSWORD)
-
-
