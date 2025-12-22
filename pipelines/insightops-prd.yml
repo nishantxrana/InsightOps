@@ -4,15 +4,15 @@ trigger:
       - main
 
 pool:
-  vmImage: "ubuntu-latest"
+  vmImage: ubuntu-latest
 
 steps:
   - checkout: self
 
   - task: NodeTool@0
     inputs:
-      versionSource: "spec"
       versionSpec: "22"
+    displayName: "Use Node.js 22"
 
   - script: npm ci
     workingDirectory: frontend
@@ -29,22 +29,44 @@ steps:
       VITE_CLARITY_PROJECT_ID: $(VITE_CLARITY_PROJECT_ID)
       VITE_DEMO_VIDEO_URL: $(VITE_DEMO_VIDEO_URL)
 
-  - script: | 
+  - script: |
       mkdir -p backend/public
       cp -r frontend/dist/. backend/public/
-    displayName: "Move frontend build to backend public folder"
+    displayName: "Move frontend build to backend"
 
   - task: ArchiveFiles@2
+    displayName: "Create deployment zip"
     inputs:
-      rootFolderOrFile: "backend"
+      rootFolderOrFile: backend
       includeRootFolder: false
-      archiveType: "zip"
+      archiveType: zip
       archiveFile: "$(Build.ArtifactStagingDirectory)/insightops_production.zip"
       replaceExistingArchive: true
-    displayName: "Archive backend files"
 
   - task: PublishBuildArtifacts@1
+    displayName: "Publish artifact"
     inputs:
       PathtoPublish: "$(Build.ArtifactStagingDirectory)/insightops_production.zip"
-      ArtifactName: "InsightOpsArtifact_PRD"
-    displayName: "Publish insightops artifact"
+      ArtifactName: "InsightOpsArtifact_Prd"
+
+  - script: |
+      set -euo pipefail
+
+      ZIP_PATH="$(Build.ArtifactStagingDirectory)/insightops_production.zip"
+
+      echo "Deploying to: https://$KUDU_SCM_URL/api/zipdeploy"
+
+      curl -X POST \
+        -u "$KUDU_USERNAME:$KUDU_PASSWORD" \
+        --retry 3 \
+        --retry-delay 5 \
+        --fail \
+        "https://$KUDU_SCM_URL/api/zipdeploy" \
+        -F "file=@${ZIP_PATH}"
+    displayName: "Deploy via Kudu ZipDeploy"
+    env:
+      KUDU_SCM_URL: $(KUDU_SCM_URL)
+      KUDU_USERNAME: $(KUDU_USERNAME)
+      KUDU_PASSWORD: $(KUDU_PASSWORD)
+
+
