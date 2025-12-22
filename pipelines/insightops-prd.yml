@@ -34,8 +34,17 @@ steps:
       cp -r frontend/dist/. backend/public/
     displayName: "Move frontend build to backend public folder"
 
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: "backend"
+      includeRootFolder: false
+      archiveType: "zip"
+      archiveFile: "$(Build.ArtifactStagingDirectory)/insightops.zip"
+      replaceExistingArchive: true
+    displayName: "Archive backend files"
+
   - task: PublishBuildArtifacts@1
     inputs:
-      PathtoPublish: "backend"
-      ArtifactName: "drop"
-    displayName: "Publish backend artifact"
+      PathtoPublish: "$(Build.ArtifactStagingDirectory)/insightops.zip"
+      ArtifactName: "InsightOpsArtifact"
+    displayName: "Publish insightopss artifact"
