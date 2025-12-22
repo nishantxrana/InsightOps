@@ -39,12 +39,12 @@ steps:
       rootFolderOrFile: "backend"
       includeRootFolder: false
       archiveType: "zip"
-      archiveFile: "$(Build.ArtifactStagingDirectory)/insightops.zip"
+      archiveFile: "$(Build.ArtifactStagingDirectory)/insightops_production.zip"
       replaceExistingArchive: true
     displayName: "Archive backend files"
 
   - task: PublishBuildArtifacts@1
     inputs:
-      PathtoPublish: "$(Build.ArtifactStagingDirectory)/insightops.zip"
-      ArtifactName: "InsightOpsArtifact"
-    displayName: "Publish insightopss artifact"
+      PathtoPublish: "$(Build.ArtifactStagingDirectory)/insightops_production.zip"
+      ArtifactName: "InsightOpsArtifact_PRD"
+    displayName: "Publish insightops artifact"
