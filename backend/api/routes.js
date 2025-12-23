@@ -146,6 +146,79 @@ router.post('/settings/test-connection', validateRequest(testConnectionSchema), 
   }
 });
 
+// Fetch projects with temporary credentials (for new users)
+router.post('/settings/fetch-projects', async (req, res) => {
+  try {
+    const { organization, pat, baseUrl } = req.body;
+    
+    if (!organization || !pat) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Organization and PAT are required' 
+      });
+    }
+    
+    logger.info('Fetching projects with temporary credentials...', sanitizeForLogging({ organization }));
+    
+    let actualPat = pat;
+    
+    // If frontend sends 'USE_SAVED_PAT', get the saved PAT from user settings
+    if (pat === 'USE_SAVED_PAT') {
+      const userSettings = await getUserSettings(req.user._id);
+      if (!userSettings.azureDevOps?.pat) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'No saved PAT found. Please enter your Personal Access Token.' 
+        });
+      }
+      actualPat = userSettings.azureDevOps.pat;
+    } else {
+      // Validate PAT format (should start with specific patterns)
+      if (!pat.match(/^[A-Za-z0-9+/=]{52,}$/)) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Invalid PAT format. Please check your Personal Access Token.' 
+        });
+      }
+    }
+    
+    // Create temporary Azure DevOps client
+    const tempClient = azureDevOpsClient.createUserClient({
+      organization,
+      project: 'temp', // temporary project name
+      pat: actualPat,
+      baseUrl: baseUrl || 'https://dev.azure.com'
+    });
+    
+    const projects = await tempClient.getAllProjects();
+    
+    res.json({ 
+      success: true, 
+      projects: projects.value || []
+    });
+  } catch (error) {
+    logger.error('Failed to fetch projects:', error);
+    
+    // Provide more specific error messages
+    if (error.response?.status === 401) {
+      res.status(401).json({ 
+        success: false, 
+        error: 'Invalid PAT token or insufficient permissions. Please check your Personal Access Token and ensure it has "Project and Team (read)" permissions.' 
+      });
+    } else if (error.response?.status === 404) {
+      res.status(404).json({ 
+        success: false, 
+        error: `Organization "${req.body.organization}" not found. Please check the organization name.` 
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to fetch projects: ' + error.message 
+      });
+    }
+  }
+});
+
 // Work Items endpoints
 router.get('/projects', async (req, res) => {
   try {
