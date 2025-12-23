@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import cronstrue from 'cronstrue'
 import { 
   Save, 
@@ -181,12 +181,6 @@ export default function Settings() {
   const originalProvider = useRef('')
   const { isConnected, healthData } = useHealth()
   
-  // Check if settings have changed
-  const hasChanges = () => {
-    if (!originalSettings) return false
-    return JSON.stringify(settings) !== JSON.stringify(originalSettings)
-  }
-  
   const [settings, setSettings] = useState({
     azureDevOps: {
       organization: '',
@@ -228,7 +222,13 @@ export default function Settings() {
     }
   })
 
-  const validateSettings = () => {
+  // Check if settings have changed
+  const hasChanges = useCallback(() => {
+    if (!originalSettings) return false
+    return JSON.stringify(settings) !== JSON.stringify(originalSettings)
+  }, [settings, originalSettings])
+
+  const validateSettings = useCallback(() => {
     const errors = {}
     if (!settings.azureDevOps.organization.trim()) {
       errors.organization = 'Organization is required'
@@ -244,7 +244,7 @@ export default function Settings() {
     }
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
-  }
+  }, [settings])
 
   useEffect(() => {
     loadSettings()
@@ -261,13 +261,13 @@ export default function Settings() {
     if (settings.azureDevOps.project && projects.length === 0) {
       setProjects([{ id: 'current', name: settings.azureDevOps.project }])
     }
-  }, [settings.azureDevOps.project])
+  }, [settings.azureDevOps.project, projects.length])
 
   useEffect(() => {
     if (settings.ai.model && models.length === 0) {
       setModels([{ value: settings.ai.model, label: settings.ai.model, description: `Current: ${settings.ai.model}` }])
     }
-  }, [settings.ai.model])
+  }, [settings.ai.model, models.length])
 
   useEffect(() => {
     if (settings.ai.provider) {
@@ -277,13 +277,6 @@ export default function Settings() {
       }
     }
   }, [settings.ai.provider])
-
-  // Pre-load projects when organization is available
-  useEffect(() => {
-    if (settings.azureDevOps.organization && !loadingProjects && projects.length <= 1) {
-      fetchProjects()
-    }
-  }, [settings.azureDevOps.organization])
 
   // Don't auto-load models - preserve saved model on page load
 
@@ -449,19 +442,7 @@ export default function Settings() {
     }
   }
 
-  const handleProviderChange = (newProvider) => {
-    const currentProvider = settings.ai.provider
-    updateSetting('ai', 'provider', newProvider)
-    
-    // Only reset model if provider actually changed (not on initial load or same provider)
-    if (currentProvider && currentProvider !== newProvider) {
-      updateSetting('ai', 'model', '')
-      setModels([])
-    }
-    // Don't auto-fetch models - wait for user to click model dropdown
-  }
-
-  const fetchModels = async () => {
+  const fetchModels = useCallback(async () => {
     if (loadingModels || !settings.ai.provider) return
     setLoadingModels(true)
     
@@ -479,7 +460,7 @@ export default function Settings() {
     } finally {
       setLoadingModels(false)
     }
-  }
+  }, [loadingModels, settings.ai.provider])
 
   // Helper function to check if API key exists for provider (kept for potential future use)
   const getApiKeyForProvider = (provider) => {
@@ -491,35 +472,80 @@ export default function Settings() {
     }
   }
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     if (loadingProjects) return
     setLoadingProjects(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await axios.get('/api/projects', {
+      
+      // Use current PAT input if available, otherwise use saved PAT from DB
+      const currentPat = settings.azureDevOps.personalAccessToken
+      let patToUse = null
+      
+      if (currentPat && currentPat !== '***') {
+        // Use current input value (for new users)
+        patToUse = currentPat
+      } else if (currentPat === '***') {
+        // PAT is saved in DB, let backend use the saved one
+        patToUse = 'USE_SAVED_PAT'
+      }
+      
+      if (!patToUse || !settings.azureDevOps.organization) {
+        toast({
+          title: "Missing Information",
+          description: "Please enter both Organization and Personal Access Token first.",
+          variant: "destructive",
+        })
+        setProjects([])
+        return
+      }
+      
+      // Use fetch-projects endpoint with temporary credentials
+      const response = await axios.post('/api/settings/fetch-projects', {
+        organization: settings.azureDevOps.organization,
+        pat: patToUse,
+        baseUrl: settings.azureDevOps.baseUrl
+      }, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      const fetchedProjects = response.data.value || []
+      
+      const fetchedProjects = response.data.projects || []
       const currentProject = settings.azureDevOps.project
       if (currentProject && !fetchedProjects.find(p => p.name === currentProject)) {
         fetchedProjects.unshift({ id: 'current', name: currentProject })
       }
       setProjects(fetchedProjects)
+      
+      toast({
+        title: "Projects Loaded",
+        description: `Found ${fetchedProjects.length} projects in your organization.`,
+      })
     } catch (error) {
       console.error('Failed to fetch projects:', error)
+      setProjects([])
+      
+      // Show specific error message
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to fetch projects'
+      toast({
+        title: "Failed to Load Projects",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setLoadingProjects(false)
     }
-  }
+  }, [loadingProjects, settings.azureDevOps.organization, settings.azureDevOps.personalAccessToken, settings.azureDevOps.baseUrl, settings.azureDevOps.project, toast])
 
-  const toggleSecretVisibility = (field) => {
+  // Don't auto-load projects - only load when user clicks button
+
+  const toggleSecretVisibility = useCallback((field) => {
     setShowSecrets(prev => ({
       ...prev,
       [field]: !prev[field]
     }))
-  }
+  }, [])
 
-  const updateSetting = (section, field, value) => {
+  const updateSetting = useCallback((section, field, value) => {
     setSettings(prev => ({
       ...prev,
       [section]: {
@@ -532,7 +558,19 @@ export default function Settings() {
     if (section === 'azureDevOps' && field === 'personalAccessToken') {
       setPatChanged(value !== '' && value !== '***')
     }
-  }
+  }, [])
+
+  const handleProviderChange = useCallback((newProvider) => {
+    const currentProvider = settings.ai.provider
+    updateSetting('ai', 'provider', newProvider)
+    
+    // Only reset model if provider actually changed (not on initial load or same provider)
+    if (currentProvider && currentProvider !== newProvider) {
+      updateSetting('ai', 'model', '')
+      setModels([])
+    }
+    // Don't auto-fetch models - wait for user to click model dropdown
+  }, [settings.ai.provider, updateSetting])
 
   // Section Components
   function AzureDevOpsSection() {
@@ -574,26 +612,51 @@ export default function Settings() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="project">Project</Label>
-              <Select
-                value={settings.azureDevOps.project}
-                onValueChange={(value) => updateSetting('azureDevOps', 'project', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a project..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {loadingProjects && (
-                      <SelectItem value="loading" disabled>Loading projects...</SelectItem>
-                    )}
-                    {projects.map(project => (
-                      <SelectItem key={project.id} value={project.name}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select
+                    value={settings.azureDevOps.project}
+                    onValueChange={(value) => updateSetting('azureDevOps', 'project', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={
+                        !settings.azureDevOps.organization || !settings.azureDevOps.personalAccessToken || settings.azureDevOps.personalAccessToken === '***'
+                          ? "Enter organization and PAT first..." 
+                          : loadingProjects 
+                            ? "Loading projects..." 
+                            : projects.length === 0
+                              ? "Click refresh to load projects"
+                              : "Select a project..."
+                      } />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {loadingProjects && (
+                          <SelectItem value="loading" disabled>Loading projects...</SelectItem>
+                        )}
+                        {!loadingProjects && projects.length === 0 && settings.azureDevOps.organization && settings.azureDevOps.personalAccessToken && settings.azureDevOps.personalAccessToken !== '***' && (
+                          <SelectItem value="no-projects" disabled>Click refresh button to load projects</SelectItem>
+                        )}
+                        {projects.map(project => (
+                          <SelectItem key={project.id} value={project.name}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchProjects}
+                  disabled={!settings.azureDevOps.organization || (!settings.azureDevOps.personalAccessToken || settings.azureDevOps.personalAccessToken === '') || loadingProjects}
+                  className="px-3"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loadingProjects ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
               {validationErrors.project && (
                 <p className="text-sm text-red-600">{validationErrors.project}</p>
               )}
