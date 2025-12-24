@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Save, Database, Bot, Bell, Webhook, Clock, Shield, Menu } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Save, Building2, Bot, Bell, Webhook, Clock, Shield, Menu } from 'lucide-react'
 import axios from 'axios'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Sheet, SheetContent, SheetTrigger } from '../components/ui/sheet'
 import { useToast } from '../hooks/use-toast'
+import { useOrganization } from '../contexts/OrganizationContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import {
   AlertDialog,
@@ -18,7 +20,7 @@ import {
 } from '../components/ui/alert-dialog'
 
 // Import section components
-import AzureDevOpsSection from './settings/AzureDevOpsSection'
+import OrganizationsSection from './settings/OrganizationsSection'
 import AIConfigSection from './settings/AIConfigSection'
 import NotificationsSection from './settings/NotificationsSection'
 import WebhooksSection from './settings/WebhooksSection'
@@ -26,7 +28,7 @@ import PollingSection from './settings/PollingSection'
 import SecuritySection from './settings/SecuritySection'
 
 const settingsSections = [
-  { id: 'azure', name: 'Azure DevOps', icon: Database },
+  { id: 'organizations', name: 'Organizations', icon: Building2 },
   { id: 'ai', name: 'AI Configuration', icon: Bot },
   { id: 'notifications', name: 'Notifications', icon: Bell },
   { id: 'webhooks', name: 'Webhook URLs', icon: Webhook },
@@ -34,14 +36,8 @@ const settingsSections = [
   { id: 'security', name: 'Security', icon: Shield }
 ]
 
-// Default settings structure
+// Default settings structure for current organization
 const getDefaultSettings = () => ({
-  azure: {
-    organization: '',
-    project: '',
-    personalAccessToken: '',
-    baseUrl: 'https://dev.azure.com'
-  },
   ai: {
     provider: 'gemini',
     openaiApiKey: '',
@@ -62,9 +58,9 @@ const getDefaultSettings = () => ({
     workItemsInterval: '*/10 * * * *',
     pullRequestInterval: '0 */10 * * *',
     overdueCheckInterval: '0 */10 * * *',
-    workItemsEnabled: true,
-    pullRequestEnabled: true,
-    overdueCheckEnabled: true,
+    workItemsEnabled: false,
+    pullRequestEnabled: false,
+    overdueCheckEnabled: false,
     overdueFilterEnabled: true,
     overdueMaxDays: 60
   },
@@ -78,8 +74,11 @@ const getDefaultSettings = () => ({
 
 export default function Settings() {
   const { toast } = useToast()
-  const [activeSection, setActiveSection] = useState('azure')
-  const [loading, setLoading] = useState(true)
+  const [searchParams] = useSearchParams()
+  const { currentOrganization, updateOrganization, needsSetup } = useOrganization()
+  
+  const [activeSection, setActiveSection] = useState('organizations')
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [validationErrors, setValidationErrors] = useState({})
   
@@ -91,80 +90,52 @@ export default function Settings() {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingSectionRef = useRef(null)
 
+  // If setup mode, stay on organizations
+  useEffect(() => {
+    if (needsSetup || searchParams.get('setup') === 'true') {
+      setActiveSection('organizations')
+    }
+  }, [needsSetup, searchParams])
+
+  // Load settings when organization changes
+  useEffect(() => {
+    if (!currentOrganization) return
+    
+    const loadOrgSettings = () => {
+      const org = currentOrganization
+      const loaded = {
+        ai: {
+          provider: org.ai?.provider || 'gemini',
+          model: org.ai?.model || 'gemini-2.0-flash',
+          openaiApiKey: org.ai?.apiKeys?.openai || '',
+          groqApiKey: org.ai?.apiKeys?.groq || '',
+          geminiApiKey: org.ai?.apiKeys?.gemini || ''
+        },
+        notifications: {
+          enabled: org.notifications?.enabled !== undefined ? org.notifications.enabled : true,
+          teamsWebhookUrl: org.notifications?.webhooks?.teams || '',
+          slackWebhookUrl: org.notifications?.webhooks?.slack || '',
+          googleChatWebhookUrl: org.notifications?.webhooks?.googleChat || '',
+          teamsEnabled: org.notifications?.teamsEnabled ?? false,
+          slackEnabled: org.notifications?.slackEnabled ?? false,
+          googleChatEnabled: org.notifications?.googleChatEnabled ?? false
+        },
+        polling: org.polling || getDefaultSettings().polling,
+        security: getDefaultSettings().security
+      }
+      
+      setTabSettings(loaded)
+      setOriginalTabSettings(JSON.parse(JSON.stringify(loaded)))
+    }
+    
+    loadOrgSettings()
+  }, [currentOrganization])
+
   // Check if current tab has changes
   const hasCurrentTabChanges = useCallback(() => {
+    if (activeSection === 'organizations' || activeSection === 'webhooks') return false
     return JSON.stringify(tabSettings[activeSection]) !== JSON.stringify(originalTabSettings[activeSection])
   }, [tabSettings, originalTabSettings, activeSection])
-
-  // Validate current section
-  const validateCurrentSection = useCallback(() => {
-    const errors = {}
-    const data = tabSettings[activeSection]
-    
-    if (activeSection === 'azure') {
-      if (!data.organization?.trim()) errors.organization = 'Organization is required'
-      if (!data.project?.trim()) errors.project = 'Project is required'
-      if (!data.personalAccessToken?.trim() && data.personalAccessToken !== '***') {
-        errors.personalAccessToken = 'Personal Access Token is required'
-      }
-    }
-    
-    if (activeSection === 'ai') {
-      if (data.provider && !data.model?.trim()) {
-        errors.aiModel = 'Please select a model for the chosen AI provider'
-      }
-    }
-    
-    setValidationErrors(errors)
-    return Object.keys(errors).length === 0
-  }, [tabSettings, activeSection])
-
-  // Load settings from server
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        setLoading(true)
-        const response = await axios.get('/api/settings')
-        const data = response.data
-        
-        const loaded = {
-          azure: {
-            organization: data.azureDevOps?.organization || '',
-            project: data.azureDevOps?.project || '',
-            personalAccessToken: data.azureDevOps?.pat || '',
-            baseUrl: data.azureDevOps?.baseUrl || 'https://dev.azure.com'
-          },
-          ai: {
-            provider: data.ai?.provider || 'gemini',
-            model: data.ai?.model || 'gemini-2.0-flash',
-            openaiApiKey: data.ai?.apiKeys?.openai || '',
-            groqApiKey: data.ai?.apiKeys?.groq || '',
-            geminiApiKey: data.ai?.apiKeys?.gemini || ''
-          },
-          notifications: {
-            enabled: data.notifications?.enabled !== undefined ? data.notifications.enabled : true,
-            teamsWebhookUrl: data.notifications?.webhooks?.teams || '',
-            slackWebhookUrl: data.notifications?.webhooks?.slack || '',
-            googleChatWebhookUrl: data.notifications?.webhooks?.googleChat || '',
-            teamsEnabled: data.notifications?.teamsEnabled ?? !!(data.notifications?.webhooks?.teams),
-            slackEnabled: data.notifications?.slackEnabled ?? !!(data.notifications?.webhooks?.slack),
-            googleChatEnabled: data.notifications?.googleChatEnabled ?? !!(data.notifications?.webhooks?.googleChat)
-          },
-          polling: data.polling || getDefaultSettings().polling,
-          security: data.security || getDefaultSettings().security
-        }
-        
-        setTabSettings(loaded)
-        setOriginalTabSettings(JSON.parse(JSON.stringify(loaded)))
-      } catch (error) {
-        console.error('Failed to load settings:', error)
-        toast({ title: "Error", description: "Failed to load settings", variant: "destructive" })
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadSettings()
-  }, [toast])
 
   // Handle section change with unsaved changes check
   const handleSectionChange = useCallback((newSection) => {
@@ -181,7 +152,6 @@ export default function Settings() {
 
   // Discard changes and switch section
   const handleDiscardChanges = useCallback(() => {
-    // Reset current tab to original
     setTabSettings(prev => ({
       ...prev,
       [activeSection]: JSON.parse(JSON.stringify(originalTabSettings[activeSection]))
@@ -199,70 +169,69 @@ export default function Settings() {
     setTabSettings(prev => ({ ...prev, [sectionId]: newData }))
   }, [])
 
-  // Save current tab settings
+  // Save current tab settings to organization
   const handleSave = async () => {
-    if (!hasCurrentTabChanges()) {
-      toast({ title: "No Changes", description: "No changes detected to save." })
+    if (!currentOrganization) {
+      toast({ title: "Error", description: "No organization selected", variant: "destructive" })
       return
     }
     
-    if (!validateCurrentSection()) {
-      toast({ title: "Validation Error", description: "Please fix validation errors before saving.", variant: "destructive" })
+    if (!hasCurrentTabChanges()) {
+      toast({ title: "No Changes", description: "No changes detected to save." })
       return
     }
     
     try {
       setSaving(true)
       const data = tabSettings[activeSection]
-      let backendPayload = {}
-      
-      // Build payload based on active section
-      if (activeSection === 'azure') {
-        backendPayload.azureDevOps = {
-          organization: data.organization,
-          project: data.project,
-          baseUrl: data.baseUrl
-        }
-        if (data.personalAccessToken && data.personalAccessToken !== '***') {
-          backendPayload.azureDevOps.pat = data.personalAccessToken
-        }
-      }
+      let updates = {}
       
       if (activeSection === 'ai') {
-        backendPayload.ai = {
+        updates.ai = {
           provider: data.provider,
           model: data.model
         }
         const apiKeys = {}
-        if (data.openaiApiKey && data.openaiApiKey !== '***') apiKeys.openai = data.openaiApiKey
-        if (data.groqApiKey && data.groqApiKey !== '***') apiKeys.groq = data.groqApiKey
-        if (data.geminiApiKey && data.geminiApiKey !== '***') apiKeys.gemini = data.geminiApiKey
-        if (Object.keys(apiKeys).length > 0) backendPayload.ai.apiKeys = apiKeys
+        if (data.openaiApiKey && data.openaiApiKey !== '********') apiKeys.openai = data.openaiApiKey
+        if (data.groqApiKey && data.groqApiKey !== '********') apiKeys.groq = data.groqApiKey
+        if (data.geminiApiKey && data.geminiApiKey !== '********') apiKeys.gemini = data.geminiApiKey
+        if (Object.keys(apiKeys).length > 0) updates.ai.apiKeys = apiKeys
       }
       
       if (activeSection === 'notifications') {
-        backendPayload.notifications = data
+        updates.notifications = {
+          enabled: data.enabled,
+          teamsEnabled: data.teamsEnabled,
+          slackEnabled: data.slackEnabled,
+          googleChatEnabled: data.googleChatEnabled,
+          webhooks: {
+            teams: data.teamsWebhookUrl,
+            slack: data.slackWebhookUrl,
+            googleChat: data.googleChatWebhookUrl
+          }
+        }
       }
       
       if (activeSection === 'polling') {
-        backendPayload.polling = data
+        updates.polling = data
       }
       
-      if (activeSection === 'security') {
-        backendPayload.security = data
+      const result = await updateOrganization(currentOrganization._id, updates)
+      
+      if (result.success) {
+        setOriginalTabSettings(prev => ({
+          ...prev,
+          [activeSection]: JSON.parse(JSON.stringify(tabSettings[activeSection]))
+        }))
+        toast({ 
+          title: "Settings Saved", 
+          description: `${settingsSections.find(s => s.id === activeSection)?.name} settings saved!` 
+        })
+      } else {
+        toast({ title: "Save Failed", description: result.error, variant: "destructive" })
       }
-      
-      await axios.put('/api/settings', backendPayload)
-      
-      // Update original to match current (mark as saved)
-      setOriginalTabSettings(prev => ({
-        ...prev,
-        [activeSection]: JSON.parse(JSON.stringify(tabSettings[activeSection]))
-      }))
-      
-      toast({ title: "Settings Saved", description: `${settingsSections.find(s => s.id === activeSection)?.name} settings saved successfully!` })
     } catch (error) {
-      toast({ title: "Save Failed", description: error.response?.data?.error || error.message, variant: "destructive" })
+      toast({ title: "Save Failed", description: error.message, variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -273,7 +242,12 @@ export default function Settings() {
     <div className={`space-y-2 ${className}`}>
       {settingsSections.map((section) => {
         const Icon = section.icon
-        const hasChanges = JSON.stringify(tabSettings[section.id]) !== JSON.stringify(originalTabSettings[section.id])
+        const hasChanges = activeSection !== 'organizations' && 
+          activeSection !== 'webhooks' &&
+          section.id !== 'organizations' &&
+          section.id !== 'webhooks' &&
+          JSON.stringify(tabSettings[section.id]) !== JSON.stringify(originalTabSettings[section.id])
+        
         return (
           <button
             key={section.id}
@@ -295,27 +269,21 @@ export default function Settings() {
     </div>
   )
 
-  if (loading) return <LoadingSpinner />
+  // Show setup message if no organization
+  if (needsSetup) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Welcome to InsightOps</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Let's set up your first Azure DevOps organization</p>
+        </div>
+        <OrganizationsSection />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .animate-slide-up {
-          animation: slideUp 0.6s ease-out;
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.4s ease-out;
-        }
-      `}</style>
-
       {/* Unsaved Changes Dialog */}
       <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
         <AlertDialogContent>
@@ -341,7 +309,7 @@ export default function Settings() {
       </AlertDialog>
 
       {/* Header */}
-      <div className="animate-slide-up">
+      <div>
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-4">
             <Sheet>
@@ -353,32 +321,34 @@ export default function Settings() {
               <SheetContent side="left" className="w-64">
                 <div className="py-4">
                   <h2 className="text-lg font-semibold mb-4">Settings</h2>
-                  <Sidebar onSelect={(id) => {
-                    handleSectionChange(id)
-                  }} />
+                  <Sidebar onSelect={(id) => handleSectionChange(id)} />
                 </div>
               </SheetContent>
             </Sheet>
             
             <div>
               <h1 className="text-2xl font-semibold text-foreground tracking-tight">Settings</h1>
-              <p className="text-muted-foreground text-sm mt-0.5">Configure your Azure DevOps monitoring agent</p>
+              <p className="text-muted-foreground text-sm mt-0.5">
+                {currentOrganization ? `Managing: ${currentOrganization.name}` : 'Configure your settings'}
+              </p>
             </div>
           </div>
           
-          <Button 
-            onClick={handleSave} 
-            disabled={saving || !hasCurrentTabChanges()} 
-            className="group relative overflow-hidden bg-foreground hover:bg-foreground/90 text-background"
-          >
-            <Save className={`h-4 w-4 mr-2 ${saving ? 'animate-spin' : ''}`} />
-            {saving ? 'Saving...' : 'Save Settings'}
-          </Button>
+          {activeSection !== 'organizations' && activeSection !== 'webhooks' && (
+            <Button 
+              onClick={handleSave} 
+              disabled={saving || !hasCurrentTabChanges()} 
+              className="group relative overflow-hidden bg-foreground hover:bg-foreground/90 text-background"
+            >
+              <Save className={`h-4 w-4 mr-2 ${saving ? 'animate-spin' : ''}`} />
+              {saving ? 'Saving...' : 'Save Settings'}
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Main Layout */}
-      <div className="flex flex-1 gap-6 animate-fade-in" style={{animationDelay: '0.1s'}}>
+      <div className="flex flex-1 gap-6">
         {/* Desktop Sidebar */}
         <div className="hidden md:block w-64 flex-shrink-0">
           <Card>
@@ -394,13 +364,7 @@ export default function Settings() {
 
         {/* Content Area */}
         <div className="flex-1">
-          {activeSection === 'azure' && (
-            <AzureDevOpsSection 
-              data={tabSettings.azure} 
-              onChange={(data) => updateTabData('azure', data)}
-              errors={validationErrors}
-            />
-          )}
+          {activeSection === 'organizations' && <OrganizationsSection />}
           {activeSection === 'ai' && (
             <AIConfigSection 
               data={tabSettings.ai} 
