@@ -56,6 +56,8 @@ export default function OrganizationsSection() {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
   const [errors, setErrors] = useState({})
+  const [projects, setProjects] = useState([])
+  const [fetchingProjects, setFetchingProjects] = useState(false)
 
   const validateForm = () => {
     const newErrors = {}
@@ -73,6 +75,7 @@ export default function OrganizationsSection() {
     setFormData(emptyOrg)
     setErrors({})
     setTestResult(null)
+    setProjects([])
     setShowAddDialog(true)
   }
 
@@ -89,6 +92,7 @@ export default function OrganizationsSection() {
     })
     setErrors({})
     setTestResult(null)
+    setProjects([])
     setShowEditDialog(true)
   }
 
@@ -134,6 +138,42 @@ export default function OrganizationsSection() {
       setTestResult({ success: false, error: error.message })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const handleFetchProjects = async () => {
+    if (!formData.azureDevOps.organization || !formData.azureDevOps.pat || formData.azureDevOps.pat === '********') {
+      setErrors(prev => ({ ...prev, pat: 'Enter PAT to fetch projects' }))
+      return
+    }
+    
+    setFetchingProjects(true)
+    setProjects([])
+    
+    try {
+      const response = await fetch('/api/settings/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          organization: formData.azureDevOps.organization,
+          personalAccessToken: formData.azureDevOps.pat,
+          baseUrl: formData.azureDevOps.baseUrl
+        })
+      })
+      const result = await response.json()
+      
+      if (result.projects) {
+        setProjects(result.projects)
+      } else {
+        setErrors(prev => ({ ...prev, project: result.error || 'Failed to fetch projects' }))
+      }
+    } catch (error) {
+      setErrors(prev => ({ ...prev, project: error.message }))
+    } finally {
+      setFetchingProjects(false)
     }
   }
 
@@ -202,9 +242,9 @@ export default function OrganizationsSection() {
     await setDefaultOrganization(org._id)
   }
 
-  const OrgForm = () => (
-    <div className="space-y-4">
-      <div className="space-y-2">
+  const formContent = (
+    <div className="grid gap-4 py-4">
+      <div className="grid gap-2">
         <Label htmlFor="name">Display Name</Label>
         <Input
           id="name"
@@ -215,7 +255,7 @@ export default function OrganizationsSection() {
         {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
       </div>
       
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="organization">Azure DevOps Organization</Label>
         <Input
           id="organization"
@@ -229,21 +269,7 @@ export default function OrganizationsSection() {
         {errors.organization && <p className="text-sm text-destructive">{errors.organization}</p>}
       </div>
       
-      <div className="space-y-2">
-        <Label htmlFor="project">Project</Label>
-        <Input
-          id="project"
-          placeholder="MyProject"
-          value={formData.azureDevOps.project}
-          onChange={(e) => setFormData(prev => ({ 
-            ...prev, 
-            azureDevOps: { ...prev.azureDevOps, project: e.target.value }
-          }))}
-        />
-        {errors.project && <p className="text-sm text-destructive">{errors.project}</p>}
-      </div>
-      
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="pat">Personal Access Token</Label>
         <Input
           id="pat"
@@ -258,10 +284,54 @@ export default function OrganizationsSection() {
         {errors.pat && <p className="text-sm text-destructive">{errors.pat}</p>}
       </div>
       
-      <div className="flex items-center gap-2">
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="project">Project</Label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleFetchProjects}
+            disabled={fetchingProjects || !formData.azureDevOps.organization || !formData.azureDevOps.pat || formData.azureDevOps.pat === '********'}
+            className="h-6 text-xs"
+          >
+            {fetchingProjects ? 'Fetching...' : 'Fetch Projects'}
+          </Button>
+        </div>
+        {projects.length > 0 ? (
+          <select
+            id="project"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            value={formData.azureDevOps.project}
+            onChange={(e) => setFormData(prev => ({ 
+              ...prev, 
+              azureDevOps: { ...prev.azureDevOps, project: e.target.value }
+            }))}
+          >
+            <option value="">Select a project</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+        ) : (
+          <Input
+            id="project"
+            placeholder="MyProject"
+            value={formData.azureDevOps.project}
+            onChange={(e) => setFormData(prev => ({ 
+              ...prev, 
+              azureDevOps: { ...prev.azureDevOps, project: e.target.value }
+            }))}
+          />
+        )}
+        {errors.project && <p className="text-sm text-destructive">{errors.project}</p>}
+      </div>
+      
+      <div className="flex items-center gap-3 pt-2">
         <Button 
           type="button" 
           variant="outline" 
+          size="sm"
           onClick={handleTestConnection}
           disabled={testing}
         >
@@ -387,7 +457,7 @@ export default function OrganizationsSection() {
               Connect a new Azure DevOps organization
             </DialogDescription>
           </DialogHeader>
-          <OrgForm />
+          {formContent}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
@@ -408,7 +478,7 @@ export default function OrganizationsSection() {
               Update organization settings
             </DialogDescription>
           </DialogHeader>
-          <OrgForm />
+          {formContent}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Cancel
