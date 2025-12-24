@@ -13,9 +13,11 @@ export const injectOrganizationContext = async (req, res, next) => {
       return next();
     }
 
-    // Get organizationId from header, query, or body
+    // Get organizationId from header (case-insensitive), query, or body
     let organizationId = 
       req.headers['x-organization-id'] || 
+      req.headers['X-Organization-ID'] ||
+      req.get('X-Organization-ID') ||
       req.query.organizationId || 
       req.body?.organizationId;
 
