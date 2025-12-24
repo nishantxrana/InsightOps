@@ -1,6 +1,16 @@
 import mongoose from 'mongoose';
 
 const MemorySchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
+    index: true
+  },
   content: {
     type: String,
     required: true,
@@ -20,11 +30,6 @@ const MemorySchema = new mongoose.Schema({
     default: 'general',
     index: true
   },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true
-  },
   accessCount: {
     type: Number,
     default: 0
@@ -36,11 +41,9 @@ const MemorySchema = new mongoose.Schema({
   }
 });
 
-// Index for cleanup queries
-MemorySchema.index({ createdAt: 1, accessCount: 1 });
-
-// Index for type-based queries
-MemorySchema.index({ type: 1, createdAt: -1 });
+// Indexes for multi-tenant queries
+MemorySchema.index({ organizationId: 1, type: 1, createdAt: -1 });
+MemorySchema.index({ organizationId: 1, createdAt: 1, accessCount: 1 });
 
 const Memory = mongoose.model('Memory', MemorySchema);
 

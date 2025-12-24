@@ -3,14 +3,15 @@ import { logger } from '../utils/logger.js';
 
 class PollingService {
   /**
-   * Create or update a polling job for a user
+   * Create or update a polling job for an organization
    */
-  async createOrUpdateJob(userId, jobType, config) {
+  async createOrUpdateJob(userId, organizationId, jobType, config) {
     try {
       const job = await PollingJob.findOneAndUpdate(
-        { userId, jobType },
+        { organizationId, jobType },
         { 
-          userId, 
+          userId,
+          organizationId, 
           jobType, 
           config: {
             enabled: config.enabled || false,
@@ -23,22 +24,38 @@ class PollingService {
         { upsert: true, new: true }
       );
       
-      logger.debug(`Created/updated ${jobType} job for user ${userId}`, {
+      logger.debug(`Created/updated ${jobType} job for org ${organizationId}`, {
         enabled: config.enabled,
         interval: config.interval
       });
       
       return job;
     } catch (error) {
-      logger.error(`Failed to create/update ${jobType} job for user ${userId}:`, error);
+      logger.error(`Failed to create/update ${jobType} job for org ${organizationId}:`, error);
       throw error;
     }
   }
 
   /**
-   * Get all active jobs for a user
+   * Get all active jobs for an organization
    */
-  async getActiveJobs(userId) {
+  async getActiveJobs(organizationId) {
+    try {
+      return await PollingJob.find({
+        organizationId,
+        status: 'active',
+        'config.enabled': true
+      });
+    } catch (error) {
+      logger.error(`Failed to get active jobs for org ${organizationId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all active jobs for a user (across all orgs)
+   */
+  async getActiveJobsByUser(userId) {
     try {
       return await PollingJob.find({
         userId,
@@ -52,19 +69,40 @@ class PollingService {
   }
 
   /**
-   * Get all jobs for a user (active and inactive)
+   * Get all jobs for an organization
    */
-  async getJobsByUser(userId) {
+  async getJobsByOrganization(organizationId) {
     try {
-      return await PollingJob.find({ userId });
+      return await PollingJob.find({ organizationId });
     } catch (error) {
-      logger.error(`Failed to get jobs for user ${userId}:`, error);
+      logger.error(`Failed to get jobs for org ${organizationId}:`, error);
       throw error;
     }
   }
 
   /**
-   * Pause all jobs for a user
+   * Pause all jobs for an organization
+   */
+  async pauseOrganizationJobs(organizationId) {
+    try {
+      const result = await PollingJob.updateMany(
+        { organizationId },
+        { 
+          status: 'paused', 
+          updatedAt: new Date() 
+        }
+      );
+      
+      logger.info(`Paused ${result.modifiedCount} jobs for org ${organizationId}`);
+      return result;
+    } catch (error) {
+      logger.error(`Failed to pause jobs for org ${organizationId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Pause all jobs for a user (legacy support)
    */
   async pauseUserJobs(userId) {
     try {
@@ -87,17 +125,17 @@ class PollingService {
   /**
    * Update last run time for a job
    */
-  async updateLastRun(userId, jobType) {
+  async updateLastRun(organizationId, jobType) {
     try {
       await PollingJob.findOneAndUpdate(
-        { userId, jobType },
+        { organizationId, jobType },
         { 
           'config.lastRun': new Date(),
           updatedAt: new Date()
         }
       );
     } catch (error) {
-      logger.error(`Failed to update last run for ${userId}/${jobType}:`, error);
+      logger.error(`Failed to update last run for org ${organizationId}/${jobType}:`, error);
       throw error;
     }
   }

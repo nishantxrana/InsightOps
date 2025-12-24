@@ -9,10 +9,13 @@ import { logger } from './utils/logger.js';
 import { webhookRoutes } from './webhooks/routes.js';
 import { apiRoutes } from './api/routes.js';
 import { authRoutes } from './routes/auth.js';
+import organizationRoutes from './api/organizationRoutes.js';
 import queueStatusRoutes from './api/queueStatus.js';
 import { errorHandler } from './utils/errorHandler.js';
 import { userPollingManager } from './polling/userPollingManager.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
+import { authenticate } from './middleware/auth.js';
+import { injectOrganizationContext } from './middleware/organizationContext.js';
 import { env, database, security, rateLimits, isProduction, isStaging } from './config/env.js';
 
 // Agentic system imports
@@ -114,7 +117,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Organization-ID'],
   maxAge: 600
 }));
 
@@ -167,10 +170,13 @@ app.use((req, res, next) => {
 // Auth routes (public)
 app.use('/api/auth', authRoutes);
 
-// API Routes (BEFORE static files)
+// Organization routes (authenticated)
+app.use('/api/organizations', authenticate, organizationRoutes);
+
+// API Routes (BEFORE static files) - with organization context
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/queue', queueStatusRoutes);
-app.use('/api', apiRoutes);
+app.use('/api', injectOrganizationContext, apiRoutes);
 
 // Serve static files from public folder with caching
 app.use(express.static(path.join(process.cwd(), 'public'), {
