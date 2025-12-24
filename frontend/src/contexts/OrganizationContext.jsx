@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from './AuthContext';
 
@@ -11,16 +11,26 @@ export function OrganizationProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Configure axios with auth header
-  const api = axios.create({
-    baseURL: '/api',
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
-  });
+  // Create axios instance that always uses current token
+  const api = useMemo(() => {
+    const instance = axios.create({ baseURL: '/api' });
+    instance.interceptors.request.use((config) => {
+      const currentToken = localStorage.getItem('token');
+      if (currentToken) {
+        config.headers.Authorization = `Bearer ${currentToken}`;
+      }
+      return config;
+    });
+    return instance;
+  }, []);
 
   // Fetch organizations
   const fetchOrganizations = useCallback(async () => {
-    if (!isAuthenticated || !token) {
+    const currentToken = localStorage.getItem('token');
+    if (!isAuthenticated || !currentToken) {
       setLoading(false);
+      setOrganizations([]);
+      setCurrentOrganization(null);
       return;
     }
 
@@ -35,19 +45,34 @@ export function OrganizationProvider({ children }) {
       const savedOrg = orgs.find(o => o._id === savedOrgId);
       const defaultOrg = orgs.find(o => o.isDefault) || orgs[0];
       
-      setCurrentOrganization(savedOrg || defaultOrg || null);
+      const newCurrent = savedOrg || defaultOrg || null;
+      setCurrentOrganization(newCurrent);
+      
+      // Update localStorage if we selected a different org
+      if (newCurrent && newCurrent._id !== savedOrgId) {
+        localStorage.setItem('currentOrganizationId', newCurrent._id);
+      }
+      
       setError(null);
     } catch (err) {
       console.error('Failed to fetch organizations:', err);
       setError('Failed to load organizations');
+      setOrganizations([]);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, api]);
 
   useEffect(() => {
     fetchOrganizations();
   }, [fetchOrganizations]);
+
+  // Also refetch when token changes (e.g., after login)
+  useEffect(() => {
+    if (token && isAuthenticated) {
+      fetchOrganizations();
+    }
+  }, [token]);
 
   // Switch organization
   const switchOrganization = useCallback((orgId) => {

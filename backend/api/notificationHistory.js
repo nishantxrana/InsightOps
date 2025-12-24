@@ -10,8 +10,9 @@ router.get('/', async (req, res) => {
     const userId = req.user._id;
     const organizationId = req.organizationId;
     
+    // Return empty if no org context (user hasn't set up org yet)
     if (!organizationId) {
-      return res.status(400).json({ error: 'Organization context required' });
+      return res.json([]);
     }
 
     const notifications = await notificationHistoryService.getNotifications(userId, organizationId, {
@@ -36,7 +37,7 @@ router.get('/unread-count', async (req, res) => {
     const organizationId = req.organizationId;
     
     if (!organizationId) {
-      return res.status(400).json({ error: 'Organization context required' });
+      return res.json({ count: 0 });
     }
 
     const count = await notificationHistoryService.getUnreadCount(userId, organizationId);
@@ -54,7 +55,7 @@ router.get('/counts', async (req, res) => {
     const organizationId = req.organizationId;
     
     if (!organizationId) {
-      return res.status(400).json({ error: 'Organization context required' });
+      return res.json({});
     }
 
     const counts = await notificationHistoryService.getCountsByType(userId, organizationId);
