@@ -7,6 +7,8 @@ import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { authenticate } from '../middleware/auth.js';
 import { getUserSettings, updateUserSettings } from '../utils/userSettings.js';
+import { getOrganizationSettings, hasAzureDevOpsConfig, hasAIConfig, getAzureDevOpsConfig, getAIConfig } from '../utils/organizationSettings.js';
+import { organizationService } from '../services/organizationService.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
 import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workItemStates.js';
 import { userPollingManager } from '../polling/userPollingManager.js';
@@ -48,30 +50,53 @@ router.get('/health', async (req, res) => {
 // Apply authentication to all other routes
 router.use(authenticate);
 
-// User settings endpoints
+// User settings endpoints - Now returns current organization settings
 router.get('/settings', async (req, res) => {
   try {
-    const settings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
+    
+    if (!org) {
+      // No organization configured - return empty settings
+      return res.json({
+        azureDevOps: {
+          organization: '',
+          project: '',
+          pat: '',
+          baseUrl: 'https://dev.azure.com'
+        },
+        ai: {
+          provider: 'gemini',
+          model: 'gemini-2.0-flash',
+          apiKeys: { openai: '', groq: '', gemini: '' }
+        },
+        notifications: { enabled: true },
+        polling: {
+          workItemsInterval: '*/10 * * * *',
+          pullRequestInterval: '0 */10 * * *',
+          overdueCheckInterval: '0 */10 * * *'
+        }
+      });
+    }
     
     // Return settings with sensitive fields masked for display
     const maskedSettings = {
       azureDevOps: {
-        organization: settings.azureDevOps?.organization || '',
-        project: settings.azureDevOps?.project || '',
-        pat: settings.azureDevOps?.pat ? '***' : '',
-        baseUrl: settings.azureDevOps?.baseUrl || 'https://dev.azure.com'
+        organization: org.azureDevOps?.organization || '',
+        project: org.azureDevOps?.project || '',
+        pat: org.azureDevOps?.pat ? '***' : '',
+        baseUrl: org.azureDevOps?.baseUrl || 'https://dev.azure.com'
       },
       ai: {
-        provider: settings.ai?.provider || 'gemini',
-        model: settings.ai?.model || 'gemini-2.0-flash',
+        provider: org.ai?.provider || 'gemini',
+        model: org.ai?.model || 'gemini-2.0-flash',
         apiKeys: {
-          openai: settings.ai?.apiKeys?.openai ? '***' : '',
-          groq: settings.ai?.apiKeys?.groq ? '***' : '',
-          gemini: settings.ai?.apiKeys?.gemini ? '***' : ''
+          openai: org.ai?.apiKeys?.openai ? '***' : '',
+          groq: org.ai?.apiKeys?.groq ? '***' : '',
+          gemini: org.ai?.apiKeys?.gemini ? '***' : ''
         }
       },
-      notifications: settings.notifications || { enabled: true },
-      polling: settings.polling || {
+      notifications: org.notifications || { enabled: true },
+      polling: org.polling || {
         workItems: '*/10 * * * *',
         pipelines: '0 */10 * * *',
         pullRequests: '0 */10 * * *',
@@ -162,16 +187,16 @@ router.post('/settings/fetch-projects', async (req, res) => {
     
     let actualPat = pat;
     
-    // If frontend sends 'USE_SAVED_PAT', get the saved PAT from user settings
+    // If frontend sends 'USE_SAVED_PAT', get the saved PAT from current organization
     if (pat === 'USE_SAVED_PAT') {
-      const userSettings = await getUserSettings(req.user._id);
-      if (!userSettings.azureDevOps?.pat) {
+      const org = await getOrganizationSettings(req);
+      if (!org?.azureDevOps?.pat) {
         return res.status(400).json({ 
           success: false, 
           error: 'No saved PAT found. Please enter your Personal Access Token.' 
         });
       }
-      actualPat = userSettings.azureDevOps.pat;
+      actualPat = org.azureDevOps.pat;
     } else {
       // Validate PAT format (should start with specific patterns)
       if (!pat.match(/^[A-Za-z0-9+/=]{52,}$/)) {
@@ -222,8 +247,13 @@ router.post('/settings/fetch-projects', async (req, res) => {
 // Work Items endpoints
 router.get('/projects', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const org = await getOrganizationSettings(req);
+    
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    }
+    
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const projects = await client.getAllProjects();
     res.json(projects);
   } catch (error) {
@@ -234,16 +264,16 @@ router.get('/projects', async (req, res) => {
 
 router.get('/work-items', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required. Please configure an organization in settings.' });
     }
 
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const workItems = await client.getCurrentSprintWorkItems(page, limit);
     res.json(workItems);
   } catch (error) {
@@ -262,13 +292,13 @@ router.get('/work-items', async (req, res) => {
 
 router.get('/work-items/sprint-summary', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required. Please configure an organization in settings.' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     
     // Get all work items for summary calculations (without pagination)
     const allWorkItems = await client.getAllCurrentSprintWorkItems();
@@ -318,25 +348,21 @@ router.get('/work-items/sprint-summary', async (req, res) => {
 // New endpoint for AI summary
 router.get('/work-items/ai-summary', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
     // Check AI configuration
-    if (!userSettings.ai?.provider || !userSettings.ai?.apiKeys) {
+    if (!hasAIConfig(org)) {
       return res.json({ 
-        summary: 'AI analysis not available - please configure AI provider in settings.',
+        summary: 'AI analysis not available - please configure AI provider in organization settings.',
         status: 'not_configured'
       });
     }
     
-    const hasApiKey = userSettings.ai.apiKeys[userSettings.ai.provider];
-    if (!hasApiKey) {
-      return res.json({ 
-        summary: `AI analysis not available - please configure ${userSettings.ai.provider} API key in settings.`,
-        status: 'not_configured'
-      });
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const allWorkItems = await client.getAllCurrentSprintWorkItems();
     
     if (!allWorkItems.value || allWorkItems.value.length === 0) {
@@ -351,13 +377,13 @@ router.get('/work-items/ai-summary', async (req, res) => {
       });
     }
     
-    // Initialize AI service with user settings
-    aiService.initializeWithUserSettings(userSettings);
+    // Initialize AI service with organization settings
+    aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
     
     // Check cache first (cache by sprint + item count + last update)
     const { cacheManager } = await import('../cache/CacheManager.js');
     const itemIds = allWorkItems.value.map(i => i.id).sort().join(',');
-    const cacheKey = `sprint_summary_${itemIds.substring(0, 50)}_${allWorkItems.value.length}`;
+    const cacheKey = `sprint_summary_${org._id}_${itemIds.substring(0, 50)}_${allWorkItems.value.length}`;
     const cached = cacheManager.get('ai', cacheKey);
     
     if (cached) {
@@ -385,13 +411,13 @@ router.get('/work-items/ai-summary', async (req, res) => {
 // Work item AI explanation endpoint 
 router.get('/work-items/:id/explain', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const workItemId = req.params.id;
     
     // Get work item details
@@ -408,7 +434,7 @@ router.get('/work-items/:id/explain', async (req, res) => {
     
     // Check cache first
     const { cacheManager } = await import('../cache/CacheManager.js');
-    const cacheKey = `workitem_explain_${workItemId}_${item.rev}`;
+    const cacheKey = `workitem_explain_${org._id}_${workItemId}_${item.rev}`;
     const cached = cacheManager.get('ai', cacheKey);
     
     if (cached) {
@@ -422,7 +448,7 @@ router.get('/work-items/:id/explain', async (req, res) => {
     }
     
     // Use dedicated AI method for detailed work item explanation
-    const explanation = await aiService.explainWorkItem(item, userSettings);
+    const explanation = await aiService.explainWorkItem(item, { ai: getAIConfig(org) });
     
     // Cache for 1 hour
     cacheManager.set('ai', cacheKey, explanation, 3600);
@@ -460,13 +486,13 @@ async function processAISummaryAsync(workItems) {
 
 router.get('/work-items/overdue', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const overdueItems = await client.getOverdueWorkItems();
     res.json(overdueItems);
   } catch (error) {
@@ -497,9 +523,9 @@ router.post('/polling/emergency-cleanup', async (req, res) => {
 // Builds endpoints
 router.get('/builds/recent', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
@@ -507,7 +533,7 @@ router.get('/builds/recent', async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 10), 50);
     const repositoryFilter = req.query.repository;
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     let builds = await client.getRecentBuilds(limit);
     
     // Filter by repository if specified
@@ -526,13 +552,13 @@ router.get('/builds/recent', async (req, res) => {
 
 router.get('/builds/:buildId', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const build = await client.getBuild(req.params.buildId);
     res.json(build);
   } catch (error) {
@@ -544,13 +570,13 @@ router.get('/builds/:buildId', async (req, res) => {
 // Build analysis endpoint
 router.post('/builds/:buildId/analyze', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const buildId = req.params.buildId;
     
     // Get build details
@@ -569,18 +595,13 @@ router.post('/builds/:buildId/analyze', async (req, res) => {
       client.getBuildLogs(buildId)
     ]);
     
-    // Initialize AI service with user settings
-    aiService.initializeWithUserSettings(userSettings);
+    // Initialize AI service with organization settings
+    aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
     
-    // Initialize FreeModelRouter with user AI config
+    // Initialize FreeModelRouter with org AI config
     const { freeModelRouter } = await import('../ai/FreeModelRouter.js');
-    freeModelRouter.initialize(userSettings.ai || {
-      provider: userSettings.aiProvider,
-      openaiApiKey: userSettings.openaiApiKey,
-      groqApiKey: userSettings.groqApiKey,
-      geminiApiKey: userSettings.geminiApiKey,
-      model: userSettings.aiModel
-    });
+    const aiConfig = getAIConfig(org);
+    freeModelRouter.initialize(aiConfig || {});
     
     // Route through agentic system (cache → rules → AI)
     const { monitorAgent } = await import('../agents/MonitorAgent.js');
@@ -617,13 +638,13 @@ router.post('/builds/:buildId/analyze', async (req, res) => {
 // Pull Requests endpoints
 router.get('/pull-requests', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const pullRequests = await client.getPullRequests('active');
     res.json(pullRequests);
   } catch (error) {
@@ -634,13 +655,13 @@ router.get('/pull-requests', async (req, res) => {
 
 router.get('/pull-requests/idle', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const idlePRs = await client.getIdlePullRequests(48);
     res.json(idlePRs);
   } catch (error) {
@@ -652,13 +673,13 @@ router.get('/pull-requests/idle', async (req, res) => {
 // Pull Request AI explanation endpoint
 router.get('/pull-requests/:id/explain', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings.azureDevOps?.organization || !userSettings.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const pullRequestId = req.params.id;
     
     // Get PR details
@@ -689,7 +710,7 @@ router.get('/pull-requests/:id/explain', async (req, res) => {
 
     // Check cache first
     const { cacheManager } = await import('../cache/CacheManager.js');
-    const cacheKey = `pr_explain_${pullRequestId}_${pullRequest.lastMergeSourceCommit?.commitId || 'initial'}`;
+    const cacheKey = `pr_explain_${org._id}_${pullRequestId}_${pullRequest.lastMergeSourceCommit?.commitId || 'initial'}`;
     const cached = cacheManager.get('ai', cacheKey);
     
     if (cached) {
@@ -705,7 +726,7 @@ router.get('/pull-requests/:id/explain', async (req, res) => {
     }
 
     // Generate AI explanation
-    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits, userSettings);
+    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits, { ai: getAIConfig(org) });
     
     // Cache for 1 hour
     cacheManager.set('ai', cacheKey, explanation, 3600);
@@ -912,18 +933,20 @@ router.get('/ai/providers', (req, res) => {
 router.get('/ai/models/:provider', async (req, res) => {
   try {
     const { provider } = req.params;
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
     let models = [];
     let apiKey = null;
     
-    // Get API key from correct location
-    if (provider === 'openai') {
-      apiKey = userSettings.ai?.apiKeys?.openai;
-    } else if (provider === 'groq') {
-      apiKey = userSettings.ai?.apiKeys?.groq;
-    } else if (provider === 'gemini') {
-      apiKey = userSettings.ai?.apiKeys?.gemini;
+    // Get API key from organization settings
+    if (org?.ai?.apiKeys) {
+      if (provider === 'openai') {
+        apiKey = org.ai.apiKeys.openai;
+      } else if (provider === 'groq') {
+        apiKey = org.ai.apiKeys.groq;
+      } else if (provider === 'gemini') {
+        apiKey = org.ai.apiKeys.gemini;
+      }
     }
     
     if (provider === 'openai' && apiKey) {
@@ -1001,15 +1024,15 @@ router.get('/ai/models/:provider', async (req, res) => {
 
 router.get('/ai/config', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user._id);
+    const org = await getOrganizationSettings(req);
     
     // Don't expose API keys in the response
     const safeConfig = {
-      provider: userSettings.ai?.provider || 'gemini',
-      model: userSettings.ai?.model || 'gemini-2.0-flash',
-      hasOpenAIKey: !!(userSettings.ai?.apiKeys?.openai),
-      hasGroqKey: !!(userSettings.ai?.apiKeys?.groq),
-      hasGeminiKey: !!(userSettings.ai?.apiKeys?.gemini)
+      provider: org?.ai?.provider || 'gemini',
+      model: org?.ai?.model || 'gemini-2.0-flash',
+      hasOpenAIKey: !!(org?.ai?.apiKeys?.openai),
+      hasGroqKey: !!(org?.ai?.apiKeys?.groq),
+      hasGeminiKey: !!(org?.ai?.apiKeys?.gemini)
     };
     
     res.json({
@@ -1073,20 +1096,21 @@ router.use('/notifications', notificationHistoryRoutes);
 router.get('/releases', async (req, res) => {
   try {
     const { limit = 50, skip = 0, status, definitionId, fromDate, toDate } = req.query;
-    const userSettings = await getUserSettings(req.user.id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
         error: 'Azure DevOps configuration is incomplete'
       });
     }
 
+    const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
-      userSettings.azureDevOps.organization,
-      userSettings.azureDevOps.project,
-      userSettings.azureDevOps.pat,
-      userSettings.azureDevOps.baseUrl
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat,
+      azureConfig.baseUrl
     );
 
     const options = {
@@ -1231,8 +1255,8 @@ router.get('/releases', async (req, res) => {
           status: mappedStatus,
           _hasRejectedEnvironments: release._hasRejectedEnvironments,
           createdOn: release.createdOn,
-          organization: userSettings.azureDevOps.organization,
-          project: userSettings.azureDevOps.project,
+          organization: azureConfig.organization,
+          project: azureConfig.project,
           createdBy: {
             displayName: release.createdBy?.displayName || 'Unknown',
             uniqueName: release.createdBy?.uniqueName || ''
@@ -1392,20 +1416,21 @@ router.get('/releases', async (req, res) => {
 router.get('/releases/stats', async (req, res) => {
   try {
     const { fromDate, toDate } = req.query;
-    const userSettings = await getUserSettings(req.user.id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
         error: 'Azure DevOps configuration is incomplete'
       });
     }
 
+    const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
-      userSettings.azureDevOps.organization,
-      userSettings.azureDevOps.project,
-      userSettings.azureDevOps.pat,
-      userSettings.azureDevOps.baseUrl
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat,
+      azureConfig.baseUrl
     );
 
     // Use provided date range or default to last 90 days
@@ -1600,19 +1625,20 @@ router.get('/releases/approvals', async (req, res) => {
 router.get('/releases/:releaseId/approvals', async (req, res) => {
   try {
     const { releaseId } = req.params;
-    const userSettings = await getUserSettings(req.user.id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
         error: 'Azure DevOps configuration not found'
       });
     }
 
+    const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
-      userSettings.azureDevOps.organization,
-      userSettings.azureDevOps.project,
-      userSettings.azureDevOps.pat
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat
     );
 
     try {
@@ -1784,19 +1810,20 @@ router.get('/releases/:releaseId/approvals', async (req, res) => {
 router.get('/releases/:releaseId/logs', async (req, res) => {
   try {
     const { releaseId } = req.params;
-    const userSettings = await getUserSettings(req.user.id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
         error: 'Azure DevOps configuration not found'
       });
     }
 
+    const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
-      userSettings.azureDevOps.organization,
-      userSettings.azureDevOps.project,
-      userSettings.azureDevOps.pat
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat
     );
 
     try {
@@ -1832,7 +1859,7 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
                   // Create a new axios instance for log fetching with proper auth
                   const logResponse = await axios.get(task.logUrl, {
                     headers: {
-                      'Authorization': `Basic ${Buffer.from(`:${userSettings.azureDevOps.pat}`).toString('base64')}`,
+                      'Authorization': `Basic ${Buffer.from(`:${azureConfig.pat}`).toString('base64')}`,
                       'Content-Type': 'application/json'
                     },
                     timeout: 30000
@@ -1896,19 +1923,20 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
 router.get('/releases/:releaseId/analyze', async (req, res) => {
   try {
     const { releaseId } = req.params;
-    const userSettings = await getUserSettings(req.user.id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
         error: 'Azure DevOps configuration not found'
       });
     }
 
+    const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
-      userSettings.azureDevOps.organization,
-      userSettings.azureDevOps.project,
-      userSettings.azureDevOps.pat
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat
     );
 
     // Get release with failed task logs
@@ -1940,7 +1968,7 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
               try {
                 const logResponse = await axios.get(task.logUrl, {
                   headers: {
-                    'Authorization': `Basic ${Buffer.from(`:${userSettings.azureDevOps.pat}`).toString('base64')}`,
+                    'Authorization': `Basic ${Buffer.from(`:${azureConfig.pat}`).toString('base64')}`,
                     'Content-Type': 'application/json'
                   },
                   timeout: 30000
@@ -1979,7 +2007,7 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
     }
 
     // Generate AI analysis
-    await aiService.initializeWithUserSettings(userSettings);
+    await aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
     const analysis = await aiService.analyzeReleaseFailure(release, failedTasks);
 
     res.json({
@@ -1998,20 +2026,21 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
 
 router.get('/releases/ai-analysis', async (req, res) => {
   try {
-    const userSettings = await getUserSettings(req.user.id);
+    const org = await getOrganizationSettings(req);
     
-    if (!userSettings?.azureDevOps?.organization || !userSettings?.azureDevOps?.project || !userSettings?.azureDevOps?.pat) {
+    if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
         error: 'Azure DevOps configuration is incomplete'
       });
     }
 
+    const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
-      userSettings.azureDevOps.organization,
-      userSettings.azureDevOps.project,
-      userSettings.azureDevOps.pat,
-      userSettings.azureDevOps.baseUrl
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat,
+      azureConfig.baseUrl
     );
 
     try {
@@ -2072,8 +2101,8 @@ Keep the response concise and actionable. Focus on practical insights that would
         }
       ];
 
-      // Initialize AI service with user settings
-      aiService.initializeWithUserSettings(userSettings);
+      // Initialize AI service with organization settings
+      aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
       const aiAnalysis = await aiService.generateCompletion(messages);
 
       res.json({
