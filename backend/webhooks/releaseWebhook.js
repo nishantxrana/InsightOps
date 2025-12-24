@@ -5,7 +5,7 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 import BaseWebhook from './BaseWebhook.js';
 
 class ReleaseWebhook extends BaseWebhook {
-  async handleDeploymentCompleted(req, res, userId = null) {
+  async handleDeploymentCompleted(req, res, userId = null, organizationId = null) {
     try {
       const { resource } = req.body;
       
@@ -20,7 +20,7 @@ class ReleaseWebhook extends BaseWebhook {
       const eventId = `${releaseId}-${environmentName}`;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(eventId, userId, 'release');
+      const dupeCheck = this.isDuplicate(eventId, userId || organizationId, 'release');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(eventId, 'release', dupeCheck.timeSince));
       }
@@ -37,7 +37,8 @@ class ReleaseWebhook extends BaseWebhook {
         environmentName,
         environmentStatus,
         deploymentStatus,
-        userId: userId || 'legacy-global'
+        userId: userId || 'legacy-global',
+        organizationId: organizationId || null
       });
 
       // Check if environment is production
@@ -56,9 +57,21 @@ class ReleaseWebhook extends BaseWebhook {
         });
       }
 
-      // Get user settings
+      // Get settings - prefer organization context over user context
       let userSettings = null;
-      if (userId) {
+      
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            userId = org.userId;
+            userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
+        }
+      } else if (userId) {
         try {
           const { getUserSettings } = await import('../utils/userSettings.js');
           userSettings = await getUserSettings(userId);

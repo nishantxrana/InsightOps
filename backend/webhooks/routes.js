@@ -72,6 +72,32 @@ router.post('/:userId/release/deployment', (req, res) => {
   releaseWebhook.handleDeploymentCompleted(req, res, req.params.userId);
 });
 
+// Organization-specific webhook routes (multi-tenant)
+router.post('/org/:organizationId/workitem/created', (req, res) => {
+  logger.info('Org workitem/created route hit', { organizationId: req.params.organizationId });
+  workItemWebhook.handleCreated(req, res, null, req.params.organizationId);
+});
+
+router.post('/org/:organizationId/workitem/updated', (req, res) => {
+  logger.info('Org workitem/updated route hit', { organizationId: req.params.organizationId });
+  workItemWebhook.handleUpdated(req, res, null, req.params.organizationId);
+});
+
+router.post('/org/:organizationId/build/completed', (req, res) => {
+  logger.info('Org build/completed route hit', { organizationId: req.params.organizationId });
+  buildWebhook.handleCompleted(req, res, null, req.params.organizationId);
+});
+
+router.post('/org/:organizationId/pullrequest/created', (req, res) => {
+  logger.info('Org pullrequest/created route hit', { organizationId: req.params.organizationId });
+  pullRequestWebhook.handleCreated(req, res, null, req.params.organizationId);
+});
+
+router.post('/org/:organizationId/release/deployment', (req, res) => {
+  logger.info('Org release/deployment route hit', { organizationId: req.params.organizationId });
+  releaseWebhook.handleDeploymentCompleted(req, res, null, req.params.organizationId);
+});
+
 // Legacy global webhooks (for backward compatibility)
 router.post('/workitem/created', (req, res) => {
   logger.info('Legacy workitem/created route hit');

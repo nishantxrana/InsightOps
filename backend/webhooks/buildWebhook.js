@@ -7,7 +7,7 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 import BaseWebhook from './BaseWebhook.js';
 
 class BuildWebhook extends BaseWebhook {
-  async handleCompleted(req, res, userId = null) {
+  async handleCompleted(req, res, userId = null, organizationId = null) {
     try {
       // Validate userId parameter
       if (userId && typeof userId !== 'string') {
@@ -24,7 +24,7 @@ class BuildWebhook extends BaseWebhook {
       const buildId = resource.id;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(buildId, userId, 'build');
+      const dupeCheck = this.isDuplicate(buildId, userId || organizationId, 'build');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(buildId, 'build', dupeCheck.timeSince));
       }
@@ -43,14 +43,34 @@ class BuildWebhook extends BaseWebhook {
         definition,
         requestedBy,
         userId: userId || 'legacy-global',
+        organizationId: organizationId || null,
         userIdType: typeof userId,
         hasUserId: !!userId
       });
 
-      // Get user settings for AI and client configuration
+      // Get settings - prefer organization context over user context
       let userSettings = null;
       let userClient = null;
-      if (userId) {
+      
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            userId = org.userId;
+            userSettings = {
+              azureDevOps: org.azureDevOps,
+              ai: org.ai,
+              notifications: org.notifications
+            };
+            if (org.azureDevOps) {
+              userClient = azureDevOpsClient.createUserClient(org.azureDevOps);
+            }
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
+        }
+      } else if (userId) {
         try {
           const { getUserSettings } = await import('../utils/userSettings.js');
           userSettings = await getUserSettings(userId);
@@ -65,7 +85,7 @@ class BuildWebhook extends BaseWebhook {
           logger.warn(`Failed to get user settings for ${userId}:`, error);
         }
       } else {
-        logger.warn('No userId provided - using legacy webhook handler');
+        logger.warn('No userId or organizationId provided - using legacy webhook handler');
       }
 
       let message;
