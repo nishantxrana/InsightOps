@@ -1,33 +1,29 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import cronstrue from 'cronstrue'
-import { 
-  Save, 
-  TestTube, 
-  Eye, 
-  EyeOff, 
-  CheckCircle, 
-  XCircle,
-  Database,
-  Bot,
-  Bell,
-  Webhook,
-  Clock,
-  Shield,
-  Menu,
-  RefreshCw
-} from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Save, Database, Bot, Bell, Webhook, Clock, Shield, Menu } from 'lucide-react'
 import axios from 'axios'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '../components/ui/select'
-import { CopyButton } from '../components/ui/shadcn-io/copy-button'
-import { Switch } from '../components/ui/switch'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Input } from '../components/ui/input'
-import { Label } from '../components/ui/label'
 import { Sheet, SheetContent, SheetTrigger } from '../components/ui/sheet'
 import { useToast } from '../hooks/use-toast'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { useHealth } from '../contexts/HealthContext'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog'
+
+// Import section components
+import AzureDevOpsSection from './settings/AzureDevOpsSection'
+import AIConfigSection from './settings/AIConfigSection'
+import NotificationsSection from './settings/NotificationsSection'
+import WebhooksSection from './settings/WebhooksSection'
+import PollingSection from './settings/PollingSection'
+import SecuritySection from './settings/SecuritySection'
 
 const settingsSections = [
   { id: 'azure', name: 'Azure DevOps', icon: Database },
@@ -38,1053 +34,250 @@ const settingsSections = [
   { id: 'security', name: 'Security', icon: Shield }
 ]
 
-const getCronDescription = (cronExpression) => {
-  try {
-    return cronstrue.toString(cronExpression)
-  } catch (error) {
-    return 'Invalid cron expression'
+// Default settings structure
+const getDefaultSettings = () => ({
+  azure: {
+    organization: '',
+    project: '',
+    personalAccessToken: '',
+    baseUrl: 'https://dev.azure.com'
+  },
+  ai: {
+    provider: 'gemini',
+    openaiApiKey: '',
+    groqApiKey: '',
+    geminiApiKey: '',
+    model: 'gemini-2.0-flash'
+  },
+  notifications: {
+    teamsWebhookUrl: '',
+    slackWebhookUrl: '',
+    googleChatWebhookUrl: '',
+    teamsEnabled: false,
+    slackEnabled: false,
+    googleChatEnabled: false,
+    enabled: true
+  },
+  polling: {
+    workItemsInterval: '*/10 * * * *',
+    pullRequestInterval: '0 */10 * * *',
+    overdueCheckInterval: '0 */10 * * *',
+    workItemsEnabled: true,
+    pullRequestEnabled: true,
+    overdueCheckEnabled: true,
+    overdueFilterEnabled: true,
+    overdueMaxDays: 60
+  },
+  security: {
+    webhookSecret: '',
+    apiToken: '',
+    enableRateLimit: true,
+    maxRequestsPerMinute: 100
   }
-}
-
-const PollingSection = React.memo(({ settings, updateSetting }) => {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock className="h-5 w-5 text-blue-600" />
-          Polling Intervals
-        </CardTitle>
-        <CardDescription>Configure how often to check for updates</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Work Items Polling - DISABLED (no notifications sent, only logs sprint count) 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <Label>Work Items Polling</Label>
-            <Switch
-              checked={settings.polling.workItemsEnabled}
-              onCheckedChange={(checked) => updateSetting('polling', 'workItemsEnabled', checked)}
-            />
-          </div>
-          <Input
-            placeholder="* /15 * * * *"
-            value={settings.polling.workItemsInterval}
-            onChange={(e) => updateSetting('polling', 'workItemsInterval', e.target.value)}
-            disabled={!settings.polling.workItemsEnabled}
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            {settings.polling.workItemsInterval ? getCronDescription(settings.polling.workItemsInterval) : 'Enter cron expression'}
-          </p>
-        </div>
-        */}
-
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <Label>Pull Requests Polling</Label>
-            <Switch
-              checked={settings.polling.pullRequestEnabled}
-              onCheckedChange={(checked) => updateSetting('polling', 'pullRequestEnabled', checked)}
-            />
-          </div>
-          <Input
-            placeholder="0 */10 * * *"
-            value={settings.polling.pullRequestInterval}
-            onChange={(e) => updateSetting('polling', 'pullRequestInterval', e.target.value)}
-            disabled={!settings.polling.pullRequestEnabled}
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            {settings.polling.pullRequestInterval ? getCronDescription(settings.polling.pullRequestInterval) : 'Enter cron expression'}
-          </p>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <Label>Overdue Check Polling</Label>
-            <Switch
-              checked={settings.polling.overdueCheckEnabled}
-              onCheckedChange={(checked) => updateSetting('polling', 'overdueCheckEnabled', checked)}
-            />
-          </div>
-          <Input
-            placeholder="0 9 * * *"
-            value={settings.polling.overdueCheckInterval}
-            onChange={(e) => updateSetting('polling', 'overdueCheckInterval', e.target.value)}
-            disabled={!settings.polling.overdueCheckEnabled}
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            {settings.polling.overdueCheckInterval ? getCronDescription(settings.polling.overdueCheckInterval) : 'Enter cron expression'}
-          </p>
-          
-          {/* Overdue Filter Settings */}
-          <div className="mt-4 space-y-3 p-3 border rounded-md bg-muted/30">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Limit to Recent Overdue Items</Label>
-                <p className="text-xs text-muted-foreground">Only show items overdue within a specific timeframe</p>
-              </div>
-              <Switch
-                checked={settings.polling.overdueFilterEnabled !== false}
-                onCheckedChange={(checked) => updateSetting('polling', 'overdueFilterEnabled', checked)}
-                disabled={!settings.polling.overdueCheckEnabled}
-              />
-            </div>
-            
-            {settings.polling.overdueFilterEnabled !== false && (
-              <div>
-                <Label className="text-sm">Maximum Days Overdue</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={settings.polling.overdueMaxDays ?? 60}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (!isNaN(val) && val >= 1) {
-                      updateSetting('polling', 'overdueMaxDays', val);
-                    }
-                  }}
-                  disabled={!settings.polling.overdueCheckEnabled}
-                  className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Only notify about items overdue within the last {settings.polling.overdueMaxDays ?? 60} days
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}, (prevProps, nextProps) => {
-  // Only re-render if polling settings actually changed
-  return JSON.stringify(prevProps.settings.polling) === JSON.stringify(nextProps.settings.polling);
-});
-
-PollingSection.displayName = 'PollingSection';
+})
 
 export default function Settings() {
   const { toast } = useToast()
   const [activeSection, setActiveSection] = useState('azure')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [showSecrets, setShowSecrets] = useState({})
   const [validationErrors, setValidationErrors] = useState({})
-  const [webhookUrls, setWebhookUrls] = useState({})
-  const [projects, setProjects] = useState([])
-  const [loadingProjects, setLoadingProjects] = useState(false)
-  const [models, setModels] = useState([])
-  const [loadingModels, setLoadingModels] = useState(false)
-  const [patChanged, setPatChanged] = useState(false) // Track if PAT has been modified
-  const [originalSettings, setOriginalSettings] = useState(null) // Track original settings
-  const originalProvider = useRef('')
-  const { isConnected, healthData } = useHealth()
   
-  const [settings, setSettings] = useState({
-    azureDevOps: {
-      organization: '',
-      project: '',
-      personalAccessToken: '',
-      baseUrl: 'https://dev.azure.com'
-    },
-    ai: {
-      provider: 'openai',
-      openaiApiKey: '',
-      groqApiKey: '',
-      geminiApiKey: '',
-      model: 'gpt-3.5-turbo'
-    },
-    notifications: {
-      teamsWebhookUrl: '',
-      slackWebhookUrl: '',
-      googleChatWebhookUrl: '',
-      teamsEnabled: false,
-      slackEnabled: false,
-      googleChatEnabled: false,
-      enabled: false
-    },
-    polling: {
-      workItemsInterval: '1',
-      pullRequestInterval: '3',
-      overdueCheckInterval: '4',
-      workItemsEnabled: true,
-      pullRequestEnabled: true,
-      overdueCheckEnabled: true,
-      overdueFilterEnabled: true,
-      overdueMaxDays: 60
-    },
-    security: {
-      webhookSecret: '',
-      apiToken: '',
-      enableRateLimit: true,
-      maxRequestsPerMinute: 100
-    }
-  })
+  // Per-tab settings state
+  const [tabSettings, setTabSettings] = useState(getDefaultSettings())
+  const [originalTabSettings, setOriginalTabSettings] = useState(getDefaultSettings())
+  
+  // Unsaved changes dialog
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const pendingSectionRef = useRef(null)
 
-  // Check if settings have changed
-  const hasChanges = useCallback(() => {
-    if (!originalSettings) return false
-    return JSON.stringify(settings) !== JSON.stringify(originalSettings)
-  }, [settings, originalSettings])
+  // Check if current tab has changes
+  const hasCurrentTabChanges = useCallback(() => {
+    return JSON.stringify(tabSettings[activeSection]) !== JSON.stringify(originalTabSettings[activeSection])
+  }, [tabSettings, originalTabSettings, activeSection])
 
-  const validateSettings = useCallback(() => {
+  // Validate current section
+  const validateCurrentSection = useCallback(() => {
     const errors = {}
-    if (!settings.azureDevOps.organization.trim()) {
-      errors.organization = 'Organization is required'
+    const data = tabSettings[activeSection]
+    
+    if (activeSection === 'azure') {
+      if (!data.organization?.trim()) errors.organization = 'Organization is required'
+      if (!data.project?.trim()) errors.project = 'Project is required'
+      if (!data.personalAccessToken?.trim() && data.personalAccessToken !== '***') {
+        errors.personalAccessToken = 'Personal Access Token is required'
+      }
     }
-    if (!settings.azureDevOps.project.trim()) {
-      errors.project = 'Project is required'
+    
+    if (activeSection === 'ai') {
+      if (data.provider && !data.model?.trim()) {
+        errors.aiModel = 'Please select a model for the chosen AI provider'
+      }
     }
-    if (!settings.azureDevOps.personalAccessToken.trim() && settings.azureDevOps.personalAccessToken !== '***') {
-      errors.personalAccessToken = 'Personal Access Token is required'
-    }
-    if (settings.ai.provider && !settings.ai.model.trim()) {
-      errors.aiModel = 'Please select a model for the chosen AI provider'
-    }
+    
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
-  }, [settings])
+  }, [tabSettings, activeSection])
 
+  // Load settings from server
   useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        setLoading(true)
+        const response = await axios.get('/api/settings')
+        const data = response.data
+        
+        const loaded = {
+          azure: {
+            organization: data.azureDevOps?.organization || '',
+            project: data.azureDevOps?.project || '',
+            personalAccessToken: data.azureDevOps?.pat || '',
+            baseUrl: data.azureDevOps?.baseUrl || 'https://dev.azure.com'
+          },
+          ai: {
+            provider: data.ai?.provider || 'gemini',
+            model: data.ai?.model || 'gemini-2.0-flash',
+            openaiApiKey: data.ai?.apiKeys?.openai || '',
+            groqApiKey: data.ai?.apiKeys?.groq || '',
+            geminiApiKey: data.ai?.apiKeys?.gemini || ''
+          },
+          notifications: {
+            enabled: data.notifications?.enabled !== undefined ? data.notifications.enabled : true,
+            teamsWebhookUrl: data.notifications?.webhooks?.teams || '',
+            slackWebhookUrl: data.notifications?.webhooks?.slack || '',
+            googleChatWebhookUrl: data.notifications?.webhooks?.googleChat || '',
+            teamsEnabled: data.notifications?.teamsEnabled ?? !!(data.notifications?.webhooks?.teams),
+            slackEnabled: data.notifications?.slackEnabled ?? !!(data.notifications?.webhooks?.slack),
+            googleChatEnabled: data.notifications?.googleChatEnabled ?? !!(data.notifications?.webhooks?.googleChat)
+          },
+          polling: data.polling || getDefaultSettings().polling,
+          security: data.security || getDefaultSettings().security
+        }
+        
+        setTabSettings(loaded)
+        setOriginalTabSettings(JSON.parse(JSON.stringify(loaded)))
+      } catch (error) {
+        console.error('Failed to load settings:', error)
+        toast({ title: "Error", description: "Failed to load settings", variant: "destructive" })
+      } finally {
+        setLoading(false)
+      }
+    }
     loadSettings()
-    loadWebhookUrls()
+  }, [toast])
+
+  // Handle section change with unsaved changes check
+  const handleSectionChange = useCallback((newSection) => {
+    if (newSection === activeSection) return
+    
+    if (hasCurrentTabChanges()) {
+      pendingSectionRef.current = newSection
+      setShowUnsavedDialog(true)
+    } else {
+      setActiveSection(newSection)
+      setValidationErrors({})
+    }
+  }, [activeSection, hasCurrentTabChanges])
+
+  // Discard changes and switch section
+  const handleDiscardChanges = useCallback(() => {
+    // Reset current tab to original
+    setTabSettings(prev => ({
+      ...prev,
+      [activeSection]: JSON.parse(JSON.stringify(originalTabSettings[activeSection]))
+    }))
+    setShowUnsavedDialog(false)
+    setValidationErrors({})
+    if (pendingSectionRef.current) {
+      setActiveSection(pendingSectionRef.current)
+      pendingSectionRef.current = null
+    }
+  }, [activeSection, originalTabSettings])
+
+  // Update tab data
+  const updateTabData = useCallback((sectionId, newData) => {
+    setTabSettings(prev => ({ ...prev, [sectionId]: newData }))
   }, [])
 
-  useEffect(() => {
-    if (settings.ai.provider && !originalProvider.current) {
-      originalProvider.current = settings.ai.provider
-    }
-  }, [settings.ai.provider])
-
-  useEffect(() => {
-    if (settings.azureDevOps.project && projects.length === 0) {
-      setProjects([{ id: 'current', name: settings.azureDevOps.project }])
-    }
-  }, [settings.azureDevOps.project, projects.length])
-
-  useEffect(() => {
-    if (settings.ai.model && models.length === 0) {
-      setModels([{ value: settings.ai.model, label: settings.ai.model, description: `Current: ${settings.ai.model}` }])
-    }
-  }, [settings.ai.model, models.length])
-
-  useEffect(() => {
-    if (settings.ai.provider) {
-      setModels([])
-      if (settings.ai.model) {
-        setModels([{ value: settings.ai.model, label: settings.ai.model, description: `Current: ${settings.ai.model}` }])
-      }
-    }
-  }, [settings.ai.provider])
-
-  // Don't auto-load models - preserve saved model on page load
-
-  const loadSettings = async () => {
-    try {
-      setLoading(true)
-      const response = await axios.get('/api/settings')
-      const frontendSettings = {
-        azureDevOps: {
-          organization: response.data.azureDevOps?.organization || '',
-          project: response.data.azureDevOps?.project || '',
-          personalAccessToken: response.data.azureDevOps?.pat || '',
-          baseUrl: response.data.azureDevOps?.baseUrl || 'https://dev.azure.com'
-        },
-        ai: {
-          provider: response.data.ai?.provider || 'gemini',
-          model: response.data.ai?.model || 'gemini-2.0-flash',
-          openaiApiKey: response.data.ai?.apiKeys?.openai || '',
-          groqApiKey: response.data.ai?.apiKeys?.groq || '',
-          geminiApiKey: response.data.ai?.apiKeys?.gemini || ''
-        },
-        notifications: {
-          enabled: response.data.notifications?.enabled !== undefined ? response.data.notifications.enabled : true,
-          teamsWebhookUrl: response.data.notifications?.webhooks?.teams || '',
-          slackWebhookUrl: response.data.notifications?.webhooks?.slack || '',
-          googleChatWebhookUrl: response.data.notifications?.webhooks?.googleChat || '',
-          teamsEnabled: response.data.notifications?.teamsEnabled !== undefined ? response.data.notifications.teamsEnabled : !!(response.data.notifications?.webhooks?.teams),
-          slackEnabled: response.data.notifications?.slackEnabled !== undefined ? response.data.notifications.slackEnabled : !!(response.data.notifications?.webhooks?.slack),
-          googleChatEnabled: response.data.notifications?.googleChatEnabled !== undefined ? response.data.notifications.googleChatEnabled : !!(response.data.notifications?.webhooks?.googleChat)
-        },
-        polling: response.data.polling || {
-          workItemsInterval: '*/10 * * * *',
-          pullRequestInterval: '0 */10 * * *',
-          overdueCheckInterval: '0 */10 * * *',
-          workItemsEnabled: true,
-          pullRequestEnabled: true,
-          overdueCheckEnabled: true,
-          overdueFilterEnabled: true,
-          overdueMaxDays: 60
-        },
-        security: response.data.security || {
-          webhookSecret: '',
-          apiToken: '',
-          enableRateLimit: true,
-          maxRequestsPerMinute: 100
-        }
-      }
-      setSettings(frontendSettings)
-      setOriginalSettings(JSON.parse(JSON.stringify(frontendSettings))) // Deep copy for comparison
-    } catch (error) {
-      console.error('Failed to load settings:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadWebhookUrls = async () => {
-    try {
-      const response = await axios.get('/api/webhooks/urls')
-      if (response.data.success) {
-        setWebhookUrls(response.data.webhookUrls)
-      }
-    } catch (error) {
-      console.error('Failed to load webhook URLs:', error)
-    }
-  }
-
+  // Save current tab settings
   const handleSave = async () => {
-    if (!hasChanges()) {
-      toast({
-        title: "No Changes",
-        description: "No changes detected to save.",
-      })
+    if (!hasCurrentTabChanges()) {
+      toast({ title: "No Changes", description: "No changes detected to save." })
       return
     }
     
-    if (!validateSettings()) {
-      toast({
-        title: "Validation Error",
-        description: "Please fix validation errors before saving.",
-        variant: "destructive",
-      })
+    if (!validateCurrentSection()) {
+      toast({ title: "Validation Error", description: "Please fix validation errors before saving.", variant: "destructive" })
       return
     }
+    
     try {
       setSaving(true)
-      const backendSettings = {
-        azureDevOps: {
-          organization: settings.azureDevOps.organization,
-          project: settings.azureDevOps.project,
-          baseUrl: settings.azureDevOps.baseUrl
-        },
-        ai: {
-          provider: settings.ai.provider,
-          model: settings.ai.model
-        },
-        notifications: settings.notifications,
-        polling: settings.polling,
-        security: settings.security
+      const data = tabSettings[activeSection]
+      let backendPayload = {}
+      
+      // Build payload based on active section
+      if (activeSection === 'azure') {
+        backendPayload.azureDevOps = {
+          organization: data.organization,
+          project: data.project,
+          baseUrl: data.baseUrl
+        }
+        if (data.personalAccessToken && data.personalAccessToken !== '***') {
+          backendPayload.azureDevOps.pat = data.personalAccessToken
+        }
       }
-      console.log('Saving polling settings:', settings.polling);
-      if (settings.azureDevOps.personalAccessToken && settings.azureDevOps.personalAccessToken !== '***') {
-        backendSettings.azureDevOps.pat = settings.azureDevOps.personalAccessToken;
+      
+      if (activeSection === 'ai') {
+        backendPayload.ai = {
+          provider: data.provider,
+          model: data.model
+        }
+        const apiKeys = {}
+        if (data.openaiApiKey && data.openaiApiKey !== '***') apiKeys.openai = data.openaiApiKey
+        if (data.groqApiKey && data.groqApiKey !== '***') apiKeys.groq = data.groqApiKey
+        if (data.geminiApiKey && data.geminiApiKey !== '***') apiKeys.gemini = data.geminiApiKey
+        if (Object.keys(apiKeys).length > 0) backendPayload.ai.apiKeys = apiKeys
       }
-      const apiKeys = {};
-      let hasApiKeys = false;
-      if (settings.ai.openaiApiKey && settings.ai.openaiApiKey !== '***') {
-        apiKeys.openai = settings.ai.openaiApiKey;
-        hasApiKeys = true;
+      
+      if (activeSection === 'notifications') {
+        backendPayload.notifications = data
       }
-      if (settings.ai.groqApiKey && settings.ai.groqApiKey !== '***') {
-        apiKeys.groq = settings.ai.groqApiKey;
-        hasApiKeys = true;
+      
+      if (activeSection === 'polling') {
+        backendPayload.polling = data
       }
-      if (settings.ai.geminiApiKey && settings.ai.geminiApiKey !== '***') {
-        apiKeys.gemini = settings.ai.geminiApiKey;
-        hasApiKeys = true;
+      
+      if (activeSection === 'security') {
+        backendPayload.security = data
       }
-      if (hasApiKeys) {
-        backendSettings.ai.apiKeys = apiKeys;
-      }
-      await axios.put('/api/settings', backendSettings)
-      toast({
-        title: "Settings Saved",
-        description: "Your settings have been saved successfully!",
-      })
-      setPatChanged(false) // Reset flag after successful save
-      setOriginalSettings(JSON.parse(JSON.stringify(settings))) // Update original settings
+      
+      await axios.put('/api/settings', backendPayload)
+      
+      // Update original to match current (mark as saved)
+      setOriginalTabSettings(prev => ({
+        ...prev,
+        [activeSection]: JSON.parse(JSON.stringify(tabSettings[activeSection]))
+      }))
+      
+      toast({ title: "Settings Saved", description: `${settingsSections.find(s => s.id === activeSection)?.name} settings saved successfully!` })
     } catch (error) {
-      toast({
-        title: "Save Failed",
-        description: `Failed to save settings: ${error.message}`,
-        variant: "destructive",
-      })
+      toast({ title: "Save Failed", description: error.response?.data?.error || error.message, variant: "destructive" })
     } finally {
       setSaving(false)
     }
   }
 
-  const handleTestConnection = async () => {
-    try {
-      setTesting(true)
-      const testData = {
-        organization: settings.azureDevOps.organization,
-        project: settings.azureDevOps.project,
-        pat: settings.azureDevOps.personalAccessToken,
-        baseUrl: settings.azureDevOps.baseUrl
-      }
-      await axios.post('/api/settings/test-connection', testData)
-      toast({
-        title: "Connection Successful",
-        description: "Azure DevOps connection test passed!",
-      })
-      setPatChanged(false) // Reset flag after successful test
-    } catch (error) {
-      toast({
-        title: "Connection Failed",
-        description: `Connection test failed: ${error.message}`,
-        variant: "destructive",
-      })
-    } finally {
-      setTesting(false)
-    }
-  }
-
-  const fetchModels = useCallback(async () => {
-    if (loadingModels || !settings.ai.provider) return
-    setLoadingModels(true)
-    
-    try {
-      // Always try API first, let backend handle API key validation and fallback
-      const token = localStorage.getItem('token')
-      const response = await axios.get(`/api/ai/models/${settings.ai.provider}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      const fetchedModels = response.data.models || []
-      setModels(fetchedModels)
-    } catch (error) {
-      console.error('Failed to fetch models:', error)
-      setModels([])
-    } finally {
-      setLoadingModels(false)
-    }
-  }, [loadingModels, settings.ai.provider])
-
-  // Helper function to check if API key exists for provider (kept for potential future use)
-  const getApiKeyForProvider = (provider) => {
-    switch (provider) {
-      case 'openai': return settings.ai.openaiApiKey && settings.ai.openaiApiKey !== '***'
-      case 'groq': return settings.ai.groqApiKey && settings.ai.groqApiKey !== '***'
-      case 'gemini': return settings.ai.geminiApiKey && settings.ai.geminiApiKey !== '***'
-      default: return false
-    }
-  }
-
-  const fetchProjects = useCallback(async () => {
-    if (loadingProjects) return
-    setLoadingProjects(true)
-    try {
-      const token = localStorage.getItem('token')
-      
-      // Use current PAT input if available, otherwise use saved PAT from DB
-      const currentPat = settings.azureDevOps.personalAccessToken
-      let patToUse = null
-      
-      if (currentPat && currentPat !== '***') {
-        // Use current input value (for new users)
-        patToUse = currentPat
-      } else if (currentPat === '***') {
-        // PAT is saved in DB, let backend use the saved one
-        patToUse = 'USE_SAVED_PAT'
-      }
-      
-      if (!patToUse || !settings.azureDevOps.organization) {
-        toast({
-          title: "Missing Information",
-          description: "Please enter both Organization and Personal Access Token first.",
-          variant: "destructive",
-        })
-        setProjects([])
-        return
-      }
-      
-      // Use fetch-projects endpoint with temporary credentials
-      const response = await axios.post('/api/settings/fetch-projects', {
-        organization: settings.azureDevOps.organization,
-        pat: patToUse,
-        baseUrl: settings.azureDevOps.baseUrl
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      
-      const fetchedProjects = response.data.projects || []
-      const currentProject = settings.azureDevOps.project
-      if (currentProject && !fetchedProjects.find(p => p.name === currentProject)) {
-        fetchedProjects.unshift({ id: 'current', name: currentProject })
-      }
-      setProjects(fetchedProjects)
-      
-      toast({
-        title: "Projects Loaded",
-        description: `Found ${fetchedProjects.length} projects in your organization.`,
-      })
-    } catch (error) {
-      console.error('Failed to fetch projects:', error)
-      setProjects([])
-      
-      // Show specific error message
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to fetch projects'
-      toast({
-        title: "Failed to Load Projects",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setLoadingProjects(false)
-    }
-  }, [loadingProjects, settings.azureDevOps.organization, settings.azureDevOps.personalAccessToken, settings.azureDevOps.baseUrl, settings.azureDevOps.project, toast])
-
-  // Don't auto-load projects - only load when user clicks button
-
-  const toggleSecretVisibility = useCallback((field) => {
-    setShowSecrets(prev => ({
-      ...prev,
-      [field]: !prev[field]
-    }))
-  }, [])
-
-  const updateSetting = useCallback((section, field, value) => {
-    setSettings(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }))
-    
-    // Track if PAT has been changed
-    if (section === 'azureDevOps' && field === 'personalAccessToken') {
-      setPatChanged(value !== '' && value !== '***')
-    }
-  }, [])
-
-  const handleProviderChange = useCallback((newProvider) => {
-    const currentProvider = settings.ai.provider
-    updateSetting('ai', 'provider', newProvider)
-    
-    // Only reset model if provider actually changed (not on initial load or same provider)
-    if (currentProvider && currentProvider !== newProvider) {
-      updateSetting('ai', 'model', '')
-      setModels([])
-    }
-    // Don't auto-fetch models - wait for user to click model dropdown
-  }, [settings.ai.provider, updateSetting])
-
-  // Section Components
-  function AzureDevOpsSection() {
-    return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5 text-blue-600" />
-                Azure DevOps Configuration
-              </CardTitle>
-              <CardDescription>Configure your Azure DevOps organization and project settings</CardDescription>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={handleTestConnection} 
-              disabled={testing || !patChanged} 
-              className="group"
-            >
-              <TestTube className={`h-4 w-4 mr-2 ${testing ? 'animate-pulse' : 'group-hover:scale-110'} transition-transform duration-200`} />
-              {testing ? 'Testing...' : 'Test Connection'}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="organization">Organization</Label>
-              <Input
-                id="organization"
-                placeholder="your-organization"
-                value={settings.azureDevOps.organization}
-                onChange={(e) => updateSetting('azureDevOps', 'organization', e.target.value)}
-              />
-              {validationErrors.organization && (
-                <p className="text-sm text-red-600">{validationErrors.organization}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="project">Project</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Select
-                    value={settings.azureDevOps.project}
-                    onValueChange={(value) => updateSetting('azureDevOps', 'project', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={
-                        !settings.azureDevOps.organization || !settings.azureDevOps.personalAccessToken || settings.azureDevOps.personalAccessToken === '***'
-                          ? "Enter organization and PAT first..." 
-                          : loadingProjects 
-                            ? "Loading projects..." 
-                            : projects.length === 0
-                              ? "Click refresh to load projects"
-                              : "Select a project..."
-                      } />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {loadingProjects && (
-                          <SelectItem value="loading" disabled>Loading projects...</SelectItem>
-                        )}
-                        {!loadingProjects && projects.length === 0 && settings.azureDevOps.organization && settings.azureDevOps.personalAccessToken && settings.azureDevOps.personalAccessToken !== '***' && (
-                          <SelectItem value="no-projects" disabled>Click refresh button to load projects</SelectItem>
-                        )}
-                        {projects.map(project => (
-                          <SelectItem key={project.id} value={project.name}>
-                            {project.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchProjects}
-                  disabled={!settings.azureDevOps.organization || (!settings.azureDevOps.personalAccessToken || settings.azureDevOps.personalAccessToken === '') || loadingProjects}
-                  className="px-3"
-                >
-                  <RefreshCw className={`h-4 w-4 ${loadingProjects ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-              {validationErrors.project && (
-                <p className="text-sm text-red-600">{validationErrors.project}</p>
-              )}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="pat">Personal Access Token</Label>
-            <div className="relative">
-              <Input
-                id="pat"
-                type={showSecrets.pat ? 'text' : 'password'}
-                placeholder={settings.azureDevOps.personalAccessToken === '***' ? 'Enter new PAT token or leave unchanged' : 'your-personal-access-token'}
-                value={settings.azureDevOps.personalAccessToken}
-                onChange={(e) => updateSetting('azureDevOps', 'personalAccessToken', e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => toggleSecretVisibility('pat')}
-              >
-                {showSecrets.pat ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-            {validationErrors.personalAccessToken && (
-              <p className="text-sm text-red-600">{validationErrors.personalAccessToken}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="baseUrl">Base URL</Label>
-            <Input
-              id="baseUrl"
-              placeholder="https://dev.azure.com"
-              value={settings.azureDevOps.baseUrl}
-              onChange={(e) => updateSetting('azureDevOps', 'baseUrl', e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  function AIConfigSection() {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-purple-600" />
-            AI Configuration
-          </CardTitle>
-          <CardDescription>Configure your AI provider and model settings</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="provider">AI Provider</Label>
-            <Select
-              value={settings.ai.provider}
-              onValueChange={handleProviderChange}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select AI provider..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="openai">OpenAI</SelectItem>
-                  <SelectItem value="groq">Groq</SelectItem>
-                  <SelectItem value="gemini">Google Gemini</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {settings.ai.provider === 'openai' && (
-            <div className="space-y-2">
-              <Label htmlFor="openaiKey">OpenAI API Key</Label>
-              <div className="relative">
-                <Input
-                  id="openaiKey"
-                  type={showSecrets.openai ? 'text' : 'password'}
-                  placeholder="sk-..."
-                  value={settings.ai.openaiApiKey}
-                  onChange={(e) => updateSetting('ai', 'openaiApiKey', e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => toggleSecretVisibility('openai')}
-                >
-                  {showSecrets.openai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {settings.ai.provider === 'groq' && (
-            <div className="space-y-2">
-              <Label htmlFor="groqKey">Groq API Key</Label>
-              <div className="relative">
-                <Input
-                  id="groqKey"
-                  type={showSecrets.groq ? 'text' : 'password'}
-                  placeholder="gsk_..."
-                  value={settings.ai.groqApiKey}
-                  onChange={(e) => updateSetting('ai', 'groqApiKey', e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => toggleSecretVisibility('groq')}
-                >
-                  {showSecrets.groq ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {settings.ai.provider === 'gemini' && (
-            <div className="space-y-2">
-              <Label htmlFor="geminiKey">Gemini API Key</Label>
-              <div className="relative">
-                <Input
-                  id="geminiKey"
-                  type={showSecrets.gemini ? 'text' : 'password'}
-                  placeholder="AIza..."
-                  value={settings.ai.geminiApiKey}
-                  onChange={(e) => updateSetting('ai', 'geminiApiKey', e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => toggleSecretVisibility('gemini')}
-                >
-                  {showSecrets.gemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
-          
-          <div className="space-y-2">
-            <Label htmlFor="model">Model</Label>
-            <div className="flex gap-2">
-              <div className="flex-1 dropdown-container">
-                <Select
-                  value={settings.ai.model}
-                  onValueChange={(value) => updateSetting('ai', 'model', value)}
-                  disabled={!settings.ai.provider}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={
-                      !settings.ai.provider 
-                        ? "Select a provider first..." 
-                        : loadingModels 
-                          ? "Loading models..." 
-                          : models.length === 0
-                            ? "Click refresh to load models"
-                            : "Select a model..."
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {loadingModels && (
-                        <SelectItem value="loading" disabled>Loading models...</SelectItem>
-                      )}
-                      {!loadingModels && models.length === 0 && settings.ai.provider && (
-                        <SelectItem value="no-models" disabled>Click refresh button to load models</SelectItem>
-                      )}
-                      {models.map(model => (
-                        <SelectItem key={model.value} value={model.value}>
-                          {model.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={fetchModels}
-                disabled={!settings.ai.provider || loadingModels}
-                className="px-3"
-              >
-                <RefreshCw className={`h-4 w-4 ${loadingModels ? 'animate-spin' : ''}`} />
-              </Button>
-            </div>
-            {validationErrors.aiModel && (
-              <p className="text-sm text-red-600">{validationErrors.aiModel}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  function NotificationsSection() {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-green-600" />
-            Notifications
-          </CardTitle>
-          <CardDescription>Configure notification settings for Azure DevOps events</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="notifications-enabled">Enable notifications</Label>
-            <Switch
-              id="notifications-enabled"
-              checked={settings.notifications.enabled}
-              onCheckedChange={(checked) => updateSetting('notifications', 'enabled', checked)}
-            />
-          </div>
-          
-          <div className={`space-y-4 p-4 border rounded-lg ${!settings.notifications.enabled ? 'opacity-50' : ''}`}>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="gchat-enabled">Google Chat</Label>
-              <Switch
-                id="gchat-enabled"
-                checked={settings.notifications.googleChatEnabled}
-                onCheckedChange={(checked) => updateSetting('notifications', 'googleChatEnabled', checked)}
-                disabled={!settings.notifications.enabled}
-              />
-            </div>
-            {settings.notifications.googleChatEnabled && (
-              <Input
-                placeholder="https://chat.googleapis.com/v1/spaces/..."
-                value={settings.notifications.googleChatWebhookUrl}
-                onChange={(e) => updateSetting('notifications', 'googleChatWebhookUrl', e.target.value)}
-                disabled={!settings.notifications.enabled}
-              />
-            )}
-          </div>
-
-          <div className="space-y-4 p-4 border rounded-lg opacity-50">
-            <div className="flex items-center justify-between">
-              <Label>Microsoft Teams (Coming Soon)</Label>
-              <Switch disabled />
-            </div>
-          </div>
-
-          <div className="space-y-4 p-4 border rounded-lg opacity-50">
-            <div className="flex items-center justify-between">
-              <Label>Slack (Coming Soon)</Label>
-              <Switch disabled />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  function WebhooksSection() {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Webhook className="h-5 w-5 text-orange-600" />
-            Azure DevOps Webhook URLs
-          </CardTitle>
-          <CardDescription>
-            Copy these URLs to configure webhooks in your Azure DevOps project settings. These URLs are unique to your account and will route events to your notification preferences.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Build Completed Events</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.buildCompleted || 'Loading...'}
-                className="font-mono text-sm bg-muted"
-              />
-              <CopyButton 
-                content={webhookUrls.buildCompleted}
-                variant="outline"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Pull Request Created Events</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.pullRequestCreated || 'Loading...'}
-                className="font-mono text-sm bg-muted"
-              />
-              <CopyButton 
-                content={webhookUrls.pullRequestCreated}
-                variant="outline"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Work Item Created Events</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.workItemCreated || 'Loading...'}
-                className="font-mono text-sm bg-muted"
-              />
-              <CopyButton 
-                content={webhookUrls.workItemCreated}
-                variant="outline"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Work Item Updated Events</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.workItemUpdated || 'Loading...'}
-                className="font-mono text-sm bg-muted"
-              />
-              <CopyButton 
-                content={webhookUrls.workItemUpdated}
-                variant="outline"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Release Deployment Events (Production Only)</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.releaseDeployment || 'Loading...'}
-                className="font-mono text-sm bg-muted"
-              />
-              <CopyButton 
-                content={webhookUrls.releaseDeployment}
-                variant="outline"
-              />
-            </div>
-          </div>
-
-          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Setup Instructions:</h4>
-            <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
-              <li>Go to your Azure DevOps project settings</li>
-              <li>Navigate to Service Hooks</li>
-              <li>Create a new subscription for each event type</li>
-              <li>Use the corresponding webhook URL above</li>
-              <li>Events will be routed to your configured notification channels</li>
-            </ol>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  function SecuritySection() {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-red-600" />
-            Security Settings
-          </CardTitle>
-          <CardDescription>Configure security and authentication settings</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="webhookSecret">Webhook Secret</Label>
-            <Input
-              id="webhookSecret"
-              type="password"
-              placeholder="Enter webhook secret"
-              value={settings.security.webhookSecret}
-              onChange={(e) => updateSetting('security', 'webhookSecret', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="apiToken">API Token</Label>
-            <Input
-              id="apiToken"
-              type="password"
-              placeholder="Enter API token"
-              value={settings.security.apiToken}
-              onChange={(e) => updateSetting('security', 'apiToken', e.target.value)}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="rateLimit">Enable Rate Limiting</Label>
-            <Switch
-              id="rateLimit"
-              checked={settings.security.enableRateLimit}
-              onCheckedChange={(checked) => updateSetting('security', 'enableRateLimit', checked)}
-            />
-          </div>
-          {settings.security.enableRateLimit && (
-            <div className="space-y-2">
-              <Label htmlFor="maxRequests">Max Requests Per Minute</Label>
-              <Input
-                id="maxRequests"
-                type="number"
-                placeholder="100"
-                value={settings.security.maxRequestsPerMinute}
-                onChange={(e) => updateSetting('security', 'maxRequestsPerMinute', parseInt(e.target.value) || 100)}
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    )
-  }
-
-  // Add the main layout and return statement here
-  const Sidebar = ({ className = "" }) => (
+  // Sidebar component
+  const Sidebar = ({ className = "", onSelect }) => (
     <div className={`space-y-2 ${className}`}>
       {settingsSections.map((section) => {
         const Icon = section.icon
+        const hasChanges = JSON.stringify(tabSettings[section.id]) !== JSON.stringify(originalTabSettings[section.id])
         return (
           <button
             key={section.id}
-            onClick={() => setActiveSection(section.id)}
+            onClick={() => onSelect ? onSelect(section.id) : handleSectionChange(section.id)}
             className={`w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg transition-colors ${
               activeSection === section.id
                 ? 'bg-primary text-primary-foreground'
@@ -1092,16 +285,17 @@ export default function Settings() {
             }`}
           >
             <Icon className="h-4 w-4" />
-            <span className="text-sm font-medium">{section.name}</span>
+            <span className="text-sm font-medium flex-1">{section.name}</span>
+            {hasChanges && (
+              <span className="w-2 h-2 rounded-full bg-orange-500" title="Unsaved changes" />
+            )}
           </button>
         )
       })}
     </div>
   )
 
-  if (loading) {
-    return <LoadingSpinner />
-  }
+  if (loading) return <LoadingSpinner />
 
   return (
     <div className="space-y-6">
@@ -1114,28 +308,42 @@ export default function Settings() {
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        @keyframes shimmer {
-          0% { background-position: -200px 0; }
-          100% { background-position: calc(200px + 100%) 0; }
-        }
         .animate-slide-up {
           animation: slideUp 0.6s ease-out;
         }
         .animate-fade-in {
           animation: fadeIn 0.4s ease-out;
         }
-        .shimmer {
-          background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.1) 50%, hsl(var(--muted)) 75%);
-          background-size: 200px 100%;
-          animation: shimmer 1.5s infinite;
-        }
       `}</style>
+
+      {/* Unsaved Changes Dialog */}
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes in {settingsSections.find(s => s.id === activeSection)?.name}. 
+              Do you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowUnsavedDialog(false)
+              pendingSectionRef.current = null
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDiscardChanges} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Discard Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Header */}
       <div className="animate-slide-up">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-4">
-            {/* Mobile menu */}
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="outline" size="icon" className="md:hidden">
@@ -1145,7 +353,9 @@ export default function Settings() {
               <SheetContent side="left" className="w-64">
                 <div className="py-4">
                   <h2 className="text-lg font-semibold mb-4">Settings</h2>
-                  <Sidebar />
+                  <Sidebar onSelect={(id) => {
+                    handleSectionChange(id)
+                  }} />
                 </div>
               </SheetContent>
             </Sheet>
@@ -1156,19 +366,14 @@ export default function Settings() {
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            <Button 
-              onClick={handleSave} 
-              disabled={saving || !hasChanges()} 
-              className="group relative overflow-hidden bg-foreground hover:bg-foreground/90 text-background border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
-              <Save className={`h-4 w-4 mr-2 relative z-10 ${saving ? 'animate-spin' : 'group-hover:rotate-12 group-hover:scale-110'} transition-all duration-300`} />
-              <span className="relative z-10 font-medium">
-                {saving ? 'Saving...' : 'Save Settings'}
-              </span>
-            </Button>
-          </div>
+          <Button 
+            onClick={handleSave} 
+            disabled={saving || !hasCurrentTabChanges()} 
+            className="group relative overflow-hidden bg-foreground hover:bg-foreground/90 text-background"
+          >
+            <Save className={`h-4 w-4 mr-2 ${saving ? 'animate-spin' : ''}`} />
+            {saving ? 'Saving...' : 'Save Settings'}
+          </Button>
         </div>
       </div>
 
@@ -1189,12 +394,39 @@ export default function Settings() {
 
         {/* Content Area */}
         <div className="flex-1">
-          {activeSection === 'azure' && <AzureDevOpsSection />}
-          {activeSection === 'ai' && <AIConfigSection />}
-          {activeSection === 'notifications' && <NotificationsSection />}
+          {activeSection === 'azure' && (
+            <AzureDevOpsSection 
+              data={tabSettings.azure} 
+              onChange={(data) => updateTabData('azure', data)}
+              errors={validationErrors}
+            />
+          )}
+          {activeSection === 'ai' && (
+            <AIConfigSection 
+              data={tabSettings.ai} 
+              onChange={(data) => updateTabData('ai', data)}
+              errors={validationErrors}
+            />
+          )}
+          {activeSection === 'notifications' && (
+            <NotificationsSection 
+              data={tabSettings.notifications} 
+              onChange={(data) => updateTabData('notifications', data)}
+            />
+          )}
           {activeSection === 'webhooks' && <WebhooksSection />}
-          {activeSection === 'polling' && <PollingSection settings={settings} updateSetting={updateSetting} />}
-          {activeSection === 'security' && <SecuritySection />}
+          {activeSection === 'polling' && (
+            <PollingSection 
+              data={tabSettings.polling} 
+              onChange={(data) => updateTabData('polling', data)}
+            />
+          )}
+          {activeSection === 'security' && (
+            <SecuritySection 
+              data={tabSettings.security} 
+              onChange={(data) => updateTabData('security', data)}
+            />
+          )}
         </div>
       </div>
     </div>
