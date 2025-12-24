@@ -7,6 +7,46 @@ class BuildPoller {
     this.processedBuilds = new Set();
   }
 
+  // Organization-based polling
+  async pollBuildsForOrg(organizationId, org) {
+    try {
+      if (!org?.azureDevOps?.organization || !org?.azureDevOps?.pat) {
+        logger.warn(`Org ${organizationId} missing Azure DevOps config`);
+        return;
+      }
+
+      const client = azureDevOpsClient.createUserClient({
+        organization: org.azureDevOps.organization,
+        project: org.azureDevOps.project,
+        pat: org.azureDevOps.pat,
+        baseUrl: org.azureDevOps.baseUrl || 'https://dev.azure.com'
+      });
+
+      logger.info(`Starting builds polling for org ${organizationId}`);
+      const recentBuilds = await client.getRecentBuilds(20);
+      
+      if (recentBuilds.count > 0) {
+        const newBuilds = recentBuilds.value.filter(build => {
+          const finishTime = new Date(build.finishTime);
+          return finishTime > this.lastPollTime && !this.processedBuilds.has(build.id);
+        });
+
+        if (newBuilds.length > 0) {
+          logger.info(`Found ${newBuilds.length} new builds for org ${organizationId}`);
+          for (const build of newBuilds) {
+            this.processedBuilds.add(build.id);
+          }
+        }
+      }
+
+      this.lastPollTime = new Date();
+      this.cleanupProcessedBuilds();
+    } catch (error) {
+      logger.error(`Error polling builds for org ${organizationId}:`, error);
+    }
+  }
+
+  // Legacy method for backward compatibility
   async pollBuilds(userId) {
     try {
       let client = azureDevOpsClient;
