@@ -817,6 +817,38 @@ router.post('/settings/test-connection', async (req, res) => {
   }
 });
 
+// Fetch projects from Azure DevOps organization
+router.post('/settings/projects', async (req, res) => {
+  try {
+    const { organization, personalAccessToken, baseUrl } = req.body;
+    
+    if (!organization || !personalAccessToken) {
+      return res.status(400).json({ error: 'Organization and PAT are required' });
+    }
+    
+    const base = baseUrl || 'https://dev.azure.com';
+    const url = `${base}/${organization}/_apis/projects?api-version=7.0`;
+    
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Basic ${Buffer.from(':' + personalAccessToken).toString('base64')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const projects = response.data.value?.map(p => ({
+      id: p.id,
+      name: p.name,
+      description: p.description
+    })) || [];
+    
+    res.json({ projects });
+  } catch (error) {
+    logger.error('Failed to fetch projects:', error);
+    res.status(500).json({ error: 'Failed to fetch projects: ' + error.message });
+  }
+});
+
 // Helper functions
 async function testAzureDevOpsConnection(config) {
   try {
