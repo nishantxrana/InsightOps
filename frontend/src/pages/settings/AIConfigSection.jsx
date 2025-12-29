@@ -35,9 +35,11 @@ export default function AIConfigSection({ data, onChange, errors }) {
     setLoadingModels(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await axios.get(`/api/ai/models/${data.provider}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const currentOrgId = localStorage.getItem('currentOrganizationId')
+      const headers = { Authorization: `Bearer ${token}` }
+      if (currentOrgId) headers['X-Organization-ID'] = currentOrgId
+      
+      const response = await axios.get(`/api/ai/models/${data.provider}`, { headers })
       setModels(response.data.models || [])
     } catch (error) {
       console.error('Failed to fetch models:', error)

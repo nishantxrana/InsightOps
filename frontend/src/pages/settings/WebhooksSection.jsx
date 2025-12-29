@@ -12,7 +12,12 @@ export default function WebhooksSection() {
   useEffect(() => {
     const loadWebhookUrls = async () => {
       try {
-        const response = await axios.get('/api/webhooks/urls')
+        const token = localStorage.getItem('token')
+        const currentOrgId = localStorage.getItem('currentOrganizationId')
+        const headers = { Authorization: `Bearer ${token}` }
+        if (currentOrgId) headers['X-Organization-ID'] = currentOrgId
+        
+        const response = await axios.get('/api/webhooks/urls', { headers })
         if (response.data.success) {
           setWebhookUrls(response.data.webhookUrls)
         }
