@@ -10,21 +10,28 @@ export async function getOrganizationSettings(req) {
   // If organization already loaded by middleware
   if (req.organization) {
     // Get with decrypted credentials
-    return organizationService.getOrganizationWithCredentials(req.organization._id);
+    const org = await organizationService.getOrganizationWithCredentials(req.organization._id);
+    logger.info(`[GET-ORG-SETTINGS] Using middleware org: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`);
+    return org;
   }
 
   // If organizationId specified but not loaded
   if (req.organizationId) {
-    return organizationService.getOrganizationWithCredentials(req.organizationId, req.user._id);
+    const org = await organizationService.getOrganizationWithCredentials(req.organizationId, req.user._id);
+    logger.info(`[GET-ORG-SETTINGS] Using orgId: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`);
+    return org;
   }
 
   // Fall back to default organization
   const defaultOrg = await organizationService.getDefaultOrganization(req.user._id);
   if (!defaultOrg) {
+    logger.info(`[GET-ORG-SETTINGS] No org found for user`);
     return null;
   }
 
-  return organizationService.getOrganizationWithCredentials(defaultOrg._id, req.user._id);
+  const org = await organizationService.getOrganizationWithCredentials(defaultOrg._id, req.user._id);
+  logger.info(`[GET-ORG-SETTINGS] Using DEFAULT org: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`);
+  return org;
 }
 
 /**

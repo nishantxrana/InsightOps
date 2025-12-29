@@ -80,8 +80,8 @@ export function OrganizationProvider({ children }) {
     if (org) {
       setCurrentOrganization(org);
       localStorage.setItem('currentOrganizationId', orgId);
-      // Trigger a page refresh to reload data with new org context
-      window.dispatchEvent(new CustomEvent('organizationChanged', { detail: org }));
+      // Force page reload to refetch all data with new org context
+      window.location.reload();
     }
   }, [organizations]);
 

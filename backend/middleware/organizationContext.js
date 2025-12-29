@@ -21,11 +21,14 @@ export const injectOrganizationContext = async (req, res, next) => {
       req.query.organizationId || 
       req.body?.organizationId;
 
+    logger.info(`[ORG-CONTEXT] User: ${req.user._id}, Header orgId: ${organizationId}, URL: ${req.url}`);
+
     // If no org specified, use default
     if (!organizationId) {
       const defaultOrg = await organizationService.getDefaultOrganization(req.user._id);
       if (defaultOrg) {
         organizationId = defaultOrg._id;
+        logger.info(`[ORG-CONTEXT] No header, using default org: ${defaultOrg.name} (${organizationId})`);
       }
     }
 
@@ -40,15 +43,16 @@ export const injectOrganizationContext = async (req, res, next) => {
       if (org) {
         req.organizationId = org._id;
         req.organization = org;
+        logger.info(`[ORG-CONTEXT] Set org context: ${org.name} (${org._id})`);
       } else {
-        logger.warn(`User ${req.user._id} attempted to access org ${organizationId} they don't own`);
+        logger.warn(`[ORG-CONTEXT] Org not found or not owned: ${organizationId}`);
       }
     }
 
     next();
   } catch (error) {
     logger.error('Error in organization context middleware:', error);
-    next(); // Continue without org context rather than failing
+    next();
   }
 };
 
