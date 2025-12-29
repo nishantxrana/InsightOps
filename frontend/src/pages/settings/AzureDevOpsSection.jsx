@@ -112,7 +112,7 @@ export default function AzureDevOpsSection({ data, onChange, errors }) {
                         : loadingProjects ? "Loading..." : projects.length === 0 ? "Click refresh to load" : "Select a project..."
                     } />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60">
                     <SelectGroup>
                       {loadingProjects && <SelectItem value="loading" disabled>Loading...</SelectItem>}
                       {!loadingProjects && projects.length === 0 && data.organization && data.personalAccessToken && (

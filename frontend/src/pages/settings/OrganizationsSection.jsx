@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Badge } from '../../components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -321,20 +322,22 @@ export default function OrganizationsSection() {
           </Button>
         </div>
         {projects.length > 0 ? (
-          <select
-            id="project"
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          <Select
             value={formData.azureDevOps.project}
-            onChange={(e) => setFormData(prev => ({ 
+            onValueChange={(value) => setFormData(prev => ({ 
               ...prev, 
-              azureDevOps: { ...prev.azureDevOps, project: e.target.value }
+              azureDevOps: { ...prev.azureDevOps, project: value }
             }))}
           >
-            <option value="">Select a project</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.name}>{p.name}</option>
-            ))}
-          </select>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a project" />
+            </SelectTrigger>
+            <SelectContent className="max-h-60">
+              {projects.map(p => (
+                <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         ) : (
           <Input
             id="project"
