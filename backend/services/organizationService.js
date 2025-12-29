@@ -68,15 +68,30 @@ class OrganizationService {
    * Create a new organization
    */
   async createOrganization(userId, data) {
-    // Check if org already exists for this user
+    // Check if org already exists (including soft-deleted)
     const existing = await Organization.findOne({
       userId,
-      'azureDevOps.organization': data.azureDevOps.organization,
-      isActive: true
+      'azureDevOps.organization': data.azureDevOps.organization
     });
 
     if (existing) {
-      throw new Error('Organization already exists for this Azure DevOps org');
+      if (existing.isActive) {
+        throw new Error('Organization already exists for this Azure DevOps org');
+      }
+      // Reactivate soft-deleted org with new data
+      // Check if there are other active orgs - if so, don't make this default
+      const activeOrgCount = await Organization.countDocuments({ userId, isActive: true });
+      
+      existing.isActive = true;
+      existing.isDefault = activeOrgCount === 0; // Only default if no other active orgs
+      existing.name = data.name || data.azureDevOps.organization;
+      existing.azureDevOps = this.encryptSensitiveData(data).azureDevOps;
+      if (data.ai) existing.ai = this.encryptSensitiveData(data).ai;
+      if (data.notifications) existing.notifications = data.notifications;
+      if (data.polling) existing.polling = data.polling;
+      await existing.save();
+      logger.info(`Reactivated organization ${existing.name} for user ${userId}`);
+      return this.sanitizeOrganization(existing.toObject());
     }
 
     // Check if this is the first org (make it default)

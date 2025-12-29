@@ -47,8 +47,7 @@ router.get('/health', async (req, res) => {
   res.status(statusCode).json(health);
 });
 
-// Apply authentication to all other routes
-router.use(authenticate);
+// Authentication is now applied in main.js before this router
 
 // User settings endpoints - Now returns current organization settings
 router.get('/settings', async (req, res) => {

@@ -171,12 +171,12 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 
 // Organization routes (authenticated)
-app.use('/api/organizations', authenticate, organizationRoutes);
+app.use('/api/organizations', authenticate, injectOrganizationContext, organizationRoutes);
 
-// API Routes (BEFORE static files) - with organization context
+// API Routes (BEFORE static files) - with authentication and organization context
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/queue', queueStatusRoutes);
-app.use('/api', injectOrganizationContext, apiRoutes);
+app.use('/api', authenticate, injectOrganizationContext, apiRoutes);
 
 // Serve static files from public folder with caching
 app.use(express.static(path.join(process.cwd(), 'public'), {
