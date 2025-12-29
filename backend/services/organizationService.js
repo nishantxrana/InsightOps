@@ -286,6 +286,42 @@ class OrganizationService {
   }
 
   /**
+   * Fetch projects from Azure DevOps using saved credentials
+   */
+  async fetchProjects(organizationId, userId) {
+    const org = await this.getOrganizationWithCredentials(organizationId, userId);
+    if (!org) {
+      throw new Error('Organization not found');
+    }
+
+    const { organization, pat, baseUrl } = org.azureDevOps;
+    const url = `${baseUrl}/${organization}/_apis/projects?api-version=7.0`;
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(':' + pat).toString('base64')}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      const projects = response.data.value?.map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.description
+      })) || [];
+
+      return { projects };
+    } catch (error) {
+      logger.error('Failed to fetch projects:', error.message);
+      return {
+        error: error.response?.data?.message || error.message
+      };
+    }
+  }
+
+  /**
    * Encrypt sensitive data before storage
    */
   encryptSensitiveData(data) {

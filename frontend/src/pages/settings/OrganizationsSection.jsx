@@ -142,28 +142,50 @@ export default function OrganizationsSection() {
   }
 
   const handleFetchProjects = async () => {
-    if (!formData.azureDevOps.organization || !formData.azureDevOps.pat || formData.azureDevOps.pat === '********') {
+    if (!formData.azureDevOps.organization) {
+      setErrors(prev => ({ ...prev, organization: 'Organization is required' }))
+      return
+    }
+    
+    // For new orgs, require PAT to be entered
+    if (!selectedOrg && !formData.azureDevOps.pat) {
       setErrors(prev => ({ ...prev, pat: 'Enter PAT to fetch projects' }))
       return
     }
     
     setFetchingProjects(true)
     setProjects([])
+    setErrors(prev => ({ ...prev, project: null }))
     
     try {
-      const response = await fetch('/api/settings/projects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          organization: formData.azureDevOps.organization,
-          personalAccessToken: formData.azureDevOps.pat,
-          baseUrl: formData.azureDevOps.baseUrl
+      let result
+      
+      // If editing existing org with masked PAT, use saved credentials
+      if (selectedOrg && formData.azureDevOps.pat === '********') {
+        const response = await fetch(`/api/organizations/${selectedOrg._id}/projects`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
         })
-      })
-      const result = await response.json()
+        result = await response.json()
+      } else {
+        // For new orgs or when PAT is changed, use provided credentials
+        const response = await fetch('/api/settings/projects', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            organization: formData.azureDevOps.organization,
+            personalAccessToken: formData.azureDevOps.pat,
+            baseUrl: formData.azureDevOps.baseUrl
+          })
+        })
+        result = await response.json()
+      }
       
       if (result.projects) {
         setProjects(result.projects)
@@ -292,7 +314,7 @@ export default function OrganizationsSection() {
             variant="ghost"
             size="sm"
             onClick={handleFetchProjects}
-            disabled={fetchingProjects || !formData.azureDevOps.organization || !formData.azureDevOps.pat || formData.azureDevOps.pat === '********'}
+            disabled={fetchingProjects || !formData.azureDevOps.organization || (!selectedOrg && !formData.azureDevOps.pat)}
             className="h-6 text-xs"
           >
             {fetchingProjects ? 'Fetching...' : 'Fetch Projects'}

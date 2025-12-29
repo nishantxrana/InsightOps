@@ -167,4 +167,21 @@ router.post('/:id/test-connection', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/organizations/:id/projects
+ * Fetch Azure DevOps projects using saved credentials
+ */
+router.post('/:id/projects', async (req, res) => {
+  try {
+    const result = await organizationService.fetchProjects(req.params.id, req.user._id);
+    res.json(result);
+  } catch (error) {
+    logger.error('Error fetching projects:', error);
+    if (error.message === 'Organization not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
 export default router;
