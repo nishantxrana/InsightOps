@@ -7,7 +7,18 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 class PullRequestPoller {
   constructor() {
     this.lastPollTime = new Date();
-    this.processedPRs = new Set();
+    // Per-organization processed PRs to prevent cross-org ID collision
+    this.processedPRsByOrg = new Map(); // organizationId -> Set of PR IDs
+  }
+
+  /**
+   * Get or create processed PRs set for an organization
+   */
+  getProcessedPRsForOrg(organizationId) {
+    if (!this.processedPRsByOrg.has(organizationId)) {
+      this.processedPRsByOrg.set(organizationId, new Set());
+    }
+    return this.processedPRsByOrg.get(organizationId);
   }
 
   // New method for organization-based polling
@@ -78,14 +89,14 @@ class PullRequestPoller {
       }
       
       // Save to notification history with organizationId
-      await notificationHistoryService.saveNotification(org.userId, {
+      await notificationHistoryService.saveNotification(org.userId, organizationId, {
         type: 'idle-pr',
         title: `${idlePRs.length} Idle Pull Requests`,
         message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
         source: 'poller',
-        organizationId,
-        metadata: { count: idlePRs.length }
-      }, channels);
+        metadata: { count: idlePRs.length },
+        channels
+      });
       
       logger.info(`Idle PR notifications sent for org ${organizationId}`);
     } catch (error) {
@@ -149,8 +160,12 @@ class PullRequestPoller {
     }
   }
 
-  async checkForNewPullRequests() {
+  async checkForNewPullRequests(organizationId = null) {
     try {
+      // Use legacy key if no organizationId
+      const key = organizationId || 'legacy_global';
+      const processedPRs = this.getProcessedPRsForOrg(key);
+
       // Get active pull requests
       const activePRs = await azureDevOpsClient.getPullRequests('active');
       
@@ -158,7 +173,7 @@ class PullRequestPoller {
         // Filter PRs created since last poll
         const newPRs = activePRs.value.filter(pr => {
           const creationDate = new Date(pr.creationDate);
-          return creationDate > this.lastPollTime && !this.processedPRs.has(pr.pullRequestId);
+          return creationDate > this.lastPollTime && !processedPRs.has(pr.pullRequestId);
         });
 
         if (newPRs.length > 0) {
@@ -166,7 +181,7 @@ class PullRequestPoller {
           
           for (const pr of newPRs) {
             await this.processNewPullRequest(pr);
-            this.processedPRs.add(pr.pullRequestId);
+            processedPRs.add(pr.pullRequestId);
           }
         }
       }
@@ -191,14 +206,26 @@ class PullRequestPoller {
     }
   }
 
-  cleanupProcessedPRs() {
-    // Keep only the last 1000 processed PR IDs to prevent memory leaks
-    if (this.processedPRs.size > 1000) {
-      const prsArray = Array.from(this.processedPRs);
-      const toKeep = prsArray.slice(-500); // Keep last 500
-      this.processedPRs = new Set(toKeep);
-      
-      logger.debug('Cleaned up processed PRs cache');
+  cleanupProcessedPRs(organizationId = null) {
+    if (organizationId) {
+      // Clean up specific org's processed PRs
+      const processedPRs = this.getProcessedPRsForOrg(organizationId);
+      if (processedPRs.size > 500) {
+        const prsArray = Array.from(processedPRs);
+        const toKeep = prsArray.slice(-250); // Keep last 250
+        this.processedPRsByOrg.set(organizationId, new Set(toKeep));
+        logger.debug(`Cleaned up processed PRs cache for org ${organizationId}`);
+      }
+    } else {
+      // Clean up all orgs
+      for (const [orgId, processedPRs] of this.processedPRsByOrg) {
+        if (processedPRs.size > 500) {
+          const prsArray = Array.from(processedPRs);
+          const toKeep = prsArray.slice(-250);
+          this.processedPRsByOrg.set(orgId, new Set(toKeep));
+          logger.debug(`Cleaned up processed PRs cache for org ${orgId}`);
+        }
+      }
     }
   }
 }
@@ -245,42 +272,10 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
       await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
     }
     
-    if (userId) {
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'idle-pr',
-        title: `${idlePRs.length} Idle Pull Requests`,
-        message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
-        source: 'poller',
-        metadata: { 
-          count: idlePRs.length,
-          pullRequests: idlePRs.map(pr => {
-            const baseUrl = userSettings.azureDevOps?.baseUrl || 'https://dev.azure.com';
-            const org = userSettings.azureDevOps?.organization;
-            const project = userSettings.azureDevOps?.project;
-            const repo = pr.repository?.name;
-            
-            // Use web URL from _links, or construct proper web UI URL
-            const prUrl = pr._links?.web?.href || 
-                         (org && project && repo ? 
-                          `${baseUrl}/${org}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${pr.pullRequestId}` : 
-                          null);
-            
-            return {
-              id: pr.pullRequestId,
-              title: pr.title,
-              repository: repo,
-              sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
-              targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
-              createdBy: pr.createdBy?.displayName,
-              createdDate: pr.creationDate,
-              idleDays: Math.floor((Date.now() - new Date(pr.creationDate)) / (1000 * 60 * 60 * 24)),
-              url: prUrl
-            };
-          })
-        },
-        channels
-      });
-    }
+    // Save to notification history (requires organizationId in multi-tenant mode)
+    // Legacy flow without org context - skip notification history to avoid data corruption
+    // Notifications will still be sent to webhooks, just not saved to history
+    logger.info(`Legacy idle PR notification sent for user ${userId} - skipping history save (no org context)`);
     
     logger.info(`Idle PR notifications sent in ${totalBatches} batches`);
   } catch (error) {

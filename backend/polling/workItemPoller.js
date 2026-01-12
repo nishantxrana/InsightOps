@@ -7,7 +7,18 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 class WorkItemPoller {
   constructor() {
     this.lastPollTime = new Date();
-    this.processedWorkItems = new Set();
+    // Per-organization processed work items to prevent cross-org ID collision
+    this.processedWorkItemsByOrg = new Map(); // organizationId -> Set of work item IDs
+  }
+
+  /**
+   * Get or create processed work items set for an organization
+   */
+  getProcessedWorkItemsForOrg(organizationId) {
+    if (!this.processedWorkItemsByOrg.has(organizationId)) {
+      this.processedWorkItemsByOrg.set(organizationId, new Set());
+    }
+    return this.processedWorkItemsByOrg.get(organizationId);
   }
 
   // Organization-based polling
@@ -102,14 +113,14 @@ class WorkItemPoller {
         }
       }
       
-      await notificationHistoryService.saveNotification(org.userId, {
+      await notificationHistoryService.saveNotification(org.userId, organizationId, {
         type: 'overdue',
         title: `${overdueItems.length} Overdue Work Items`,
         message: `Found ${overdueItems.length} overdue work items`,
         source: 'poller',
-        organizationId,
-        metadata: { count: overdueItems.length }
-      }, channels);
+        metadata: { count: overdueItems.length },
+        channels
+      });
       
       logger.info(`Overdue notifications sent for org ${organizationId}`);
     } catch (error) {
@@ -280,32 +291,10 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
       await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
     }
     
-    // Save to notification history
-    if (userId) {
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'overdue',
-        title: `${overdueItems.length} Overdue Work Items`,
-        message: `Found ${overdueItems.length} overdue work items`,
-        source: 'poller',
-        metadata: { 
-          count: overdueItems.length,
-          items: overdueItems.map(item => ({
-            id: item.id,
-            title: item.fields?.['System.Title'],
-            type: item.fields?.['System.WorkItemType'],
-            state: item.fields?.['System.State'],
-            assignedTo: item.fields?.['System.AssignedTo']?.displayName,
-            priority: item.fields?.['Microsoft.VSTS.Common.Priority'],
-            dueDate: item.fields?.['Microsoft.VSTS.Scheduling.DueDate'],
-            daysPastDue: item.fields?.['Microsoft.VSTS.Scheduling.DueDate'] 
-              ? Math.floor((Date.now() - new Date(item.fields['Microsoft.VSTS.Scheduling.DueDate'])) / (1000 * 60 * 60 * 24))
-              : 0,
-            url: item.webUrl || item._links?.html?.href
-          }))
-        },
-        channels
-      });
-    }
+    // Save to notification history (requires organizationId in multi-tenant mode)
+    // Legacy flow without org context - skip notification history to avoid data corruption
+    // Notifications will still be sent to webhooks, just not saved to history
+    logger.info(`Legacy overdue notification sent for user ${userId} - skipping history save (no org context)`);
     
     logger.info(`Overdue notifications sent in ${totalBatches} batches`);
   } catch (error) {

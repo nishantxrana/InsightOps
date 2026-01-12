@@ -243,31 +243,37 @@ Provide:
 
   /**
    * Step 4: Learn from the outcome
+   * @param {Object} task - The task that was executed (should include organizationId for multi-tenant)
+   * @param {Object} result - The result of the execution
    */
   async learn(task, result) {
+    // Get organizationId from task context (required for multi-tenant isolation)
+    const organizationId = task.organizationId || task.data?.organizationId || null;
+
     // Store successful patterns for future use
     if (result.status === 'completed' || result.status === 'action_suggested') {
       try {
-        // Store in memory system
+        // Store in memory system (with organizationId)
         const { contextManager } = await import('../memory/ContextManager.js');
-        await contextManager.storeTaskOutcome(task, { success: true, result });
+        await contextManager.storeTaskOutcome(task, { success: true, result }, organizationId);
         
-        // Track pattern for rule generation
+        // Track pattern for rule generation (with organizationId)
         const { patternTracker } = await import('../learning/PatternTracker.js');
-        await patternTracker.trackSuccess(task, result.solution || result.action);
+        await patternTracker.trackSuccess(task, result.solution || result.action, {}, organizationId);
         
         logger.debug(`Agent ${this.name} learned from success`, {
           agentId: this.id,
-          taskType: task.type
+          taskType: task.type,
+          organizationId
         });
       } catch (error) {
         logger.debug('Learning systems not available:', error.message);
       }
     } else if (result.status === 'failed') {
       try {
-        // Track failure
+        // Track failure (with organizationId)
         const { patternTracker } = await import('../learning/PatternTracker.js');
-        await patternTracker.trackFailure(task, result.error);
+        await patternTracker.trackFailure(task, result.error, {}, organizationId);
       } catch (error) {
         logger.debug('Pattern tracking not available:', error.message);
       }
