@@ -71,8 +71,9 @@ router.patch('/:id/read', async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
+    const organizationId = req.organizationId;
 
-    const notification = await notificationHistoryService.markAsRead(id, userId);
+    const notification = await notificationHistoryService.markAsRead(id, userId, organizationId);
     
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });
@@ -90,8 +91,9 @@ router.patch('/:id/star', async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
+    const organizationId = req.organizationId;
 
-    const notification = await notificationHistoryService.toggleStar(id, userId);
+    const notification = await notificationHistoryService.toggleStar(id, userId, organizationId);
     
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });

@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 
 /**
  * Pattern Tracker - Learns from successful and failed outcomes
+ * All operations are scoped by organizationId for multi-tenant isolation
  */
 class PatternTracker {
   constructor() {
@@ -15,16 +16,26 @@ class PatternTracker {
 
   /**
    * Track successful outcome
+   * @param {Object} task - Task object with type, category, description
+   * @param {string} solution - The solution that worked
+   * @param {Object} metadata - Additional metadata
+   * @param {string} organizationId - Required for multi-tenant isolation
    */
-  async trackSuccess(task, solution, metadata = {}) {
+  async trackSuccess(task, solution, metadata = {}, organizationId = null) {
     try {
+      // Skip tracking if no organizationId (required for multi-tenant)
+      if (!organizationId) {
+        logger.warn('trackSuccess called without organizationId - skipping to prevent data leakage');
+        return null;
+      }
+
       const Pattern = mongoose.model('Pattern');
       
-      // Create pattern signature
-      const signature = this.createSignature(task, solution);
+      // Create pattern signature (includes orgId for uniqueness)
+      const signature = this.createSignature(task, solution, organizationId);
       
-      // Find or create pattern
-      let pattern = await Pattern.findOne({ signature });
+      // Find or create pattern - ALWAYS filter by organizationId
+      let pattern = await Pattern.findOne({ signature, organizationId });
       
       if (pattern) {
         // Update existing pattern
@@ -42,8 +53,9 @@ class PatternTracker {
           pattern.examples = pattern.examples.slice(-5);
         }
       } else {
-        // Create new pattern
+        // Create new pattern with organizationId
         pattern = new Pattern({
+          organizationId,
           signature,
           type: task.type,
           category: task.category,
@@ -70,6 +82,7 @@ class PatternTracker {
       
       logger.debug('Success tracked', {
         signature,
+        organizationId,
         successCount: pattern.successCount,
         confidence: pattern.confidence
       });
@@ -83,21 +96,29 @@ class PatternTracker {
 
   /**
    * Track failed outcome
+   * @param {Object} task - Task object
+   * @param {Error} error - The error that occurred
+   * @param {Object} metadata - Additional metadata
+   * @param {string} organizationId - Required for multi-tenant isolation
    */
-  async trackFailure(task, error, metadata = {}) {
+  async trackFailure(task, error, metadata = {}, organizationId = null) {
     try {
+      // Skip tracking if no organizationId (required for multi-tenant)
+      if (!organizationId) {
+        logger.warn('trackFailure called without organizationId - skipping to prevent data leakage');
+        return null;
+      }
+
       const Pattern = mongoose.model('Pattern');
-      const signature = this.createSignature(task, null);
+      const signature = this.createSignature(task, null, organizationId);
       
-      let pattern = await Pattern.findOne({ signature });
+      // ALWAYS filter by organizationId
+      let pattern = await Pattern.findOne({ signature, organizationId });
       
       if (pattern) {
         pattern.failureCount++;
         pattern.lastSeen = new Date();
         pattern.confidence = this.calculateConfidence(pattern);
-      }
-      
-      if (pattern) {
         await pattern.save();
       }
       
@@ -105,6 +126,7 @@ class PatternTracker {
       
       logger.debug('Failure tracked', {
         signature,
+        organizationId,
         failureCount: pattern?.failureCount || 0
       });
       
@@ -116,12 +138,14 @@ class PatternTracker {
   }
 
   /**
-   * Create pattern signature
+   * Create pattern signature (includes orgId for uniqueness across orgs)
    */
-  createSignature(task, solution) {
+  createSignature(task, solution, organizationId = null) {
     const taskKey = this.normalizeText(task.description || task.type);
     const solutionKey = solution ? this.normalizeText(solution) : '';
-    return `${task.type}:${taskKey}:${solutionKey}`.substring(0, 200);
+    // Include orgId in signature to ensure patterns are unique per org
+    const orgPrefix = organizationId ? `${organizationId}:` : '';
+    return `${orgPrefix}${task.type}:${taskKey}:${solutionKey}`.substring(0, 200);
   }
 
   /**
@@ -166,12 +190,22 @@ class PatternTracker {
   }
 
   /**
-   * Get patterns by type
+   * Get patterns by type - scoped to organization
+   * @param {string} organizationId - Required for multi-tenant isolation
+   * @param {string} type - Optional type filter
+   * @param {number} minConfidence - Minimum confidence threshold
    */
-  async getPatterns(type = null, minConfidence = 0.7) {
+  async getPatterns(organizationId, type = null, minConfidence = 0.7) {
     try {
+      // Skip if no organizationId (required for multi-tenant)
+      if (!organizationId) {
+        logger.warn('getPatterns called without organizationId - returning empty to prevent data leakage');
+        return [];
+      }
+
       const Pattern = mongoose.model('Pattern');
       const query = {
+        organizationId,
         confidence: { $gte: minConfidence }
       };
       
@@ -190,15 +224,24 @@ class PatternTracker {
   }
 
   /**
-   * Find similar pattern
+   * Find similar pattern - scoped to organization
+   * @param {Object} task - Task to find similar pattern for
+   * @param {string} organizationId - Required for multi-tenant isolation
    */
-  async findSimilar(task) {
+  async findSimilar(task, organizationId = null) {
     try {
+      // Skip if no organizationId (required for multi-tenant)
+      if (!organizationId) {
+        logger.warn('findSimilar called without organizationId - returning null to prevent data leakage');
+        return null;
+      }
+
       const Pattern = mongoose.model('Pattern');
       const taskPattern = this.extractPattern(task);
       
-      // Find patterns with similar keywords
+      // Find patterns with similar keywords - ALWAYS filter by organizationId
       const patterns = await Pattern.find({
+        organizationId,
         type: task.type,
         confidence: { $gte: 0.7 }
       }).limit(10);
@@ -255,21 +298,30 @@ class PatternTracker {
   }
 
   /**
-   * Cleanup old patterns
+   * Cleanup old patterns - scoped to organization or all if admin
+   * @param {number} olderThanDays - Days threshold
+   * @param {string} organizationId - If provided, cleanup only for this org. If null, cleanup all (admin only)
    */
-  async cleanup(olderThanDays = 90) {
+  async cleanup(olderThanDays = 90, organizationId = null) {
     try {
       const Pattern = mongoose.model('Pattern');
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
       
-      const result = await Pattern.deleteMany({
+      const query = {
         lastSeen: { $lt: cutoffDate },
         successCount: { $lt: 3 } // Keep patterns with at least 3 successes
-      });
+      };
+
+      // Scope to organization if provided
+      if (organizationId) {
+        query.organizationId = organizationId;
+      }
+      
+      const result = await Pattern.deleteMany(query);
       
       if (result.deletedCount > 0) {
-        logger.info(`Cleaned up ${result.deletedCount} old patterns`);
+        logger.info(`Cleaned up ${result.deletedCount} old patterns`, { organizationId: organizationId || 'all' });
       }
       
       return result.deletedCount;

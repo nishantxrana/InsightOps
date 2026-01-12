@@ -69,19 +69,32 @@ class NotificationHistoryService {
     return result;
   }
 
-  async markAsRead(notificationId, userId) {
+  async markAsRead(notificationId, userId, organizationId = null) {
+    const query = { 
+      _id: notificationId, 
+      userId: new mongoose.Types.ObjectId(userId) 
+    };
+    // Enforce organization isolation if organizationId provided
+    if (organizationId) {
+      query.organizationId = new mongoose.Types.ObjectId(organizationId);
+    }
     return await NotificationHistory.findOneAndUpdate(
-      { _id: notificationId, userId: new mongoose.Types.ObjectId(userId) },
+      query,
       { read: true },
       { new: true }
     );
   }
 
-  async toggleStar(notificationId, userId) {
-    const notification = await NotificationHistory.findOne({ 
+  async toggleStar(notificationId, userId, organizationId = null) {
+    const query = { 
       _id: notificationId, 
       userId: new mongoose.Types.ObjectId(userId) 
-    });
+    };
+    // Enforce organization isolation if organizationId provided
+    if (organizationId) {
+      query.organizationId = new mongoose.Types.ObjectId(organizationId);
+    }
+    const notification = await NotificationHistory.findOne(query);
     if (!notification) return null;
     
     notification.starred = !notification.starred;
