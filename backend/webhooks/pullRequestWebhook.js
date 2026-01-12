@@ -90,7 +90,7 @@ class PullRequestWebhook extends BaseWebhook {
       
       // Send notification
       if (userId) {
-        await this.sendUserNotification(card, userId, resource, aiSummary);
+        await this.sendUserNotification(card, userId, organizationId, resource, aiSummary);
       } else {
         await notificationService.sendNotification(card, 'pull-request-created');
       }
@@ -121,7 +121,7 @@ class PullRequestWebhook extends BaseWebhook {
     return resource?.reviewers?.map(r => r.displayName) || [];
   }
 
-  async sendUserNotification(card, userId, pr, aiSummary) {
+  async sendUserNotification(card, userId, organizationId, pr, aiSummary) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -155,27 +155,27 @@ class PullRequestWebhook extends BaseWebhook {
         }
       }
 
-      const prUrl = pr._links?.web?.href || 
-                    (userConfig?.organization && pr.repository?.project?.name ? 
-                     `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${encodeURIComponent(pr.repository.project.name)}/_git/${encodeURIComponent(pr.repository?.name)}/pullrequest/${pr.pullRequestId}` : 
-                     null);
+      const prUrl = pr._links?.web?.href || null;
 
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'pull-request',
-        subType: 'created',
-        title: `PR: ${pr.title}`,
-        message: `Pull request created by ${pr.createdBy?.displayName}`,
-        source: 'webhook',
-        metadata: {
-          pullRequestId: pr.pullRequestId,
-          repository: pr.repository?.name,
-          sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
-          targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
-          createdBy: pr.createdBy?.displayName,
-          url: prUrl
-        },
-        channels
-      });
+      // Save notification with organizationId if available
+      if (organizationId) {
+        await notificationHistoryService.saveNotification(userId, organizationId, {
+          type: 'pull-request',
+          subType: 'created',
+          title: `PR: ${pr.title}`,
+          message: `Pull request created by ${pr.createdBy?.displayName}`,
+          source: 'webhook',
+          metadata: {
+            pullRequestId: pr.pullRequestId,
+            repository: pr.repository?.name,
+            sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
+            targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
+            createdBy: pr.createdBy?.displayName,
+            url: prUrl
+          },
+          channels
+        });
+      }
 
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);

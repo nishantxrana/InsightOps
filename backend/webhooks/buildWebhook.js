@@ -124,7 +124,7 @@ class BuildWebhook extends BaseWebhook {
       
       if (userId) {
         // User-specific notification with card format
-        await this.sendUserNotification(message, userId, notificationType, resource, aiSummary, userSettings?.azureDevOps);
+        await this.sendUserNotification(message, userId, organizationId, notificationType, resource, aiSummary, userSettings?.azureDevOps);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, notificationType);
@@ -146,7 +146,7 @@ class BuildWebhook extends BaseWebhook {
     }
   }
 
-  async sendUserNotification(message, userId, notificationType, build, aiSummary, userConfig) {
+  async sendUserNotification(message, userId, organizationId, notificationType, build, aiSummary, userConfig) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -198,32 +198,35 @@ class BuildWebhook extends BaseWebhook {
         buildUrl = `${baseUrl}/${organization}/${encodeURIComponent(project)}/_build/results?buildId=${build.id}`;
       }
 
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'build',
-        subType: build.result?.toLowerCase(),
-        title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
-        message,
-        source: 'webhook',
-        metadata: {
-          buildId: build.id,
-          buildNumber: build.buildNumber,
-          result: build.result,
-          status: build.status,
-          repository: build.repository?.name,
-          branch: build.sourceBranch?.replace('refs/heads/', ''),
-          commit: build.sourceVersion?.substring(0, 8),
-          commitMessage: build.triggerInfo?.['ci.message'],
-          requestedBy: build.requestedBy?.displayName,
-          requestedFor: build.requestedFor?.displayName,
-          reason: build.reason,
-          queueTime: build.queueTime,
-          startTime: build.startTime,
-          finishTime: build.finishTime,
-          duration,
-          url: buildUrl
-        },
-        channels
-      });
+      // Save notification with organizationId if available
+      if (organizationId) {
+        await notificationHistoryService.saveNotification(userId, organizationId, {
+          type: 'build',
+          subType: build.result?.toLowerCase(),
+          title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
+          message,
+          source: 'webhook',
+          metadata: {
+            buildId: build.id,
+            buildNumber: build.buildNumber,
+            result: build.result,
+            status: build.status,
+            repository: build.repository?.name,
+            branch: build.sourceBranch?.replace('refs/heads/', ''),
+            commit: build.sourceVersion?.substring(0, 8),
+            commitMessage: build.triggerInfo?.['ci.message'],
+            requestedBy: build.requestedBy?.displayName,
+            requestedFor: build.requestedFor?.displayName,
+            reason: build.reason,
+            queueTime: build.queueTime,
+            startTime: build.startTime,
+            finishTime: build.finishTime,
+            duration,
+            url: buildUrl
+          },
+          channels
+        });
+      }
 
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);

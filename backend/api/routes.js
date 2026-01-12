@@ -1079,25 +1079,32 @@ router.get('/ai/config', async (req, res) => {
   }
 });
 
-// Get user-specific webhook URLs
+// Get organization-specific webhook URLs (multi-tenant)
 router.get('/webhooks/urls', async (req, res) => {
   try {
-    const userId = req.user._id;
+    const org = await getOrganizationSettings(req);
+    if (!org) {
+      return res.status(400).json({ success: false, error: 'Organization context required' });
+    }
+    
+    const organizationId = org._id;
     // Check for X-Forwarded-Proto header for proper HTTPS detection behind reverse proxy
     const protocol = req.get('X-Forwarded-Proto') || req.protocol;
     const baseUrl = `${protocol}://${req.get('host')}`;
     
     const webhookUrls = {
-      buildCompleted: `${baseUrl}/api/webhooks/${userId}/build/completed`,
-      pullRequestCreated: `${baseUrl}/api/webhooks/${userId}/pullrequest/created`,
-      workItemCreated: `${baseUrl}/api/webhooks/${userId}/workitem/created`,
-      workItemUpdated: `${baseUrl}/api/webhooks/${userId}/workitem/updated`,
-      releaseDeployment: `${baseUrl}/api/webhooks/${userId}/release/deployment`
+      buildCompleted: `${baseUrl}/api/webhooks/org/${organizationId}/build/completed`,
+      pullRequestCreated: `${baseUrl}/api/webhooks/org/${organizationId}/pullrequest/created`,
+      workItemCreated: `${baseUrl}/api/webhooks/org/${organizationId}/workitem/created`,
+      workItemUpdated: `${baseUrl}/api/webhooks/org/${organizationId}/workitem/updated`,
+      releaseDeployment: `${baseUrl}/api/webhooks/org/${organizationId}/release/deployment`
     };
     
     res.json({
       success: true,
-      webhookUrls
+      webhookUrls,
+      organizationId: organizationId.toString(),
+      organizationName: org.name
     });
   } catch (error) {
     logger.error('Error generating webhook URLs:', error);

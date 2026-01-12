@@ -108,7 +108,7 @@ class WorkItemWebhook extends BaseWebhook {
       // Send notification
       if (userId) {
         // User-specific notification with card format
-        await this.sendUserNotification(message, userId, 'work-item-created', resource, aiSummary, userConfig);
+        await this.sendUserNotification(message, userId, organizationId, 'work-item-created', resource, aiSummary, userConfig);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, 'work-item-created');
@@ -238,7 +238,7 @@ class WorkItemWebhook extends BaseWebhook {
           assignedTo
         };
         console.log('About to pass workItemData:', workItemData);
-        await this.sendUserNotification(message, userId, 'work-item-updated', webhookData, userConfig, userConfig, workItemData);
+        await this.sendUserNotification(message, userId, organizationId, 'work-item-updated', webhookData, userConfig, userConfig, workItemData);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, 'work-item-updated');
@@ -259,7 +259,7 @@ class WorkItemWebhook extends BaseWebhook {
     }
   }
 
-  async sendUserNotification(message, userId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig, workItemData = null) {
+  async sendUserNotification(message, userId, organizationId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig, workItemData = null) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -357,31 +357,34 @@ class WorkItemWebhook extends BaseWebhook {
         });
       }
       
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'work-item',
-        subType: notificationType === 'work-item-created' ? 'created' : 'updated',
-        title: `${finalWorkItemData.type}: ${finalWorkItemData.title}`,
-        message,
-        source: 'webhook',
-        metadata: {
-          workItemId: finalWorkItemData.id,
-          workItemType: finalWorkItemData.type,
-          state: finalWorkItemData.state,
-          assignedTo: finalWorkItemData.assignedTo,
-          priority: workItem?.fields?.['Microsoft.VSTS.Common.Priority'],
-          severity: workItem?.fields?.['Microsoft.VSTS.Common.Severity'],
-          areaPath: workItem?.fields?.['System.AreaPath'],
-          iterationPath: workItem?.fields?.['System.IterationPath'],
-          tags: workItem?.fields?.['System.Tags'],
-          createdBy: workItem?.fields?.['System.CreatedBy']?.displayName,
-          createdDate: workItem?.fields?.['System.CreatedDate'],
-          changedBy: workItem?.fields?.['System.ChangedBy']?.displayName,
-          changedDate: workItem?.fields?.['System.ChangedDate'],
-          changes: changes.length > 0 ? changes : null,
-          url: workItemUrl
-        },
-        channels
-      });
+      // Save notification with organizationId if available
+      if (organizationId) {
+        await notificationHistoryService.saveNotification(userId, organizationId, {
+          type: 'work-item',
+          subType: notificationType === 'work-item-created' ? 'created' : 'updated',
+          title: `${finalWorkItemData.type}: ${finalWorkItemData.title}`,
+          message,
+          source: 'webhook',
+          metadata: {
+            workItemId: finalWorkItemData.id,
+            workItemType: finalWorkItemData.type,
+            state: finalWorkItemData.state,
+            assignedTo: finalWorkItemData.assignedTo,
+            priority: workItem?.fields?.['Microsoft.VSTS.Common.Priority'],
+            severity: workItem?.fields?.['Microsoft.VSTS.Common.Severity'],
+            areaPath: workItem?.fields?.['System.AreaPath'],
+            iterationPath: workItem?.fields?.['System.IterationPath'],
+            tags: workItem?.fields?.['System.Tags'],
+            createdBy: workItem?.fields?.['System.CreatedBy']?.displayName,
+            createdDate: workItem?.fields?.['System.CreatedDate'],
+            changedBy: workItem?.fields?.['System.ChangedBy']?.displayName,
+            changedDate: workItem?.fields?.['System.ChangedDate'],
+            changes: changes.length > 0 ? changes : null,
+            url: workItemUrl
+          },
+          channels
+        });
+      }
 
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);
