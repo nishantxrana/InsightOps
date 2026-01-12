@@ -532,16 +532,32 @@ router.get('/builds/recent', async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 10), 50);
     const repositoryFilter = req.query.repository;
     
-    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    let builds = await client.getRecentBuilds(limit);
+    // Check cache first (60s TTL)
+    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
+    const cacheKey = repositoryFilter && repositoryFilter !== 'all' 
+      ? `builds:recent:${limit}:${repositoryFilter}`
+      : `builds:recent:${limit}`;
     
-    // Filter by repository if specified
-    if (repositoryFilter && repositoryFilter !== 'all') {
-      builds.value = builds.value?.filter(build => 
-        build.repository?.name === repositoryFilter ||
-        build.definition?.name?.includes(repositoryFilter)
-      );
+    let builds = azureDevOpsCache.get(org._id?.toString(), cacheKey);
+    
+    if (!builds) {
+      const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
+      builds = await client.getRecentBuilds(limit);
+      
+      // Filter by repository if specified
+      if (repositoryFilter && repositoryFilter !== 'all') {
+        builds.value = builds.value?.filter(build => 
+          build.repository?.name === repositoryFilter ||
+          build.definition?.name?.includes(repositoryFilter)
+        );
+      }
+      
+      // Cache for 60 seconds
+      azureDevOpsCache.set(org._id?.toString(), cacheKey, builds, 60);
+    } else {
+      logger.debug('[Performance] Builds cache hit');
     }
+    
     res.json(builds);
   } catch (error) {
     logger.error('Error fetching recent builds:', error);
@@ -643,8 +659,20 @@ router.get('/pull-requests', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
+    // Check cache first (60s TTL - short enough to be fresh, long enough to help dashboard)
+    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
+    const cached = azureDevOpsCache.getPullRequests(org._id?.toString());
+    if (cached) {
+      logger.debug('[Performance] PR cache hit');
+      return res.json(cached);
+    }
+    
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const pullRequests = await client.getPullRequests('active');
+    
+    // Cache for 60 seconds
+    azureDevOpsCache.setPullRequests(org._id?.toString(), pullRequests, 60);
+    
     res.json(pullRequests);
   } catch (error) {
     logger.error('Error fetching pull requests:', error);
@@ -660,9 +688,37 @@ router.get('/pull-requests/idle', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    const idlePRs = await client.getIdlePullRequests(48);
-    res.json(idlePRs);
+    // Check cache for base PR data (shared with /pull-requests endpoint)
+    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
+    let allPRs = azureDevOpsCache.getPullRequests(org._id?.toString());
+    
+    if (!allPRs) {
+      // Fetch and cache if not available
+      const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
+      allPRs = await client.getPullRequests('active');
+      azureDevOpsCache.setPullRequests(org._id?.toString(), allPRs, 60);
+    } else {
+      logger.debug('[Performance] Idle PRs using cached PR data');
+    }
+    
+    // Calculate idle PRs from cached data (same logic as azureDevOpsClient.getIdlePullRequests)
+    const hoursThreshold = 48;
+    const thresholdDate = new Date();
+    thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold);
+
+    const idlePRs = (allPRs.value || []).filter(pr => {
+      const activityDates = [
+        pr.creationDate,
+        pr.lastMergeCommit?.committer?.date,
+        pr.lastMergeSourceCommit?.committer?.date,
+        pr.closedDate,
+      ].filter(date => date != null);
+
+      const lastActivityDate = new Date(Math.max(...activityDates.map(date => new Date(date).getTime())));      
+      return lastActivityDate < thresholdDate;
+    });
+
+    res.json({ count: idlePRs.length, value: idlePRs });
   } catch (error) {
     logger.error('Error fetching idle pull requests:', error);
     res.status(500).json({ error: 'Failed to fetch idle pull requests' });
@@ -1126,6 +1182,10 @@ router.use('/performance', cacheStatsRoutes);
 import agentDashboardRoutes from './agentDashboard.js';
 router.use('/agent-dashboard', agentDashboardRoutes);
 
+// Aggregated dashboard routes (performance optimized)
+import dashboardRoutes from './dashboard.js';
+router.use('/dashboard', dashboardRoutes);
+
 // Notification history routes
 import notificationHistoryRoutes from './notificationHistory.js';
 router.use('/notifications', notificationHistoryRoutes);
@@ -1463,6 +1523,16 @@ router.get('/releases/stats', async (req, res) => {
       });
     }
 
+    // Check cache first (5 min TTL - release stats are expensive and don't change frequently)
+    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
+    const dateRange = `${fromDate || '90d'}_${toDate || 'now'}`;
+    const cached = azureDevOpsCache.getReleaseStats(org._id?.toString(), dateRange);
+    
+    if (cached) {
+      logger.debug('[Performance] Release stats cache hit');
+      return res.json(cached);
+    }
+
     const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
       azureConfig.organization,
@@ -1592,15 +1662,20 @@ router.get('/releases/stats', async (req, res) => {
         environmentStats
       };
       
-      res.json({
+      const response = {
         success: true,
         data: stats
-      });
+      };
+      
+      // Cache for 5 minutes (300s) - release stats are expensive
+      azureDevOpsCache.setReleaseStats(org._id?.toString(), dateRange, response, 300);
+      
+      res.json(response);
     } catch (apiError) {
       // If 404, likely no release pipelines exist
       if (apiError.response?.status === 404) {
         logger.info('No release pipelines found for project stats');
-        res.json({
+        const emptyResponse = {
           success: true,
           data: {
             totalReleases: 0,
@@ -1609,7 +1684,10 @@ router.get('/releases/stats', async (req, res) => {
             activeDeployments: 0,
             environmentStats: {}
           }
-        });
+        };
+        // Cache empty response too (but shorter TTL)
+        azureDevOpsCache.setReleaseStats(org._id?.toString(), dateRange, emptyResponse, 60);
+        res.json(emptyResponse);
       } else {
         throw apiError;
       }

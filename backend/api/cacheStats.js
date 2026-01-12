@@ -1,5 +1,6 @@
 import express from 'express';
 import { cacheManager } from '../cache/CacheManager.js';
+import { azureDevOpsCache } from '../cache/AzureDevOpsCache.js';
 import { rateLimiter } from '../utils/RateLimiter.js';
 import { freeModelRouter } from '../ai/FreeModelRouter.js';
 import { authenticate } from '../middleware/auth.js';
@@ -15,9 +16,13 @@ router.use(authenticate);
 router.get('/cache-stats', (req, res) => {
   try {
     const stats = cacheManager.getAllStats();
+    const azureDevOpsStats = azureDevOpsCache.getStats();
     res.json({
       success: true,
-      stats,
+      stats: {
+        ...stats,
+        azureDevOps: azureDevOpsStats
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
