@@ -113,8 +113,8 @@ class WorkItemPoller {
         }
       }
       
-      // Extract work item details for notification history
-      const workItems = overdueItems.map(item => {
+      // Extract work item details for notification history (using 'items' to match frontend/CSV export)
+      const items = overdueItems.map(item => {
         const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
         const daysPastDue = dueDate ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
         
@@ -141,7 +141,7 @@ class WorkItemPoller {
           source: 'poller',
           metadata: { 
             count: overdueItems.length,
-            workItems
+            items  // Using 'items' to match frontend NotificationHistory.jsx and csvExport.js
           },
           channels
         });
