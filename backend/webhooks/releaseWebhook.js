@@ -98,7 +98,7 @@ class ReleaseWebhook extends BaseWebhook {
       const notificationType = this.getNotificationType(status);
       
       if (userId) {
-        await this.sendUserNotification(resource, userSettings, notificationType, failedLogs, userId);
+        await this.sendUserNotification(resource, userSettings, notificationType, failedLogs, userId, organizationId);
       }
       
       res.json({
@@ -203,7 +203,7 @@ class ReleaseWebhook extends BaseWebhook {
     }
   }
 
-  async sendUserNotification(resource, userSettings, notificationType, failedLogs, userId) {
+  async sendUserNotification(resource, userSettings, notificationType, failedLogs, userId, organizationId) {
     try {
       if (!userSettings?.notifications?.enabled) {
         logger.info('Notifications disabled for user');
@@ -275,29 +275,32 @@ class ReleaseWebhook extends BaseWebhook {
         duration = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
       }
 
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'release',
-        subType: notificationType.replace('release-', ''),
-        title: `Release: ${releaseName} - ${environment.name}`,
-        message: `Release deployment ${notificationType.replace('release-', '')}`,
-        source: 'webhook',
-        metadata: {
-          releaseId,
-          releaseName,
-          releaseDefinitionName,
-          environmentName: environment.name,
-          status: environment.status,
-          deployedBy: requestedFor,
-          duration,
-          url: webUrl,
-          failedTasks: failedLogs ? failedLogs.map(task => ({
-            taskName: task.taskName,
-            environmentName: task.environmentName,
-            logContent: task.logContent
-          })) : null
-        },
-        channels
-      });
+      // Save notification with organizationId if available
+      if (organizationId) {
+        await notificationHistoryService.saveNotification(userId, organizationId, {
+          type: 'release',
+          subType: notificationType.replace('release-', ''),
+          title: `Release: ${releaseName} - ${environment.name}`,
+          message: `Release deployment ${notificationType.replace('release-', '')}`,
+          source: 'webhook',
+          metadata: {
+            releaseId,
+            releaseName,
+            releaseDefinitionName,
+            environmentName: environment.name,
+            status: environment.status,
+            deployedBy: requestedFor,
+            duration,
+            url: webUrl,
+            failedTasks: failedLogs ? failedLogs.map(task => ({
+              taskName: task.taskName,
+              environmentName: task.environmentName,
+              logContent: task.logContent
+            })) : null
+          },
+          channels
+        });
+      }
 
     } catch (error) {
       logger.error('Error sending user notification:', error);

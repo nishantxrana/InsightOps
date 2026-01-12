@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { Webhook } from 'lucide-react'
+import { Webhook, Building2 } from 'lucide-react'
 import axios from 'axios'
 import { CopyButton } from '../../components/ui/shadcn-io/copy-button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
+import { Badge } from '../../components/ui/badge'
 
 export default function WebhooksSection() {
   const [webhookUrls, setWebhookUrls] = useState({})
+  const [organizationName, setOrganizationName] = useState('')
 
   useEffect(() => {
     const loadWebhookUrls = async () => {
@@ -20,6 +22,7 @@ export default function WebhooksSection() {
         const response = await axios.get('/api/webhooks/urls', { headers })
         if (response.data.success) {
           setWebhookUrls(response.data.webhookUrls)
+          setOrganizationName(response.data.organizationName || '')
         }
       } catch (error) {
         console.error('Failed to load webhook URLs:', error)
@@ -31,13 +34,23 @@ export default function WebhooksSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Webhook className="h-5 w-5 text-orange-600" />
-          Azure DevOps Webhook URLs
-        </CardTitle>
-        <CardDescription>
-          Copy these URLs to configure webhooks in your Azure DevOps project settings.
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Webhook className="h-5 w-5 text-orange-600" />
+              Azure DevOps Webhook URLs
+            </CardTitle>
+            <CardDescription>
+              Copy these URLs to configure webhooks in your Azure DevOps project settings.
+            </CardDescription>
+          </div>
+          {organizationName && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Building2 className="h-3 w-3" />
+              {organizationName}
+            </Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
