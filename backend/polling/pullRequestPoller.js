@@ -88,13 +88,42 @@ class PullRequestPoller {
         }
       }
       
+      // Extract PR details for notification history (matching original format)
+      const baseUrl = org.azureDevOps?.baseUrl || 'https://dev.azure.com';
+      const organization = org.azureDevOps?.organization;
+      const project = org.azureDevOps?.project;
+      
+      const pullRequests = idlePRs.map(pr => {
+        const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
+        const idleDays = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
+        const repository = pr.repository?.name;
+        
+        return {
+          id: pr.pullRequestId,
+          title: pr.title || 'No title',
+          repository: repository || 'Unknown',
+          sourceBranch: pr.sourceRefName?.replace('refs/heads/', '') || 'unknown',
+          targetBranch: pr.targetRefName?.replace('refs/heads/', '') || 'unknown',
+          createdBy: pr.createdBy?.displayName || 'Unknown',
+          createdDate: pr.creationDate,
+          idleDays,
+          url: pr._links?.web?.href || 
+               (organization && project && repository ? 
+                `${baseUrl}/${organization}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pr.pullRequestId}` : 
+                null)
+        };
+      });
+      
       // Save to notification history with organizationId
       await notificationHistoryService.saveNotification(org.userId, organizationId, {
         type: 'idle-pr',
         title: `${idlePRs.length} Idle Pull Requests`,
         message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
         source: 'poller',
-        metadata: { count: idlePRs.length },
+        metadata: { 
+          count: idlePRs.length,
+          pullRequests
+        },
         channels
       });
       

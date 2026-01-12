@@ -155,6 +155,14 @@ class OrganizationService {
       Object.assign(org.notifications, data.notifications);
     }
 
+    // Track if polling settings changed
+    const pollingChanged = data.polling && (
+      data.polling.pullRequestEnabled !== undefined ||
+      data.polling.overdueCheckEnabled !== undefined ||
+      data.polling.pullRequestInterval !== undefined ||
+      data.polling.overdueCheckInterval !== undefined
+    );
+
     if (data.polling) {
       Object.assign(org.polling, data.polling);
     }
@@ -165,6 +173,17 @@ class OrganizationService {
 
     await org.save();
     logger.info(`Updated organization ${org.name}`);
+
+    // Restart polling if polling settings changed
+    if (pollingChanged) {
+      try {
+        const { userPollingManager } = await import('../polling/userPollingManager.js');
+        logger.info(`🔄 [POLLING] Restarting polling for org ${organizationId} due to settings change`);
+        await userPollingManager.startOrganizationPolling(organizationId);
+      } catch (pollingError) {
+        logger.error(`Failed to restart polling for org ${organizationId}:`, pollingError);
+      }
+    }
 
     return this.sanitizeOrganization(org.toObject());
   }

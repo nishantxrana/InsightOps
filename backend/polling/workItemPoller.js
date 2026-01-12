@@ -113,14 +113,42 @@ class WorkItemPoller {
         }
       }
       
-      await notificationHistoryService.saveNotification(org.userId, organizationId, {
-        type: 'overdue',
-        title: `${overdueItems.length} Overdue Work Items`,
-        message: `Found ${overdueItems.length} overdue work items`,
-        source: 'poller',
-        metadata: { count: overdueItems.length },
-        channels
+      // Extract work item details for notification history
+      const workItems = overdueItems.map(item => {
+        const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+        const daysPastDue = dueDate ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+        
+        return {
+          id: item.id,
+          title: item.fields?.['System.Title'] || 'No title',
+          type: item.fields?.['System.WorkItemType'] || 'Item',
+          state: item.fields?.['System.State'] || 'Unknown',
+          assignedTo: item.fields?.['System.AssignedTo']?.displayName || 'Unassigned',
+          priority: item.fields?.['Microsoft.VSTS.Common.Priority'] || 4,
+          dueDate: dueDate,
+          daysPastDue,
+          url: item.webUrl || item._links?.html?.href || null
+        };
       });
+      
+      // Save to notification history
+      try {
+        logger.info(`📝 [NOTIFICATION] Saving overdue notification to history for org ${organizationId}, userId: ${org.userId}`);
+        await notificationHistoryService.saveNotification(org.userId, organizationId, {
+          type: 'overdue',
+          title: `${overdueItems.length} Overdue Work Items`,
+          message: `Found ${overdueItems.length} overdue work items`,
+          source: 'poller',
+          metadata: { 
+            count: overdueItems.length,
+            workItems
+          },
+          channels
+        });
+        logger.info(`✅ [NOTIFICATION] Saved overdue notification to history for org ${organizationId}`);
+      } catch (historyError) {
+        logger.error(`❌ [NOTIFICATION] Failed to save overdue notification to history for org ${organizationId}:`, historyError);
+      }
       
       logger.info(`Overdue notifications sent for org ${organizationId}`);
     } catch (error) {

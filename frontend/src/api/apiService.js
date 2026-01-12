@@ -60,6 +60,13 @@ export const apiService = {
     return response.data
   },
 
+  // Aggregated Dashboard Summary (performance optimized)
+  // Fetches all dashboard data in a single request
+  async getDashboardSummary() {
+    const response = await api.get('/dashboard/summary')
+    return response.data
+  },
+
   // Webhook health
   async getWebhookHealth() {
     const response = await api.get('/webhooks/health')

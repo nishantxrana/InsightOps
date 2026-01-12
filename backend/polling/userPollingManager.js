@@ -79,14 +79,17 @@ class UserPollingManager {
       let createdCount = 0;
       
       for (const dbJob of dbJobs) {
-        if (dbJob.config.enabled && cron.validate(dbJob.config.interval)) {
+        const isValidCron = this.validateCronExpression(dbJob.config.interval);
+        if (dbJob.config.enabled && isValidCron) {
           const cronJob = this.createCronJob(organizationId, org, dbJob);
           if (cronJob) {
             orgJobs[dbJob.jobType] = cronJob;
             cronJob.start();
             createdCount++;
-            logger.info(`✅ [POLLING] Started ${dbJob.jobType} cron job for org ${organizationId}`);
+            logger.info(`✅ [POLLING] Started ${dbJob.jobType} cron job for org ${organizationId} with interval: ${dbJob.config.interval}`);
           }
+        } else if (dbJob.config.enabled && !isValidCron) {
+          logger.warn(`⚠️ [POLLING] Invalid cron expression for ${dbJob.jobType}: ${dbJob.config.interval}`);
         }
       }
 
@@ -238,7 +241,7 @@ class UserPollingManager {
       
       const jobConfig = this.getJobConfig(jobType, pollingConfig);
       
-      if (jobConfig.enabled && jobConfig.interval && cron.validate(jobConfig.interval)) {
+      if (jobConfig.enabled && jobConfig.interval && this.validateCronExpression(jobConfig.interval)) {
         const dbJob = { jobType, config: jobConfig };
         const cronJob = this.createCronJob(organizationId, org, dbJob);
         if (cronJob) {
@@ -257,6 +260,12 @@ class UserPollingManager {
   createCronJob(organizationId, org, dbJob) {
     const { jobType, config } = dbJob;
     const userId = org.userId;
+    
+    // Check if cron expression has 6 fields (includes seconds)
+    const cronFields = config.interval.trim().split(/\s+/).length;
+    const useSeconds = cronFields === 6;
+    
+    logger.info(`📅 [POLLING] Creating ${jobType} cron job for org ${organizationId} with interval: ${config.interval} (seconds: ${useSeconds})`);
     
     return cron.schedule(config.interval, async () => {
       const executionId = executionLock.acquire(organizationId, jobType);
@@ -295,7 +304,9 @@ class UserPollingManager {
       }
     }, { 
       scheduled: false,
-      name: `${organizationId}-${jobType}-${Date.now()}`
+      name: `${organizationId}-${jobType}-${Date.now()}`,
+      // Enable seconds support for 6-field cron expressions like "*/10 * * * * *"
+      seconds: useSeconds
     });
   }
 
@@ -326,6 +337,36 @@ class UserPollingManager {
     };
 
     return configMap[jobType] || { enabled: false, interval: '*/10 * * * *' };
+  }
+
+  /**
+   * Validate cron expression - supports both 5-field and 6-field (with seconds) formats
+   * 5-field: minute hour day month weekday (standard cron)
+   * 6-field: second minute hour day month weekday (node-cron with seconds)
+   */
+  validateCronExpression(expression) {
+    if (!expression || typeof expression !== 'string') {
+      return false;
+    }
+    
+    const trimmed = expression.trim();
+    const fields = trimmed.split(/\s+/);
+    
+    // Must have 5 or 6 fields
+    if (fields.length !== 5 && fields.length !== 6) {
+      logger.warn(`[POLLING] Invalid cron expression (wrong field count): ${expression}`);
+      return false;
+    }
+    
+    // Use node-cron's built-in validation
+    // For 6-field expressions, node-cron validates with seconds
+    const isValid = cron.validate(trimmed);
+    
+    if (!isValid) {
+      logger.warn(`[POLLING] Invalid cron expression: ${expression}`);
+    }
+    
+    return isValid;
   }
 
   hasJobConfigChanged(currentJob, newPollingConfig, jobType) {
@@ -364,21 +405,30 @@ class UserPollingManager {
     }
     
     try {
-      // Get all users with active polling jobs
-      const activeUsers = await pollingService.getActiveUsers();
+      // Get all organizations with polling enabled in their settings
+      const orgsWithPolling = await Organization.find({
+        isActive: true,
+        $or: [
+          { 'polling.pullRequestEnabled': true },
+          { 'polling.overdueCheckEnabled': true },
+          { 'polling.workItemsEnabled': true }
+        ]
+      });
       
-      logger.info(`Initializing polling for ${activeUsers.length} users from database`);
+      logger.info(`🔄 [POLLING] Found ${orgsWithPolling.length} organizations with polling enabled`);
       
-      for (const userId of activeUsers) {
+      // Start polling for each organization
+      for (const org of orgsWithPolling) {
         try {
-          await this.startUserPolling(userId);
+          logger.info(`🚀 [POLLING] Starting polling for org ${org.name} (${org._id})`);
+          await this.startOrganizationPolling(org._id.toString());
         } catch (error) {
-          logger.error(`Failed to initialize polling for user ${userId}:`, error);
+          logger.error(`Failed to initialize polling for org ${org._id}:`, error);
         }
       }
       
       this.initialized = true;
-      logger.info('Database polling initialization complete');
+      logger.info('✅ [POLLING] Database polling initialization complete');
     } catch (error) {
       logger.error('Failed to initialize polling from database:', error);
     }
