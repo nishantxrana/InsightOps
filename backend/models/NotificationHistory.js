@@ -7,6 +7,12 @@ const notificationHistorySchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true
+  },
   type: {
     type: String,
     required: true,
@@ -74,10 +80,11 @@ const notificationHistorySchema = new mongoose.Schema({
   }
 });
 
-// Compound indexes for efficient queries
+// Compound indexes for multi-tenant queries
+notificationHistorySchema.index({ organizationId: 1, createdAt: -1 });
+notificationHistorySchema.index({ organizationId: 1, type: 1, createdAt: -1 });
+notificationHistorySchema.index({ organizationId: 1, read: 1 });
 notificationHistorySchema.index({ userId: 1, createdAt: -1 });
-notificationHistorySchema.index({ userId: 1, type: 1, createdAt: -1 });
-notificationHistorySchema.index({ userId: 1, read: 1 });
 
 // TTL index for automatic cleanup after 7 days
 notificationHistorySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

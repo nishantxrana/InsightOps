@@ -95,92 +95,76 @@ export default function Dashboard() {
         logs: true
       })
 
-      try {
-        const workItems = await apiService.getCurrentSprintSummary()
-        setStats(prev => ({
-          ...prev,
-          workItems: {
-            total: workItems.total || 0,
-            active: workItems.active || 0,
-            completed: workItems.completed || 0,
-            overdue: workItems.overdue || 0
-          }
-        }))
-        setLoadingStates(prev => ({ ...prev, workItems: false }))
-        setInitialLoading(false)
-      } catch (err) {
-        console.error('Failed to load work items:', err)
-        setStats(prev => ({
-          ...prev,
-          workItems: { total: 0, active: 0, completed: 0, overdue: 0 }
-        }))
-        setLoadingStates(prev => ({ ...prev, workItems: false }))
-      }
-
-      const [builds, pullRequests, idlePRs, releases, logs] = await Promise.allSettled([
-        apiService.getRecentBuilds(),
-        apiService.getPullRequests(),
-        apiService.getIdlePullRequests(),
-        apiService.getReleaseStats(),
+      // Use aggregated endpoint for better performance
+      // Single request fetches all dashboard data in parallel on the backend
+      const [dashboardResult, logsResult] = await Promise.allSettled([
+        apiService.getDashboardSummary(),
         apiService.getLogs({ limit: 10 })
       ])
 
-      if (builds.status === 'fulfilled') {
-        const buildsData = builds.value
-        setStats(prev => ({
-          ...prev,
+      if (dashboardResult.status === 'fulfilled' && dashboardResult.value.success) {
+        const data = dashboardResult.value.data
+        
+        // Update all stats at once
+        setStats({
+          workItems: {
+            total: data.workItems?.total || 0,
+            active: data.workItems?.active || 0,
+            completed: data.workItems?.completed || 0,
+            overdue: data.workItems?.overdue || 0
+          },
           builds: {
-            total: buildsData.count || 0,
-            succeeded: buildsData.value?.filter(b => b.result === 'succeeded').length || 0,
-            failed: buildsData.value?.filter(b => b.result === 'failed').length || 0
-          }
-        }))
-      } else {
-        setStats(prev => ({
-          ...prev,
-          builds: { total: 0, succeeded: 0, failed: 0 }
-        }))
-      }
-      setLoadingStates(prev => ({ ...prev, builds: false }))
-
-      if (pullRequests.status === 'fulfilled') {
-        const prData = pullRequests.value
-        const idleCount = idlePRs.status === 'fulfilled' ? (idlePRs.value.value?.length || 0) : 0
-        setStats(prev => ({
-          ...prev,
+            total: data.builds?.total || 0,
+            succeeded: data.builds?.succeeded || 0,
+            failed: data.builds?.failed || 0
+          },
           pullRequests: {
-            total: prData.count || 0,
-            active: prData.value?.filter(pr => pr.status === 'active').length || 0,
-            idle: idleCount
-          }
-        }))
-      } else {
-        setStats(prev => ({
-          ...prev,
-          pullRequests: { total: 0, active: 0, idle: 0 }
-        }))
-      }
-      setLoadingStates(prev => ({ ...prev, pullRequests: false }))
-
-      if (releases.status === 'fulfilled') {
-        const releaseData = releases.value.data || releases.value
-        setStats(prev => ({
-          ...prev,
+            total: data.pullRequests?.total || 0,
+            active: data.pullRequests?.active || 0,
+            idle: data.pullRequests?.idle || 0
+          },
           releases: {
-            total: releaseData.totalReleases || 0,
-            successRate: releaseData.successRate || 0
+            total: data.releases?.total || 0,
+            successRate: data.releases?.successRate || 0
           }
-        }))
+        })
+        
+        // All data loaded at once
+        setLoadingStates({
+          workItems: false,
+          builds: false,
+          pullRequests: false,
+          releases: false,
+          logs: true // Still loading logs
+        })
+        setInitialLoading(false)
+        
+        // Log performance metrics if available
+        if (dashboardResult.value.meta?.durationMs) {
+          console.log(`[Performance] Dashboard data fetched in ${dashboardResult.value.meta.durationMs}ms`)
+        }
       } else {
-        setStats(prev => ({
-          ...prev,
+        // Fallback to empty stats on error
+        console.error('Dashboard summary failed:', dashboardResult.reason || dashboardResult.value?.error)
+        setStats({
+          workItems: { total: 0, active: 0, completed: 0, overdue: 0 },
+          builds: { total: 0, succeeded: 0, failed: 0 },
+          pullRequests: { total: 0, active: 0, idle: 0 },
           releases: { total: 0, successRate: 0 }
+        })
+        setLoadingStates(prev => ({
+          ...prev,
+          workItems: false,
+          builds: false,
+          pullRequests: false,
+          releases: false
         }))
+        setInitialLoading(false)
       }
-      setLoadingStates(prev => ({ ...prev, releases: false }))
 
-      if (logs.status === 'fulfilled') {
-        setRecentActivity(logs.value.logs || [])
+      // Handle logs separately (local data, fast)
+      if (logsResult.status === 'fulfilled') {
+        setRecentActivity(logsResult.value.logs || [])
       } else {
         setRecentActivity([])
       }
@@ -202,6 +186,7 @@ export default function Dashboard() {
         workItems: false,
         builds: false,
         pullRequests: false,
+        releases: false,
         logs: false
       })
     }

@@ -2,10 +2,11 @@ import NotificationHistory from '../models/NotificationHistory.js';
 import mongoose from 'mongoose';
 
 class NotificationHistoryService {
-  async saveNotification(userId, notificationData) {
+  async saveNotification(userId, organizationId, notificationData) {
     try {
       const notification = new NotificationHistory({
         userId: new mongoose.Types.ObjectId(userId),
+        organizationId: new mongoose.Types.ObjectId(organizationId),
         ...notificationData,
         createdAt: new Date()
       });
@@ -17,17 +18,17 @@ class NotificationHistoryService {
     }
   }
 
-  async getNotifications(userId, filters = {}) {
+  async getNotifications(userId, organizationId, filters = {}) {
     const { type, read, starred, limit = 50, skip = 0 } = filters;
     
-    console.log('Service getNotifications - userId:', userId, 'type:', typeof userId);
-    
-    const query = { userId: new mongoose.Types.ObjectId(userId), archived: false };
+    const query = { 
+      userId: new mongoose.Types.ObjectId(userId),
+      organizationId: new mongoose.Types.ObjectId(organizationId),
+      archived: false 
+    };
     if (type) query.type = type;
     if (read !== undefined) query.read = read;
     if (starred !== undefined) query.starred = starred;
-
-    console.log('Query:', JSON.stringify(query));
     
     const results = await NotificationHistory.find(query)
       .sort({ createdAt: -1 })
@@ -35,21 +36,25 @@ class NotificationHistoryService {
       .skip(skip)
       .lean();
       
-    console.log('Results count:', results.length);
     return results;
   }
 
-  async getUnreadCount(userId) {
+  async getUnreadCount(userId, organizationId) {
     return await NotificationHistory.countDocuments({ 
-      userId: new mongoose.Types.ObjectId(userId), 
+      userId: new mongoose.Types.ObjectId(userId),
+      organizationId: new mongoose.Types.ObjectId(organizationId),
       read: false, 
       archived: false 
     });
   }
 
-  async getCountsByType(userId) {
+  async getCountsByType(userId, organizationId) {
     const counts = await NotificationHistory.aggregate([
-      { $match: { userId: new mongoose.Types.ObjectId(userId), archived: false } },
+      { $match: { 
+        userId: new mongoose.Types.ObjectId(userId),
+        organizationId: new mongoose.Types.ObjectId(organizationId),
+        archived: false 
+      }},
       { $group: { _id: '$type', count: { $sum: 1 } } }
     ]);
     
@@ -64,19 +69,32 @@ class NotificationHistoryService {
     return result;
   }
 
-  async markAsRead(notificationId, userId) {
+  async markAsRead(notificationId, userId, organizationId = null) {
+    const query = { 
+      _id: notificationId, 
+      userId: new mongoose.Types.ObjectId(userId) 
+    };
+    // Enforce organization isolation if organizationId provided
+    if (organizationId) {
+      query.organizationId = new mongoose.Types.ObjectId(organizationId);
+    }
     return await NotificationHistory.findOneAndUpdate(
-      { _id: notificationId, userId: new mongoose.Types.ObjectId(userId) },
+      query,
       { read: true },
       { new: true }
     );
   }
 
-  async toggleStar(notificationId, userId) {
-    const notification = await NotificationHistory.findOne({ 
+  async toggleStar(notificationId, userId, organizationId = null) {
+    const query = { 
       _id: notificationId, 
       userId: new mongoose.Types.ObjectId(userId) 
-    });
+    };
+    // Enforce organization isolation if organizationId provided
+    if (organizationId) {
+      query.organizationId = new mongoose.Types.ObjectId(organizationId);
+    }
+    const notification = await NotificationHistory.findOne(query);
     if (!notification) return null;
     
     notification.starred = !notification.starred;

@@ -20,6 +20,9 @@ router.use(authenticate);
  */
 router.get('/overview', async (req, res) => {
   try {
+    // Use organization context for scoped stats, fall back to global for system stats
+    const organizationId = req.organizationId ? req.organizationId.toString() : null;
+
     const overview = {
       agents: agentRegistry.getStats(),
       rules: ruleEngine.getStats(),
@@ -29,7 +32,7 @@ router.get('/overview', async (req, res) => {
       router: freeModelRouter.getStats(),
       patterns: await patternTracker.getStats(),
       learning: ruleGenerator.getStats(),
-      memory: await mongoVectorStore.getStats(),
+      memory: await mongoVectorStore.getStats(organizationId),
       timestamp: new Date().toISOString()
     };
 
@@ -113,15 +116,23 @@ router.get('/workflows', async (req, res) => {
  */
 router.get('/learning', async (req, res) => {
   try {
+    // Use organization context for scoped patterns
+    const organizationId = req.organizationId ? req.organizationId.toString() : null;
+    
     const patternStats = await patternTracker.getStats();
     const ruleGenStats = ruleGenerator.getStats();
-    const patterns = await patternTracker.getPatterns(null, 0.7);
+    
+    // Get patterns for current organization (if available)
+    const patterns = organizationId 
+      ? await patternTracker.getPatterns(organizationId, null, 0.7)
+      : [];
 
     res.json({
       success: true,
       patterns: patternStats,
       ruleGeneration: ruleGenStats,
-      topPatterns: patterns.slice(0, 10)
+      topPatterns: patterns.slice(0, 10),
+      organizationId
     });
   } catch (error) {
     res.status(500).json({
@@ -168,7 +179,7 @@ router.get('/agentic-score', async (req, res) => {
     const cacheStats = cacheManager.getAllStats();
     const ruleStats = ruleEngine.getStats();
     const routerStats = freeModelRouter.getStats();
-    const patternStats = await patternTracker.getStats();
+    const patternStats = await patternTracker.getStats(); // System-wide stats for score
     const workflowStats = workflowEngine.getStats();
 
     // Calculate score components

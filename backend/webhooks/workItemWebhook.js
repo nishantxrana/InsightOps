@@ -6,7 +6,7 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 import BaseWebhook from './BaseWebhook.js';
 
 class WorkItemWebhook extends BaseWebhook {
-  async handleCreated(req, res, userId = null) {
+  async handleCreated(req, res, userId = null, organizationId = null) {
     try {
       const { resource } = req.body;
       
@@ -17,7 +17,7 @@ class WorkItemWebhook extends BaseWebhook {
       const workItemId = resource.id;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(workItemId, userId, 'workitem');
+      const dupeCheck = this.isDuplicate(workItemId, userId || organizationId, 'workitem');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(workItemId, 'workitem', dupeCheck.timeSince));
       }
@@ -41,13 +41,27 @@ class WorkItemWebhook extends BaseWebhook {
         title: resource.fields?.['System.Title'],
         assignedTo: resource.fields?.['System.AssignedTo']?.displayName,
         userId: userId || 'legacy-global',
+        organizationId: organizationId || null,
         hasUserId: !!userId
       });
 
-      // Get user settings for URL construction and AI
+      // Get settings - prefer organization context over user context
       let userConfig = null;
       let userSettings = null;
-      if (userId) {
+      
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            userId = org.userId;
+            userConfig = org.azureDevOps;
+            userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
+        }
+      } else if (userId) {
         try {
           const { getUserSettings } = await import('../utils/userSettings.js');
           userSettings = await getUserSettings(userId);
@@ -61,7 +75,7 @@ class WorkItemWebhook extends BaseWebhook {
           logger.warn(`Failed to get user settings for ${userId}:`, error);
         }
       } else {
-        logger.warn('No userId provided - using legacy webhook handler');
+        logger.warn('No userId or organizationId provided - using legacy webhook handler');
       }
 
       // Generate AI summary if configured
@@ -94,7 +108,7 @@ class WorkItemWebhook extends BaseWebhook {
       // Send notification
       if (userId) {
         // User-specific notification with card format
-        await this.sendUserNotification(message, userId, 'work-item-created', resource, aiSummary, userConfig);
+        await this.sendUserNotification(message, userId, organizationId, 'work-item-created', resource, aiSummary, userConfig);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, 'work-item-created');
@@ -115,7 +129,7 @@ class WorkItemWebhook extends BaseWebhook {
     }
   }
 
-  async handleUpdated(req, res, userId = null) {
+  async handleUpdated(req, res, userId = null, organizationId = null) {
     try {
       const webhookData = req.body;
       const { resource } = webhookData;
@@ -156,12 +170,25 @@ class WorkItemWebhook extends BaseWebhook {
         changedBy,
         eventType: webhookData.eventType,
         userId: userId || 'legacy-global',
+        organizationId: organizationId || null,
         hasUserId: !!userId
       });
 
-      // Get user settings for URL construction
+      // Get settings - prefer organization context over user context
       let userConfig = null;
-      if (userId) {
+      
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            userId = org.userId;
+            userConfig = org.azureDevOps;
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
+        }
+      } else if (userId) {
         try {
           const { getUserSettings } = await import('../utils/userSettings.js');
           const settings = await getUserSettings(userId);
@@ -175,7 +202,7 @@ class WorkItemWebhook extends BaseWebhook {
           logger.warn(`Failed to get user settings for ${userId}:`, error);
         }
       } else {
-        logger.warn('No userId provided - using legacy webhook handler');
+        logger.warn('No userId or organizationId provided - using legacy webhook handler');
       }
 
       // Format notification message with user config for proper URL construction
@@ -211,7 +238,7 @@ class WorkItemWebhook extends BaseWebhook {
           assignedTo
         };
         console.log('About to pass workItemData:', workItemData);
-        await this.sendUserNotification(message, userId, 'work-item-updated', webhookData, userConfig, userConfig, workItemData);
+        await this.sendUserNotification(message, userId, organizationId, 'work-item-updated', webhookData, userConfig, userConfig, workItemData);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, 'work-item-updated');
@@ -232,7 +259,7 @@ class WorkItemWebhook extends BaseWebhook {
     }
   }
 
-  async sendUserNotification(message, userId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig, workItemData = null) {
+  async sendUserNotification(message, userId, organizationId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig, workItemData = null) {
     try {
       const { getUserSettings } = await import('../utils/userSettings.js');
       const settings = await getUserSettings(userId);
@@ -330,31 +357,34 @@ class WorkItemWebhook extends BaseWebhook {
         });
       }
       
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'work-item',
-        subType: notificationType === 'work-item-created' ? 'created' : 'updated',
-        title: `${finalWorkItemData.type}: ${finalWorkItemData.title}`,
-        message,
-        source: 'webhook',
-        metadata: {
-          workItemId: finalWorkItemData.id,
-          workItemType: finalWorkItemData.type,
-          state: finalWorkItemData.state,
-          assignedTo: finalWorkItemData.assignedTo,
-          priority: workItem?.fields?.['Microsoft.VSTS.Common.Priority'],
-          severity: workItem?.fields?.['Microsoft.VSTS.Common.Severity'],
-          areaPath: workItem?.fields?.['System.AreaPath'],
-          iterationPath: workItem?.fields?.['System.IterationPath'],
-          tags: workItem?.fields?.['System.Tags'],
-          createdBy: workItem?.fields?.['System.CreatedBy']?.displayName,
-          createdDate: workItem?.fields?.['System.CreatedDate'],
-          changedBy: workItem?.fields?.['System.ChangedBy']?.displayName,
-          changedDate: workItem?.fields?.['System.ChangedDate'],
-          changes: changes.length > 0 ? changes : null,
-          url: workItemUrl
-        },
-        channels
-      });
+      // Save notification with organizationId if available
+      if (organizationId) {
+        await notificationHistoryService.saveNotification(userId, organizationId, {
+          type: 'work-item',
+          subType: notificationType === 'work-item-created' ? 'created' : 'updated',
+          title: `${finalWorkItemData.type}: ${finalWorkItemData.title}`,
+          message,
+          source: 'webhook',
+          metadata: {
+            workItemId: finalWorkItemData.id,
+            workItemType: finalWorkItemData.type,
+            state: finalWorkItemData.state,
+            assignedTo: finalWorkItemData.assignedTo,
+            priority: workItem?.fields?.['Microsoft.VSTS.Common.Priority'],
+            severity: workItem?.fields?.['Microsoft.VSTS.Common.Severity'],
+            areaPath: workItem?.fields?.['System.AreaPath'],
+            iterationPath: workItem?.fields?.['System.IterationPath'],
+            tags: workItem?.fields?.['System.Tags'],
+            createdBy: workItem?.fields?.['System.CreatedBy']?.displayName,
+            createdDate: workItem?.fields?.['System.CreatedDate'],
+            changedBy: workItem?.fields?.['System.ChangedBy']?.displayName,
+            changedDate: workItem?.fields?.['System.ChangedDate'],
+            changes: changes.length > 0 ? changes : null,
+            url: workItemUrl
+          },
+          channels
+        });
+      }
 
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);
