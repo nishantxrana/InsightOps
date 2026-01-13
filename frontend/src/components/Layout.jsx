@@ -4,6 +4,7 @@ import { RefreshCw, Moon, Sun } from 'lucide-react'
 import { useHealth } from '../contexts/HealthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { DevOpsAppSidebar } from './DevOpsAppSidebar'
+import OrganizationSwitcher from './OrganizationSwitcher'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -121,8 +122,13 @@ export default function Layout({ children }) {
               </Breadcrumb>
             </div>
             
-            {/* Right Section - Status & Theme */}
+            {/* Right Section - Org Switcher, Status & Theme */}
             <div className="ml-auto flex items-center gap-3 px-4">
+              {/* Organization Switcher */}
+              <OrganizationSwitcher />
+              
+              <Separator orientation="vertical" className="h-4" />
+              
               {/* Theme Toggle */}
               <Tooltip>
                 <TooltipTrigger asChild>

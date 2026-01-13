@@ -3,18 +3,19 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 
 const router = express.Router();
 
-// Get notifications with filters
+// Get notifications with filters (uses org context from middleware)
 router.get('/', async (req, res) => {
   try {
-    const { userId, type, read, starred, limit, skip } = req.query;
+    const { type, read, starred, limit, skip } = req.query;
+    const userId = req.user._id;
+    const organizationId = req.organizationId;
     
-    console.log('GET /api/notifications - Query params:', { userId, type, read, starred, limit, skip });
-    
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
+    // Return empty if no org context (user hasn't set up org yet)
+    if (!organizationId) {
+      return res.json([]);
     }
 
-    const notifications = await notificationHistoryService.getNotifications(userId, {
+    const notifications = await notificationHistoryService.getNotifications(userId, organizationId, {
       type,
       read: read !== undefined ? read === 'true' : undefined,
       starred: starred !== undefined ? starred === 'true' : undefined,
@@ -22,7 +23,6 @@ router.get('/', async (req, res) => {
       skip: skip ? parseInt(skip) : 0
     });
 
-    console.log(`Found ${notifications.length} notifications for user ${userId}`);
     res.json(notifications);
   } catch (error) {
     console.error('Error fetching notifications:', error);
@@ -33,13 +33,14 @@ router.get('/', async (req, res) => {
 // Get unread count
 router.get('/unread-count', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = req.user._id;
+    const organizationId = req.organizationId;
     
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
+    if (!organizationId) {
+      return res.json({ count: 0 });
     }
 
-    const count = await notificationHistoryService.getUnreadCount(userId);
+    const count = await notificationHistoryService.getUnreadCount(userId, organizationId);
     res.json({ count });
   } catch (error) {
     console.error('Error fetching unread count:', error);
@@ -50,13 +51,14 @@ router.get('/unread-count', async (req, res) => {
 // Get counts by type
 router.get('/counts', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = req.user._id;
+    const organizationId = req.organizationId;
     
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
+    if (!organizationId) {
+      return res.json({});
     }
 
-    const counts = await notificationHistoryService.getCountsByType(userId);
+    const counts = await notificationHistoryService.getCountsByType(userId, organizationId);
     res.json(counts);
   } catch (error) {
     console.error('Error fetching counts:', error);
@@ -68,13 +70,10 @@ router.get('/counts', async (req, res) => {
 router.patch('/:id/read', async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.body;
-    
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
+    const userId = req.user._id;
+    const organizationId = req.organizationId;
 
-    const notification = await notificationHistoryService.markAsRead(id, userId);
+    const notification = await notificationHistoryService.markAsRead(id, userId, organizationId);
     
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });
@@ -91,13 +90,10 @@ router.patch('/:id/read', async (req, res) => {
 router.patch('/:id/star', async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.body;
-    
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
+    const userId = req.user._id;
+    const organizationId = req.organizationId;
 
-    const notification = await notificationHistoryService.toggleStar(id, userId);
+    const notification = await notificationHistoryService.toggleStar(id, userId, organizationId);
     
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });

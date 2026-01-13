@@ -7,9 +7,133 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 class PullRequestPoller {
   constructor() {
     this.lastPollTime = new Date();
-    this.processedPRs = new Set();
+    // Per-organization processed PRs to prevent cross-org ID collision
+    this.processedPRsByOrg = new Map(); // organizationId -> Set of PR IDs
   }
 
+  /**
+   * Get or create processed PRs set for an organization
+   */
+  getProcessedPRsForOrg(organizationId) {
+    if (!this.processedPRsByOrg.has(organizationId)) {
+      this.processedPRsByOrg.set(organizationId, new Set());
+    }
+    return this.processedPRsByOrg.get(organizationId);
+  }
+
+  // New method for organization-based polling
+  async pollPullRequestsForOrg(organizationId, org) {
+    try {
+      if (!org?.azureDevOps?.organization || !org?.azureDevOps?.pat) {
+        logger.warn(`Org ${organizationId} missing Azure DevOps config`);
+        return;
+      }
+
+      const client = azureDevOpsClient.createUserClient({
+        organization: org.azureDevOps.organization,
+        project: org.azureDevOps.project,
+        pat: org.azureDevOps.pat,
+        baseUrl: org.azureDevOps.baseUrl || 'https://dev.azure.com'
+      });
+
+      logger.info(`Starting pull requests polling for org ${organizationId}`);
+      await this.checkIdlePullRequestsForOrg(organizationId, org, client);
+      this.lastPollTime = new Date();
+    } catch (error) {
+      logger.error(`Error polling pull requests for org ${organizationId}:`, error);
+    }
+  }
+
+  async checkIdlePullRequestsForOrg(organizationId, org, client) {
+    try {
+      const idlePRs = await client.getIdlePullRequests(48);
+      
+      if (idlePRs.count > 0) {
+        logger.warn(`Found ${idlePRs.count} idle pull requests for org ${organizationId}`);
+        
+        if (org.notifications?.enabled) {
+          await this.sendIdlePRNotificationForOrg(idlePRs.value, org, organizationId);
+        }
+      } else {
+        logger.info(`No idle pull requests found for org ${organizationId}`);
+      }
+    } catch (error) {
+      logger.error(`Error checking idle PRs for org ${organizationId}:`, error);
+    }
+  }
+
+  async sendIdlePRNotificationForOrg(idlePRs, org, organizationId) {
+    try {
+      const batchSize = 10;
+      const delayBetweenBatches = 5000;
+      const totalBatches = Math.ceil(idlePRs.length / batchSize);
+      const channels = [];
+      
+      for (let i = 0; i < idlePRs.length; i += batchSize) {
+        const batch = idlePRs.slice(i, i + batchSize);
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        const card = this.formatIdlePRCard(batch, batchNumber, totalBatches, idlePRs.length, org.azureDevOps);
+        
+        if (org.notifications?.googleChatEnabled && org.notifications?.webhooks?.googleChat) {
+          try {
+            await this.sendGoogleChatCard(card, org.notifications.webhooks.googleChat);
+            if (i === 0) channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          } catch (error) {
+            if (i === 0) channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          }
+        }
+        
+        if (i + batchSize < idlePRs.length) {
+          await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+        }
+      }
+      
+      // Extract PR details for notification history (matching original format)
+      const baseUrl = org.azureDevOps?.baseUrl || 'https://dev.azure.com';
+      const organization = org.azureDevOps?.organization;
+      const project = org.azureDevOps?.project;
+      
+      const pullRequests = idlePRs.map(pr => {
+        const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
+        const idleDays = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
+        const repository = pr.repository?.name;
+        
+        return {
+          id: pr.pullRequestId,
+          title: pr.title || 'No title',
+          repository: repository || 'Unknown',
+          sourceBranch: pr.sourceRefName?.replace('refs/heads/', '') || 'unknown',
+          targetBranch: pr.targetRefName?.replace('refs/heads/', '') || 'unknown',
+          createdBy: pr.createdBy?.displayName || 'Unknown',
+          createdDate: pr.creationDate,
+          idleDays,
+          url: pr._links?.web?.href || 
+               (organization && project && repository ? 
+                `${baseUrl}/${organization}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pr.pullRequestId}` : 
+                null)
+        };
+      });
+      
+      // Save to notification history with organizationId
+      await notificationHistoryService.saveNotification(org.userId, organizationId, {
+        type: 'idle-pr',
+        title: `${idlePRs.length} Idle Pull Requests`,
+        message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
+        source: 'poller',
+        metadata: { 
+          count: idlePRs.length,
+          pullRequests
+        },
+        channels
+      });
+      
+      logger.info(`Idle PR notifications sent for org ${organizationId}`);
+    } catch (error) {
+      logger.error(`Error sending idle PR notification for org ${organizationId}:`, error);
+    }
+  }
+
+  // Legacy method for backward compatibility
   async pollPullRequests(userId) {
     try {
       let client = azureDevOpsClient;
@@ -29,10 +153,7 @@ class PullRequestPoller {
       }
 
       logger.info(`Starting pull requests polling${userId ? ` for user ${userId}` : ''}`);
-
-      // Check for idle pull requests (>48 hours without activity)
       await this.checkIdlePullRequests(userId, client);
-
       this.lastPollTime = new Date();
     } catch (error) {
       logger.error('Error polling pull requests:', error);
@@ -48,7 +169,6 @@ class PullRequestPoller {
       if (idlePRs.count > 0) {
         logger.warn(`Found ${idlePRs.count} idle pull requests`);
         
-        // Send notification with user-specific settings
         if (userId) {
           const { getUserSettings } = await import('../utils/userSettings.js');
           const settings = await getUserSettings(userId);
@@ -56,7 +176,6 @@ class PullRequestPoller {
             await this.sendIdlePRNotification(idlePRs.value, settings, userId, client);
           }
         } else {
-          // Fallback for global notifications
           const message = markdownFormatter.formatIdlePullRequestReminder(idlePRs.value);
           if (message) {
             await notificationService.sendNotification(message, 'pull-request-idle-reminder');
@@ -70,8 +189,12 @@ class PullRequestPoller {
     }
   }
 
-  async checkForNewPullRequests() {
+  async checkForNewPullRequests(organizationId = null) {
     try {
+      // Use legacy key if no organizationId
+      const key = organizationId || 'legacy_global';
+      const processedPRs = this.getProcessedPRsForOrg(key);
+
       // Get active pull requests
       const activePRs = await azureDevOpsClient.getPullRequests('active');
       
@@ -79,7 +202,7 @@ class PullRequestPoller {
         // Filter PRs created since last poll
         const newPRs = activePRs.value.filter(pr => {
           const creationDate = new Date(pr.creationDate);
-          return creationDate > this.lastPollTime && !this.processedPRs.has(pr.pullRequestId);
+          return creationDate > this.lastPollTime && !processedPRs.has(pr.pullRequestId);
         });
 
         if (newPRs.length > 0) {
@@ -87,7 +210,7 @@ class PullRequestPoller {
           
           for (const pr of newPRs) {
             await this.processNewPullRequest(pr);
-            this.processedPRs.add(pr.pullRequestId);
+            processedPRs.add(pr.pullRequestId);
           }
         }
       }
@@ -112,14 +235,26 @@ class PullRequestPoller {
     }
   }
 
-  cleanupProcessedPRs() {
-    // Keep only the last 1000 processed PR IDs to prevent memory leaks
-    if (this.processedPRs.size > 1000) {
-      const prsArray = Array.from(this.processedPRs);
-      const toKeep = prsArray.slice(-500); // Keep last 500
-      this.processedPRs = new Set(toKeep);
-      
-      logger.debug('Cleaned up processed PRs cache');
+  cleanupProcessedPRs(organizationId = null) {
+    if (organizationId) {
+      // Clean up specific org's processed PRs
+      const processedPRs = this.getProcessedPRsForOrg(organizationId);
+      if (processedPRs.size > 500) {
+        const prsArray = Array.from(processedPRs);
+        const toKeep = prsArray.slice(-250); // Keep last 250
+        this.processedPRsByOrg.set(organizationId, new Set(toKeep));
+        logger.debug(`Cleaned up processed PRs cache for org ${organizationId}`);
+      }
+    } else {
+      // Clean up all orgs
+      for (const [orgId, processedPRs] of this.processedPRsByOrg) {
+        if (processedPRs.size > 500) {
+          const prsArray = Array.from(processedPRs);
+          const toKeep = prsArray.slice(-250);
+          this.processedPRsByOrg.set(orgId, new Set(toKeep));
+          logger.debug(`Cleaned up processed PRs cache for org ${orgId}`);
+        }
+      }
     }
   }
 }
@@ -166,42 +301,10 @@ PullRequestPoller.prototype.sendIdlePRNotification = async function(idlePRs, use
       await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
     }
     
-    if (userId) {
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'idle-pr',
-        title: `${idlePRs.length} Idle Pull Requests`,
-        message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
-        source: 'poller',
-        metadata: { 
-          count: idlePRs.length,
-          pullRequests: idlePRs.map(pr => {
-            const baseUrl = userSettings.azureDevOps?.baseUrl || 'https://dev.azure.com';
-            const org = userSettings.azureDevOps?.organization;
-            const project = userSettings.azureDevOps?.project;
-            const repo = pr.repository?.name;
-            
-            // Use web URL from _links, or construct proper web UI URL
-            const prUrl = pr._links?.web?.href || 
-                         (org && project && repo ? 
-                          `${baseUrl}/${org}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${pr.pullRequestId}` : 
-                          null);
-            
-            return {
-              id: pr.pullRequestId,
-              title: pr.title,
-              repository: repo,
-              sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
-              targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
-              createdBy: pr.createdBy?.displayName,
-              createdDate: pr.creationDate,
-              idleDays: Math.floor((Date.now() - new Date(pr.creationDate)) / (1000 * 60 * 60 * 24)),
-              url: prUrl
-            };
-          })
-        },
-        channels
-      });
-    }
+    // Save to notification history (requires organizationId in multi-tenant mode)
+    // Legacy flow without org context - skip notification history to avoid data corruption
+    // Notifications will still be sent to webhooks, just not saved to history
+    logger.info(`Legacy idle PR notification sent for user ${userId} - skipping history save (no org context)`);
     
     logger.info(`Idle PR notifications sent in ${totalBatches} batches`);
   } catch (error) {

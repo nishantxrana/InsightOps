@@ -7,9 +7,156 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 class WorkItemPoller {
   constructor() {
     this.lastPollTime = new Date();
-    this.processedWorkItems = new Set();
+    // Per-organization processed work items to prevent cross-org ID collision
+    this.processedWorkItemsByOrg = new Map(); // organizationId -> Set of work item IDs
   }
 
+  /**
+   * Get or create processed work items set for an organization
+   */
+  getProcessedWorkItemsForOrg(organizationId) {
+    if (!this.processedWorkItemsByOrg.has(organizationId)) {
+      this.processedWorkItemsByOrg.set(organizationId, new Set());
+    }
+    return this.processedWorkItemsByOrg.get(organizationId);
+  }
+
+  // Organization-based polling
+  async pollWorkItemsForOrg(organizationId, org) {
+    try {
+      if (!org?.azureDevOps?.organization || !org?.azureDevOps?.pat) {
+        logger.warn(`Org ${organizationId} missing Azure DevOps config`);
+        return;
+      }
+
+      const client = azureDevOpsClient.createUserClient({
+        organization: org.azureDevOps.organization,
+        project: org.azureDevOps.project,
+        pat: org.azureDevOps.pat,
+        baseUrl: org.azureDevOps.baseUrl || 'https://dev.azure.com'
+      });
+
+      logger.info(`Starting work items polling for org ${organizationId}`);
+      const sprintWorkItems = await client.getCurrentSprintWorkItems();
+      
+      if (sprintWorkItems.count > 0) {
+        logger.info(`Found ${sprintWorkItems.count} work items for org ${organizationId}`);
+      }
+
+      this.lastPollTime = new Date();
+    } catch (error) {
+      logger.error(`Error polling work items for org ${organizationId}:`, error);
+    }
+  }
+
+  async checkOverdueItemsForOrg(organizationId, org) {
+    try {
+      if (!org?.azureDevOps?.organization || !org?.azureDevOps?.pat) {
+        return;
+      }
+
+      const client = azureDevOpsClient.createUserClient({
+        organization: org.azureDevOps.organization,
+        project: org.azureDevOps.project,
+        pat: org.azureDevOps.pat,
+        baseUrl: org.azureDevOps.baseUrl || 'https://dev.azure.com'
+      });
+
+      logger.info(`Checking overdue items for org ${organizationId}`);
+      const overdueItems = await client.getOverdueWorkItems();
+      
+      if (overdueItems.count > 0) {
+        let filteredItems = overdueItems.value;
+        const filterEnabled = org.polling?.overdueFilterEnabled !== false;
+        const maxDays = org.polling?.overdueMaxDays || 60;
+        
+        if (filterEnabled && maxDays > 0) {
+          const cutoffDate = Date.now() - (maxDays * 24 * 60 * 60 * 1000);
+          filteredItems = overdueItems.value.filter(item => {
+            const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+            return dueDate && new Date(dueDate).getTime() >= cutoffDate;
+          });
+        }
+        
+        if (filteredItems.length > 0 && org.notifications?.enabled) {
+          await this.sendOverdueNotificationForOrg(filteredItems, org, organizationId);
+        }
+      }
+    } catch (error) {
+      logger.error(`Error checking overdue items for org ${organizationId}:`, error);
+    }
+  }
+
+  async sendOverdueNotificationForOrg(overdueItems, org, organizationId) {
+    try {
+      const batchSize = 10;
+      const delayBetweenBatches = 5000;
+      const totalBatches = Math.ceil(overdueItems.length / batchSize);
+      const channels = [];
+      
+      for (let i = 0; i < overdueItems.length; i += batchSize) {
+        const batch = overdueItems.slice(i, i + batchSize);
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        const card = this.formatOverdueItemsCard(batch, batchNumber, totalBatches, overdueItems.length);
+        
+        if (org.notifications?.googleChatEnabled && org.notifications?.webhooks?.googleChat) {
+          try {
+            await this.sendGoogleChatCard(card, org.notifications.webhooks.googleChat);
+            if (i === 0) channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          } catch (error) {
+            if (i === 0) channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          }
+        }
+        
+        if (i + batchSize < overdueItems.length) {
+          await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+        }
+      }
+      
+      // Extract work item details for notification history (using 'items' to match frontend/CSV export)
+      const items = overdueItems.map(item => {
+        const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+        const daysPastDue = dueDate ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+        
+        return {
+          id: item.id,
+          title: item.fields?.['System.Title'] || 'No title',
+          type: item.fields?.['System.WorkItemType'] || 'Item',
+          state: item.fields?.['System.State'] || 'Unknown',
+          assignedTo: item.fields?.['System.AssignedTo']?.displayName || 'Unassigned',
+          priority: item.fields?.['Microsoft.VSTS.Common.Priority'] || 4,
+          dueDate: dueDate,
+          daysPastDue,
+          url: item.webUrl || item._links?.html?.href || null
+        };
+      });
+      
+      // Save to notification history
+      try {
+        logger.info(`📝 [NOTIFICATION] Saving overdue notification to history for org ${organizationId}, userId: ${org.userId}`);
+        await notificationHistoryService.saveNotification(org.userId, organizationId, {
+          type: 'overdue',
+          title: `${overdueItems.length} Overdue Work Items`,
+          message: `Found ${overdueItems.length} overdue work items`,
+          source: 'poller',
+          metadata: { 
+            count: overdueItems.length,
+            items  // Using 'items' to match frontend NotificationHistory.jsx and csvExport.js
+          },
+          channels
+        });
+        logger.info(`✅ [NOTIFICATION] Saved overdue notification to history for org ${organizationId}`);
+      } catch (historyError) {
+        logger.error(`❌ [NOTIFICATION] Failed to save overdue notification to history for org ${organizationId}:`, historyError);
+      }
+      
+      logger.info(`Overdue notifications sent for org ${organizationId}`);
+    } catch (error) {
+      logger.error(`Error sending overdue notification for org ${organizationId}:`, error);
+    }
+  }
+
+  // Legacy method for backward compatibility
   async pollWorkItems(userId) {
     try {
       let client = azureDevOpsClient;
@@ -172,32 +319,10 @@ WorkItemPoller.prototype.sendOverdueNotification = async function(overdueItems, 
       await this.sendGoogleChatCard(dividerCard, userSettings.notifications.webhooks.googleChat);
     }
     
-    // Save to notification history
-    if (userId) {
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'overdue',
-        title: `${overdueItems.length} Overdue Work Items`,
-        message: `Found ${overdueItems.length} overdue work items`,
-        source: 'poller',
-        metadata: { 
-          count: overdueItems.length,
-          items: overdueItems.map(item => ({
-            id: item.id,
-            title: item.fields?.['System.Title'],
-            type: item.fields?.['System.WorkItemType'],
-            state: item.fields?.['System.State'],
-            assignedTo: item.fields?.['System.AssignedTo']?.displayName,
-            priority: item.fields?.['Microsoft.VSTS.Common.Priority'],
-            dueDate: item.fields?.['Microsoft.VSTS.Scheduling.DueDate'],
-            daysPastDue: item.fields?.['Microsoft.VSTS.Scheduling.DueDate'] 
-              ? Math.floor((Date.now() - new Date(item.fields['Microsoft.VSTS.Scheduling.DueDate'])) / (1000 * 60 * 60 * 24))
-              : 0,
-            url: item.webUrl || item._links?.html?.href
-          }))
-        },
-        channels
-      });
-    }
+    // Save to notification history (requires organizationId in multi-tenant mode)
+    // Legacy flow without org context - skip notification history to avoid data corruption
+    // Notifications will still be sent to webhooks, just not saved to history
+    logger.info(`Legacy overdue notification sent for user ${userId} - skipping history save (no org context)`);
     
     logger.info(`Overdue notifications sent in ${totalBatches} batches`);
   } catch (error) {

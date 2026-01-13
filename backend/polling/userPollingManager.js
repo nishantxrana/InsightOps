@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { logger } from '../utils/logger.js';
-import { getUserSettings } from '../utils/userSettings.js';
+import { Organization } from '../models/Organization.js';
+import { organizationService } from '../services/organizationService.js';
 import { workItemPoller } from './workItemPoller.js';
 import { buildPoller } from './buildPoller.js';
 import { pullRequestPoller } from './pullRequestPoller.js';
@@ -9,22 +10,21 @@ import executionLock from './execution-lock.js';
 
 class UserPollingManager {
   constructor() {
-    this.activeJobs = new Map(); // userId → { workItems: cronJob, pullRequests: cronJob, overdue: cronJob }
-    this.userLocks = new Set(); // Track users currently being set up
+    this.activeJobs = new Map(); // organizationId → { workItems: cronJob, pullRequests: cronJob, overdue: cronJob }
+    this.orgLocks = new Set(); // Track orgs currently being set up
     this.initialized = false;
   }
 
-  async destroyAllJobInstances(userId, jobType) {
+  async destroyAllJobInstances(organizationId, jobType) {
     try {
-      logger.debug(`🧹 [POLLING] Destroying all ${jobType} job instances for user ${userId}`);
+      logger.debug(`🧹 [POLLING] Destroying all ${jobType} job instances for org ${organizationId}`);
       
       // Get all cron tasks and destroy matching ones
       const allTasks = cron.getTasks();
       let destroyedCount = 0;
       
       for (const [taskId, task] of allTasks) {
-        // Check if this task belongs to our user/jobType (basic pattern matching)
-        if (taskId.includes(userId) && taskId.includes(jobType)) {
+        if (taskId.includes(organizationId) && taskId.includes(jobType)) {
           try {
             task.stop();
             destroyedCount++;
@@ -35,110 +35,84 @@ class UserPollingManager {
         }
       }
       
-      logger.debug(`🧹 [POLLING] Stopped ${destroyedCount} ${jobType} task instances for user ${userId}`);
+      logger.debug(`🧹 [POLLING] Stopped ${destroyedCount} ${jobType} task instances for org ${organizationId}`);
     } catch (error) {
-      logger.error(`Failed to destroy job instances for ${userId}/${jobType}:`, error);
+      logger.error(`Failed to destroy job instances for org ${organizationId}/${jobType}:`, error);
     }
   }
 
-  async startUserPolling(userId) {
+  // Start polling for an organization
+  async startOrganizationPolling(organizationId) {
     try {
-      logger.info(`🚀 [POLLING] Starting polling setup for user ${userId}`);
+      logger.info(`🚀 [POLLING] Starting polling setup for org ${organizationId}`);
       
-      // Prevent concurrent setup for the same user
-      if (this.userLocks.has(userId)) {
-        logger.warn(`⚠️ [POLLING] Setup already in progress for user ${userId}, skipping`);
+      if (this.orgLocks.has(organizationId)) {
+        logger.warn(`⚠️ [POLLING] Setup already in progress for org ${organizationId}, skipping`);
         return;
       }
       
-      this.userLocks.add(userId);
-      logger.debug(`🔒 [POLLING] Added lock for user ${userId}`);
+      this.orgLocks.add(organizationId);
       
-      // Get user settings to create/update database jobs
-      const settings = await getUserSettings(userId);
-      logger.debug(`📋 [POLLING] Retrieved settings for user ${userId}:`, {
-        hasAzureDevOps: !!settings.azureDevOps,
-        hasPolling: !!settings.polling,
-        pollingConfig: settings.polling
-      });
+      // Get organization with credentials
+      const org = await organizationService.getOrganizationWithCredentials(organizationId);
       
-      // Validate required settings
-      if (!settings.azureDevOps?.organization || !settings.azureDevOps?.project || !settings.azureDevOps?.pat) {
-        logger.warn(`❌ [POLLING] User ${userId} missing required Azure DevOps settings, skipping polling`);
-        this.userLocks.delete(userId);
+      if (!org?.azureDevOps?.organization || !org?.azureDevOps?.project || !org?.azureDevOps?.pat) {
+        logger.warn(`❌ [POLLING] Org ${organizationId} missing required Azure DevOps settings, skipping polling`);
+        this.orgLocks.delete(organizationId);
         return;
       }
 
-      // Stop any existing jobs for this user (both memory and database)
-      logger.info(`🛑 [POLLING] Stopping existing jobs for user ${userId}`);
-      await this.stopUserPolling(userId);
+      // Stop any existing jobs for this org
+      await this.stopOrganizationPolling(organizationId);
       
-      // Ensure no duplicate database entries
-      logger.debug(`🧹 [POLLING] Pausing database jobs for user ${userId}`);
-      await pollingService.pauseUserJobs(userId);
+      // Pause database jobs
+      await pollingService.pauseOrganizationJobs(organizationId);
 
-      // Update database with current settings
-      logger.info(`💾 [POLLING] Syncing jobs with settings for user ${userId}`);
-      await this.syncJobsWithSettings(userId, settings.polling || {});
+      // Sync jobs with settings
+      await this.syncJobsWithSettings(organizationId, org.userId, org.polling || {});
 
       // Get active jobs from database
-      logger.debug(`📊 [POLLING] Fetching active jobs from database for user ${userId}`);
-      const dbJobs = await pollingService.getActiveJobs(userId);
-      logger.info(`📋 [POLLING] Found ${dbJobs.length} active jobs in database for user ${userId}:`, 
-        dbJobs.map(job => ({ type: job.jobType, enabled: job.config.enabled, interval: job.config.interval }))
-      );
+      const dbJobs = await pollingService.getActiveJobs(organizationId);
       
-      // Create cron jobs based on database config
-      const userJobs = {};
+      // Create cron jobs
+      const orgJobs = {};
       let createdCount = 0;
       
       for (const dbJob of dbJobs) {
-        logger.debug(`🔍 [POLLING] Processing ${dbJob.jobType} job for user ${userId}:`, {
-          enabled: dbJob.config.enabled,
-          interval: dbJob.config.interval,
-          isValidCron: cron.validate(dbJob.config.interval)
-        });
-        
-        if (dbJob.config.enabled && cron.validate(dbJob.config.interval)) {
-          logger.info(`⚙️ [POLLING] Creating cron job for ${dbJob.jobType} (user ${userId})`);
-          const cronJob = this.createCronJob(userId, dbJob);
+        const isValidCron = this.validateCronExpression(dbJob.config.interval);
+        if (dbJob.config.enabled && isValidCron) {
+          const cronJob = this.createCronJob(organizationId, org, dbJob);
           if (cronJob) {
-            userJobs[dbJob.jobType] = cronJob;
+            orgJobs[dbJob.jobType] = cronJob;
             cronJob.start();
             createdCount++;
-            logger.info(`✅ [POLLING] Started ${dbJob.jobType} cron job for user ${userId}`);
-          } else {
-            logger.error(`❌ [POLLING] Failed to create ${dbJob.jobType} cron job for user ${userId}`);
+            logger.info(`✅ [POLLING] Started ${dbJob.jobType} cron job for org ${organizationId} with interval: ${dbJob.config.interval}`);
           }
-        } else {
-          logger.debug(`⏭️ [POLLING] Skipping ${dbJob.jobType} job for user ${userId} (disabled or invalid cron)`);
+        } else if (dbJob.config.enabled && !isValidCron) {
+          logger.warn(`⚠️ [POLLING] Invalid cron expression for ${dbJob.jobType}: ${dbJob.config.interval}`);
         }
       }
 
-      // Store in memory for quick access
-      this.activeJobs.set(userId, userJobs);
-      logger.info(`💾 [POLLING] Stored ${Object.keys(userJobs).length} jobs in memory for user ${userId}`);
+      this.activeJobs.set(organizationId, orgJobs);
+      logger.info(`🎉 [POLLING] Successfully started ${createdCount} polling jobs for org ${organizationId}`);
       
-      // Log current memory state
-      logger.debug(`🧠 [POLLING] Current memory state:`, {
-        totalUsers: this.activeJobs.size,
-        userJobCounts: Array.from(this.activeJobs.entries()).map(([uid, jobs]) => ({
-          userId: uid,
-          jobCount: Object.keys(jobs).length,
-          jobTypes: Object.keys(jobs)
-        }))
-      });
-      
-      logger.info(`🎉 [POLLING] Successfully started ${createdCount} polling jobs for user ${userId}`);
-      
-      // Release the lock
-      this.userLocks.delete(userId);
-      logger.debug(`🔓 [POLLING] Released lock for user ${userId}`);
+      this.orgLocks.delete(organizationId);
       
     } catch (error) {
-      // Always release the lock on error
-      this.userLocks.delete(userId);
-      logger.error(`💥 [POLLING] Failed to start polling for user ${userId}:`, error);
+      this.orgLocks.delete(organizationId);
+      logger.error(`💥 [POLLING] Failed to start polling for org ${organizationId}:`, error);
+    }
+  }
+
+  // Legacy method - start polling for a user (starts all their orgs)
+  async startUserPolling(userId) {
+    try {
+      const orgs = await Organization.find({ userId, isActive: true });
+      for (const org of orgs) {
+        await this.startOrganizationPolling(org._id.toString());
+      }
+    } catch (error) {
+      logger.error(`Failed to start polling for user ${userId}:`, error);
     }
   }
 
@@ -146,36 +120,24 @@ class UserPollingManager {
     try {
       logger.info('Emergency cleanup: Destroying all cron jobs');
       
-      // Clear all jobs from memory
-      this.activeJobs.forEach((userJobs, userId) => {
-        Object.values(userJobs).forEach(job => {
+      this.activeJobs.forEach((orgJobs, orgId) => {
+        Object.values(orgJobs).forEach(job => {
           if (job) {
-            if (typeof job.destroy === 'function') {
-              job.destroy();
-            } else if (typeof job.stop === 'function') {
-              job.stop();
-            }
+            if (typeof job.destroy === 'function') job.destroy();
+            else if (typeof job.stop === 'function') job.stop();
           }
         });
       });
       
-      // Clear memory completely
       this.activeJobs.clear();
-      this.userLocks.clear();
+      this.orgLocks.clear();
       
-      // Also try to clear node-cron registry (nuclear option)
-      const cron = await import('node-cron');
       const allTasks = cron.getTasks();
       for (const [key, task] of allTasks) {
         try {
-          if (typeof task.destroy === 'function') {
-            task.destroy();
-          } else if (typeof task.stop === 'function') {
-            task.stop();
-          }
-        } catch (error) {
-          // Ignore errors during cleanup
-        }
+          if (typeof task.destroy === 'function') task.destroy();
+          else if (typeof task.stop === 'function') task.stop();
+        } catch (error) {}
       }
       allTasks.clear();
       
@@ -185,268 +147,176 @@ class UserPollingManager {
     }
   }
 
-  async stopUserPolling(userId) {
+  async stopOrganizationPolling(organizationId) {
     try {
-      const userJobs = this.activeJobs.get(userId);
-      if (userJobs) {
-        // Stop only this user's cron jobs with safe method checking
-        Object.values(userJobs).forEach(job => {
+      const orgJobs = this.activeJobs.get(organizationId);
+      if (orgJobs) {
+        Object.values(orgJobs).forEach(job => {
           if (job) {
-            if (typeof job.destroy === 'function') {
-              job.destroy();
-            } else if (typeof job.stop === 'function') {
-              job.stop();
-            }
+            if (typeof job.destroy === 'function') job.destroy();
+            else if (typeof job.stop === 'function') job.stop();
           }
         });
-        
-        // Remove from memory
-        this.activeJobs.delete(userId);
+        this.activeJobs.delete(organizationId);
       }
       
-      // Update database status to paused
+      await pollingService.pauseOrganizationJobs(organizationId);
+      logger.info(`Stopped all polling jobs for org ${organizationId}`);
+    } catch (error) {
+      logger.error(`Failed to stop polling for org ${organizationId}:`, error);
+    }
+  }
+
+  // Legacy method
+  async stopUserPolling(userId) {
+    try {
+      const orgs = await Organization.find({ userId, isActive: true });
+      for (const org of orgs) {
+        await this.stopOrganizationPolling(org._id.toString());
+      }
       await pollingService.pauseUserJobs(userId);
-      
-      logger.info(`Stopped all polling jobs for user ${userId}`);
     } catch (error) {
       logger.error(`Failed to stop polling for user ${userId}:`, error);
     }
   }
 
   async updateUserPolling(userId, newSettings) {
+    // This is called when settings are updated - now we update the current org
     try {
-      logger.info(`🔄 [POLLING] Starting polling update for user ${userId}`);
+      const orgs = await Organization.find({ userId, isActive: true });
+      for (const org of orgs) {
+        if (newSettings.polling) {
+          await this.updateOrganizationPolling(org._id.toString(), newSettings.polling);
+        }
+      }
+    } catch (error) {
+      logger.error(`Failed to update polling for user ${userId}:`, error);
+    }
+  }
+
+  async updateOrganizationPolling(organizationId, pollingConfig) {
+    try {
+      logger.info(`🔄 [POLLING] Updating polling for org ${organizationId}`);
       
-      if (this.userLocks.has(userId)) {
-        logger.warn(`⚠️ [POLLING] Update already in progress for user ${userId}, skipping`);
+      if (this.orgLocks.has(organizationId)) {
+        logger.warn(`⚠️ [POLLING] Update already in progress for org ${organizationId}, skipping`);
         return;
       }
 
-      this.userLocks.add(userId);
-      logger.debug(`🔒 [POLLING] Added update lock for user ${userId}`);
+      this.orgLocks.add(organizationId);
       
-      // Get user settings to validate Azure DevOps config
-      const settings = await getUserSettings(userId);
-      logger.debug(`📋 [POLLING] Retrieved current settings for user ${userId}`);
+      const org = await organizationService.getOrganizationWithCredentials(organizationId);
       
-      // Validate required settings
-      if (!settings.azureDevOps?.organization || !settings.azureDevOps?.project || !settings.azureDevOps?.pat) {
-        logger.warn(`❌ [POLLING] User ${userId} missing required Azure DevOps settings, skipping polling update`);
-        this.userLocks.delete(userId);
+      if (!org?.azureDevOps?.organization || !org?.azureDevOps?.project || !org?.azureDevOps?.pat) {
+        logger.warn(`❌ [POLLING] Org ${organizationId} missing required Azure DevOps settings`);
+        this.orgLocks.delete(organizationId);
         return;
       }
-      
-      // Get current jobs from database
-      logger.debug(`📊 [POLLING] Fetching current jobs from database for user ${userId}`);
-      const currentJobs = await pollingService.getJobsByUser(userId);
-      const currentJobsMap = {};
-      currentJobs.forEach(job => {
-        currentJobsMap[job.jobType] = job;
-      });
-      
-      logger.info(`📋 [POLLING] Current database jobs for user ${userId}:`, 
-        currentJobs.map(job => ({ 
-          type: job.jobType, 
-          enabled: job.config.enabled, 
-          interval: job.config.interval,
-          status: job.status
-        }))
-      );
 
-      const userJobs = this.activeJobs.get(userId) || {};
-      logger.debug(`🧠 [POLLING] Current memory jobs for user ${userId}:`, {
-        jobTypes: Object.keys(userJobs),
-        jobCount: Object.keys(userJobs).length
-      });
+      const orgJobs = this.activeJobs.get(organizationId) || {};
       
-      // Check each job type for changes
-      let changedCount = 0;
       for (const jobType of ['workItems', 'pullRequests', 'overdue']) {
-        const currentJob = currentJobsMap[jobType];
-        const hasChanged = this.hasJobConfigChanged(currentJob, newSettings.polling, jobType);
-        
-        logger.debug(`🔍 [POLLING] Checking ${jobType} job for user ${userId}:`, {
-          hasCurrentJob: !!currentJob,
-          currentConfig: currentJob ? {
-            enabled: currentJob.config.enabled,
-            interval: currentJob.config.interval
-          } : null,
-          newConfig: this.getJobConfig(jobType, newSettings.polling),
-          hasChanged
-        });
-        
-        if (hasChanged) {
-          logger.info(`🔄 [POLLING] ${jobType} job changed for user ${userId}, updating...`);
-          await this.updateSingleJob(userId, jobType, newSettings.polling, userJobs);
-          changedCount++;
-        } else {
-          logger.debug(`✅ [POLLING] ${jobType} job unchanged for user ${userId}`);
-        }
+        await this.updateSingleJob(organizationId, org, jobType, pollingConfig, orgJobs);
       }
 
-      logger.info(`🎉 [POLLING] Update completed for user ${userId}: ${changedCount} jobs changed`);
-      this.userLocks.delete(userId);
-      logger.debug(`🔓 [POLLING] Released update lock for user ${userId}`);
+      this.orgLocks.delete(organizationId);
+      logger.info(`🎉 [POLLING] Update completed for org ${organizationId}`);
       
     } catch (error) {
-      this.userLocks.delete(userId);
-      logger.error(`💥 [POLLING] Failed to update polling for user ${userId}:`, error);
+      this.orgLocks.delete(organizationId);
+      logger.error(`💥 [POLLING] Failed to update polling for org ${organizationId}:`, error);
     }
   }
 
-  async updateSingleJob(userId, jobType, pollingConfig, userJobs) {
+  async updateSingleJob(organizationId, org, jobType, pollingConfig, orgJobs) {
     try {
-      logger.info(`🔧 [POLLING] Updating ${jobType} job for user ${userId}`);
+      await this.destroyAllJobInstances(organizationId, jobType);
       
-      // CRITICAL: Destroy ALL existing cron jobs for this user/jobType
-      await this.destroyAllJobInstances(userId, jobType);
-      
-      // Stop existing cron job with proper method checking
-      if (userJobs[jobType]) {
-        logger.debug(`🛑 [POLLING] Stopping existing ${jobType} job for user ${userId}`);
-        try {
-          userJobs[jobType].stop();
-          logger.debug(`✅ [POLLING] Stopped ${jobType} job for user ${userId}`);
-        } catch (error) {
-          logger.warn(`⚠️ [POLLING] Failed to stop ${jobType} job for user ${userId}:`, error);
-        }
-        delete userJobs[jobType];
-        logger.debug(`🗑️ [POLLING] Removed ${jobType} job from memory for user ${userId}`);
+      if (orgJobs[jobType]) {
+        try { orgJobs[jobType].stop(); } catch (e) {}
+        delete orgJobs[jobType];
       }
       
-      // Also check if there are any other jobs for this user/jobType in memory
-      let duplicatesFound = 0;
-      this.activeJobs.forEach((jobs, uid) => {
-        if (uid === userId && jobs[jobType]) {
-          logger.warn(`🚨 [POLLING] Found duplicate ${jobType} job for user ${userId}, removing...`);
-          if (typeof jobs[jobType].destroy === 'function') {
-            jobs[jobType].destroy();
-            logger.debug(`✅ [POLLING] Destroyed duplicate ${jobType} job using destroy() for user ${userId}`);
-          } else if (typeof jobs[jobType].stop === 'function') {
-            jobs[jobType].stop();
-            logger.debug(`✅ [POLLING] Stopped duplicate ${jobType} job using stop() for user ${userId}`);
-          }
-          delete jobs[jobType];
-          duplicatesFound++;
-        }
-      });
+      await pollingService.updateJobConfig(organizationId, jobType, pollingConfig);
       
-      if (duplicatesFound > 0) {
-        logger.warn(`🧹 [POLLING] Cleaned up ${duplicatesFound} duplicate ${jobType} jobs for user ${userId}`);
-      }
-      
-      // Update database
-      logger.debug(`💾 [POLLING] Updating ${jobType} job config in database for user ${userId}`);
-      await pollingService.updateJobConfig(userId, jobType, pollingConfig);
-      logger.debug(`✅ [POLLING] Database updated for ${jobType} job of user ${userId}`);
-      
-      // Create new cron job if enabled
       const jobConfig = this.getJobConfig(jobType, pollingConfig);
-      logger.debug(`📋 [POLLING] New ${jobType} job config for user ${userId}:`, jobConfig);
       
-      if (jobConfig.enabled && jobConfig.interval && cron.validate(jobConfig.interval)) {
-        logger.info(`⚙️ [POLLING] Creating new ${jobType} cron job for user ${userId}`);
+      if (jobConfig.enabled && jobConfig.interval && this.validateCronExpression(jobConfig.interval)) {
         const dbJob = { jobType, config: jobConfig };
-        const cronJob = this.createCronJob(userId, dbJob);
+        const cronJob = this.createCronJob(organizationId, org, dbJob);
         if (cronJob) {
-          userJobs[jobType] = cronJob;
+          orgJobs[jobType] = cronJob;
           cronJob.start();
-          logger.info(`✅ [POLLING] Started new ${jobType} cron job for user ${userId} with interval: ${jobConfig.interval}`);
-        } else {
-          logger.error(`❌ [POLLING] Failed to create ${jobType} cron job for user ${userId}`);
+          logger.info(`✅ [POLLING] Started new ${jobType} cron job for org ${organizationId}`);
         }
-      } else {
-        logger.info(`⏭️ [POLLING] Skipping ${jobType} job creation for user ${userId} (disabled or invalid cron)`);
       }
       
-      // Update memory
-      this.activeJobs.set(userId, userJobs);
-      logger.debug(`💾 [POLLING] Updated memory for user ${userId}, now has ${Object.keys(userJobs).length} jobs`);
-      
-      logger.info(`🎉 [POLLING] Successfully updated ${jobType} job for user ${userId}`, {
-        enabled: jobConfig.enabled,
-        interval: jobConfig.interval,
-        totalUserJobs: Object.keys(userJobs).length
-      });
+      this.activeJobs.set(organizationId, orgJobs);
     } catch (error) {
-      logger.error(`💥 [POLLING] Failed to update ${jobType} job for user ${userId}:`, error);
+      logger.error(`💥 [POLLING] Failed to update ${jobType} job for org ${organizationId}:`, error);
     }
   }
 
-  createCronJob(userId, dbJob) {
+  createCronJob(organizationId, org, dbJob) {
     const { jobType, config } = dbJob;
-    logger.debug(`🏗️ [POLLING] Creating cron job for ${jobType} (user ${userId}) with interval: ${config.interval}`);
+    const userId = org.userId;
+    
+    // Check if cron expression has 6 fields (includes seconds)
+    const cronFields = config.interval.trim().split(/\s+/).length;
+    const useSeconds = cronFields === 6;
+    
+    logger.info(`📅 [POLLING] Creating ${jobType} cron job for org ${organizationId} with interval: ${config.interval} (seconds: ${useSeconds})`);
     
     return cron.schedule(config.interval, async () => {
-      // Acquire execution lock to prevent duplicates
-      const executionId = executionLock.acquire(userId, jobType);
+      const executionId = executionLock.acquire(organizationId, jobType);
       if (!executionId) {
-        logger.warn(`🔒 [POLLING] ${jobType} execution already running for user ${userId}, skipping`);
+        logger.warn(`🔒 [POLLING] ${jobType} execution already running for org ${organizationId}, skipping`);
         return;
       }
       
-      logger.info(`🚀 [POLLING] Starting ${jobType} execution ${executionId} for user ${userId}`);
+      logger.info(`🚀 [POLLING] Starting ${jobType} execution for org ${organizationId}`);
       
       try {
-        // Update last run time in database
-        logger.debug(`💾 [POLLING] Updating last run time for ${jobType} execution ${executionId} (user ${userId})`);
-        await pollingService.updateLastRun(userId, jobType);
+        await pollingService.updateLastRun(organizationId, jobType);
         
-        // Execute the appropriate poller
         switch (jobType) {
           case 'workItems':
-            // DISABLED: Work items polling currently only logs sprint count, no notifications sent
-            // Uncomment below to re-enable when functionality is added
-            // logger.debug(`📋 [POLLING] Executing work items poller for ${executionId} (user ${userId})`);
-            // await workItemPoller.pollWorkItems(userId);
-            logger.info(`⏭️ [POLLING] Work items polling is disabled for ${executionId} (user ${userId})`);
+            logger.info(`⏭️ [POLLING] Work items polling disabled for org ${organizationId}`);
             break;
           case 'pullRequests':
-            logger.debug(`🔀 [POLLING] Executing pull requests poller for ${executionId} (user ${userId})`);
-            await pullRequestPoller.pollPullRequests(userId);
+            await pullRequestPoller.pollPullRequestsForOrg(organizationId, org);
             break;
           case 'overdue':
-            logger.debug(`⏰ [POLLING] Executing overdue check for ${executionId} (user ${userId})`);
-            await workItemPoller.checkOverdueItems(userId);
+            await workItemPoller.checkOverdueItemsForOrg(organizationId, org);
             break;
-          default:
-            throw new Error(`Unknown job type: ${jobType}`);
         }
         
-        // Update success status in database
-        logger.debug(`✅ [POLLING] Updating success status for ${jobType} execution ${executionId} (user ${userId})`);
-        await pollingService.updateJobResult(userId, jobType, 'success');
-        
-        logger.info(`🎉 [POLLING] Completed ${jobType} execution ${executionId} for user ${userId} successfully`);
+        await pollingService.updateJobResult(organizationId, jobType, 'success');
+        logger.info(`🎉 [POLLING] Completed ${jobType} for org ${organizationId}`);
         
       } catch (error) {
-        logger.error(`💥 [POLLING] ${jobType} execution ${executionId} failed for user ${userId}:`, error);
-        
-        // Update error status in database
+        logger.error(`💥 [POLLING] ${jobType} failed for org ${organizationId}:`, error);
         try {
-          await pollingService.updateJobResult(userId, jobType, 'error', error.message);
-          logger.debug(`📝 [POLLING] Updated error status for ${jobType} execution ${executionId} (user ${userId})`);
-        } catch (dbError) {
-          logger.error(`💥 [POLLING] Failed to update error status for ${jobType} execution ${executionId} (user ${userId}):`, dbError);
-        }
+          await pollingService.updateJobResult(organizationId, jobType, 'error', error.message);
+        } catch (dbError) {}
       } finally {
-        // Always release the execution lock
-        executionLock.release(userId, jobType, executionId);
+        executionLock.release(organizationId, jobType, executionId);
       }
     }, { 
       scheduled: false,
-      name: `${userId}-${jobType}-${Date.now()}` // Unique name for tracking
+      name: `${organizationId}-${jobType}-${Date.now()}`,
+      // Enable seconds support for 6-field cron expressions like "*/10 * * * * *"
+      seconds: useSeconds
     });
   }
 
-  async syncJobsWithSettings(userId, pollingConfig) {
+  async syncJobsWithSettings(organizationId, userId, pollingConfig) {
     try {
-      // Sync all three job types with current settings
-      await pollingService.updateJobConfig(userId, 'workItems', pollingConfig);
-      await pollingService.updateJobConfig(userId, 'pullRequests', pollingConfig);
-      await pollingService.updateJobConfig(userId, 'overdue', pollingConfig);
+      await pollingService.createOrUpdateJob(userId, organizationId, 'workItems', this.getJobConfig('workItems', pollingConfig));
+      await pollingService.createOrUpdateJob(userId, organizationId, 'pullRequests', this.getJobConfig('pullRequests', pollingConfig));
+      await pollingService.createOrUpdateJob(userId, organizationId, 'overdue', this.getJobConfig('overdue', pollingConfig));
     } catch (error) {
-      logger.error(`Failed to sync jobs with settings for user ${userId}:`, error);
+      logger.error(`Failed to sync jobs for org ${organizationId}:`, error);
     }
   }
 
@@ -467,6 +337,36 @@ class UserPollingManager {
     };
 
     return configMap[jobType] || { enabled: false, interval: '*/10 * * * *' };
+  }
+
+  /**
+   * Validate cron expression - supports both 5-field and 6-field (with seconds) formats
+   * 5-field: minute hour day month weekday (standard cron)
+   * 6-field: second minute hour day month weekday (node-cron with seconds)
+   */
+  validateCronExpression(expression) {
+    if (!expression || typeof expression !== 'string') {
+      return false;
+    }
+    
+    const trimmed = expression.trim();
+    const fields = trimmed.split(/\s+/);
+    
+    // Must have 5 or 6 fields
+    if (fields.length !== 5 && fields.length !== 6) {
+      logger.warn(`[POLLING] Invalid cron expression (wrong field count): ${expression}`);
+      return false;
+    }
+    
+    // Use node-cron's built-in validation
+    // For 6-field expressions, node-cron validates with seconds
+    const isValid = cron.validate(trimmed);
+    
+    if (!isValid) {
+      logger.warn(`[POLLING] Invalid cron expression: ${expression}`);
+    }
+    
+    return isValid;
   }
 
   hasJobConfigChanged(currentJob, newPollingConfig, jobType) {
@@ -505,21 +405,30 @@ class UserPollingManager {
     }
     
     try {
-      // Get all users with active polling jobs
-      const activeUsers = await pollingService.getActiveUsers();
+      // Get all organizations with polling enabled in their settings
+      const orgsWithPolling = await Organization.find({
+        isActive: true,
+        $or: [
+          { 'polling.pullRequestEnabled': true },
+          { 'polling.overdueCheckEnabled': true },
+          { 'polling.workItemsEnabled': true }
+        ]
+      });
       
-      logger.info(`Initializing polling for ${activeUsers.length} users from database`);
+      logger.info(`🔄 [POLLING] Found ${orgsWithPolling.length} organizations with polling enabled`);
       
-      for (const userId of activeUsers) {
+      // Start polling for each organization
+      for (const org of orgsWithPolling) {
         try {
-          await this.startUserPolling(userId);
+          logger.info(`🚀 [POLLING] Starting polling for org ${org.name} (${org._id})`);
+          await this.startOrganizationPolling(org._id.toString());
         } catch (error) {
-          logger.error(`Failed to initialize polling for user ${userId}:`, error);
+          logger.error(`Failed to initialize polling for org ${org._id}:`, error);
         }
       }
       
       this.initialized = true;
-      logger.info('Database polling initialization complete');
+      logger.info('✅ [POLLING] Database polling initialization complete');
     } catch (error) {
       logger.error('Failed to initialize polling from database:', error);
     }

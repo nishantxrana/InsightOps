@@ -9,13 +9,22 @@ const api = axios.create({
   }
 })
 
-// Request interceptor for adding auth token
+// Request interceptor for adding auth token and organization context
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    
+    // Add organization context header
+    const currentOrgId = localStorage.getItem('currentOrganizationId')
+    if (currentOrgId) {
+      config.headers['X-Organization-ID'] = currentOrgId
+    }
+    
+    console.log('[API] Request:', config.method?.toUpperCase(), config.url, '| OrgID:', currentOrgId || 'NONE')
+    
     return config
   },
   (error) => {
@@ -48,6 +57,13 @@ export const apiService = {
   // Health check
   async getHealth() {
     const response = await api.get('/health')
+    return response.data
+  },
+
+  // Aggregated Dashboard Summary (performance optimized)
+  // Fetches all dashboard data in a single request
+  async getDashboardSummary() {
+    const response = await api.get('/dashboard/summary')
     return response.data
   },
 

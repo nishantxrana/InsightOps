@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle, AlertCircle, FolderTree, Download } from 'lucide-react';
 import { CopyButton } from '../components/ui/shadcn-io/copy-button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { exportNotificationToCSV } from '@/utils/csvExport';
 
 const NotificationHistory = () => {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const [notifications, setNotifications] = useState([]);
   const [counts, setCounts] = useState({});
   const [activeTab, setActiveTab] = useState('all');
@@ -28,15 +30,26 @@ const NotificationHistory = () => {
 
   useEffect(() => {
     const userId = user?._id || user?.id;
-    console.log('useEffect triggered, userId:', userId);
-    if (userId) {
+    console.log('useEffect triggered, userId:', userId, 'orgId:', currentOrganization?._id);
+    if (userId && currentOrganization?._id) {
       fetchNotifications();
       fetchCounts();
     } else {
-      console.log('No user ID, setting loading to false');
+      console.log('No user ID or org, setting loading to false');
       setLoading(false);
     }
-  }, [user, activeTab]); // Refetch when tab changes
+  }, [user, activeTab, currentOrganization]); // Refetch when tab or org changes
+
+  const getHeaders = () => {
+    const headers = {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      'Content-Type': 'application/json'
+    };
+    if (currentOrganization?._id) {
+      headers['X-Organization-ID'] = currentOrganization._id;
+    }
+    return headers;
+  };
 
   const fetchNotifications = async (loadMore = false) => {
     try {
@@ -48,22 +61,16 @@ const NotificationHistory = () => {
         setNotifications([]);
       }
       setError(null);
-      const userId = user._id || user.id;
       const currentPage = loadMore ? page + 1 : 0;
-      console.log('Fetching notifications for user:', userId, 'tab:', activeTab, 'page:', currentPage);
       
       const limit = 20;
-      const params = new URLSearchParams({ userId, limit, skip: currentPage * limit });
+      const params = new URLSearchParams({ limit, skip: currentPage * limit });
       if (activeTab !== 'all') {
         params.append('type', activeTab);
       }
       
-      const token = localStorage.getItem('token');
       const response = await fetch(`/api/notifications?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeaders()
       });
       console.log('Response status:', response.status);
       
@@ -94,14 +101,8 @@ const NotificationHistory = () => {
 
   const fetchCounts = async () => {
     try {
-      const userId = user._id || user.id;
-      console.log('Fetching counts for user:', userId);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/notifications/counts?userId=${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const response = await fetch(`/api/notifications/counts`, {
+        headers: getHeaders()
       });
       
       if (!response.ok) {
