@@ -1,5 +1,8 @@
 import NotificationHistory from '../models/NotificationHistory.js';
 import mongoose from 'mongoose';
+import { createComponentLogger } from '../utils/logger.js';
+
+const log = createComponentLogger('notification-history');
 
 class NotificationHistoryService {
   async saveNotification(userId, organizationId, notificationData) {
@@ -13,7 +16,13 @@ class NotificationHistoryService {
       
       return await notification.save();
     } catch (error) {
-      console.error('Error saving notification:', error);
+      log.error('Failed to save notification', {
+        userId: userId?.toString(),
+        organizationId: organizationId?.toString(),
+        type: notificationData?.type,
+        error: error.message,
+        status: 'failure'
+      });
       throw error;
     }
   }

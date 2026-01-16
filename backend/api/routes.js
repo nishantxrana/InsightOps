@@ -6,7 +6,7 @@ import { logger, sanitizeForLogging } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { authenticate } from '../middleware/auth.js';
-import { getUserSettings, updateUserSettings } from '../utils/userSettings.js';
+import { updateUserSettings } from '../utils/userSettings.js'; // Legacy - only used for backward compatibility
 import { getOrganizationSettings, hasAzureDevOpsConfig, hasAIConfig, getAzureDevOpsConfig, getAIConfig } from '../utils/organizationSettings.js';
 import { organizationService } from '../services/organizationService.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
@@ -127,17 +127,39 @@ router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
       });
     }
     
-    const settings = await updateUserSettings(req.user._id, updates);
-    
-    // Update user polling with new settings if polling settings were updated
-    if (updates.polling) {
-      logger.info('Polling settings updated - updating user polling configuration');
-      await userPollingManager.updateUserPolling(req.user._id, updates);
+    // DEPRECATION: This endpoint is deprecated. Use PUT /api/organizations/:id instead.
+    // For backward compatibility, we update organization settings if org context exists.
+    if (req.organizationId) {
+      logger.warn('⚠️ DEPRECATED: PUT /settings called with org context. Use PUT /api/organizations/:id instead.');
+      
+      // Update organization settings instead of user settings
+      const updatedOrg = await organizationService.updateOrganization(
+        req.organizationId,
+        req.user._id,
+        updates
+      );
+      
+      if (!updatedOrg) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+      
+      res.json({ message: 'Settings updated successfully (via organization)' });
+    } else {
+      // Legacy fallback: Update user settings if no org context
+      logger.warn('⚠️ DEPRECATED: PUT /settings called without org context. This endpoint is deprecated.');
+      
+      const settings = await updateUserSettings(req.user._id, updates);
+      
+      // Update user polling with new settings if polling settings were updated
+      if (updates.polling) {
+        logger.info('Polling settings updated - updating user polling configuration');
+        await userPollingManager.updateUserPolling(req.user._id, updates);
+      }
+      
+      res.json({ message: 'Settings updated successfully (legacy user settings)' });
     }
-    
-    res.json({ message: 'Settings updated successfully' });
   } catch (error) {
-    logger.error('Error updating user settings:', error);
+    logger.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });
   }
 });
@@ -833,11 +855,12 @@ router.post('/settings/test-connection', async (req, res) => {
   try {
     const { organization, project, personalAccessToken, baseUrl } = req.body;
     
-    console.log('Received test request:', {
-      organization: organization || 'EMPTY',
-      project: project || 'EMPTY', 
-      hasToken: !!personalAccessToken,
-      baseUrl: baseUrl || 'EMPTY'
+    logger.debug('Received connection test request', {
+      component: 'api',
+      action: 'test-webhook',
+      hasOrganization: !!organization,
+      hasProject: !!project,
+      hasToken: !!personalAccessToken
     });
     
     // Validate required fields
@@ -1321,9 +1344,6 @@ router.get('/releases', async (req, res) => {
           // Fallback to release status if no environments
           const azureStatus = release.status?.toLowerCase() || 'unknown';
           
-          // Debug logging for release-level status
-          console.log(`Release ${release.id} release-level status:`, azureStatus);
-          
           switch (azureStatus) {
             case 'active':
               mappedStatus = 'inprogress';
@@ -1449,7 +1469,6 @@ router.get('/releases', async (req, res) => {
                   const postApprovals = env.postDeployApprovals || [];
                   if (preApprovals.length > 0 || postApprovals.length > 0) {
                     hasApprovalData = true;
-                    console.log(`Release ${release.id} has approval data in environment ${env.name}`);
                     break;
                   }
                 }
@@ -1469,7 +1488,7 @@ router.get('/releases', async (req, res) => {
                 return { ...release, status: 'waitingforapproval' };
               }
             } catch (approvalError) {
-              console.log(`Could not check approvals for release ${release.id}:`, approvalError.message);
+              // Silently ignore approval check failures - non-critical
             }
           }
           return release;
@@ -1625,17 +1644,12 @@ router.get('/releases/stats', async (req, res) => {
         return { ...release, mappedStatus };
       });
 
-      // Debug: Log transformed status values
-      console.log('Transformed statuses:', transformedReleases.map(r => r.mappedStatus).slice(0, 10));
-
       // Calculate statistics with transformed statuses
       const totalReleases = transformedReleases.length;
       const succeededReleases = transformedReleases.filter(r => r.mappedStatus === 'succeeded').length;
-      console.log('Total releases:', totalReleases, 'Succeeded:', succeededReleases);
       const successRate = totalReleases > 0 ? Math.round((succeededReleases / totalReleases) * 100 * 10) / 10 : 0;
       const pendingApprovals = approvals.filter(a => a.status?.toLowerCase() === 'pending').length;
       const activeDeployments = transformedReleases.filter(r => r.mappedStatus === 'inprogress').length;
-      console.log('Active deployments:', activeDeployments, 'Pending approvals:', pendingApprovals);
 
       // Environment statistics
       const environmentStats = {};

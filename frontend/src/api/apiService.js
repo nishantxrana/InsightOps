@@ -23,8 +23,6 @@ api.interceptors.request.use(
       config.headers['X-Organization-ID'] = currentOrgId
     }
     
-    console.log('[API] Request:', config.method?.toUpperCase(), config.url, '| OrgID:', currentOrgId || 'NONE')
-    
     return config
   },
   (error) => {

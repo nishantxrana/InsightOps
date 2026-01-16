@@ -139,10 +139,6 @@ export default function Dashboard() {
         })
         setInitialLoading(false)
         
-        // Log performance metrics if available
-        if (dashboardResult.value.meta?.durationMs) {
-          console.log(`[Performance] Dashboard data fetched in ${dashboardResult.value.meta.durationMs}ms`)
-        }
       } else {
         // Fallback to empty stats on error
         console.error('Dashboard summary failed:', dashboardResult.reason || dashboardResult.value?.error)
