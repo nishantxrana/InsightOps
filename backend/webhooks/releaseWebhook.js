@@ -7,6 +7,25 @@ import BaseWebhook from './BaseWebhook.js';
 class ReleaseWebhook extends BaseWebhook {
   async handleDeploymentCompleted(req, res, userId = null, organizationId = null) {
     try {
+      // STRICT: organizationId is REQUIRED
+      if (!organizationId) {
+        logger.error('Release webhook called without organizationId', {
+          userId,
+          action: 'release-deployment',
+          status: 'rejected'
+        });
+        return res.status(400).json({
+          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/release/deployment',
+          code: 'MISSING_ORGANIZATION_ID'
+        });
+      }
+
+      // Validate organization exists and is active
+      const orgValidation = await this.validateOrganization(organizationId, res);
+      if (!orgValidation.valid) {
+        return this.sendOrgValidationError(res, orgValidation);
+      }
+
       const { resource } = req.body;
       
       if (!resource) {
@@ -20,7 +39,7 @@ class ReleaseWebhook extends BaseWebhook {
       const eventId = `${releaseId}-${environmentName}`;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(eventId, userId || organizationId, 'release');
+      const dupeCheck = this.isDuplicate(eventId, organizationId, 'release');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(eventId, 'release', dupeCheck.timeSince));
       }
@@ -37,8 +56,7 @@ class ReleaseWebhook extends BaseWebhook {
         environmentName,
         environmentStatus,
         deploymentStatus,
-        userId: userId || 'legacy-global',
-        organizationId: organizationId || null
+        organizationId
       });
 
       // Check if environment is production
@@ -57,27 +75,23 @@ class ReleaseWebhook extends BaseWebhook {
         });
       }
 
-      // Get settings - prefer organization context over user context
+      // Get organization settings with credentials
       let userSettings = null;
       
-      if (organizationId) {
-        try {
-          const { organizationService } = await import('../services/organizationService.js');
-          const org = await organizationService.getOrganizationWithCredentials(organizationId);
-          if (org) {
-            userId = org.userId;
-            userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
-          }
-        } catch (error) {
-          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
+      try {
+        const { organizationService } = await import('../services/organizationService.js');
+        const org = await organizationService.getOrganizationWithCredentials(organizationId);
+        if (org) {
+          userId = org.userId;
+          userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
         }
-      } else if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          userSettings = await getUserSettings(userId);
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
-        }
+      } catch (error) {
+        logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
+        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+      }
+
+      if (!userSettings) {
+        return res.status(404).json({ error: 'Organization settings not found' });
       }
 
       const status = (environmentStatus || deploymentStatus || '').toLowerCase();

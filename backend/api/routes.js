@@ -52,28 +52,26 @@ router.get('/health', async (req, res) => {
 // User settings endpoints - Now returns current organization settings
 router.get('/settings', async (req, res) => {
   try {
+    // STRICT: Organization context is REQUIRED
+    if (!req.organizationId) {
+      logger.warn('GET /settings called without organization context', {
+        userId: req.user._id,
+        action: 'get-settings'
+      });
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        message: 'Please select an organization to view settings',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
+    }
+
     const org = await getOrganizationSettings(req);
     
     if (!org) {
-      // No organization configured - return empty settings
-      return res.json({
-        azureDevOps: {
-          organization: '',
-          project: '',
-          pat: '',
-          baseUrl: 'https://dev.azure.com'
-        },
-        ai: {
-          provider: 'gemini',
-          model: 'gemini-2.0-flash',
-          apiKeys: { openai: '', groq: '', gemini: '' }
-        },
-        notifications: { enabled: true },
-        polling: {
-          workItemsInterval: '*/10 * * * *',
-          pullRequestInterval: '0 */10 * * *',
-          overdueCheckInterval: '0 */10 * * *'
-        }
+      // Organization ID provided but not found
+      return res.status(404).json({
+        error: 'Organization not found',
+        message: 'The selected organization does not exist or you do not have access'
       });
     }
     
@@ -112,6 +110,20 @@ router.get('/settings', async (req, res) => {
 
 router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
   try {
+    // STRICT: Organization context is REQUIRED
+    if (!req.organizationId) {
+      logger.error('PUT /settings called without organization context', {
+        userId: req.user._id,
+        action: 'update-settings',
+        status: 'rejected'
+      });
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        message: 'Please select an organization before updating settings. Use PUT /api/organizations/:id instead.',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
+    }
+
     const updates = { ...req.validatedData };
     
     // Handle masked values - don't update if value is '***'
@@ -127,37 +139,24 @@ router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
       });
     }
     
-    // DEPRECATION: This endpoint is deprecated. Use PUT /api/organizations/:id instead.
-    // For backward compatibility, we update organization settings if org context exists.
-    if (req.organizationId) {
-      logger.warn('⚠️ DEPRECATED: PUT /settings called with org context. Use PUT /api/organizations/:id instead.');
-      
-      // Update organization settings instead of user settings
-      const updatedOrg = await organizationService.updateOrganization(
-        req.organizationId,
-        req.user._id,
-        updates
-      );
-      
-      if (!updatedOrg) {
-        return res.status(404).json({ error: 'Organization not found' });
-      }
-      
-      res.json({ message: 'Settings updated successfully (via organization)' });
-    } else {
-      // Legacy fallback: Update user settings if no org context
-      logger.warn('⚠️ DEPRECATED: PUT /settings called without org context. This endpoint is deprecated.');
-      
-      const settings = await updateUserSettings(req.user._id, updates);
-      
-      // Update user polling with new settings if polling settings were updated
-      if (updates.polling) {
-        logger.info('Polling settings updated - updating user polling configuration');
-        await userPollingManager.updateUserPolling(req.user._id, updates);
-      }
-      
-      res.json({ message: 'Settings updated successfully (legacy user settings)' });
+    // DEPRECATED: Use PUT /api/organizations/:id instead
+    logger.warn('⚠️ DEPRECATED: PUT /settings called. Use PUT /api/organizations/:id instead.', {
+      organizationId: req.organizationId,
+      userId: req.user._id
+    });
+    
+    // Update organization settings
+    const updatedOrg = await organizationService.updateOrganization(
+      req.organizationId,
+      req.user._id,
+      updates
+    );
+    
+    if (!updatedOrg) {
+      return res.status(404).json({ error: 'Organization not found' });
     }
+    
+    res.json({ message: 'Settings updated successfully (via organization)' });
   } catch (error) {
     logger.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });

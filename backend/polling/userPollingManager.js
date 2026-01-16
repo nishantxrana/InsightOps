@@ -180,18 +180,17 @@ class UserPollingManager {
     }
   }
 
+  /**
+   * @deprecated REMOVED - Use updateOrganizationPolling() with organizationId
+   * Legacy user-based polling update is no longer supported.
+   */
   async updateUserPolling(userId, newSettings) {
-    // This is called when settings are updated - now we update the current org
-    try {
-      const orgs = await Organization.find({ userId, isActive: true });
-      for (const org of orgs) {
-        if (newSettings.polling) {
-          await this.updateOrganizationPolling(org._id.toString(), newSettings.polling);
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to update polling for user ${userId}:`, error);
-    }
+    logger.error('DEPRECATED: updateUserPolling(userId) called - this method is no longer supported', {
+      userId,
+      action: 'update-user-polling',
+      status: 'rejected'
+    });
+    throw new Error('Legacy user-based polling update is not supported. Use updateOrganizationPolling(organizationId, pollingConfig) instead.');
   }
 
   async updateOrganizationPolling(organizationId, pollingConfig) {
