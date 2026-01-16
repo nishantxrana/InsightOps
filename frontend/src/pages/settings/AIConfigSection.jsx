@@ -91,6 +91,12 @@ export default function AIConfigSection({ data, onChange, errors }) {
                 {showSecrets.openai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Best for: Code analysis, detailed explanations.{' '}
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                Get API key →
+              </a>
+            </p>
           </div>
         )}
 
@@ -109,6 +115,12 @@ export default function AIConfigSection({ data, onChange, errors }) {
                 {showSecrets.groq ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Best for: Fast responses, high throughput. Free tier available.{' '}
+              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                Get API key →
+              </a>
+            </p>
           </div>
         )}
 
@@ -127,6 +139,12 @@ export default function AIConfigSection({ data, onChange, errors }) {
                 {showSecrets.gemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Best for: Cost-effective, good general purpose. Generous free tier.{' '}
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                Get API key →
+              </a>
+            </p>
           </div>
         )}
         
@@ -137,14 +155,14 @@ export default function AIConfigSection({ data, onChange, errors }) {
               <Select value={data.model} onValueChange={(value) => handleChange('model', value)} disabled={!data.provider}>
                 <SelectTrigger>
                   <SelectValue placeholder={
-                    !data.provider ? "Select a provider first..." : loadingModels ? "Loading..." : models.length === 0 ? "Click refresh to load" : "Select a model..."
+                    !data.provider ? "Select a provider first" : loadingModels ? "Loading models..." : models.length === 0 ? "Click ↻ to load models" : "Select a model"
                   } />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {loadingModels && <SelectItem value="loading" disabled>Loading...</SelectItem>}
+                    {loadingModels && <SelectItem value="loading" disabled>Loading models...</SelectItem>}
                     {!loadingModels && models.length === 0 && data.provider && (
-                      <SelectItem value="no-models" disabled>Click refresh to load</SelectItem>
+                      <SelectItem value="no-models" disabled>Enter API key and click ↻</SelectItem>
                     )}
                     {models.map(model => (
                       <SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>
