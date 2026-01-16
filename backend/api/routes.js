@@ -15,6 +15,7 @@ import { userPollingManager } from '../polling/userPollingManager.js';
 import { validateRequest } from '../middleware/validation.js';
 import { settingsSchema, testConnectionSchema } from '../validators/schemas.js';
 import { AzureDevOpsReleaseClient } from '../devops/releaseClient.js';
+import { azureDevOpsCache } from '../cache/AzureDevOpsCache.js';
 import emergencyRoutes from './emergency.js';
 
 const router = express.Router();
@@ -344,19 +345,36 @@ router.get('/work-items/sprint-summary', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required. Please configure an organization in settings.' });
     }
     
+    const orgId = org._id?.toString();
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     
-    // Get all work items for summary calculations (without pagination)
-    const allWorkItems = await client.getAllCurrentSprintWorkItems();
+    // Use cache-first pattern (same cache as dashboard)
+    let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
+    
+    if (!allWorkItems) {
+      allWorkItems = await client.getAllCurrentSprintWorkItems();
+      azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
+    } else {
+      logger.debug('[Performance] Sprint summary using cached work items');
+    }
     
     // Use utility functions for consistent state categorization
     const activeItems = filterActiveWorkItems(allWorkItems.value || []);
     const completedItems = filterCompletedWorkItems(allWorkItems.value || []);
     
-    // Get overdue items count for dashboard
+    // Get overdue items count (with caching)
     let overdueCount = 0;
     try {
-      const overdueItems = await client.getOverdueWorkItems();
+      const overdueCacheKey = 'workItems:overdue';
+      let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
+      
+      if (!overdueItems) {
+        overdueItems = await client.getOverdueWorkItems();
+        azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
+      } else {
+        logger.debug('[Performance] Sprint summary using cached overdue items');
+      }
+      
       overdueCount = overdueItems.count || 0;
     } catch (error) {
       logger.warn('Failed to fetch overdue items for summary:', error.message);
@@ -367,10 +385,10 @@ router.get('/work-items/sprint-summary', async (req, res) => {
       total: allWorkItems.count || 0,
       active: activeItems.length,
       completed: completedItems.length,
-      overdue: overdueCount, // Add overdue count for dashboard
+      overdue: overdueCount,
       workItemsByState: groupWorkItemsByState(allWorkItems.value || []),
       workItemsByAssignee: groupWorkItemsByAssignee(allWorkItems.value || []),
-      summary: null, // Will be populated via separate AI endpoint
+      summary: null,
       summaryStatus: 'available'
     };
     
@@ -408,8 +426,18 @@ router.get('/work-items/ai-summary', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
+    const orgId = org._id?.toString();
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    const allWorkItems = await client.getAllCurrentSprintWorkItems();
+    
+    // Use cache-first pattern (same cache as dashboard/sprint-summary)
+    let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
+    
+    if (!allWorkItems) {
+      allWorkItems = await client.getAllCurrentSprintWorkItems();
+      azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
+    } else {
+      logger.debug('[Performance] AI summary using cached work items');
+    }
     
     if (!allWorkItems.value || allWorkItems.value.length === 0) {
       return res.json({ summary: 'No work items found in current sprint.' });
@@ -538,8 +566,20 @@ router.get('/work-items/overdue', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    const overdueItems = await client.getOverdueWorkItems();
+    const orgId = org._id?.toString();
+    const overdueCacheKey = 'workItems:overdue';
+    
+    // Check cache first
+    let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
+    
+    if (!overdueItems) {
+      const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
+      overdueItems = await client.getOverdueWorkItems();
+      azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
+    } else {
+      logger.debug('[Performance] Overdue items using cache');
+    }
+    
     res.json(overdueItems);
   } catch (error) {
     logger.error('Error fetching overdue items:', error);
@@ -706,9 +746,10 @@ router.get('/pull-requests', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    // Check cache first (60s TTL - short enough to be fresh, long enough to help dashboard)
-    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
-    const cached = azureDevOpsCache.getPullRequests(org._id?.toString());
+    const orgId = org._id?.toString();
+    
+    // Check cache first (60s TTL)
+    const cached = azureDevOpsCache.getPullRequests(orgId);
     if (cached) {
       logger.debug('[Performance] PR cache hit');
       return res.json(cached);
@@ -718,7 +759,7 @@ router.get('/pull-requests', async (req, res) => {
     const pullRequests = await client.getPullRequests('active');
     
     // Cache for 60 seconds
-    azureDevOpsCache.setPullRequests(org._id?.toString(), pullRequests, 60);
+    azureDevOpsCache.setPullRequests(orgId, pullRequests, 60);
     
     res.json(pullRequests);
   } catch (error) {
@@ -735,15 +776,16 @@ router.get('/pull-requests/idle', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
+    const orgId = org._id?.toString();
+    
     // Check cache for base PR data (shared with /pull-requests endpoint)
-    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
-    let allPRs = azureDevOpsCache.getPullRequests(org._id?.toString());
+    let allPRs = azureDevOpsCache.getPullRequests(orgId);
     
     if (!allPRs) {
       // Fetch and cache if not available
       const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
       allPRs = await client.getPullRequests('active');
-      azureDevOpsCache.setPullRequests(org._id?.toString(), allPRs, 60);
+      azureDevOpsCache.setPullRequests(orgId, allPRs, 60);
     } else {
       logger.debug('[Performance] Idle PRs using cached PR data');
     }
