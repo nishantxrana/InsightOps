@@ -9,6 +9,25 @@ import BaseWebhook from './BaseWebhook.js';
 class PullRequestWebhook extends BaseWebhook {
   async handleCreated(req, res, userId = null, organizationId = null) {
     try {
+      // STRICT: organizationId is REQUIRED
+      if (!organizationId) {
+        logger.error('Pull request webhook called without organizationId', {
+          userId,
+          action: 'pullrequest-created',
+          status: 'rejected'
+        });
+        return res.status(400).json({
+          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/pullrequest/created',
+          code: 'MISSING_ORGANIZATION_ID'
+        });
+      }
+
+      // Validate organization exists and is active
+      const orgValidation = await this.validateOrganization(organizationId, res);
+      if (!orgValidation.valid) {
+        return this.sendOrgValidationError(res, orgValidation);
+      }
+
       const { resource } = req.body;
       
       if (!resource) {
@@ -18,7 +37,7 @@ class PullRequestWebhook extends BaseWebhook {
       const pullRequestId = resource.pullRequestId;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(pullRequestId, userId || organizationId, 'pullrequest');
+      const dupeCheck = this.isDuplicate(pullRequestId, organizationId, 'pullrequest');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(pullRequestId, 'pullrequest', dupeCheck.timeSince));
       }
@@ -36,42 +55,28 @@ class PullRequestWebhook extends BaseWebhook {
         sourceBranch,
         targetBranch,
         reviewers,
-        userId: userId || 'legacy-global',
-        organizationId: organizationId || null,
-        hasUserId: !!userId
+        organizationId
       });
 
-      // Get settings - prefer organization context over user context
+      // Get organization settings with credentials
       let userConfig = null;
       let userSettings = null;
       
-      if (organizationId) {
-        try {
-          const { organizationService } = await import('../services/organizationService.js');
-          const org = await organizationService.getOrganizationWithCredentials(organizationId);
-          if (org) {
-            userId = org.userId;
-            userConfig = org.azureDevOps;
-            userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
-          }
-        } catch (error) {
-          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
+      try {
+        const { organizationService } = await import('../services/organizationService.js');
+        const org = await organizationService.getOrganizationWithCredentials(organizationId);
+        if (org) {
+          userId = org.userId;
+          userConfig = org.azureDevOps;
+          userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
         }
-      } else if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          userSettings = await getUserSettings(userId);
-          userConfig = userSettings.azureDevOps;
-          logger.info(`Retrieved user config for ${userId}`, {
-            hasOrganization: !!userConfig?.organization,
-            hasProject: !!userConfig?.project,
-            hasBaseUrl: !!userConfig?.baseUrl
-          });
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
-        }
-      } else {
-        logger.warn('No userId or organizationId provided - using legacy webhook handler');
+      } catch (error) {
+        logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
+        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+      }
+
+      if (!userSettings) {
+        return res.status(404).json({ error: 'Organization settings not found' });
       }
 
       // Generate AI summary if configured
