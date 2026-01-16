@@ -170,10 +170,10 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
 
   const modalContent = (
     <div 
-      className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-[9999] p-4"
+      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-card dark:bg-[#111111] rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col border border-border dark:border-[#1a1a1a]">
+      <div className="bg-card dark:bg-[#111111] rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl lg:max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col border border-border dark:border-[#1a1a1a]">
         {/* Merge Readiness Banner */}
         {isActive && isReadyToMerge && (
           <div className="px-6 py-2 bg-emerald-100 dark:bg-emerald-950/50 border-b border-emerald-200 dark:border-emerald-800 flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
@@ -293,9 +293,9 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
 
         {/* Content */}
         <div className="overflow-y-auto flex-1">
-          <div className="p-6 space-y-6">
+          <div className="p-4 sm:p-6 space-y-6">
               {/* Metadata Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 {/* Author */}
                 <div className="p-3 rounded-lg bg-muted">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
