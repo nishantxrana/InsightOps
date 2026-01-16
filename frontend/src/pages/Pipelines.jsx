@@ -529,7 +529,7 @@ export default function Pipelines() {
                     setIsModalOpen(true);
                   }}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-5">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {getBuildStatusIcon(build.result, build.status)}
                       <div className="flex-1 min-w-0">
@@ -554,22 +554,21 @@ export default function Pipelines() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <GitBranch className="h-3 w-3" />
-                            {build.sourceBranch?.replace("refs/heads/", "") ||
-                              "N/A"}
+                        <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground whitespace-nowrap">
+                          <span className="flex items-center gap-1 shrink-0">
+                            <GitBranch className="h-3 w-3 shrink-0" />
+                            <span className="truncate max-w-[120px]">{build.sourceBranch?.replace("refs/heads/", "") || "N/A"}</span>
                           </span>
-                          <span className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {build.requestedBy?.displayName || "Unknown"}
+                          <span className="flex items-center gap-1 shrink-0">
+                            <User className="h-3 w-3 shrink-0" />
+                            <span className="truncate max-w-[100px]">{build.requestedBy?.displayName || "Unknown"}</span>
                           </span>
-                          <span className="flex items-center gap-1">
-                            <Timer className="h-3 w-3" />
+                          <span className="flex items-center gap-1 shrink-0">
+                            <Timer className="h-3 w-3 shrink-0" />
                             {formatDuration(build.startTime, build.finishTime)}
                           </span>
-                          <span className="flex items-center gap-1" title={build.startTime ? format(new Date(build.startTime), "MMM d, yyyy HH:mm") : "N/A"}>
-                            <Clock className="h-3 w-3" />
+                          <span className="flex items-center gap-1 shrink-0" title={build.startTime ? format(new Date(build.startTime), "MMM d, yyyy HH:mm") : "N/A"}>
+                            <Clock className="h-3 w-3 shrink-0" />
                             {build.startTime
                               ? formatDistanceToNow(new Date(build.startTime), { addSuffix: true })
                               : "N/A"}
