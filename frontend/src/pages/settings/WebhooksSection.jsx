@@ -53,55 +53,70 @@ export default function WebhooksSection() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div>
-          <Label className="text-sm font-medium mb-2 block">Build Completed Events</Label>
-          <div className="flex items-center gap-2">
-            <Input readOnly value={webhookUrls.buildCompleted || 'Loading...'} className="font-mono text-sm bg-muted" />
-            <CopyButton content={webhookUrls.buildCompleted} variant="outline" />
-          </div>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium mb-2 block">Pull Request Created Events</Label>
-          <div className="flex items-center gap-2">
-            <Input readOnly value={webhookUrls.pullRequestCreated || 'Loading...'} className="font-mono text-sm bg-muted" />
-            <CopyButton content={webhookUrls.pullRequestCreated} variant="outline" />
-          </div>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium mb-2 block">Work Item Created Events</Label>
-          <div className="flex items-center gap-2">
-            <Input readOnly value={webhookUrls.workItemCreated || 'Loading...'} className="font-mono text-sm bg-muted" />
-            <CopyButton content={webhookUrls.workItemCreated} variant="outline" />
-          </div>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium mb-2 block">Work Item Updated Events</Label>
-          <div className="flex items-center gap-2">
-            <Input readOnly value={webhookUrls.workItemUpdated || 'Loading...'} className="font-mono text-sm bg-muted" />
-            <CopyButton content={webhookUrls.workItemUpdated} variant="outline" />
-          </div>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium mb-2 block">Release Deployment Events</Label>
-          <div className="flex items-center gap-2">
-            <Input readOnly value={webhookUrls.releaseDeployment || 'Loading...'} className="font-mono text-sm bg-muted" />
-            <CopyButton content={webhookUrls.releaseDeployment} variant="outline" />
-          </div>
-        </div>
-
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Setup Instructions:</h4>
-          <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
-            <li>Go to your Azure DevOps project settings</li>
-            <li>Navigate to Service Hooks</li>
-            <li>Create a new subscription for each event type</li>
-            <li>Use the corresponding webhook URL above</li>
-            <li>Events will be routed to your configured notification channels</li>
+        {/* Instructions first for visibility */}
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Quick Setup:</h4>
+          <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside mb-3">
+            <li>Copy a webhook URL below</li>
+            <li>Go to Azure DevOps → Project Settings → Service Hooks</li>
+            <li>Create a new "Web Hooks" subscription</li>
+            <li>Select the event type and paste the URL</li>
           </ol>
+          <a 
+            href="https://dev.azure.com/_settings/serviceHooks" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-sm text-blue-700 dark:text-blue-300 hover:underline font-medium"
+          >
+            Open Azure DevOps Service Hooks →
+          </a>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">Build Completed</Label>
+            <p className="text-xs text-muted-foreground mb-2">Triggers when a build pipeline finishes (success or failure)</p>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={webhookUrls.buildCompleted || 'Loading...'} className="font-mono text-xs bg-muted" />
+              <CopyButton content={webhookUrls.buildCompleted} variant="outline" />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">Pull Request Created</Label>
+            <p className="text-xs text-muted-foreground mb-2">Triggers when a new pull request is opened</p>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={webhookUrls.pullRequestCreated || 'Loading...'} className="font-mono text-xs bg-muted" />
+              <CopyButton content={webhookUrls.pullRequestCreated} variant="outline" />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">Work Item Created</Label>
+            <p className="text-xs text-muted-foreground mb-2">Triggers when a bug, task, or user story is created</p>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={webhookUrls.workItemCreated || 'Loading...'} className="font-mono text-xs bg-muted" />
+              <CopyButton content={webhookUrls.workItemCreated} variant="outline" />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">Work Item Updated</Label>
+            <p className="text-xs text-muted-foreground mb-2">Triggers when a work item's state or fields change</p>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={webhookUrls.workItemUpdated || 'Loading...'} className="font-mono text-xs bg-muted" />
+              <CopyButton content={webhookUrls.workItemUpdated} variant="outline" />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">Release Deployment</Label>
+            <p className="text-xs text-muted-foreground mb-2">Triggers when a release deployment completes</p>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={webhookUrls.releaseDeployment || 'Loading...'} className="font-mono text-xs bg-muted" />
+              <CopyButton content={webhookUrls.releaseDeployment} variant="outline" />
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

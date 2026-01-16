@@ -272,7 +272,7 @@ export default function Settings() {
   // Show setup message if no organization
   if (needsSetup) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 pt-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground tracking-tight">Welcome to InsightOps</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Let's set up your first Azure DevOps organization</p>
@@ -283,8 +283,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Unsaved Changes Dialog */}
+    <>
+      {/* Unsaved Changes Dialog - outside space-y container to not affect layout */}
       <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -308,6 +308,7 @@ export default function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <div className="space-y-6 pt-4">
       {/* Header */}
       <div>
         <div className="flex justify-between items-center mb-2">
@@ -393,6 +394,7 @@ export default function Settings() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

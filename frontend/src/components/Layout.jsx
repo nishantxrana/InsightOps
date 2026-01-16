@@ -189,7 +189,7 @@ export default function Layout({ children }) {
               </Tooltip>
             </div>
           </header>
-          <div className="flex flex-1 flex-col gap-4 p-4 pt-0 max-w-full overflow-hidden">
+          <div className="flex flex-1 flex-col gap-4 p-4 pt-4 max-w-full overflow-hidden">
             <div className="max-w-7xl mx-auto w-full">
               {children}
             </div>
