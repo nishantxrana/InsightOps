@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
-import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle, AlertCircle, FolderTree, Download } from 'lucide-react';
+import { Bell, Search, ExternalLink, Clock, ChevronDown, GitBranch, Package, User, Rocket, Hash, GitCommit, FileText, CheckCircle, AlertCircle, FolderTree, Download, XCircle, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { CopyButton } from '../components/ui/shadcn-io/copy-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -126,11 +127,36 @@ const NotificationHistory = () => {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Bell className="h-8 w-8" />
-            Notification History
-          </h1>
-          <p className="text-muted-foreground mt-1">Last 7 days of notifications</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold flex items-center gap-2">
+              <Bell className="h-6 w-6" />
+              Notifications
+            </h1>
+            {/* Quick health indicator */}
+            {!loading && (
+              (counts.overdue || 0) + (counts['idle-pr'] || 0) > 0 ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  {(counts.overdue || 0) + (counts['idle-pr'] || 0)} need attention
+                </span>
+              ) : counts.build > 0 && notifications.some(n => n.type === 'build' && n.subType === 'failed') ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                  Has failures
+                </span>
+              ) : counts.total > 0 ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  All clear
+                </span>
+              ) : null
+            )}
+          </div>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {!loading && counts.total > 0 
+              ? `${counts.total} notification${counts.total !== 1 ? 's' : ''} from the last 7 days`
+              : 'Last 7 days of notifications'}
+          </p>
         </div>
       </div>
 
@@ -168,21 +194,50 @@ const NotificationHistory = () => {
               <SelectItem value="release">Releases {counts.release ? `(${counts.release})` : ''}</SelectItem>
               <SelectItem value="work-item">Work Items {counts['work-item'] ? `(${counts['work-item']})` : ''}</SelectItem>
               <SelectItem value="pull-request">PRs {counts['pull-request'] ? `(${counts['pull-request']})` : ''}</SelectItem>
-              <SelectItem value="overdue">Overdue Work Items {counts.overdue ? `(${counts.overdue})` : ''}</SelectItem>
-              <SelectItem value="idle-pr">Idle PRs {counts['idle-pr'] ? `(${counts['idle-pr']})` : ''}</SelectItem>
+              <SelectItem value="overdue" className={counts.overdue > 0 ? 'text-red-600 font-medium' : ''}>
+                ⚠️ Overdue Work Items {counts.overdue ? `(${counts.overdue})` : ''}
+              </SelectItem>
+              <SelectItem value="idle-pr" className={counts['idle-pr'] > 0 ? 'text-amber-600 font-medium' : ''}>
+                ⏰ Stale PRs {counts['idle-pr'] ? `(${counts['idle-pr']})` : ''}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
         
         {/* Desktop: Tabs */}
-        <TabsList className="hidden sm:inline-flex">
-          <TabsTrigger value="all">All {counts.total || ''}</TabsTrigger>
-          <TabsTrigger value="build">Builds {counts.build || ''}</TabsTrigger>
-          <TabsTrigger value="release">Releases {counts.release || ''}</TabsTrigger>
-          <TabsTrigger value="work-item">Work Items {counts['work-item'] || ''}</TabsTrigger>
-          <TabsTrigger value="pull-request">PRs {counts['pull-request'] || ''}</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue Work Items {counts.overdue || ''}</TabsTrigger>
-          <TabsTrigger value="idle-pr">Idle PRs {counts['idle-pr'] || ''}</TabsTrigger>
+        <TabsList className="hidden sm:inline-flex flex-wrap h-auto gap-1 p-1">
+          <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            All {counts.total ? <span className="ml-1 text-xs opacity-70">({counts.total})</span> : ''}
+          </TabsTrigger>
+          <TabsTrigger value="build" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Builds {counts.build ? <span className="ml-1 text-xs opacity-70">({counts.build})</span> : ''}
+          </TabsTrigger>
+          <TabsTrigger value="release" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Releases {counts.release ? <span className="ml-1 text-xs opacity-70">({counts.release})</span> : ''}
+          </TabsTrigger>
+          <TabsTrigger value="work-item" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Work Items {counts['work-item'] ? <span className="ml-1 text-xs opacity-70">({counts['work-item']})</span> : ''}
+          </TabsTrigger>
+          <TabsTrigger value="pull-request" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            PRs {counts['pull-request'] ? <span className="ml-1 text-xs opacity-70">({counts['pull-request']})</span> : ''}
+          </TabsTrigger>
+          {/* Critical categories with visual emphasis */}
+          <TabsTrigger 
+            value="overdue" 
+            className={`data-[state=active]:bg-red-500 data-[state=active]:text-white ${
+              counts.overdue > 0 ? 'text-red-600 dark:text-red-400 font-medium' : ''
+            }`}
+          >
+            ⚠️ Overdue {counts.overdue ? <span className={`ml-1 text-xs ${counts.overdue > 0 ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-1.5 rounded-full' : 'opacity-70'}`}>({counts.overdue})</span> : ''}
+          </TabsTrigger>
+          <TabsTrigger 
+            value="idle-pr" 
+            className={`data-[state=active]:bg-amber-500 data-[state=active]:text-white ${
+              counts['idle-pr'] > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : ''
+            }`}
+          >
+            ⏰ Stale PRs {counts['idle-pr'] ? <span className={`ml-1 text-xs ${counts['idle-pr'] > 0 ? 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-1.5 rounded-full' : 'opacity-70'}`}>({counts['idle-pr']})</span> : ''}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="space-y-4 mt-4">
@@ -200,31 +255,128 @@ const NotificationHistory = () => {
               </button>
             </div>
           ) : filteredNotifications.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No notifications found</div>
+            <div className="text-center py-12">
+              <Bell className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {searchQuery ? 'No matching notifications' : 'All clear!'}
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                {searchQuery 
+                  ? 'Try adjusting your search terms'
+                  : activeTab === 'all' 
+                    ? 'No notifications in the last 7 days. Check back later.'
+                    : `No ${activeTab.replace('-', ' ')} notifications found.`
+                }
+              </p>
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="mt-4 text-sm text-primary hover:underline"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
           ) : (
             <Accordion type="single" collapsible className="space-y-3">
-              {filteredNotifications.map((notification) => (
-                <AccordionItem key={notification._id} value={notification._id} className="border rounded-lg overflow-hidden">
+              {filteredNotifications.map((notification) => {
+                // Determine severity
+                const isCritical = notification.type === 'overdue' || 
+                                   notification.type === 'idle-pr' || 
+                                   notification.subType === 'failed' ||
+                                   notification.subType === 'rejected';
+                const isWarning = notification.type === 'work-item' && notification.subType === 'updated';
+                const isSuccess = notification.subType === 'succeeded' || notification.subType === 'completed';
+                const isUnread = !notification.read;
+                
+                // Get type icon
+                const getTypeIcon = () => {
+                  if (notification.subType === 'failed' || notification.subType === 'rejected') {
+                    return <XCircle className="h-4 w-4 text-red-500" />;
+                  }
+                  if (notification.type === 'overdue' || notification.type === 'idle-pr') {
+                    return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+                  }
+                  if (isSuccess) {
+                    return <CheckCircle className="h-4 w-4 text-green-500" />;
+                  }
+                  return <Bell className="h-4 w-4 text-muted-foreground" />;
+                };
+                
+                // Get human-readable time
+                const getTimeAgo = () => {
+                  try {
+                    return formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true });
+                  } catch {
+                    return new Date(notification.createdAt).toLocaleString();
+                  }
+                };
+                
+                return (
+                <AccordionItem 
+                  key={notification._id} 
+                  value={notification._id} 
+                  className={`border rounded-lg overflow-hidden ${
+                    isCritical 
+                      ? 'border-l-4 border-l-red-500 bg-red-50/30 dark:bg-red-950/10' 
+                      : isWarning 
+                        ? 'border-l-4 border-l-amber-500 bg-amber-50/30 dark:bg-amber-950/10' 
+                        : isUnread 
+                          ? 'border-l-4 border-l-blue-500 bg-blue-50/20 dark:bg-blue-950/10' 
+                          : ''
+                  }`}
+                >
                   <AccordionTrigger className="hover:no-underline px-3 sm:px-6 py-3 sm:py-4 [&[data-state=open]]:border-b grid grid-cols-[1fr_auto] gap-2 items-center">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-left min-w-0">
-                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:min-w-[240px] shrink-0">
-                        <Badge variant="secondary" className="text-xs rounded-full">
-                          {notification.type}
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:min-w-[280px] shrink-0">
+                        {/* Type icon based on severity */}
+                        {getTypeIcon()}
+                        
+                        {/* Type badge */}
+                        <Badge 
+                          variant="secondary" 
+                          className={`text-xs rounded-full ${
+                            notification.type === 'overdue' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' :
+                            notification.type === 'idle-pr' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100' :
+                            ''
+                          }`}
+                        >
+                          {notification.type === 'work-item' ? 'work item' : 
+                           notification.type === 'pull-request' ? 'PR' :
+                           notification.type === 'idle-pr' ? 'stale PR' :
+                           notification.type}
                         </Badge>
+                        
+                        {/* SubType badge with severity styling */}
                         {notification.subType && (
                           <Badge 
-                            variant={notification.subType === 'failed' ? 'destructive' : 'outline'} 
-                            className={`capitalize text-xs rounded-full ${notification.subType === 'succeeded' ? 'bg-green-100 text-green-800 border-green-100 dark:bg-green-900 dark:text-green-100 dark:border-green-900' : ''}`}
+                            variant={notification.subType === 'failed' || notification.subType === 'rejected' ? 'destructive' : 'outline'} 
+                            className={`capitalize text-xs rounded-full ${
+                              notification.subType === 'succeeded' || notification.subType === 'completed' 
+                                ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-100 dark:border-green-800' 
+                                : notification.subType === 'failed' || notification.subType === 'rejected'
+                                  ? 'ring-1 ring-red-300 dark:ring-red-800'
+                                  : ''
+                            }`}
                           >
-                            {notification.subType}
+                            {notification.subType === 'failed' ? '⚠️ failed' : notification.subType}
                           </Badge>
+                        )}
+                        
+                        {/* Unread indicator */}
+                        {isUnread && (
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Unread"></span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm sm:text-base mb-1 truncate">{notification.title}</h3>
+                        <h3 className={`font-semibold text-sm sm:text-base mb-1 truncate ${isUnread ? 'text-foreground' : 'text-muted-foreground'}`}>
+                          {notification.title}
+                        </h3>
                         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                           <Clock className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{new Date(notification.createdAt).toLocaleString()}</span>
+                          <span className="truncate" title={new Date(notification.createdAt).toLocaleString()}>
+                            {getTimeAgo()}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -739,7 +891,8 @@ const NotificationHistory = () => {
                     </div>
                   </AccordionContent>
                 </AccordionItem>
-              ))}
+                );
+              })}
             </Accordion>
           )}
           
