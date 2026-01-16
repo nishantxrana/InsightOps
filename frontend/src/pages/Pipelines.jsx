@@ -545,7 +545,7 @@ export default function Pipelines() {
                               href={build._links.web.href}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors opacity-0 group-hover:opacity-100"
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                               title="Open in Azure DevOps"
                               onClick={(e) => e.stopPropagation()}
                             >
