@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../contexts/AuthContext';
 import { releaseService } from '../api/releaseService';
 import { buildReleaseUrl } from '../utils/azureDevOpsUrls';
+import { format, formatDistanceToNow } from 'date-fns';
 import {
   CheckCircle,
   XCircle,
@@ -22,6 +23,8 @@ import {
   UserCheck,
   Bot,
   Loader2,
+  ArrowRight,
+  Shield,
 } from 'lucide-react';
 
 const getStatusIcon = (status) => {
@@ -117,8 +120,27 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
   // Check if release is waiting for approval
   const isWaitingForApproval = release?.status === 'waitingforapproval';
   
+  // Check if release succeeded
+  const isSucceeded = release?.status === 'succeeded';
+  
+  // Check if release is in progress
+  const isInProgress = release?.status === 'inprogress' || release?.status === 'deploying';
+  
   // Check if release failed due to approval rejection
   const isApprovalRejected = release?.status === 'failed' && release?.failureReason === 'approval_rejected';
+  
+  // Count failed environments
+  const failedEnvCount = release?.environments?.filter(env => 
+    env.status?.toLowerCase() === 'failed' || env.status?.toLowerCase() === 'rejected'
+  ).length || 0;
+  
+  // Count succeeded environments
+  const succeededEnvCount = release?.environments?.filter(env => 
+    env.status?.toLowerCase() === 'succeeded'
+  ).length || 0;
+  
+  // Total environments
+  const totalEnvCount = release?.environments?.length || 0;
   
   // Show approval details for all releases (everyone can have approvals)
   const shouldShowApprovals = true;
@@ -256,42 +278,87 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
       className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-[9999] p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className="bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        {/* Status Banners */}
+        {isFailedRelease && (
+          <div className="px-6 py-3 bg-red-100 dark:bg-red-950/50 border-b border-red-200 dark:border-red-800 flex items-center gap-2 text-red-800 dark:text-red-200">
+            <AlertTriangle className="h-5 w-5 animate-pulse" />
+            <span className="font-medium">Deployment Failed</span>
+            {failedEnvCount > 0 && (
+              <span className="text-sm text-red-600 dark:text-red-300">— {failedEnvCount} environment{failedEnvCount > 1 ? 's' : ''} failed</span>
+            )}
+          </div>
+        )}
+        
+        {isWaitingForApproval && (
+          <div className="px-6 py-3 bg-orange-100 dark:bg-orange-950/50 border-b border-orange-200 dark:border-orange-800 flex items-center gap-2 text-orange-800 dark:text-orange-200">
+            <Shield className="h-5 w-5 animate-pulse" />
+            <span className="font-medium">Waiting for Approval</span>
+            <span className="text-sm text-orange-600 dark:text-orange-300">— Action required to continue deployment</span>
+          </div>
+        )}
+        
+        {isSucceeded && (
+          <div className="px-6 py-2 bg-emerald-100 dark:bg-emerald-950/50 border-b border-emerald-200 dark:border-emerald-800 flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
+            <CheckCircle className="h-4 w-4" />
+            <span className="font-medium text-sm">Deployment Succeeded</span>
+            {totalEnvCount > 0 && (
+              <span className="text-xs text-emerald-600 dark:text-emerald-300">— All {totalEnvCount} environment{totalEnvCount > 1 ? 's' : ''} deployed</span>
+            )}
+          </div>
+        )}
+        
+        {isInProgress && (
+          <div className="px-6 py-2 bg-blue-100 dark:bg-blue-950/50 border-b border-blue-200 dark:border-blue-800 flex items-center gap-2 text-blue-800 dark:text-blue-200">
+            <Clock className="h-4 w-4 animate-pulse" />
+            <span className="font-medium text-sm">Deployment In Progress</span>
+          </div>
+        )}
+        
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <div className="flex items-center gap-3">
-            <Rocket className="h-6 w-6 text-muted-foreground" />
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">
-                {release.name} #{release.id}
-              </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(release.status)}`}>
-                  {getStatusIcon(release.status)}
-                  <span className="ml-1">{release.status}</span>
+        <div className="flex items-center justify-between p-6 border-b border-border dark:border-[#1a1a1a]">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className={`p-2 rounded-lg ${isFailedRelease ? 'bg-red-100 dark:bg-red-950/50' : isSucceeded ? 'bg-emerald-100 dark:bg-emerald-950/50' : isWaitingForApproval ? 'bg-orange-100 dark:bg-orange-950/50' : 'bg-muted'}`}>
+              {isFailedRelease ? (
+                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              ) : isSucceeded ? (
+                <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              ) : isWaitingForApproval ? (
+                <Shield className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              ) : (
+                <Rocket className="h-5 w-5 text-muted-foreground" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm text-muted-foreground font-mono">#{release.id}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(release.status)}`}>
+                  {release.status}
                 </span>
+                {totalEnvCount > 0 && (
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="text-xs text-muted-foreground">
+                      {succeededEnvCount}/{totalEnvCount} envs
+                    </span>
+                  </>
+                )}
               </div>
+              <h2 className="text-lg font-semibold text-foreground truncate" title={release.name}>
+                {release.name}
+              </h2>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-4">
             <button
               onClick={copyLink}
               className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
               title="Copy release link"
             >
-              {copied ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
             </button>
-            
-            <a
-              href={getReleaseUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
-              title="Open in Azure DevOps"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </a>
             
             <button
               onClick={onClose}
@@ -303,52 +370,118 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
+        <div className="overflow-y-auto flex-1">
           <div className="p-6 space-y-6">
-            {/* Release Metadata */}
-            <div>
-              <h3 className="text-lg font-medium text-foreground mb-2">Release Details</h3>
+            {/* Release Metadata Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {/* Created By */}
+              <div className="p-3 rounded-lg bg-muted">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <User className="h-3.5 w-3.5" />
+                  Created By
+                </div>
+                <p className="font-medium text-sm text-foreground truncate" title={release.createdBy?.displayName || 'Unknown'}>
+                  {release.createdBy?.displayName || 'Unknown'}
+                </p>
+              </div>
               
-              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <User className="h-4 w-4" />
-                  <span>{release.createdBy?.displayName || 'Unknown'}</span>
+              {/* Created */}
+              <div className="p-3 rounded-lg bg-muted">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Created
                 </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>{new Date(release.createdOn).toLocaleString()}</span>
+                <p className="font-medium text-sm text-foreground">
+                  {release.createdOn ? formatDistanceToNow(new Date(release.createdOn), { addSuffix: true }) : 'Unknown'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {release.createdOn ? format(new Date(release.createdOn), 'HH:mm') : ''}
+                </p>
+              </div>
+              
+              {/* Pipeline */}
+              <div className="p-3 rounded-lg bg-muted">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <Server className="h-3.5 w-3.5" />
+                  Pipeline
                 </div>
-                <div className="flex items-center gap-1">
-                  <Server className="h-4 w-4" />
-                  <span>{release.definitionName}</span>
+                <p className="font-medium text-sm text-foreground truncate" title={release.definitionName}>
+                  {release.definitionName || 'Unknown'}
+                </p>
+              </div>
+              
+              {/* Environments */}
+              <div className={`p-3 rounded-lg ${failedEnvCount > 0 ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800' : 'bg-muted'}`}>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <Rocket className="h-3.5 w-3.5" />
+                  Environments
                 </div>
+                <p className={`font-medium text-sm ${failedEnvCount > 0 ? 'text-red-700 dark:text-red-300' : 'text-foreground'}`}>
+                  {succeededEnvCount} / {totalEnvCount} deployed
+                </p>
+                {failedEnvCount > 0 && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{failedEnvCount} failed</p>
+                )}
               </div>
             </div>
 
             {/* Environment Progression */}
             {release.environments && release.environments.length > 0 && (
               <div>
-                <h3 className="text-lg font-medium text-foreground mb-4">Environment Progression</h3>
-                <div className="space-y-3">
-                  {release.environments.map((env, index) => (
-                    <div key={env.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                      <div className={`w-3 h-3 rounded-full ${getEnvironmentStatusColor(env.status)}`} />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-foreground">{env.name}</span>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(env.status)}`}>
-                            {getStatusIcon(env.status)}
-                            <span className="ml-1">{env.status}</span>
-                          </span>
-                        </div>
-                        {env.deployedOn && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Deployed: {new Date(env.deployedOn).toLocaleString()}
+                <h3 className="text-lg font-medium text-foreground mb-2">Deployment Pipeline</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {succeededEnvCount === totalEnvCount 
+                    ? 'All environments deployed successfully'
+                    : failedEnvCount > 0 
+                      ? `${failedEnvCount} of ${totalEnvCount} environment${failedEnvCount > 1 ? 's' : ''} failed`
+                      : `${succeededEnvCount} of ${totalEnvCount} environments deployed`
+                  }
+                </p>
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                  {release.environments.map((env, index) => {
+                    const isFailed = env.status?.toLowerCase() === 'failed' || env.status?.toLowerCase() === 'rejected';
+                    const isEnvSucceeded = env.status?.toLowerCase() === 'succeeded';
+                    const isPending = env.status?.toLowerCase() === 'pending' || env.status?.toLowerCase() === 'notstarted' || env.status?.toLowerCase() === 'notdeployed';
+                    const isBlocked = env.status?.toLowerCase() === 'waitingforapproval';
+                    
+                    return (
+                      <React.Fragment key={env.id}>
+                        <div className={`flex-shrink-0 p-3 rounded-lg border-2 min-w-[140px] ${
+                          isFailed 
+                            ? 'bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700' 
+                            : isEnvSucceeded 
+                              ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700' 
+                              : isBlocked
+                                ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-700'
+                                : 'bg-muted border-border'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className={`w-2.5 h-2.5 rounded-full ${getEnvironmentStatusColor(env.status)} ${isFailed || isBlocked ? 'animate-pulse' : ''}`} />
+                            <span className={`font-medium text-sm truncate ${
+                              isFailed ? 'text-red-700 dark:text-red-300' : 
+                              isEnvSucceeded ? 'text-emerald-700 dark:text-emerald-300' : 
+                              isBlocked ? 'text-orange-700 dark:text-orange-300' :
+                              'text-foreground'
+                            }`}>{env.name}</span>
                           </div>
+                          <div className="flex items-center gap-1">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getStatusColor(env.status)}`}>
+                              {getStatusIcon(env.status)}
+                              <span className="ml-1">{env.status}</span>
+                            </span>
+                          </div>
+                          {env.deployedOn && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {formatDistanceToNow(new Date(env.deployedOn), { addSuffix: true })}
+                            </div>
+                          )}
+                        </div>
+                        {index < release.environments.length - 1 && (
+                          <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         )}
-                      </div>
-                    </div>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -452,42 +585,51 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                           Found {failedLogs.totalFailedTasks} failed task(s)
                         </div>
 
-                        {/* AI Explanation Section */}
-                        <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800/30 mb-4">
-                          <div className="flex items-center justify-between mb-3">
+                        {/* AI Explanation Section - Reframed for debugging */}
+                        <details className="group" open>
+                          <summary className="flex items-center justify-between cursor-pointer bg-red-50 dark:bg-red-950/20 rounded-lg p-4 border border-red-200 dark:border-red-800/30 hover:bg-red-100 dark:hover:bg-red-950/30 transition-colors">
                             <div className="flex items-center gap-2">
-                              <Bot className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                              <h4 className="font-medium text-blue-900 dark:text-blue-100">AI Explanation</h4>
+                              <Bot className="h-5 w-5 text-red-600 dark:text-red-400" />
+                              <span className="font-medium text-red-900 dark:text-red-100">AI Failure Diagnosis</span>
+                              <span className="text-xs text-red-600 dark:text-red-400">
+                                {aiAnalysis ? '(loaded)' : '— identify root cause faster'}
+                              </span>
                             </div>
+                            <svg className="h-5 w-5 text-red-600 dark:text-red-400 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </summary>
+                          
+                          <div className="mt-2 bg-red-50 dark:bg-red-950/20 rounded-lg p-4 border border-red-200 dark:border-red-800/30">
+                            {loadingAI && (
+                              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span className="text-sm">AI is analyzing task logs and errors...</span>
+                              </div>
+                            )}
+                            
+                            {aiAnalysis && (
+                              <div className="prose prose-sm max-w-none text-red-800 dark:text-red-200 prose-strong:text-red-900 dark:prose-strong:text-red-100 prose-code:text-red-900 dark:prose-code:text-red-100 prose-code:bg-red-100 dark:prose-code:bg-red-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                                <ReactMarkdown>{aiAnalysis}</ReactMarkdown>
+                              </div>
+                            )}
+                            
                             {!aiAnalysis && !loadingAI && (
-                              <button
-                                onClick={loadAIAnalysis}
-                                className="px-3 py-1 text-sm bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
-                              >
-                                🤖 Explain Failures
-                              </button>
+                              <div className="text-center py-2">
+                                <p className="text-sm text-red-700 dark:text-red-300 mb-3">
+                                  Get AI-powered root cause analysis, error explanations, and suggested fixes.
+                                </p>
+                                <button
+                                  onClick={loadAIAnalysis}
+                                  className="px-4 py-2 text-sm bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors inline-flex items-center gap-2"
+                                >
+                                  <Bot className="h-4 w-4" />
+                                  Diagnose Failure
+                                </button>
+                              </div>
                             )}
                           </div>
-                          
-                          {loadingAI && (
-                            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span className="text-sm">AI is analyzing the failed tasks...</span>
-                            </div>
-                          )}
-                          
-                          {aiAnalysis && (
-                            <div className="prose prose-sm max-w-none text-blue-800 dark:text-blue-200 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-900 dark:prose-code:text-blue-100 prose-code:bg-blue-100 dark:prose-code:bg-blue-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
-                              <ReactMarkdown>{aiAnalysis}</ReactMarkdown>
-                            </div>
-                          )}
-                          
-                          {!aiAnalysis && !loadingAI && (
-                            <p className="text-sm text-blue-700 dark:text-blue-300">
-                              Click "Explain Failures" to get AI-powered insights about why this release failed.
-                            </p>
-                          )}
-                        </div>
+                        </details>
                         
                         {failedLogs.failedTasks.map((task, index) => (
                           <div key={`${task.environmentId}-${task.taskId}`} className="border border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
@@ -726,6 +868,42 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                 )}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Footer with primary CTA */}
+        <div className="flex items-center justify-between p-4 border-t border-border dark:border-[#1a1a1a] bg-muted/30">
+          <div className="text-xs text-muted-foreground">
+            Press <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px]">Esc</kbd> to close
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={copyLink}
+              className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+            >
+              {copied ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'Copied!' : 'Copy Link'}
+            </button>
+            <a
+              href={getReleaseUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`px-4 py-2 text-sm rounded-lg transition-colors inline-flex items-center gap-2 ${
+                isFailedRelease 
+                  ? 'bg-red-600 text-white hover:bg-red-700' 
+                  : isWaitingForApproval
+                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+              }`}
+            >
+              <ExternalLink className="h-4 w-4" />
+              {isFailedRelease 
+                ? 'View Logs in Azure DevOps' 
+                : isWaitingForApproval
+                  ? 'Approve in Azure DevOps'
+                  : 'Open in Azure DevOps'
+              }
+            </a>
           </div>
         </div>
       </div>
