@@ -138,10 +138,11 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
   // Handle escape key and body scroll lock
   useEffect(() => {
     if (isOpen) {
+      const scrollY = window.scrollY
       document.body.style.overflow = 'hidden'
       document.body.style.position = 'fixed'
       document.body.style.width = '100%'
-      document.body.style.top = `-${window.scrollY}px`
+      document.body.style.top = `-${scrollY}px`
       
       const handleEscape = (e) => {
         if (e.key === 'Escape') {
@@ -152,16 +153,15 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
       document.addEventListener('keydown', handleEscape)
       
       return () => {
-        const scrollY = document.body.style.top
         document.body.style.overflow = ''
         document.body.style.position = ''
         document.body.style.width = ''
         document.body.style.top = ''
-        window.scrollTo(0, parseInt(scrollY || '0') * -1)
+        window.scrollTo(0, scrollY)
         document.removeEventListener('keydown', handleEscape)
       }
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen || !build) return null
 
