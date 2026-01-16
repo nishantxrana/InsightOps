@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js';
+import { metrics } from '../observability/metrics.js';
 
 /**
  * Per-organization cache for Azure DevOps API responses
@@ -50,12 +51,14 @@ class AzureDevOpsCache {
     const orgCache = this.cache.get(organizationId);
     if (!orgCache) {
       this.stats.misses++;
+      metrics.recordCacheAccess(false);
       return null;
     }
 
     const entry = orgCache.get(cacheKey);
     if (!entry) {
       this.stats.misses++;
+      metrics.recordCacheAccess(false);
       return null;
     }
 
@@ -63,10 +66,12 @@ class AzureDevOpsCache {
     if (Date.now() > entry.expiry) {
       orgCache.delete(cacheKey);
       this.stats.misses++;
+      metrics.recordCacheAccess(false);
       return null;
     }
 
     this.stats.hits++;
+    metrics.recordCacheAccess(true);
     logger.debug(`[AzureDevOpsCache] HIT for org ${organizationId}: ${cacheKey}`);
     return entry.data;
   }

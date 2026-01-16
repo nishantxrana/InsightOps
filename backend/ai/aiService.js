@@ -3,6 +3,7 @@ import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../utils/logger.js';
 import { configLoader } from '../config/settings.js';
+import { metrics } from '../observability/metrics.js';
 
 /**
  * AI Client - Isolated instance for a specific organization/user
@@ -192,6 +193,9 @@ class AIService {
    * For org-isolated calls, pass orgSettings to create fresh client
    */
   async generateCompletion(messages, options = {}, orgSettings = null) {
+    const startTime = Date.now();
+    const provider = orgSettings?.ai?.provider || this.config?.provider || 'unknown';
+    
     try {
       let client;
       
@@ -203,8 +207,18 @@ class AIService {
         client = this._getClient();
       }
 
-      return await client.generateCompletion(messages, options);
+      const result = await client.generateCompletion(messages, options);
+      
+      // Record success metric
+      const durationMs = Date.now() - startTime;
+      metrics.recordAICall(provider, true, durationMs);
+      
+      return result;
     } catch (error) {
+      // Record failure metric
+      const durationMs = Date.now() - startTime;
+      metrics.recordAICall(provider, false, durationMs);
+      
       logger.error('Error generating AI completion:', error);
       throw error;
     }

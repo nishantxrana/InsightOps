@@ -7,6 +7,7 @@ import { buildPoller } from './buildPoller.js';
 import { pullRequestPoller } from './pullRequestPoller.js';
 import { pollingService } from '../services/pollingService.js';
 import executionLock from './execution-lock.js';
+import { metrics } from '../observability/metrics.js';
 
 class UserPollingManager {
   constructor() {
@@ -293,8 +294,15 @@ class UserPollingManager {
         await pollingService.updateJobResult(organizationId, jobType, 'success');
         logger.info(`🎉 [POLLING] Completed ${jobType} for org ${organizationId}`);
         
+        // Record success metric
+        metrics.recordPollingRun(organizationId, jobType, true);
+        
       } catch (error) {
         logger.error(`💥 [POLLING] ${jobType} failed for org ${organizationId}:`, error);
+        
+        // Record failure metric
+        metrics.recordPollingRun(organizationId, jobType, false, error.message);
+        
         try {
           await pollingService.updateJobResult(organizationId, jobType, 'error', error.message);
         } catch (dbError) {}
