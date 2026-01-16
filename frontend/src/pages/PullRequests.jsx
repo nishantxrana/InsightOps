@@ -39,7 +39,8 @@ export default function PullRequests() {
     total: 0,
     active: 0,
     unassigned: 0,
-    idle: 0
+    idle: 0,
+    conflicts: 0
   })
   const [selectedPR, setSelectedPR] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -77,6 +78,7 @@ export default function PullRequests() {
           total: prsList.length,
           active: prsList.filter(pr => pr.status === 'active' && pr.reviewers && pr.reviewers.length > 0).length,
           unassigned: prsList.filter(pr => pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)).length,
+          conflicts: prsList.filter(pr => pr.mergeStatus === 'conflicts').length,
           idle: 0
         }
         setStats(prev => ({ ...prev, ...newStats }))
@@ -84,7 +86,7 @@ export default function PullRequests() {
         // Don't set initialLoading false here - wait for all APIs or error
       } catch (err) {
         setPullRequests([])
-        setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
+        setStats({ total: 0, active: 0, unassigned: 0, idle: 0, conflicts: 0 })
         setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
         setError(err.userMessage || 'Failed to load pull requests. Please check your Azure DevOps configuration.')
         return
@@ -111,7 +113,7 @@ export default function PullRequests() {
       setError(err.userMessage || 'Failed to load pull requests. Please check your connection and try again.')
       setPullRequests([])
       setIdlePRs([])
-      setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
+      setStats({ total: 0, active: 0, unassigned: 0, idle: 0, conflicts: 0 })
       setLoadingStates({
         pullRequests: false,
         idlePRs: false,
@@ -164,15 +166,15 @@ export default function PullRequests() {
         )
       case 'conflicts':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200">
-            <AlertCircle className="h-3 w-3" />
-            Conflicts
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200 ring-1 ring-red-300 dark:ring-red-800">
+            <AlertCircle className="h-3 w-3 animate-pulse" />
+            ⚠️ Conflicts
           </span>
         )
       case 'queued':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200">
-            <Clock className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200">
+            <Clock className="h-3 w-3 animate-pulse" />
             Queued
           </span>
         )
@@ -180,7 +182,7 @@ export default function PullRequests() {
         return (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
             <AlertCircle className="h-3 w-3" />
-            {mergeStatus || 'Unknown'}
+            {mergeStatus || 'Pending'}
           </span>
         )
     }
@@ -210,7 +212,20 @@ export default function PullRequests() {
     return 'Unknown'
   }
 
-  // Filter and sort PRs
+  // Helper to check if PR has problems
+  const getPRPriority = (pr) => {
+    const isUnassigned = pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)
+    const hasConflicts = pr.mergeStatus === 'conflicts'
+    const isIdle = idlePRs.some(idle => idle.pullRequestId === pr.pullRequestId)
+    
+    if (hasConflicts) return 0 // Conflicts first - merge blocked!
+    if (isUnassigned) return 1 // Unassigned second - blocked waiting
+    if (isIdle) return 2 // Idle third - needs attention
+    if (pr.status === 'active') return 3 // Active PRs
+    return 4 // Completed/abandoned last
+  }
+
+  // Filter and sort PRs - problems first for operational clarity
   const getFilteredAndSortedPRs = () => {
     let filtered = [...pullRequests]
 
@@ -225,27 +240,33 @@ export default function PullRequests() {
       case 'idle':
         filtered = filtered.filter(pr => idlePRs.some(idle => idle.pullRequestId === pr.pullRequestId))
         break
+      case 'conflicts':
+        filtered = filtered.filter(pr => pr.mergeStatus === 'conflicts')
+        break
       case 'all':
       default:
         // No filter
         break
     }
 
-    // Apply sort
-    switch (sortBy) {
-      case 'oldest':
-        filtered.sort((a, b) => new Date(a.creationDate) - new Date(b.creationDate))
-        break
-      case 'title':
-        filtered.sort((a, b) => a.title.localeCompare(b.title))
-        break
-      case 'newest':
-      default:
-        filtered.sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate))
-        break
-    }
+    // Sort by priority first (problems first), then by user-selected sort
+    const sorted = [...filtered].sort((a, b) => {
+      const priorityDiff = getPRPriority(a) - getPRPriority(b)
+      if (priorityDiff !== 0) return priorityDiff
+      
+      // Within same priority, apply user sort
+      switch (sortBy) {
+        case 'oldest':
+          return new Date(a.creationDate) - new Date(b.creationDate)
+        case 'title':
+          return a.title.localeCompare(b.title)
+        case 'newest':
+        default:
+          return new Date(b.creationDate) - new Date(a.creationDate)
+      }
+    })
 
-    return filtered
+    return sorted
   }
 
   if (error && initialLoading) {
@@ -315,14 +336,44 @@ export default function PullRequests() {
       <div className="animate-slide-up">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Pull Requests</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Active pull requests and review status</p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">Pull Requests</h1>
+              {/* Quick health indicator */}
+              {!loadingStates.stats && (
+                stats.unassigned > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                    {stats.unassigned} need reviewers
+                  </span>
+                ) : stats.idle > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    {stats.idle} stale
+                  </span>
+                ) : stats.active > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                    {stats.active} in review
+                  </span>
+                ) : stats.total > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    All clear
+                  </span>
+                ) : null
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {!loadingStates.stats && stats.unassigned > 0 
+                ? `${stats.unassigned} PR${stats.unassigned > 1 ? 's' : ''} waiting for reviewer assignment`
+                : 'Active pull requests and review status'}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={handleSync}
               disabled={Object.values(loadingStates).some(loading => loading)}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-foreground text-background text-sm font-medium rounded-full hover:bg-foreground/90 disabled:opacity-60 transition-all duration-200"
+              className="group flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${Object.values(loadingStates).some(loading => loading) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
               Sync
@@ -381,8 +432,12 @@ export default function PullRequests() {
           )}
         </div>
 
-        {/* Unassigned PRs */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+        {/* Unassigned PRs - NO REVIEWERS = BLOCKED */}
+        <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
+          stats.unassigned > 0 
+            ? 'border-orange-300 dark:border-orange-800 ring-1 ring-orange-200 dark:ring-orange-900' 
+            : 'border-border dark:border-[#1a1a1a]'
+        }`}>
           {loadingStates.stats ? (
             <div className="space-y-3">
               <div className="shimmer h-4 rounded w-16"></div>
@@ -392,21 +447,41 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <User className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                <span className="text-xs font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 px-2 py-0.5 rounded-full">
-                  Unassigned
+                <div className="flex items-center gap-2">
+                  <User className={`h-5 w-5 ${stats.unassigned > 0 ? 'text-orange-600 dark:text-orange-400 animate-pulse' : 'text-muted-foreground'}`} />
+                  {stats.unassigned > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                  )}
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  stats.unassigned > 0 
+                    ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-950/50' 
+                    : 'text-muted-foreground bg-muted'
+                }`}>
+                  {stats.unassigned > 0 ? 'Blocked' : 'Clear'}
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.unassigned}</div>
-                <div className="text-sm text-muted-foreground">Need Reviewers</div>
+                <div className={`text-2xl font-bold mb-0.5 ${stats.unassigned > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-foreground'}`}>
+                  {stats.unassigned}
+                </div>
+                <div className="text-sm text-muted-foreground">No Reviewers</div>
               </div>
+              {stats.unassigned > 0 && (
+                <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                  ⚠️ Assign reviewers to unblock
+                </div>
+              )}
             </>
           )}
         </div>
 
-        {/* Idle PRs */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+        {/* Idle PRs - STALE = NEEDS ATTENTION */}
+        <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
+          stats.idle > 0 
+            ? 'border-amber-300 dark:border-amber-800 ring-1 ring-amber-200 dark:ring-amber-900' 
+            : 'border-border dark:border-[#1a1a1a]'
+        }`}>
           {loadingStates.idlePRs ? (
             <div className="space-y-3">
               <div className="shimmer h-4 rounded w-16"></div>
@@ -416,15 +491,31 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-                <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
-                  Overdue
+                <div className="flex items-center gap-2">
+                  <Clock className={`h-5 w-5 ${stats.idle > 0 ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-muted-foreground'}`} />
+                  {stats.idle > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  )}
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  stats.idle > 0 
+                    ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50' 
+                    : 'text-muted-foreground bg-muted'
+                }`}>
+                  {stats.idle > 0 ? 'Stale' : 'Fresh'}
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.idle}</div>
-                <div className="text-sm text-muted-foreground">Overdue (48h+)</div>
+                <div className={`text-2xl font-bold mb-0.5 ${stats.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
+                  {stats.idle}
+                </div>
+                <div className="text-sm text-muted-foreground">Idle 48h+</div>
               </div>
+              {stats.idle > 0 && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  ⏰ Need review attention
+                </div>
+              )}
             </>
           )}
         </div>
@@ -445,24 +536,37 @@ export default function PullRequests() {
             <div className="flex flex-wrap gap-2">
               {[
                 { value: 'all', label: 'All', count: pullRequests.length },
-                { value: 'under-review', label: 'Under Review', count: stats.active },
-                { value: 'unassigned', label: 'Unassigned', count: stats.unassigned },
-                { value: 'idle', label: 'Overdue', count: stats.idle }
+                { value: 'under-review', label: 'In Review', count: stats.active },
+                { value: 'unassigned', label: 'No Reviewers', count: stats.unassigned, isWarning: stats.unassigned > 0 },
+                { value: 'conflicts', label: 'Conflicts', count: stats.conflicts, isDanger: stats.conflicts > 0 },
+                { value: 'idle', label: 'Stale (48h+)', count: stats.idle, isWarning: stats.idle > 0 }
               ].map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setFilter(option.value)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                     filter === option.value
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                      ? option.isDanger 
+                        ? 'bg-red-500 text-white shadow-md' 
+                        : option.isWarning 
+                          ? 'bg-orange-500 text-white shadow-md'
+                          : 'bg-blue-500 text-white shadow-md'
+                      : option.isDanger && option.count > 0
+                        ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
+                        : option.isWarning && option.count > 0
+                          ? 'bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/50'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   }`}
                 >
                   <span>{option.label}</span>
                   <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
                     filter === option.value
                       ? 'bg-white/20 text-white'
-                      : 'bg-background text-muted-foreground'
+                      : option.isDanger && option.count > 0
+                        ? 'bg-red-200 dark:bg-red-900 text-red-800 dark:text-red-200'
+                        : option.isWarning && option.count > 0
+                          ? 'bg-orange-200 dark:bg-orange-900 text-orange-800 dark:text-orange-200'
+                          : 'bg-background text-muted-foreground'
                   }`}>
                     {option.count}
                   </span>
@@ -568,10 +672,23 @@ export default function PullRequests() {
             </div>
           ) : getFilteredAndSortedPRs().length > 0 ? (
             <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-              {getFilteredAndSortedPRs().map((pr) => (
+              {getFilteredAndSortedPRs().map((pr) => {
+                const isUnassigned = pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)
+                const hasConflicts = pr.mergeStatus === 'conflicts'
+                const isIdle = idlePRs.some(idle => idle.pullRequestId === pr.pullRequestId)
+                
+                return (
                 <div 
                   key={pr.pullRequestId} 
-                  className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                  className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer ${
+                    hasConflicts 
+                      ? 'border-l-2 border-l-red-500 bg-red-50/30 dark:bg-red-950/20' 
+                      : isUnassigned 
+                        ? 'border-l-2 border-l-orange-500 bg-orange-50/30 dark:bg-orange-950/20' 
+                        : isIdle 
+                          ? 'border-l-2 border-l-amber-500 bg-amber-50/30 dark:bg-amber-950/20' 
+                          : ''
+                  }`}
                   onClick={() => {
                     setSelectedPR(pr)
                     setIsModalOpen(true)
@@ -601,6 +718,19 @@ export default function PullRequests() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                      {/* Problem indicators */}
+                      {isUnassigned && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300">
+                          <User className="h-3 w-3" />
+                          No reviewers
+                        </span>
+                      )}
+                      {isIdle && !isUnassigned && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
+                          <Clock className="h-3 w-3" />
+                          Stale
+                        </span>
+                      )}
                       {getStatusBadge(pr.status)}
                       {getMergeStatusBadge(pr.mergeStatus)}
                     </div>
@@ -676,7 +806,8 @@ export default function PullRequests() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="px-6 py-12 text-center text-muted-foreground">
