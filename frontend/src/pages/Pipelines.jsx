@@ -307,7 +307,7 @@ export default function Pipelines() {
 
       {loading ? (
         <div
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in"
+          className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 animate-fade-in"
           style={{ animationDelay: "0.1s" }}
         >
           {Array.from({ length: 4 }).map((_, idx) => (
@@ -330,7 +330,7 @@ export default function Pipelines() {
         </div>
       ) : (
         <div
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in"
+          className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 animate-fade-in"
           style={{ animationDelay: "0.1s" }}
         >
           {/* Succeeded Card - neutral */}
@@ -617,11 +617,11 @@ export default function Pipelines() {
           <div className="mb-4">
             <div className="w-full shimmer rounded-full h-2 animate-pulse"></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {Array.from({ length: 3 }).map((_, index) => (
               <div key={index} className="text-center animate-pulse">
-                <div className="h-6 shimmer rounded w-8 mx-auto mb-1"></div>
-                <div className="h-3 shimmer rounded w-16 mx-auto"></div>
+                <div className="h-5 sm:h-6 shimmer rounded w-8 mx-auto mb-1"></div>
+                <div className="h-3 shimmer rounded w-14 sm:w-16 mx-auto"></div>
               </div>
             ))}
           </div>
@@ -687,24 +687,24 @@ export default function Pipelines() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div className="text-center">
-              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400">
                 {stats.succeeded}
               </div>
-              <div className="text-xs text-muted-foreground">Succeeded</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">Succeeded</div>
             </div>
             <div className="text-center">
-              <div className={`text-lg font-bold ${stats.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+              <div className={`text-base sm:text-lg font-bold ${stats.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
                 {stats.failed}
               </div>
-              <div className="text-xs text-muted-foreground">Failed</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">Failed</div>
             </div>
             <div className="text-center">
-              <div className={`text-lg font-bold ${stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>
+              <div className={`text-base sm:text-lg font-bold ${stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>
                 {stats.inProgress}
               </div>
-              <div className="text-xs text-muted-foreground">Running</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">Running</div>
             </div>
           </div>
         </div>

@@ -421,7 +421,7 @@ export default function Releases() {
 
       {/* Stats Cards */}
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
           {Array.from({ length: 4 }).map((_, idx) => (
             <div
               key={idx}
@@ -439,7 +439,7 @@ export default function Releases() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
           {/* Total Releases - neutral */}
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -876,21 +876,23 @@ export default function Releases() {
                           )}
                         </div>
                       </div>
-                      <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(release.status)}`}>
+                      <span className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium flex-shrink-0 ${getStatusColor(release.status)}`}>
                         {getStatusBadgeIcon(release.status)}
-                        {release.status === 'succeeded' ? 'Succeeded' :
-                         release.status === 'failed' ? 'Failed' :
-                         release.status === 'rejected' ? 'Rejected' :
-                         release.status === 'canceled' ? 'Canceled' :
-                         release.status === 'cancelled' ? 'Canceled' :
-                         release.status === 'abandoned' ? 'Abandoned' :
-                         release.status === 'waitingforapproval' ? 'Waiting for Approval' :
-                         release.status === 'inprogress' ? 'In Progress' :
-                         release.status === 'deploying' ? 'Deploying' :
-                         release.status === 'pending' ? 'Not Deployed' :
-                         release.status === 'notstarted' ? 'Not Deployed' :
-                         release.status === 'notDeployed' ? 'Not Deployed' :
-                         release.status}
+                        <span className="hidden sm:inline">
+                          {release.status === 'succeeded' ? 'Succeeded' :
+                           release.status === 'failed' ? 'Failed' :
+                           release.status === 'rejected' ? 'Rejected' :
+                           release.status === 'canceled' ? 'Canceled' :
+                           release.status === 'cancelled' ? 'Canceled' :
+                           release.status === 'abandoned' ? 'Abandoned' :
+                           release.status === 'waitingforapproval' ? 'Waiting for Approval' :
+                           release.status === 'inprogress' ? 'In Progress' :
+                           release.status === 'deploying' ? 'Deploying' :
+                           release.status === 'pending' ? 'Not Deployed' :
+                           release.status === 'notstarted' ? 'Not Deployed' :
+                           release.status === 'notDeployed' ? 'Not Deployed' :
+                           release.status}
+                        </span>
                       </span>
                     </div>
                   </div>

@@ -603,7 +603,7 @@ export default function WorkItems() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
         {loadingStates.sprintSummary ? (
           <>
             {Array.from({ length: 4 }).map((_, index) => (
@@ -746,13 +746,13 @@ export default function WorkItems() {
         </div>
       ) : (
         sprintSummary && (
-        <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="bg-card dark:bg-[#111111] p-4 sm:p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <h3 className="text-xl font-semibold text-foreground">Work Items</h3>
+              <h3 className="text-lg sm:text-xl font-semibold text-foreground">Work Items</h3>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {/* State Filter Dropdown */}
               <div className="relative dropdown-container">
                 <button
@@ -865,7 +865,7 @@ export default function WorkItems() {
                   placeholder="Search items..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 dark:focus:border-blue-600 w-full sm:w-36 hover:border-muted-foreground transition-colors bg-card dark:bg-[#111111] text-foreground placeholder:text-muted-foreground"
+                  className="pl-8 pr-3 py-2 border border-border rounded-full text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 dark:focus:border-blue-600 w-full sm:w-40 md:w-48 hover:border-muted-foreground transition-colors bg-card dark:bg-[#111111] text-foreground placeholder:text-muted-foreground"
                 />
               </div>
               

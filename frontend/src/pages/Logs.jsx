@@ -211,7 +211,7 @@ export default function Logs() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Logs */}
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loading ? (
@@ -461,22 +461,22 @@ export default function Logs() {
         </div>
       </div>
 
-      {/* Logs Table */}
-      <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+      {/* Logs Table - Desktop */}
+      <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm hidden md:block">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-border dark:divide-[#1a1a1a]">
             <thead className="bg-muted">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Timestamp
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Level
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Service
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Message
                 </th>
               </tr>
@@ -507,7 +507,7 @@ export default function Logs() {
                           : ''
                     }`}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-sm">
                       <div className="flex flex-col">
                         <span className={`font-medium ${isError ? 'text-red-700 dark:text-red-300' : isWarn ? 'text-amber-700 dark:text-amber-300' : 'text-foreground'}`}>
                           {getTimeAgo()}
@@ -517,7 +517,7 @@ export default function Logs() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
                       <span className={`${getLevelBadgeClass(log.level)} ${isError ? 'ring-1 ring-red-300 dark:ring-red-700' : ''}`}>
                         {isError && <XCircle className="h-3 w-3 mr-1" />}
                         {isWarn && <AlertTriangle className="h-3 w-3 mr-1" />}
@@ -525,14 +525,14 @@ export default function Logs() {
                         {log.level.toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-sm text-muted-foreground">
                       <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
                         {log.service || 'system'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm">
                       <div 
-                        className={`max-w-lg truncate ${isError ? 'text-red-800 dark:text-red-200 font-medium' : isWarn ? 'text-amber-800 dark:text-amber-200' : 'text-foreground'}`} 
+                        className={`max-w-md lg:max-w-lg truncate ${isError ? 'text-red-800 dark:text-red-200 font-medium' : isWarn ? 'text-amber-800 dark:text-amber-200' : 'text-foreground'}`} 
                         title={log.message}
                       >
                         {log.message}
@@ -577,6 +577,92 @@ export default function Logs() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Logs Cards - Mobile */}
+      <div className="md:hidden space-y-2">
+        {filteredLogs.length > 0 ? (
+          filteredLogs.map((log, index) => {
+            const isError = log.level === 'error';
+            const isWarn = log.level === 'warn';
+            
+            const getTimeAgo = () => {
+              try {
+                return formatDistanceToNow(new Date(log.timestamp), { addSuffix: true });
+              } catch {
+                return format(new Date(log.timestamp), 'MMM dd, HH:mm:ss');
+              }
+            };
+            
+            return (
+              <div 
+                key={index}
+                className={`bg-card dark:bg-[#111111] rounded-lg border border-border dark:border-[#1a1a1a] p-3 ${
+                  isError 
+                    ? 'border-l-2 border-l-red-500' 
+                    : isWarn 
+                      ? 'border-l-2 border-l-amber-500' 
+                      : ''
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <span className={`${getLevelBadgeClass(log.level)} ${isError ? 'ring-1 ring-red-300 dark:ring-red-700' : ''}`}>
+                    {isError && <XCircle className="h-3 w-3 mr-1" />}
+                    {isWarn && <AlertTriangle className="h-3 w-3 mr-1" />}
+                    {log.level === 'info' && <Info className="h-3 w-3 mr-1" />}
+                    {log.level.toUpperCase()}
+                  </span>
+                  <div className="text-right">
+                    <div className={`text-xs font-medium ${isError ? 'text-red-700 dark:text-red-300' : isWarn ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}>
+                      {getTimeAgo()}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {format(new Date(log.timestamp), 'HH:mm:ss')}
+                    </div>
+                  </div>
+                </div>
+                <p className={`text-sm break-words ${isError ? 'text-red-800 dark:text-red-200 font-medium' : isWarn ? 'text-amber-800 dark:text-amber-200' : 'text-foreground'}`}>
+                  {log.message}
+                </p>
+                {log.service && (
+                  <div className="mt-2 pt-2 border-t border-border">
+                    <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                      {log.service}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm p-8 text-center">
+            {levelFilter === 'error' ? (
+              <>
+                <CheckCircle className="h-10 w-10 text-emerald-500/30 mx-auto mb-3" />
+                <h3 className="text-base font-medium text-foreground mb-1">No errors found</h3>
+                <p className="text-muted-foreground text-sm">All systems running smoothly</p>
+              </>
+            ) : searchTerm || levelFilter !== 'all' ? (
+              <>
+                <Search className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                <h3 className="text-base font-medium text-foreground mb-1">No matching logs</h3>
+                <p className="text-muted-foreground text-sm">Try adjusting your search or filters</p>
+                <button 
+                  onClick={() => { setSearchTerm(''); setLevelFilter('all'); }}
+                  className="mt-3 text-sm text-primary hover:underline"
+                >
+                  Clear filters
+                </button>
+              </>
+            ) : (
+              <>
+                <Info className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                <h3 className="text-base font-medium text-foreground mb-1">No logs available</h3>
+                <p className="text-muted-foreground text-sm">Logs will appear here as events occur</p>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -354,7 +354,7 @@ export default function Dashboard() {
       )}
 
       {/* Stats - Summary cards - neutral backgrounds, colored icons/text only */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
         {/* Work Items */}
         <Link to="/work-items" className="block">
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm cursor-pointer">
@@ -508,18 +508,18 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Stats & Activity */}
-      <div className="grid lg:grid-cols-3 gap-6 animate-fade-in" style={{animationDelay: '0.2s'}}>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 animate-fade-in" style={{animationDelay: '0.2s'}}>
         {/* Status Summary - Only shown when all clear - neutral styling */}
         {!loadingStates.workItems && !loadingStates.builds && !loadingStates.pullRequests && 
          stats.workItems.overdue === 0 && stats.builds.failed === 0 && stats.pullRequests.idle === 0 && (
-          <div className="lg:col-span-2 bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm p-6">
+          <div className="md:col-span-1 lg:col-span-2 bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm p-4 sm:p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-emerald-500" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-muted rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
               </div>
               <div>
-                <div className="font-semibold text-foreground">All systems healthy</div>
-                <div className="text-sm text-muted-foreground">No failed builds, overdue items, or stale PRs</div>
+                <div className="font-semibold text-foreground text-sm sm:text-base">All systems healthy</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">No failed builds, overdue items, or stale PRs</div>
               </div>
             </div>
           </div>
@@ -529,8 +529,8 @@ export default function Dashboard() {
         <details className={`bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm overflow-hidden ${
           !loadingStates.workItems && !loadingStates.builds && !loadingStates.pullRequests && 
           stats.workItems.overdue === 0 && stats.builds.failed === 0 && stats.pullRequests.idle === 0 
-            ? 'lg:col-span-1' 
-            : 'lg:col-span-3'
+            ? 'md:col-span-1 lg:col-span-1' 
+            : 'md:col-span-2 lg:col-span-3'
         }`}>
           <summary className="p-4 cursor-pointer hover:bg-muted/50 transition-colors list-none">
             <div className="flex items-center justify-between">
