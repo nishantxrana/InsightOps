@@ -277,29 +277,37 @@ class ReleaseWebhook extends BaseWebhook {
 
       // Save notification with organizationId if available
       if (organizationId) {
-        await notificationHistoryService.saveNotification(userId, organizationId, {
-          type: 'release',
-          subType: notificationType.replace('release-', ''),
-          title: `Release: ${releaseName} - ${environment.name}`,
-          message: `Release deployment ${notificationType.replace('release-', '')}`,
-          source: 'webhook',
-          metadata: {
-            releaseId,
-            releaseName,
-            releaseDefinitionName,
-            environmentName: environment.name,
-            status: environment.status,
-            deployedBy: requestedFor,
-            duration,
-            url: webUrl,
-            failedTasks: failedLogs ? failedLogs.map(task => ({
-              taskName: task.taskName,
-              environmentName: task.environmentName,
-              logContent: task.logContent
-            })) : null
-          },
-          channels
-        });
+        try {
+          logger.info(`📝 [NOTIFICATION] Saving release notification to history for org ${organizationId}, userId: ${userId}`);
+          await notificationHistoryService.saveNotification(userId, organizationId, {
+            type: 'release',
+            subType: notificationType.replace('release-', ''),
+            title: `Release: ${releaseName} - ${environment.name}`,
+            message: `Release deployment ${notificationType.replace('release-', '')}`,
+            source: 'webhook',
+            metadata: {
+              releaseId,
+              releaseName,
+              releaseDefinitionName,
+              environmentName: environment.name,
+              status: environment.status,
+              deployedBy: requestedFor,
+              duration,
+              url: webUrl,
+              failedTasks: failedLogs ? failedLogs.map(task => ({
+                taskName: task.taskName,
+                environmentName: task.environmentName,
+                logContent: task.logContent
+              })) : null
+            },
+            channels
+          });
+          logger.info(`✅ [NOTIFICATION] Saved release notification to history for org ${organizationId}`);
+        } catch (historyError) {
+          logger.error(`❌ [NOTIFICATION] Failed to save release notification to history for org ${organizationId}:`, historyError);
+        }
+      } else {
+        logger.warn(`⚠️ [NOTIFICATION] Skipping release notification history save - no organizationId provided`);
       }
 
     } catch (error) {

@@ -6,7 +6,7 @@ import { logger, sanitizeForLogging } from '../utils/logger.js';
 import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 import { aiService } from '../ai/aiService.js';
 import { authenticate } from '../middleware/auth.js';
-import { getUserSettings, updateUserSettings } from '../utils/userSettings.js';
+import { updateUserSettings } from '../utils/userSettings.js'; // Legacy - only used for backward compatibility
 import { getOrganizationSettings, hasAzureDevOpsConfig, hasAIConfig, getAzureDevOpsConfig, getAIConfig } from '../utils/organizationSettings.js';
 import { organizationService } from '../services/organizationService.js';
 import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
@@ -127,17 +127,39 @@ router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
       });
     }
     
-    const settings = await updateUserSettings(req.user._id, updates);
-    
-    // Update user polling with new settings if polling settings were updated
-    if (updates.polling) {
-      logger.info('Polling settings updated - updating user polling configuration');
-      await userPollingManager.updateUserPolling(req.user._id, updates);
+    // DEPRECATION: This endpoint is deprecated. Use PUT /api/organizations/:id instead.
+    // For backward compatibility, we update organization settings if org context exists.
+    if (req.organizationId) {
+      logger.warn('⚠️ DEPRECATED: PUT /settings called with org context. Use PUT /api/organizations/:id instead.');
+      
+      // Update organization settings instead of user settings
+      const updatedOrg = await organizationService.updateOrganization(
+        req.organizationId,
+        req.user._id,
+        updates
+      );
+      
+      if (!updatedOrg) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+      
+      res.json({ message: 'Settings updated successfully (via organization)' });
+    } else {
+      // Legacy fallback: Update user settings if no org context
+      logger.warn('⚠️ DEPRECATED: PUT /settings called without org context. This endpoint is deprecated.');
+      
+      const settings = await updateUserSettings(req.user._id, updates);
+      
+      // Update user polling with new settings if polling settings were updated
+      if (updates.polling) {
+        logger.info('Polling settings updated - updating user polling configuration');
+        await userPollingManager.updateUserPolling(req.user._id, updates);
+      }
+      
+      res.json({ message: 'Settings updated successfully (legacy user settings)' });
     }
-    
-    res.json({ message: 'Settings updated successfully' });
   } catch (error) {
-    logger.error('Error updating user settings:', error);
+    logger.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });
   }
 });
