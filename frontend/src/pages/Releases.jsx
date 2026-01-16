@@ -189,7 +189,7 @@ export default function Releases() {
     }
   }, [currentPage]); // Reload when page changes
 
-  // Filter releases when filters change
+  // Filter and sort releases - blocked/failed first for operational clarity
   useEffect(() => {
     let filtered = releases;
 
@@ -218,7 +218,26 @@ export default function Releases() {
       );
     }
 
-    setFilteredReleases(filtered);
+    // Sort by operational priority: blocked first, then failed, then in-progress, then others
+    const sorted = [...filtered].sort((a, b) => {
+      const getPriority = (release) => {
+        const status = release.status?.toLowerCase();
+        if (status === 'waitingforapproval') return 0; // Blocked first
+        if (status === 'failed' || status === 'rejected') return 1; // Failures second
+        if (status === 'inprogress' || status === 'deploying') return 2; // In progress third
+        if (status === 'pending' || status === 'notstarted') return 3;
+        if (status === 'canceled' || status === 'cancelled' || status === 'abandoned') return 4;
+        return 5; // Succeeded last
+      };
+      
+      const priorityDiff = getPriority(a) - getPriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+      
+      // Within same priority, sort by time (most recent first)
+      return new Date(b.createdOn || 0) - new Date(a.createdOn || 0);
+    });
+
+    setFilteredReleases(sorted);
   }, [releases, statusFilter, environmentFilter, definitionFilter, searchTerm]);
 
   const handleSync = async () => {
@@ -348,11 +367,39 @@ export default function Releases() {
       <div className={initialLoad ? "animate-slide-up" : ""}>
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-              Releases
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+                Releases
+              </h1>
+              {/* Quick health indicator */}
+              {!loading && (
+                stats.pendingApprovals > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                    {stats.pendingApprovals} blocked
+                  </span>
+                ) : stats.failedDeployments > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                    {stats.failedDeployments} failed
+                  </span>
+                ) : stats.activeDeployments > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                    {stats.activeDeployments} deploying
+                  </span>
+                ) : stats.totalReleases > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Healthy
+                  </span>
+                ) : null
+              )}
+            </div>
             <p className="text-muted-foreground text-sm mt-0.5">
-              Release deployments and environment status
+              {!loading && stats.pendingApprovals > 0 
+                ? `${stats.pendingApprovals} release${stats.pendingApprovals > 1 ? 's' : ''} waiting for approval`
+                : 'Release deployments and environment status'}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -363,7 +410,7 @@ export default function Releases() {
             <button
               onClick={handleSync}
               disabled={loading}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-foreground text-background text-sm font-medium rounded-full hover:bg-foreground/90 disabled:opacity-60 transition-all duration-200"
+              className="group flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
             >
               <RefreshCw className={refreshIconClass} />
               Sync
@@ -409,52 +456,115 @@ export default function Releases() {
             </div>
           </div>
 
-          {/* Success Rate */}
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-              <span className="text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-full">
-                Success
-              </span>
-            </div>
-            <div className="mb-3">
-              <div className="text-2xl font-bold text-foreground mb-0.5">
-                {stats.successRate}%
+          {/* Success Rate - Color by health */}
+          {(() => {
+            const rate = stats.successRate || 0;
+            const isHealthy = rate >= 90;
+            const isWarning = rate >= 70 && rate < 90;
+            const isCritical = rate < 70;
+            
+            return (
+            <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
+              isCritical 
+                ? 'border-red-200 dark:border-red-900' 
+                : isWarning 
+                  ? 'border-amber-200 dark:border-amber-900' 
+                  : 'border-border dark:border-[#1a1a1a]'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <CheckCircle className={`h-5 w-5 ${
+                  isCritical ? 'text-red-600 dark:text-red-400' :
+                  isWarning ? 'text-amber-600 dark:text-amber-400' :
+                  'text-green-600 dark:text-green-400'
+                }`} />
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  isCritical ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50' :
+                  isWarning ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50' :
+                  'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/50'
+                }`}>
+                  {isCritical ? 'Critical' : isWarning ? 'Fair' : 'Healthy'}
+                </span>
               </div>
-              <div className="text-sm text-muted-foreground">Success Rate</div>
+              <div className="mb-3">
+                <div className={`text-2xl font-bold mb-0.5 ${
+                  isCritical ? 'text-red-600 dark:text-red-400' :
+                  isWarning ? 'text-amber-600 dark:text-amber-400' :
+                  'text-foreground'
+                }`}>
+                  {rate}%
+                </div>
+                <div className="text-sm text-muted-foreground">Success Rate</div>
+              </div>
             </div>
-          </div>
+            );
+          })()}
 
-          {/* Pending Approvals */}
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+          {/* Pending Approvals - BLOCKING = ALARMING */}
+          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
+            stats.pendingApprovals > 0 
+              ? 'border-orange-300 dark:border-orange-800 ring-1 ring-orange-200 dark:ring-orange-900' 
+              : 'border-border dark:border-[#1a1a1a]'
+          }`}>
             <div className="flex items-center justify-between mb-3">
-              <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-              <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
-                Pending
+              <div className="flex items-center gap-2">
+                <UserCheck className={`h-5 w-5 ${stats.pendingApprovals > 0 ? 'text-orange-600 dark:text-orange-400 animate-pulse' : 'text-muted-foreground'}`} />
+                {stats.pendingApprovals > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                )}
+              </div>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                stats.pendingApprovals > 0 
+                  ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-950/50' 
+                  : 'text-muted-foreground bg-muted'
+              }`}>
+                {stats.pendingApprovals > 0 ? 'Blocked' : 'Clear'}
               </span>
             </div>
             <div className="mb-3">
-              <div className="text-2xl font-bold text-foreground mb-0.5">
+              <div className={`text-2xl font-bold mb-0.5 ${stats.pendingApprovals > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-foreground'}`}>
                 {stats.pendingApprovals}
               </div>
-              <div className="text-sm text-muted-foreground">Approvals</div>
+              <div className="text-sm text-muted-foreground">Awaiting Approval</div>
             </div>
+            {stats.pendingApprovals > 0 && (
+              <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                ⏳ Blocking deployment
+              </div>
+            )}
           </div>
 
           {/* Active Deployments */}
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
+            stats.activeDeployments > 0 
+              ? 'border-blue-200 dark:border-blue-900' 
+              : 'border-border dark:border-[#1a1a1a]'
+          }`}>
             <div className="flex items-center justify-between mb-3">
-              <Clock className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              <span className="text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded-full">
-                Active
+              <div className="flex items-center gap-2">
+                <Clock className={`h-5 w-5 ${stats.activeDeployments > 0 ? 'text-blue-600 dark:text-blue-400 animate-pulse' : 'text-muted-foreground'}`} />
+                {stats.activeDeployments > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                )}
+              </div>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                stats.activeDeployments > 0 
+                  ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/50' 
+                  : 'text-muted-foreground bg-muted'
+              }`}>
+                {stats.activeDeployments > 0 ? 'Deploying' : 'Idle'}
               </span>
             </div>
             <div className="mb-3">
-              <div className="text-2xl font-bold text-foreground mb-0.5">
+              <div className={`text-2xl font-bold mb-0.5 ${stats.activeDeployments > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>
                 {stats.activeDeployments}
               </div>
-              <div className="text-sm text-muted-foreground">Deployments</div>
+              <div className="text-sm text-muted-foreground">In Progress</div>
             </div>
+            {stats.activeDeployments > 0 && (
+              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                🚀 Deploying now
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -560,6 +670,30 @@ export default function Releases() {
               />
             </div>
 
+            {/* Quick filters for blocked/failed */}
+            <div className="flex items-center gap-1 border-l border-border pl-2">
+              {stats.pendingApprovals > 0 && statusFilter !== 'waitingforapproval' && (
+                <button
+                  onClick={() => setStatusFilter('waitingforapproval')}
+                  className="text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/50 px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 border border-orange-200 dark:border-orange-800"
+                  title="Show blocked releases"
+                >
+                  <UserCheck className="w-3 h-3" />
+                  Blocked
+                </button>
+              )}
+              {stats.failedDeployments > 0 && statusFilter !== 'failed' && (
+                <button
+                  onClick={() => setStatusFilter('failed')}
+                  className="text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 border border-red-200 dark:border-red-800"
+                  title="Show failed releases"
+                >
+                  <XCircle className="w-3 h-3" />
+                  Failed
+                </button>
+              )}
+            </div>
+
             {/* Clear Filters */}
             {(statusFilter !== 'all' || environmentFilter !== 'all' || definitionFilter !== 'all' || searchTerm) && (
               <button
@@ -571,7 +705,7 @@ export default function Releases() {
                 }}
                 className="text-xs text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 px-3 py-2 rounded-full transition-colors"
               >
-                Clear
+                Clear all
               </button>
             )}
           </div>
@@ -679,11 +813,25 @@ export default function Releases() {
                 </div>
               ) : (
                 <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-                {filteredReleases.map((release, index) => (
+                {filteredReleases.map((release, index) => {
+                  const status = release.status?.toLowerCase();
+                  const isBlocked = status === 'waitingforapproval';
+                  const isFailed = status === 'failed' || status === 'rejected';
+                  const isInProgress = status === 'inprogress' || status === 'deploying';
+                  
+                  return (
                   <div 
                     key={release.id} 
                     onClick={() => openReleaseModal(release)}
-                    className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group"
+                    className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group ${
+                      isBlocked 
+                        ? 'border-l-2 border-l-orange-500 bg-orange-50/30 dark:bg-orange-950/20' 
+                        : isFailed 
+                          ? 'border-l-2 border-l-red-500 bg-red-50/30 dark:bg-red-950/20' 
+                          : isInProgress 
+                            ? 'border-l-2 border-l-blue-500 bg-blue-50/30 dark:bg-blue-950/20' 
+                            : ''
+                    }`}
                     title="Click to view details"
                   >
                     <div className="flex items-center justify-between">
@@ -778,7 +926,8 @@ export default function Releases() {
                       </span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               )}
             </ScrollArea>
