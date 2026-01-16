@@ -6,6 +6,7 @@ import { buildWebhook } from './buildWebhook.js';
 import { pullRequestWebhook } from './pullRequestWebhook.js';
 import { releaseWebhook } from './releaseWebhook.js';
 import { validateWebhookSignature } from '../utils/webhookValidator.js';
+import { metrics } from '../observability/metrics.js';
 
 const router = express.Router();
 
@@ -27,16 +28,24 @@ const webhookAuth = (req, res, next) => {
   next();
 };
 
-// Middleware to log all webhook events
+// Middleware to log all webhook events and record metrics
 const logWebhookEvent = (req, res, next) => {
   const eventType = req.body?.eventType || 'unknown';
   const resourceType = req.body?.resource?.resourceType || 'unknown';
+  const organizationId = req.params?.organizationId || null;
   
   logger.info('Webhook event received', {
     eventType,
     resourceType,
     subscriptionId: req.body?.subscriptionId,
+    organizationId,
     ip: req.ip
+  });
+  
+  // Track response status for metrics
+  res.on('finish', () => {
+    const status = res.statusCode >= 200 && res.statusCode < 400 ? 'processed' : 'rejected';
+    metrics.recordWebhook(organizationId, eventType, status);
   });
   
   next();
