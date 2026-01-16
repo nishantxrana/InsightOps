@@ -237,7 +237,6 @@ class WorkItemWebhook extends BaseWebhook {
           state,
           assignedTo
         };
-        console.log('About to pass workItemData:', workItemData);
         await this.sendUserNotification(message, userId, organizationId, 'work-item-updated', webhookData, userConfig, userConfig, workItemData);
       } else {
         // Legacy global notification
@@ -310,7 +309,6 @@ class WorkItemWebhook extends BaseWebhook {
         };
       }
       
-      console.log('Final work item data:', finalWorkItemData);
 
       const channels = [];
 
