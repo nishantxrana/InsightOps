@@ -123,11 +123,28 @@ class PullRequestWebhook extends BaseWebhook {
 
   async sendUserNotification(card, userId, organizationId, pr, aiSummary) {
     try {
-      const { getUserSettings } = await import('../utils/userSettings.js');
-      const settings = await getUserSettings(userId);
+      // Get notification settings - prefer org settings over user settings
+      let settings;
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            settings = { notifications: org.notifications };
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
+        }
+      }
+      
+      // Fall back to user settings if org settings not available
+      if (!settings) {
+        const { getUserSettings } = await import('../utils/userSettings.js');
+        settings = await getUserSettings(userId);
+      }
       
       if (!settings.notifications?.enabled) {
-        logger.info(`Notifications disabled for user ${userId}`);
+        logger.info(`Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`);
         return;
       }
 
@@ -159,22 +176,30 @@ class PullRequestWebhook extends BaseWebhook {
 
       // Save notification with organizationId if available
       if (organizationId) {
-        await notificationHistoryService.saveNotification(userId, organizationId, {
-          type: 'pull-request',
-          subType: 'created',
-          title: `PR: ${pr.title}`,
-          message: `Pull request created by ${pr.createdBy?.displayName}`,
-          source: 'webhook',
-          metadata: {
-            pullRequestId: pr.pullRequestId,
-            repository: pr.repository?.name,
-            sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
-            targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
-            createdBy: pr.createdBy?.displayName,
-            url: prUrl
-          },
-          channels
-        });
+        try {
+          logger.info(`📝 [NOTIFICATION] Saving PR notification to history for org ${organizationId}, userId: ${userId}`);
+          await notificationHistoryService.saveNotification(userId, organizationId, {
+            type: 'pull-request',
+            subType: 'created',
+            title: `PR: ${pr.title}`,
+            message: `Pull request created by ${pr.createdBy?.displayName}`,
+            source: 'webhook',
+            metadata: {
+              pullRequestId: pr.pullRequestId,
+              repository: pr.repository?.name,
+              sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
+              targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
+              createdBy: pr.createdBy?.displayName,
+              url: prUrl
+            },
+            channels
+          });
+          logger.info(`✅ [NOTIFICATION] Saved PR notification to history for org ${organizationId}`);
+        } catch (historyError) {
+          logger.error(`❌ [NOTIFICATION] Failed to save PR notification to history for org ${organizationId}:`, historyError);
+        }
+      } else {
+        logger.warn(`⚠️ [NOTIFICATION] Skipping PR notification history save - no organizationId provided`);
       }
 
     } catch (error) {

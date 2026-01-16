@@ -115,17 +115,23 @@ class PullRequestPoller {
       });
       
       // Save to notification history with organizationId
-      await notificationHistoryService.saveNotification(org.userId, organizationId, {
-        type: 'idle-pr',
-        title: `${idlePRs.length} Idle Pull Requests`,
-        message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
-        source: 'poller',
-        metadata: { 
-          count: idlePRs.length,
-          pullRequests
-        },
-        channels
-      });
+      try {
+        logger.info(`📝 [NOTIFICATION] Saving idle PR notification to history for org ${organizationId}, userId: ${org.userId}`);
+        await notificationHistoryService.saveNotification(org.userId, organizationId, {
+          type: 'idle-pr',
+          title: `${idlePRs.length} Idle Pull Requests`,
+          message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
+          source: 'poller',
+          metadata: { 
+            count: idlePRs.length,
+            pullRequests
+          },
+          channels
+        });
+        logger.info(`✅ [NOTIFICATION] Saved idle PR notification to history for org ${organizationId}`);
+      } catch (historyError) {
+        logger.error(`❌ [NOTIFICATION] Failed to save idle PR notification to history for org ${organizationId}:`, historyError);
+      }
       
       logger.info(`Idle PR notifications sent for org ${organizationId}`);
     } catch (error) {

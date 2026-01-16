@@ -148,11 +148,28 @@ class BuildWebhook extends BaseWebhook {
 
   async sendUserNotification(message, userId, organizationId, notificationType, build, aiSummary, userConfig) {
     try {
-      const { getUserSettings } = await import('../utils/userSettings.js');
-      const settings = await getUserSettings(userId);
+      // Get notification settings - prefer org settings over user settings
+      let settings;
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            settings = { notifications: org.notifications };
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
+        }
+      }
+      
+      // Fall back to user settings if org settings not available
+      if (!settings) {
+        const { getUserSettings } = await import('../utils/userSettings.js');
+        settings = await getUserSettings(userId);
+      }
       
       if (!settings.notifications?.enabled) {
-        logger.info(`Notifications disabled for user ${userId}`);
+        logger.info(`Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`);
         return;
       }
 
@@ -200,32 +217,40 @@ class BuildWebhook extends BaseWebhook {
 
       // Save notification with organizationId if available
       if (organizationId) {
-        await notificationHistoryService.saveNotification(userId, organizationId, {
-          type: 'build',
-          subType: build.result?.toLowerCase(),
-          title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
-          message,
-          source: 'webhook',
-          metadata: {
-            buildId: build.id,
-            buildNumber: build.buildNumber,
-            result: build.result,
-            status: build.status,
-            repository: build.repository?.name,
-            branch: build.sourceBranch?.replace('refs/heads/', ''),
-            commit: build.sourceVersion?.substring(0, 8),
-            commitMessage: build.triggerInfo?.['ci.message'],
-            requestedBy: build.requestedBy?.displayName,
-            requestedFor: build.requestedFor?.displayName,
-            reason: build.reason,
-            queueTime: build.queueTime,
-            startTime: build.startTime,
-            finishTime: build.finishTime,
-            duration,
-            url: buildUrl
-          },
-          channels
-        });
+        try {
+          logger.info(`📝 [NOTIFICATION] Saving build notification to history for org ${organizationId}, userId: ${userId}`);
+          await notificationHistoryService.saveNotification(userId, organizationId, {
+            type: 'build',
+            subType: build.result?.toLowerCase(),
+            title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
+            message,
+            source: 'webhook',
+            metadata: {
+              buildId: build.id,
+              buildNumber: build.buildNumber,
+              result: build.result,
+              status: build.status,
+              repository: build.repository?.name,
+              branch: build.sourceBranch?.replace('refs/heads/', ''),
+              commit: build.sourceVersion?.substring(0, 8),
+              commitMessage: build.triggerInfo?.['ci.message'],
+              requestedBy: build.requestedBy?.displayName,
+              requestedFor: build.requestedFor?.displayName,
+              reason: build.reason,
+              queueTime: build.queueTime,
+              startTime: build.startTime,
+              finishTime: build.finishTime,
+              duration,
+              url: buildUrl
+            },
+            channels
+          });
+          logger.info(`✅ [NOTIFICATION] Saved build notification to history for org ${organizationId}`);
+        } catch (historyError) {
+          logger.error(`❌ [NOTIFICATION] Failed to save build notification to history for org ${organizationId}:`, historyError);
+        }
+      } else {
+        logger.warn(`⚠️ [NOTIFICATION] Skipping build notification history save - no organizationId provided`);
       }
 
     } catch (error) {

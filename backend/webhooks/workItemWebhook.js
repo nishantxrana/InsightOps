@@ -261,11 +261,28 @@ class WorkItemWebhook extends BaseWebhook {
 
   async sendUserNotification(message, userId, organizationId, notificationType, workItemOrWebhookData, aiSummaryOrUserConfig, userConfig, workItemData = null) {
     try {
-      const { getUserSettings } = await import('../utils/userSettings.js');
-      const settings = await getUserSettings(userId);
+      // Get notification settings - prefer org settings over user settings
+      let settings;
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            settings = { notifications: org.notifications };
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
+        }
+      }
+      
+      // Fall back to user settings if org settings not available
+      if (!settings) {
+        const { getUserSettings } = await import('../utils/userSettings.js');
+        settings = await getUserSettings(userId);
+      }
       
       if (!settings.notifications?.enabled) {
-        logger.info(`Notifications disabled for user ${userId}`);
+        logger.info(`Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`);
         return;
       }
 
@@ -359,31 +376,39 @@ class WorkItemWebhook extends BaseWebhook {
       
       // Save notification with organizationId if available
       if (organizationId) {
-        await notificationHistoryService.saveNotification(userId, organizationId, {
-          type: 'work-item',
-          subType: notificationType === 'work-item-created' ? 'created' : 'updated',
-          title: `${finalWorkItemData.type}: ${finalWorkItemData.title}`,
-          message,
-          source: 'webhook',
-          metadata: {
-            workItemId: finalWorkItemData.id,
-            workItemType: finalWorkItemData.type,
-            state: finalWorkItemData.state,
-            assignedTo: finalWorkItemData.assignedTo,
-            priority: workItem?.fields?.['Microsoft.VSTS.Common.Priority'],
-            severity: workItem?.fields?.['Microsoft.VSTS.Common.Severity'],
-            areaPath: workItem?.fields?.['System.AreaPath'],
-            iterationPath: workItem?.fields?.['System.IterationPath'],
-            tags: workItem?.fields?.['System.Tags'],
-            createdBy: workItem?.fields?.['System.CreatedBy']?.displayName,
-            createdDate: workItem?.fields?.['System.CreatedDate'],
-            changedBy: workItem?.fields?.['System.ChangedBy']?.displayName,
-            changedDate: workItem?.fields?.['System.ChangedDate'],
-            changes: changes.length > 0 ? changes : null,
-            url: workItemUrl
-          },
-          channels
-        });
+        try {
+          logger.info(`📝 [NOTIFICATION] Saving work item notification to history for org ${organizationId}, userId: ${userId}`);
+          await notificationHistoryService.saveNotification(userId, organizationId, {
+            type: 'work-item',
+            subType: notificationType === 'work-item-created' ? 'created' : 'updated',
+            title: `${finalWorkItemData.type}: ${finalWorkItemData.title}`,
+            message,
+            source: 'webhook',
+            metadata: {
+              workItemId: finalWorkItemData.id,
+              workItemType: finalWorkItemData.type,
+              state: finalWorkItemData.state,
+              assignedTo: finalWorkItemData.assignedTo,
+              priority: workItem?.fields?.['Microsoft.VSTS.Common.Priority'],
+              severity: workItem?.fields?.['Microsoft.VSTS.Common.Severity'],
+              areaPath: workItem?.fields?.['System.AreaPath'],
+              iterationPath: workItem?.fields?.['System.IterationPath'],
+              tags: workItem?.fields?.['System.Tags'],
+              createdBy: workItem?.fields?.['System.CreatedBy']?.displayName,
+              createdDate: workItem?.fields?.['System.CreatedDate'],
+              changedBy: workItem?.fields?.['System.ChangedBy']?.displayName,
+              changedDate: workItem?.fields?.['System.ChangedDate'],
+              changes: changes.length > 0 ? changes : null,
+              url: workItemUrl
+            },
+            channels
+          });
+          logger.info(`✅ [NOTIFICATION] Saved work item notification to history for org ${organizationId}`);
+        } catch (historyError) {
+          logger.error(`❌ [NOTIFICATION] Failed to save work item notification to history for org ${organizationId}:`, historyError);
+        }
+      } else {
+        logger.warn(`⚠️ [NOTIFICATION] Skipping notification history save - no organizationId provided`);
       }
 
     } catch (error) {
