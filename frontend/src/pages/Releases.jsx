@@ -82,26 +82,27 @@ const getStatusBadgeIcon = (status) => {
 };
 
 const getStatusColor = (status) => {
+  // Neutral bg, colored text only
   switch (status?.toLowerCase()) {
     case 'succeeded':
-      return 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200';
+      return 'bg-muted text-emerald-600 dark:text-emerald-400';
     case 'failed':
     case 'rejected':
-      return 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200';
+      return 'bg-muted text-red-600 dark:text-red-400';
     case 'canceled':
     case 'cancelled':
-      return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
+      return 'bg-muted text-muted-foreground';
     case 'abandoned':
-      return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
+      return 'bg-muted text-orange-600 dark:text-orange-400';
     case 'waitingforapproval':
-      return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
+      return 'bg-muted text-orange-600 dark:text-orange-400';
     case 'inprogress':
     case 'deploying':
-      return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200';
+      return 'bg-muted text-blue-600 dark:text-blue-400';
     case 'pending':
     case 'notstarted':
     case 'notDeployed':
-      return 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200';
+      return 'bg-muted text-amber-600 dark:text-amber-400';
     default:
       return 'bg-muted text-muted-foreground';
   }
@@ -371,26 +372,25 @@ export default function Releases() {
               <h1 className="text-2xl font-semibold text-foreground tracking-tight">
                 Releases
               </h1>
-              {/* Quick health indicator */}
+              {/* Quick health indicator - neutral bg, colored text/icon */}
               {!loading && (
                 stats.pendingApprovals > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-                    {stats.pendingApprovals} blocked
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <UserCheck className="h-3 w-3 text-orange-500" />
+                    <span className="text-orange-600 dark:text-orange-400">{stats.pendingApprovals} blocked</span>
                   </span>
                 ) : stats.failedDeployments > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                    {stats.failedDeployments} failed
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <XCircle className="h-3 w-3 text-red-500" />
+                    <span className="text-red-600 dark:text-red-400">{stats.failedDeployments} failed</span>
                   </span>
                 ) : stats.activeDeployments > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                    {stats.activeDeployments} deploying
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <Clock className="h-3 w-3 text-blue-500" />
+                    <span className="text-blue-600 dark:text-blue-400">{stats.activeDeployments} deploying</span>
                   </span>
                 ) : stats.totalReleases > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
                     Healthy
                   </span>
                 ) : null
@@ -440,11 +440,11 @@ export default function Releases() {
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
-          {/* Total Releases */}
+          {/* Total Releases - neutral */}
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <Rocket className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <span className="text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full">
+              <Rocket className="h-5 w-5 text-blue-500" />
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                 Total
               </span>
             </div>
@@ -456,7 +456,7 @@ export default function Releases() {
             </div>
           </div>
 
-          {/* Success Rate - Color by health */}
+          {/* Success Rate - neutral with colored text */}
           {(() => {
             const rate = stats.successRate || 0;
             const isHealthy = rate >= 90;
@@ -464,23 +464,17 @@ export default function Releases() {
             const isCritical = rate < 70;
             
             return (
-            <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-              isCritical 
-                ? 'border-red-200 dark:border-red-900' 
-                : isWarning 
-                  ? 'border-amber-200 dark:border-amber-900' 
-                  : 'border-border dark:border-[#1a1a1a]'
-            }`}>
+            <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <CheckCircle className={`h-5 w-5 ${
+                  isCritical ? 'text-red-500' :
+                  isWarning ? 'text-amber-500' :
+                  'text-emerald-500'
+                }`} />
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
                   isCritical ? 'text-red-600 dark:text-red-400' :
                   isWarning ? 'text-amber-600 dark:text-amber-400' :
-                  'text-green-600 dark:text-green-400'
-                }`} />
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  isCritical ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50' :
-                  isWarning ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50' :
-                  'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/50'
+                  'text-muted-foreground'
                 }`}>
                   {isCritical ? 'Critical' : isWarning ? 'Fair' : 'Healthy'}
                 </span>
@@ -499,25 +493,14 @@ export default function Releases() {
             );
           })()}
 
-          {/* Pending Approvals - BLOCKING = ALARMING */}
-          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-            stats.pendingApprovals > 0 
-              ? 'border-orange-300 dark:border-orange-800 ring-1 ring-orange-200 dark:ring-orange-900' 
-              : 'border-border dark:border-[#1a1a1a]'
-          }`}>
+          {/* Pending Approvals - neutral with colored icon/text */}
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <UserCheck className={`h-5 w-5 ${stats.pendingApprovals > 0 ? 'text-orange-600 dark:text-orange-400 animate-pulse' : 'text-muted-foreground'}`} />
-                {stats.pendingApprovals > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-                )}
-              </div>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                stats.pendingApprovals > 0 
-                  ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-950/50' 
-                  : 'text-muted-foreground bg-muted'
+              <UserCheck className={`h-5 w-5 ${stats.pendingApprovals > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                stats.pendingApprovals > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'
               }`}>
-                {stats.pendingApprovals > 0 ? 'Blocked' : 'Clear'}
+                {stats.pendingApprovals > 0 ? `${stats.pendingApprovals} blocked` : 'Clear'}
               </span>
             </div>
             <div className="mb-3">
@@ -526,45 +509,30 @@ export default function Releases() {
               </div>
               <div className="text-sm text-muted-foreground">Awaiting Approval</div>
             </div>
-            {stats.pendingApprovals > 0 && (
-              <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                ⏳ Blocking deployment
-              </div>
-            )}
+            <div className={`text-xs ${stats.pendingApprovals > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+              {stats.pendingApprovals > 0 ? 'Blocking deployment' : 'No pending approvals'}
+            </div>
           </div>
 
-          {/* Active Deployments */}
-          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-            stats.activeDeployments > 0 
-              ? 'border-blue-200 dark:border-blue-900' 
-              : 'border-border dark:border-[#1a1a1a]'
-          }`}>
+          {/* Active Deployments - neutral */}
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Clock className={`h-5 w-5 ${stats.activeDeployments > 0 ? 'text-blue-600 dark:text-blue-400 animate-pulse' : 'text-muted-foreground'}`} />
-                {stats.activeDeployments > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                )}
-              </div>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                stats.activeDeployments > 0 
-                  ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/50' 
-                  : 'text-muted-foreground bg-muted'
+              <Clock className={`h-5 w-5 ${stats.activeDeployments > 0 ? 'text-blue-500' : 'text-muted-foreground'}`} />
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                stats.activeDeployments > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
               }`}>
                 {stats.activeDeployments > 0 ? 'Deploying' : 'Idle'}
               </span>
             </div>
             <div className="mb-3">
-              <div className={`text-2xl font-bold mb-0.5 ${stats.activeDeployments > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>
+              <div className={`text-2xl font-bold mb-0.5 ${stats.activeDeployments > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>
                 {stats.activeDeployments}
               </div>
               <div className="text-sm text-muted-foreground">In Progress</div>
             </div>
-            {stats.activeDeployments > 0 && (
-              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                🚀 Deploying now
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground">
+              {stats.activeDeployments > 0 ? 'Deploying now' : 'No active deployments'}
+            </div>
           </div>
         </div>
       )}
@@ -670,12 +638,12 @@ export default function Releases() {
               />
             </div>
 
-            {/* Quick filters for blocked/failed */}
+            {/* Quick filters for blocked/failed - neutral bg */}
             <div className="flex items-center gap-1 border-l border-border pl-2">
               {stats.pendingApprovals > 0 && statusFilter !== 'waitingforapproval' && (
                 <button
                   onClick={() => setStatusFilter('waitingforapproval')}
-                  className="text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/50 px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 border border-orange-200 dark:border-orange-800"
+                  className="text-xs text-orange-600 dark:text-orange-400 hover:bg-muted/80 bg-muted px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1"
                   title="Show blocked releases"
                 >
                   <UserCheck className="w-3 h-3" />
@@ -685,7 +653,7 @@ export default function Releases() {
               {stats.failedDeployments > 0 && statusFilter !== 'failed' && (
                 <button
                   onClick={() => setStatusFilter('failed')}
-                  className="text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 border border-red-200 dark:border-red-800"
+                  className="text-xs text-red-600 dark:text-red-400 hover:bg-muted/80 bg-muted px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1"
                   title="Show failed releases"
                 >
                   <XCircle className="w-3 h-3" />
@@ -825,11 +793,11 @@ export default function Releases() {
                     onClick={() => openReleaseModal(release)}
                     className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group ${
                       isBlocked 
-                        ? 'border-l-2 border-l-orange-500 bg-orange-50/30 dark:bg-orange-950/20' 
+                        ? 'border-l-2 border-l-orange-500' 
                         : isFailed 
-                          ? 'border-l-2 border-l-red-500 bg-red-50/30 dark:bg-red-950/20' 
+                          ? 'border-l-2 border-l-red-500' 
                           : isInProgress 
-                            ? 'border-l-2 border-l-blue-500 bg-blue-50/30 dark:bg-blue-950/20' 
+                            ? 'border-l-2 border-l-blue-500' 
                             : ''
                     }`}
                     title="Click to view details"
@@ -846,19 +814,19 @@ export default function Releases() {
                               #{release.id}
                             </span>
                             {(release.status === 'failed' || release.status === 'rejected') && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 rounded-full text-xs font-medium">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted text-red-600 dark:text-red-400 rounded-full text-xs font-medium">
                                 <FileText className="h-3 w-3" />
                                 {release.failureReason === 'approval_rejected' ? 'Approval Rejected' : 'View Logs'}
                               </span>
                             )}
                             {(release.status === 'canceled' || release.status === 'cancelled') && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-xs font-medium">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted text-muted-foreground rounded-full text-xs font-medium">
                                 <X className="h-3 w-3" />
                                 Canceled
                               </span>
                             )}
                             {release.status === 'waitingforapproval' && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 rounded-full text-xs font-medium">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted text-orange-600 dark:text-orange-400 rounded-full text-xs font-medium">
                                 <UserCheck className="h-3 w-3" />
                                 View Approvals
                               </span>

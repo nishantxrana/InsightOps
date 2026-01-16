@@ -552,16 +552,15 @@ export default function WorkItems() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold text-foreground tracking-tight">Work Items</h1>
-              {/* Quick status indicator */}
+              {/* Quick status indicator - neutral bg, colored text/icon only */}
               {!loadingStates.sprintSummary && (
                 sprintSummary?.overdue > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                    {sprintSummary.overdue} blockers
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <AlertTriangle className="h-3 w-3 text-red-500" />
+                    <span className="text-red-600 dark:text-red-400">{sprintSummary.overdue} blockers</span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
                     On track
                   </span>
                 )
@@ -649,11 +648,11 @@ export default function WorkItems() {
               </div>
             </div>
 
-            {/* Active Items */}
+            {/* Active Items - neutral card */}
             <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <Activity className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
+                <Activity className="w-5 h-5 text-amber-500" />
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                   Active
                 </span>
               </div>
@@ -666,42 +665,31 @@ export default function WorkItems() {
               </div>
             </div>
 
-            {/* Completed Items */}
+            {/* Completed Items - neutral card */}
             <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <CheckSquare className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
+                <CheckSquare className="w-5 h-5 text-emerald-500" />
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                   Done
                 </span>
               </div>
               <div className="mb-3">
                 <div className="text-2xl font-bold text-foreground mb-0.5">{sprintSummary.completed || 0}</div>
-                <div className="text-sm text-gray-600">Completed</div>
+                <div className="text-sm text-muted-foreground">Completed</div>
               </div>
-              <div className="text-xs text-emerald-600 font-medium">
+              <div className="text-xs text-muted-foreground">
                  {sprintSummary.total > 0 ? Math.round(((sprintSummary.completed || 0) / sprintSummary.total) * 100) : 0}% completion rate
               </div>
             </div>
 
-            {/* Overdue Items - Alarming when > 0 */}
-            <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-              (sprintSummary.overdue || 0) > 0 
-                ? 'border-red-300 dark:border-red-800 ring-1 ring-red-200 dark:ring-red-900' 
-                : 'border-border dark:border-[#1a1a1a]'
-            }`}>
+            {/* Overdue Items - neutral card, colored icon/text only */}
+            <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className={`w-5 h-5 ${(sprintSummary.overdue || 0) > 0 ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-muted-foreground'}`} />
-                  {(sprintSummary.overdue || 0) > 0 && (
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                  )}
-                </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  (sprintSummary.overdue || 0) > 0 
-                    ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/50' 
-                    : 'text-muted-foreground bg-muted'
+                <AlertTriangle className={`w-5 h-5 ${(sprintSummary.overdue || 0) > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                  (sprintSummary.overdue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
                 }`}>
-                  {(sprintSummary.overdue || 0) > 0 ? 'Action needed' : 'On track'}
+                  {(sprintSummary.overdue || 0) > 0 ? `${sprintSummary.overdue} overdue` : 'On track'}
                 </span>
               </div>
               <div className="mb-3">
@@ -710,8 +698,8 @@ export default function WorkItems() {
                 </div>
                 <div className="text-sm text-muted-foreground">Overdue Items</div>
               </div>
-              <div className={`text-xs font-medium ${(sprintSummary.overdue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {(sprintSummary.overdue || 0) > 0 ? '⚠ Blocking sprint goals' : '✓ All on schedule'}
+              <div className={`text-xs ${(sprintSummary.overdue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+                {(sprintSummary.overdue || 0) > 0 ? 'Blocking sprint goals' : 'All on schedule'}
               </div>
             </div>
           </>
@@ -881,14 +869,14 @@ export default function WorkItems() {
                 />
               </div>
               
-              {/* Quick priority filter */}
+              {/* Quick priority filter - neutral styling */}
               <div className="flex items-center gap-1 border-l border-border pl-2">
                 <button
                   onClick={() => setSelectedPriority(selectedPriority === 'high' ? 'all' : 'high')}
                   className={`text-xs px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 ${
                     selectedPriority === 'high' 
-                      ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-800' 
-                      : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50'
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-muted text-red-600 dark:text-red-400 hover:bg-muted/80'
                   }`}
                   title="Show high priority items (P1/P2)"
                 >
@@ -971,7 +959,7 @@ export default function WorkItems() {
                     key={item.id} 
                     onClick={() => openWorkItemModal(item)}
                     className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group ${
-                      isHighPriority ? 'border-l-2 border-l-red-500 bg-red-50/30 dark:bg-red-950/20' : ''
+                      isHighPriority ? 'border-l-2 border-l-red-500' : ''
                     }`}
                     title="Click to view details"
                   >
@@ -985,12 +973,12 @@ export default function WorkItems() {
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStateColor(item.state)} shrink-0`}>
                         {item.state}
                       </span>
-                      {/* Priority indicator */}
+                      {/* Priority indicator - neutral bg, colored text/icon */}
                       {priority && (
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full shrink-0 flex items-center gap-1 ${
-                          priority === 1 || priority === '1' ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300' :
-                          priority === 2 || priority === '2' ? 'bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300' :
-                          'bg-muted text-muted-foreground'
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full shrink-0 flex items-center gap-1 bg-muted ${
+                          priority === 1 || priority === '1' ? 'text-red-600 dark:text-red-400' :
+                          priority === 2 || priority === '2' ? 'text-orange-600 dark:text-orange-400' :
+                          'text-muted-foreground'
                         }`}>
                           {getPriorityIcon(priority)}
                           <span className="hidden sm:inline">{getPriorityText(priority)}</span>
@@ -1222,13 +1210,10 @@ export default function WorkItems() {
         <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-              </div>
+              <AlertTriangle className="h-5 w-5 text-red-500" />
               <div>
-                <h3 className="text-xl font-semibold text-foreground">Blockers: Past Due Date</h3>
-                <p className="text-xs text-red-600 dark:text-red-400">These items are blocking sprint completion</p>
+                <h3 className="text-xl font-semibold text-foreground">Overdue Items</h3>
+                <p className="text-xs text-muted-foreground">Items past their due date</p>
               </div>
               <button
                 onClick={toggleOverdueExpanded}
@@ -1242,7 +1227,7 @@ export default function WorkItems() {
                 )}
               </button>
             </div>
-            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-muted text-red-600 dark:text-red-400">
               {filteredOverdueItems.length} of {overdueItems.length} items
             </span>
           </div>

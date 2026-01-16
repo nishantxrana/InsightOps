@@ -135,14 +135,14 @@ const NotificationHistory = () => {
             {/* Quick health indicator */}
             {!loading && (
               (counts.overdue || 0) + (counts['idle-pr'] || 0) > 0 ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                  {(counts.overdue || 0) + (counts['idle-pr'] || 0)} need attention
+                  <span className="text-amber-600 dark:text-amber-400">{(counts.overdue || 0) + (counts['idle-pr'] || 0)} need attention</span>
                 </span>
               ) : counts.build > 0 && notifications.some(n => n.type === 'build' && n.subType === 'failed') ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                  Has failures
+                  <span className="text-red-600 dark:text-red-400">Has failures</span>
                 </span>
               ) : counts.total > 0 ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
@@ -224,19 +224,15 @@ const NotificationHistory = () => {
           {/* Critical categories with visual emphasis */}
           <TabsTrigger 
             value="overdue" 
-            className={`data-[state=active]:bg-red-500 data-[state=active]:text-white ${
-              counts.overdue > 0 ? 'text-red-600 dark:text-red-400 font-medium' : ''
-            }`}
+            className={counts.overdue > 0 ? 'text-red-600 dark:text-red-400 font-medium' : ''}
           >
-            ⚠️ Overdue {counts.overdue ? <span className={`ml-1 text-xs ${counts.overdue > 0 ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-1.5 rounded-full' : 'opacity-70'}`}>({counts.overdue})</span> : ''}
+            Overdue {counts.overdue ? <span className={`ml-1 text-xs ${counts.overdue > 0 ? 'text-red-600 dark:text-red-400' : 'opacity-70'}`}>({counts.overdue})</span> : ''}
           </TabsTrigger>
           <TabsTrigger 
             value="idle-pr" 
-            className={`data-[state=active]:bg-amber-500 data-[state=active]:text-white ${
-              counts['idle-pr'] > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : ''
-            }`}
+            className={counts['idle-pr'] > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : ''}
           >
-            ⏰ Stale PRs {counts['idle-pr'] ? <span className={`ml-1 text-xs ${counts['idle-pr'] > 0 ? 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-1.5 rounded-full' : 'opacity-70'}`}>({counts['idle-pr']})</span> : ''}
+            Stale PRs {counts['idle-pr'] ? <span className={`ml-1 text-xs ${counts['idle-pr'] > 0 ? 'text-amber-600 dark:text-amber-400' : 'opacity-70'}`}>({counts['idle-pr']})</span> : ''}
           </TabsTrigger>
         </TabsList>
 
@@ -318,11 +314,11 @@ const NotificationHistory = () => {
                   value={notification._id} 
                   className={`border rounded-lg overflow-hidden ${
                     isCritical 
-                      ? 'border-l-4 border-l-red-500 bg-red-50/30 dark:bg-red-950/10' 
+                      ? 'border-l-4 border-l-red-500' 
                       : isWarning 
-                        ? 'border-l-4 border-l-amber-500 bg-amber-50/30 dark:bg-amber-950/10' 
+                        ? 'border-l-4 border-l-amber-500' 
                         : isUnread 
-                          ? 'border-l-4 border-l-blue-500 bg-blue-50/20 dark:bg-blue-950/10' 
+                          ? 'border-l-4 border-l-blue-500' 
                           : ''
                   }`}
                 >
@@ -336,8 +332,8 @@ const NotificationHistory = () => {
                         <Badge 
                           variant="secondary" 
                           className={`text-xs rounded-full ${
-                            notification.type === 'overdue' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' :
-                            notification.type === 'idle-pr' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100' :
+                            notification.type === 'overdue' ? 'text-red-600 dark:text-red-400' :
+                            notification.type === 'idle-pr' ? 'text-amber-600 dark:text-amber-400' :
                             ''
                           }`}
                         >

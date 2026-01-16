@@ -77,9 +77,9 @@ export default function Logs() {
   const getLevelBadgeClass = (level) => {
     switch (level) {
       case 'error':
-        return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200'
+        return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400'
       case 'warn':
-        return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200'
+        return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-amber-600 dark:text-amber-400'
       case 'info':
         return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200'
       case 'debug':
@@ -161,14 +161,14 @@ export default function Logs() {
               {/* Quick health indicator */}
               {!loading && logs.length > 0 && (
                 logs.filter(log => log.level === 'error').length > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                    {logs.filter(log => log.level === 'error').length} error{logs.filter(log => log.level === 'error').length !== 1 ? 's' : ''}
+                    <span className="text-red-600 dark:text-red-400">{logs.filter(log => log.level === 'error').length} error{logs.filter(log => log.level === 'error').length !== 1 ? 's' : ''}</span>
                   </span>
                 ) : logs.filter(log => log.level === 'warn').length > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                    {logs.filter(log => log.level === 'warn').length} warning{logs.filter(log => log.level === 'warn').length !== 1 ? 's' : ''}
+                    <span className="text-amber-600 dark:text-amber-400">{logs.filter(log => log.level === 'warn').length} warning{logs.filter(log => log.level === 'warn').length !== 1 ? 's' : ''}</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
@@ -260,10 +260,10 @@ export default function Logs() {
                         {errorCount}
                       </div>
                     </div>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
                       errorCount > 0 
-                        ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/50' 
-                        : 'text-muted-foreground bg-muted'
+                        ? 'text-red-600 dark:text-red-400' 
+                        : 'text-muted-foreground'
                     }`}>
                       {errorCount > 0 ? 'Critical' : 'Clear'}
                     </span>
@@ -309,10 +309,10 @@ export default function Logs() {
                         {warnCount}
                       </div>
                     </div>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
                       warnCount > 0 
-                        ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50' 
-                        : 'text-muted-foreground bg-muted'
+                        ? 'text-amber-600 dark:text-amber-400' 
+                        : 'text-muted-foreground'
                     }`}>
                       {warnCount > 0 ? 'Warning' : 'Clear'}
                     </span>
@@ -418,11 +418,9 @@ export default function Logs() {
               onClick={() => setLevelFilter('error')}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1 ${
                 levelFilter === 'error' 
-                  ? 'bg-red-500 text-white' 
-                  : logs.filter(l => l.level === 'error').length > 0
-                    ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted hover:bg-muted/80'
+              } ${levelFilter !== 'error' && logs.filter(l => l.level === 'error').length > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
             >
               <XCircle className="h-3 w-3" />
               Errors ({logs.filter(l => l.level === 'error').length})
@@ -431,11 +429,9 @@ export default function Logs() {
               onClick={() => setLevelFilter('warn')}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1 ${
                 levelFilter === 'warn' 
-                  ? 'bg-amber-500 text-white' 
-                  : logs.filter(l => l.level === 'warn').length > 0
-                    ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted hover:bg-muted/80'
+              } ${levelFilter !== 'warn' && logs.filter(l => l.level === 'warn').length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}
             >
               <AlertTriangle className="h-3 w-3" />
               Warnings ({logs.filter(l => l.level === 'warn').length})
@@ -505,9 +501,9 @@ export default function Logs() {
                     key={index} 
                     className={`hover:bg-muted/50 transition-colors ${
                       isError 
-                        ? 'bg-red-50/50 dark:bg-red-950/20 border-l-2 border-l-red-500' 
+                        ? 'border-l-2 border-l-red-500' 
                         : isWarn 
-                          ? 'bg-amber-50/30 dark:bg-amber-950/10 border-l-2 border-l-amber-500' 
+                          ? 'border-l-2 border-l-amber-500' 
                           : ''
                     }`}
                   >

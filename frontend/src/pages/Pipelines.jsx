@@ -139,23 +139,24 @@ export default function Pipelines() {
   };
 
   const getBuildStatusBadge = (result, status) => {
+    // Neutral bg, colored text/icon only
     if (status === "inProgress") {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200">
-          <Building className="h-3 w-3 animate-pulse" /> In Progress
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400">
+          <Building className="h-3 w-3" /> In Progress
         </span>
       );
     }
     switch (result) {
       case "succeeded":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-emerald-600 dark:text-emerald-400">
             <CheckCircle className="h-3 w-3" /> Succeeded
           </span>
         );
       case "failed":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400">
             <XCircle className="h-3 w-3" /> Failed
           </span>
         );
@@ -167,7 +168,7 @@ export default function Pipelines() {
         );
       case "partiallySucceeded":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-amber-600 dark:text-amber-400">
             <AlertCircle className="h-3 w-3" /> Partial
           </span>
         );
@@ -266,21 +267,20 @@ export default function Pipelines() {
               <h1 className="text-2xl font-semibold text-foreground tracking-tight">
                 Pipelines
               </h1>
-              {/* Quick health indicator */}
+              {/* Quick health indicator - neutral bg, colored text/icon */}
               {!loading && (
                 stats.failed > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                    {stats.failed} failed
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <XCircle className="h-3 w-3 text-red-500" />
+                    <span className="text-red-600 dark:text-red-400">{stats.failed} failed</span>
                   </span>
                 ) : stats.inProgress > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                    {stats.inProgress} running
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <Building className="h-3 w-3 text-blue-500" />
+                    <span className="text-blue-600 dark:text-blue-400">{stats.inProgress} running</span>
                   </span>
                 ) : stats.total > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
                     All passing
                   </span>
                 ) : null
@@ -333,12 +333,12 @@ export default function Pipelines() {
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in"
           style={{ animationDelay: "0.1s" }}
         >
-          {/* Succeeded Card */}
+          {/* Succeeded Card - neutral */}
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
-                Passing
+              <CheckCircle className="h-5 w-5 text-emerald-500" />
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                Passed
               </span>
             </div>
             <div className="mb-3">
@@ -352,25 +352,14 @@ export default function Pipelines() {
             </div>
           </div>
 
-          {/* Failed Card - Alarming when > 0 */}
-          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-            stats.failed > 0 
-              ? 'border-red-300 dark:border-red-800 ring-1 ring-red-200 dark:ring-red-900' 
-              : 'border-border dark:border-[#1a1a1a]'
-          }`}>
+          {/* Failed Card - neutral with colored icon/text only */}
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <XCircle className={`h-5 w-5 ${stats.failed > 0 ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-muted-foreground'}`} />
-                {stats.failed > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                )}
-              </div>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                stats.failed > 0 
-                  ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/50' 
-                  : 'text-muted-foreground bg-muted'
+              <XCircle className={`h-5 w-5 ${stats.failed > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                stats.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
               }`}>
-                {stats.failed > 0 ? 'Action needed' : 'Healthy'}
+                {stats.failed > 0 ? `${stats.failed} failed` : 'Healthy'}
               </span>
             </div>
             <div className="mb-3">
@@ -379,45 +368,30 @@ export default function Pipelines() {
               </div>
               <div className="text-sm text-muted-foreground">Failed Builds</div>
             </div>
-            {stats.failed > 0 && (
-              <div className="text-xs text-red-600 dark:text-red-400 font-medium">
-                ⚠ Check logs for failures
-              </div>
-            )}
+            <div className={`text-xs ${stats.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+              {stats.failed > 0 ? 'Check logs for failures' : 'All builds passing'}
+            </div>
           </div>
 
-          {/* In Progress Card */}
-          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-            stats.inProgress > 0 
-              ? 'border-blue-200 dark:border-blue-900' 
-              : 'border-border dark:border-[#1a1a1a]'
-          }`}>
+          {/* In Progress Card - neutral */}
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Building className={`h-5 w-5 ${stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400 animate-pulse' : 'text-muted-foreground'}`} />
-                {stats.inProgress > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                )}
-              </div>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                stats.inProgress > 0 
-                  ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/50' 
-                  : 'text-muted-foreground bg-muted'
+              <Building className={`h-5 w-5 ${stats.inProgress > 0 ? 'text-blue-500' : 'text-muted-foreground'}`} />
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
               }`}>
                 {stats.inProgress > 0 ? 'Running' : 'Idle'}
               </span>
             </div>
             <div className="mb-3">
-              <div className={`text-2xl font-bold mb-0.5 ${stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>
+              <div className={`text-2xl font-bold mb-0.5 ${stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>
                 {stats.inProgress}
               </div>
               <div className="text-sm text-muted-foreground">In Progress</div>
             </div>
-            {stats.inProgress > 0 && (
-              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                🔄 Builds running now
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground">
+              {stats.inProgress > 0 ? 'Builds running now' : 'No active builds'}
+            </div>
           </div>
         </div>
       )}
@@ -519,7 +493,7 @@ export default function Pipelines() {
             {stats.failed > 0 && statusFilter !== 'failed' && (
               <button
                 onClick={() => setStatusFilter('failed')}
-                className="text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 border border-red-200 dark:border-red-800"
+                className="text-xs text-red-600 dark:text-red-400 hover:bg-muted px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 bg-muted"
                 title="Show only failed builds"
               >
                 <XCircle className="w-3 h-3" />
@@ -545,9 +519,9 @@ export default function Pipelines() {
                   key={build.id}
                   className={`px-6 py-4 hover:bg-muted/50 transition-colors group cursor-pointer ${
                     isFailed 
-                      ? 'border-l-2 border-l-red-500 bg-red-50/30 dark:bg-red-950/20' 
+                      ? 'border-l-2 border-l-red-500' 
                       : isInProgress 
-                        ? 'border-l-2 border-l-blue-500 bg-blue-50/30 dark:bg-blue-950/20' 
+                        ? 'border-l-2 border-l-blue-500' 
                         : ''
                   }`}
                   onClick={() => {
@@ -680,13 +654,7 @@ export default function Pipelines() {
           
           return (
         <div
-          className={`bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm animate-fade-in ${
-            isCritical 
-              ? 'border-red-200 dark:border-red-900' 
-              : isWarning 
-                ? 'border-amber-200 dark:border-amber-900' 
-                : 'border-border dark:border-[#1a1a1a]'
-          }`}
+          className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
           style={{ animationDelay: "0.3s" }}
         >
           <div className="flex items-center justify-between mb-4">
@@ -695,21 +663,13 @@ export default function Pipelines() {
               <h3 className="text-lg font-semibold text-foreground">
                 Build Health
               </h3>
-              {isCritical && (
-                <span className="text-xs font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/50 px-2 py-0.5 rounded-full">
-                  Needs attention
-                </span>
-              )}
-              {isWarning && (
-                <span className="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-2 py-0.5 rounded-full">
-                  Fair
-                </span>
-              )}
-              {isHealthy && (
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
-                  Healthy
-                </span>
-              )}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                isCritical ? 'text-red-600 dark:text-red-400' :
+                isWarning ? 'text-amber-600 dark:text-amber-400' :
+                'text-muted-foreground'
+              }`}>
+                {isCritical ? 'Needs attention' : isWarning ? 'Fair' : 'Healthy'}
+              </span>
             </div>
             <div className={`text-2xl font-bold ${rateColor}`}>
               {successRate}%
