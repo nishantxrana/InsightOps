@@ -43,10 +43,28 @@ class OrganizationService {
     // Decrypt sensitive fields
     if (org.azureDevOps?.pat) {
       try {
-        org.azureDevOps.pat = decrypt(org.azureDevOps.pat);
+        const encryptedPat = org.azureDevOps.pat;
+        org.azureDevOps.pat = decrypt(encryptedPat);
+        logger.debug('PAT decrypted successfully', {
+          component: 'org-service',
+          organizationId: organizationId.toString(),
+          encryptedLength: encryptedPat?.length,
+          decryptedLength: org.azureDevOps.pat?.length
+        });
       } catch (e) {
-        logger.error('Failed to decrypt PAT for org:', organizationId);
+        logger.error('Failed to decrypt PAT', {
+          component: 'org-service',
+          organizationId: organizationId.toString(),
+          error: e.message
+        });
+        // Clear invalid PAT so we don't use garbage
+        org.azureDevOps.pat = null;
       }
+    } else {
+      logger.warn('No PAT found in database for organization', {
+        component: 'org-service',
+        organizationId: organizationId.toString()
+      });
     }
     
     if (org.ai?.apiKeys) {
@@ -55,7 +73,12 @@ class OrganizationService {
           try {
             org.ai.apiKeys[provider] = decrypt(org.ai.apiKeys[provider]);
           } catch (e) {
-            logger.error(`Failed to decrypt ${provider} key for org:`, organizationId);
+            logger.error(`Failed to decrypt ${provider} API key`, {
+              component: 'org-service',
+              organizationId: organizationId.toString(),
+              error: e.message
+            });
+            org.ai.apiKeys[provider] = null;
           }
         }
       }
@@ -270,7 +293,7 @@ class OrganizationService {
   }
 
   /**
-   * Test Azure DevOps connection
+   * Test Azure DevOps connection using saved credentials
    */
   async testConnection(organizationId, userId) {
     const org = await this.getOrganizationWithCredentials(organizationId, userId);
@@ -278,8 +301,36 @@ class OrganizationService {
       throw new Error('Organization not found');
     }
 
-    const { organization, project, pat, baseUrl } = org.azureDevOps;
-    const url = `${baseUrl}/${organization}/${project}/_apis/projects/${project}?api-version=7.0`;
+    const { organization, project, pat, baseUrl } = org.azureDevOps || {};
+    
+    // Debug: Log what we have (without exposing PAT)
+    logger.info('Testing connection with saved credentials', {
+      component: 'org-service',
+      action: 'test-connection',
+      organizationId,
+      hasOrg: !!organization,
+      hasProject: !!project,
+      hasPat: !!pat,
+      patLength: pat?.length || 0,
+      baseUrl: baseUrl || 'not set'
+    });
+
+    // Validate we have credentials
+    if (!organization || !project) {
+      return {
+        success: false,
+        error: 'Azure DevOps organization and project are not configured'
+      };
+    }
+
+    if (!pat || pat.length < 20) {
+      return {
+        success: false,
+        error: 'Personal Access Token is not configured or invalid. Please update your PAT in settings.'
+      };
+    }
+
+    const url = `${baseUrl || 'https://dev.azure.com'}/${organization}/_apis/projects?api-version=7.0`;
 
     try {
       const response = await axios.get(url, {
@@ -290,16 +341,49 @@ class OrganizationService {
         timeout: 10000
       });
 
+      // Verify project exists
+      const projects = response.data.value || [];
+      const projectExists = projects.some(p => 
+        p.name.toLowerCase() === project.toLowerCase()
+      );
+
+      if (!projectExists) {
+        return {
+          success: false,
+          error: `Project "${project}" not found in organization "${organization}"`
+        };
+      }
+
+      logger.info('Connection test successful', {
+        component: 'org-service',
+        action: 'test-connection',
+        organizationId,
+        projectCount: projects.length
+      });
+
       return {
         success: true,
-        projectName: response.data.name,
-        projectId: response.data.id
+        message: `Connected successfully to ${organization}/${project}`,
+        projectCount: projects.length
       };
     } catch (error) {
-      logger.error('Azure DevOps connection test failed:', error.message);
+      const errorMessage = error.response?.status === 401 
+        ? 'Authentication failed. Your PAT may have expired or been revoked.'
+        : error.response?.status === 403
+        ? 'Access denied. Check your PAT permissions.'
+        : error.response?.data?.message || error.message;
+
+      logger.error('Azure DevOps connection test failed', {
+        component: 'org-service',
+        action: 'test-connection',
+        organizationId,
+        status: error.response?.status,
+        error: errorMessage
+      });
+
       return {
         success: false,
-        error: error.response?.data?.message || error.message
+        error: errorMessage
       };
     }
   }
