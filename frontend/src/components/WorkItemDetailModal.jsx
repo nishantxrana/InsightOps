@@ -121,8 +121,7 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
       }
       
       return apiUrl
-    } catch (error) {
-      console.error('Error constructing work item URL:', error)
+    } catch {
       return '#'
     }
   }
@@ -137,8 +136,8 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
       const response = await apiService.explainWorkItem(workItem.id)
       setAiExplanation(response.explanation)
     } catch (error) {
-      console.error('Failed to load AI explanation:', error)
-      setAiExplanation('AI explanation temporarily unavailable. Please try again later.')
+      const message = error.userMessage || 'AI explanation temporarily unavailable.'
+      setAiExplanation(message)
     } finally {
       setLoadingAI(false)
     }
@@ -151,8 +150,8 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
       await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (error) {
-      console.error('Failed to copy link:', error)
+    } catch {
+      // Clipboard API may not be available in some contexts
     }
   }
 

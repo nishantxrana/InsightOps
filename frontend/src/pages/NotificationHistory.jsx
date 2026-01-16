@@ -85,8 +85,8 @@ const NotificationHistory = () => {
       
       setHasMore(data.length === limit);
     } catch (error) {
-      console.error('Failed to fetch notifications:', error);
-      setError(error.message);
+      const userMessage = error.userMessage || error.message || 'Failed to load notifications. Please try again.';
+      setError(userMessage);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -105,8 +105,9 @@ const NotificationHistory = () => {
       
       const data = await response.json();
       setCounts(data);
-    } catch (error) {
-      console.error('Failed to fetch counts:', error);
+    } catch {
+      // Counts are non-critical, fail silently
+      setCounts({});
     }
   };
 

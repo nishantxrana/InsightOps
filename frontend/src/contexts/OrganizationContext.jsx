@@ -55,8 +55,8 @@ export function OrganizationProvider({ children }) {
       
       setError(null);
     } catch (err) {
-      console.error('Failed to fetch organizations:', err);
-      setError('Failed to load organizations');
+      const message = err.userMessage || 'Failed to load organizations. Please try again.';
+      setError(message);
       setOrganizations([]);
     } finally {
       setLoading(false);
@@ -100,10 +100,9 @@ export function OrganizationProvider({ children }) {
       
       return { success: true, organization: newOrg };
     } catch (err) {
-      console.error('Failed to add organization:', err);
       return { 
         success: false, 
-        error: err.response?.data?.error || 'Failed to add organization' 
+        error: err.userMessage || err.response?.data?.error || 'Failed to add organization. Please try again.' 
       };
     }
   }, [organizations.length]);
@@ -124,10 +123,9 @@ export function OrganizationProvider({ children }) {
       
       return { success: true, organization: updatedOrg };
     } catch (err) {
-      console.error('Failed to update organization:', err);
       return { 
         success: false, 
-        error: err.response?.data?.error || 'Failed to update organization' 
+        error: err.userMessage || err.response?.data?.error || 'Failed to update organization. Please try again.' 
       };
     }
   }, [currentOrganization]);
@@ -153,10 +151,9 @@ export function OrganizationProvider({ children }) {
       
       return { success: true };
     } catch (err) {
-      console.error('Failed to delete organization:', err);
       return { 
         success: false, 
-        error: err.response?.data?.error || 'Failed to delete organization' 
+        error: err.userMessage || err.response?.data?.error || 'Failed to delete organization. Please try again.' 
       };
     }
   }, [currentOrganization, organizations]);

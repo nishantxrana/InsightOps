@@ -24,8 +24,8 @@ export default function WebhooksSection() {
           setWebhookUrls(response.data.webhookUrls)
           setOrganizationName(response.data.organizationName || '')
         }
-      } catch (error) {
-        console.error('Failed to load webhook URLs:', error)
+      } catch {
+        // Webhook URLs are non-critical on initial load
       }
     }
     loadWebhookUrls()

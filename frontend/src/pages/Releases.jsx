@@ -293,8 +293,7 @@ export default function Releases() {
       setPaginationLoading(false);
       setInitialLoad(false);
     } catch (err) {
-      setError("Failed to load releases data");
-      console.error("Releases error:", err);
+      setError(err.userMessage || "Failed to load releases. Please check your Azure DevOps configuration.");
       setLoading(false);
       setPaginationLoading(false);
       setInitialLoad(false);
