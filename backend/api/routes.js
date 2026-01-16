@@ -164,16 +164,38 @@ router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
   }
 });
 
-router.post('/settings/test-connection', validateRequest(testConnectionSchema), async (req, res) => {
+router.post('/settings/test-connection', async (req, res) => {
   try {
-    const { organization, project, pat, baseUrl } = req.validatedData;
+    const { organization, project, baseUrl } = req.body;
+    // Accept both 'pat' and 'personalAccessToken' for compatibility
+    const pat = req.body.pat || req.body.personalAccessToken;
     
-    logger.info('Testing Azure DevOps connection...', sanitizeForLogging({ organization, project }));
+    // Validate required fields
+    if (!organization?.trim()) {
+      return res.status(400).json({ success: false, message: 'Organization is required' });
+    }
+    if (!project?.trim()) {
+      return res.status(400).json({ success: false, message: 'Project is required' });
+    }
+    if (!pat || pat === '********' || pat.length < 20) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Valid Personal Access Token is required (PAT must be at least 20 characters)' 
+      });
+    }
+    
+    logger.info('Testing Azure DevOps connection', { 
+      component: 'api',
+      action: 'test-connection',
+      organization: organization.trim(),
+      project: project.trim(),
+      hasPat: !!pat
+    });
     
     // Test the connection with provided credentials
     const testResult = await testAzureDevOpsConnection({
-      organization,
-      project, 
+      organization: organization.trim(),
+      project: project.trim(), 
       personalAccessToken: pat,
       baseUrl: baseUrl || 'https://dev.azure.com'
     });
@@ -184,7 +206,11 @@ router.post('/settings/test-connection', validateRequest(testConnectionSchema), 
       details: testResult.message
     });
   } catch (error) {
-    logger.error('Connection test failed:', error);
+    logger.error('Connection test failed', { 
+      component: 'api',
+      action: 'test-connection',
+      error: error.message
+    });
     res.status(500).json({ 
       success: false, 
       message: 'Connection test failed: ' + error.message 
@@ -851,49 +877,8 @@ router.get('/logs', async (req, res) => {
 
 
 
-router.post('/settings/test-connection', async (req, res) => {
-  try {
-    const { organization, project, personalAccessToken, baseUrl } = req.body;
-    
-    logger.debug('Received connection test request', {
-      component: 'api',
-      action: 'test-webhook',
-      hasOrganization: !!organization,
-      hasProject: !!project,
-      hasToken: !!personalAccessToken
-    });
-    
-    // Validate required fields
-    if (!organization || !project || !personalAccessToken) {
-      return res.status(400).json({
-        success: false,
-        message: 'Organization, project, and personal access token are required'
-      });
-    }
-    
-    logger.info('Testing Azure DevOps connection...');
-    
-    // Test the connection with provided credentials
-    const testResult = await testAzureDevOpsConnection({
-      organization,
-      project, 
-      personalAccessToken,
-      baseUrl: baseUrl || 'https://dev.azure.com'
-    });
-    
-    res.json({ 
-      success: true, 
-      message: 'Connection test successful',
-      details: testResult.message
-    });
-  } catch (error) {
-    logger.error('Connection test failed:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Connection test failed: ' + error.message 
-    });
-  }
-});
+// NOTE: /settings/test-connection route is defined earlier in this file (around line 167)
+// Do not duplicate it here
 
 // Fetch projects from Azure DevOps organization
 router.post('/settings/projects', async (req, res) => {

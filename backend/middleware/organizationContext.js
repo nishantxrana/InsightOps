@@ -1,6 +1,11 @@
 import { Organization } from '../models/Organization.js';
 import { organizationService } from '../services/organizationService.js';
-import { logger } from '../utils/logger.js';
+import { createComponentLogger } from '../utils/logger.js';
+
+const log = createComponentLogger('org-context');
+
+// Routes that don't need organization context logging
+const SKIP_ORG_LOGGING = ['/health', '/api/health', '/api/auth'];
 
 /**
  * Middleware to inject organization context into requests
@@ -13,6 +18,9 @@ export const injectOrganizationContext = async (req, res, next) => {
       return next();
     }
 
+    // Skip verbose logging for certain routes
+    const skipLogging = SKIP_ORG_LOGGING.some(path => req.url.startsWith(path));
+
     // Get organizationId from header (case-insensitive), query, or body
     let organizationId = 
       req.headers['x-organization-id'] || 
@@ -21,14 +29,14 @@ export const injectOrganizationContext = async (req, res, next) => {
       req.query.organizationId || 
       req.body?.organizationId;
 
-    logger.info(`[ORG-CONTEXT] User: ${req.user._id}, Header orgId: ${organizationId}, URL: ${req.url}`);
+    let orgSource = organizationId ? 'header' : null;
 
     // If no org specified, use default
     if (!organizationId) {
       const defaultOrg = await organizationService.getDefaultOrganization(req.user._id);
       if (defaultOrg) {
         organizationId = defaultOrg._id;
-        logger.info(`[ORG-CONTEXT] No header, using default org: ${defaultOrg.name} (${organizationId})`);
+        orgSource = 'default';
       }
     }
 
@@ -43,15 +51,42 @@ export const injectOrganizationContext = async (req, res, next) => {
       if (org) {
         req.organizationId = org._id;
         req.organization = org;
-        logger.info(`[ORG-CONTEXT] Set org context: ${org.name} (${org._id})`);
+        
+        // Only log debug for normal requests, warn for missing header
+        if (!skipLogging) {
+          if (orgSource === 'default') {
+            log.debug('Using default org', { 
+              userId: req.user._id.toString(),
+              organizationId: org._id.toString(),
+              orgName: org.name,
+              url: req.url
+            });
+          }
+          // Don't log every successful org context set - too noisy
+        }
       } else {
-        logger.warn(`[ORG-CONTEXT] Org not found or not owned: ${organizationId}`);
+        log.warn('Organization not found or access denied', {
+          userId: req.user._id.toString(),
+          requestedOrgId: organizationId.toString(),
+          url: req.url
+        });
       }
+    } else if (!skipLogging) {
+      // No org found at all - this might be an issue
+      log.warn('No organization context available', {
+        userId: req.user._id.toString(),
+        url: req.url,
+        hasHeader: !!req.headers['x-organization-id']
+      });
     }
 
     next();
   } catch (error) {
-    logger.error('Error in organization context middleware:', error);
+    log.error('Error in organization context middleware', { 
+      error: error.message,
+      userId: req.user?._id?.toString(),
+      url: req.url
+    });
     next();
   }
 };
@@ -89,6 +124,11 @@ export const verifyOrganizationAccess = async (req, res, next) => {
     }).lean();
 
     if (!org) {
+      log.warn('Organization access denied', {
+        userId: req.user._id.toString(),
+        requestedOrgId: organizationId,
+        url: req.url
+      });
       return res.status(403).json({ error: 'Access denied to this organization' });
     }
 
@@ -96,7 +136,10 @@ export const verifyOrganizationAccess = async (req, res, next) => {
     req.organization = org;
     next();
   } catch (error) {
-    logger.error('Error verifying organization access:', error);
+    log.error('Error verifying organization access', { 
+      error: error.message,
+      userId: req.user?._id?.toString()
+    });
     res.status(500).json({ error: 'Failed to verify organization access' });
   }
 };
