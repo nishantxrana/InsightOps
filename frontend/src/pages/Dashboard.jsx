@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   TrendingUp,
   Clock,
-  Users,
   Activity,
   RefreshCw,
   ChevronRight,
@@ -251,12 +250,32 @@ export default function Dashboard() {
         }
       `}</style>
 
-      {/* Header */}
+      {/* Header with status summary */}
       <div className="animate-slide-up">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Overview</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Your development workflow at a glance</p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">Overview</h1>
+              {/* Quick status indicator */}
+              {!loadingStates.workItems && !loadingStates.builds && !loadingStates.pullRequests && (
+                (stats.builds.failed > 0 || stats.workItems.overdue > 0 || stats.pullRequests.idle > 0) ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                    {stats.builds.failed + stats.workItems.overdue + stats.pullRequests.idle} issues
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    All clear
+                  </span>
+                )
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {!loadingStates.workItems && (stats.builds.failed > 0 || stats.workItems.overdue > 0) 
+                ? 'Action needed — see issues below' 
+                : 'Your development workflow at a glance'}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -271,11 +290,75 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Attention Required - FIRST (most actionable) */}
+      {(loadingStates.workItems || loadingStates.builds || loadingStates.pullRequests || 
+        stats.workItems.overdue > 0 || stats.builds.failed > 0 || stats.pullRequests.idle > 0) && (
+        <div className="animate-fade-in bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h2 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              Needs Your Attention
+            </h2>
+          </div>
+          <div className="p-4">
+            {(loadingStates.workItems || loadingStates.builds || loadingStates.pullRequests) ? (
+              <div className="flex gap-3">
+                {[1, 2].map(i => (
+                  <div key={i} className="flex-1 flex items-center gap-3 p-3 bg-muted/50 rounded-xl">
+                    <div className="shimmer w-8 h-8 rounded-lg"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="shimmer h-3 rounded w-3/4"></div>
+                      <div className="shimmer h-2 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {stats.builds.failed > 0 && (
+                  <Link to="/pipelines" className="group flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/50 rounded-xl border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors cursor-pointer flex-1 min-w-[200px]">
+                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-lg flex items-center justify-center">
+                      <GitBranch className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-red-900 dark:text-red-100">{stats.builds.failed} failed builds</div>
+                      <div className="text-xs text-red-700 dark:text-red-300">Check pipeline logs →</div>
+                    </div>
+                  </Link>
+                )}
+                {stats.workItems.overdue > 0 && (
+                  <Link to="/work-items" className="group flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/50 rounded-xl border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors cursor-pointer flex-1 min-w-[200px]">
+                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-lg flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-red-900 dark:text-red-100">{stats.workItems.overdue} overdue items</div>
+                      <div className="text-xs text-red-700 dark:text-red-300">Past target date →</div>
+                    </div>
+                  </Link>
+                )}
+                {stats.pullRequests.idle > 0 && (
+                  <Link to="/pull-requests?filter=idle" className="group flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/50 rounded-xl border border-amber-100 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/70 transition-colors cursor-pointer flex-1 min-w-[200px]">
+                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/50 rounded-lg flex items-center justify-center">
+                      <GitPullRequest className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-amber-900 dark:text-amber-100">{stats.pullRequests.idle} stale PRs</div>
+                      <div className="text-xs text-amber-700 dark:text-amber-300">No activity in 48h+ →</div>
+                    </div>
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Stats - Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
         {/* Work Items */}
         <Link to="/work-items" className="block">
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm cursor-pointer">
+          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm cursor-pointer ${stats.workItems.overdue > 0 ? 'border-red-200 dark:border-red-900/50' : 'border-border dark:border-[#1a1a1a]'}`}>
             {loadingStates.workItems ? (
               <div className="space-y-3">
                 <div className="shimmer h-4 rounded w-16"></div>
@@ -285,9 +368,9 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                    Sprint
+                  <CheckSquare className={`w-5 h-5 ${stats.workItems.overdue > 0 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`} />
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stats.workItems.overdue > 0 ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50' : 'text-muted-foreground bg-muted'}`}>
+                    {stats.workItems.overdue > 0 ? `${stats.workItems.overdue} overdue` : 'Sprint'}
                   </span>
                 </div>
                 <div className="mb-3">
@@ -301,7 +384,7 @@ export default function Dashboard() {
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5">
                     <div 
-                      className="progress-bar bg-blue-600 dark:bg-blue-500 h-1.5 rounded-full"
+                      className={`progress-bar h-1.5 rounded-full ${stats.workItems.overdue > 0 ? 'bg-red-500' : 'bg-blue-600 dark:bg-blue-500'}`}
                       style={{ width: `${stats.workItems.total > 0 ? (stats.workItems.completed / stats.workItems.total) * 100 : 0}%` }}
                     />
                   </div>
@@ -393,7 +476,7 @@ export default function Dashboard() {
 
         {/* Pull Requests */}
         <Link to="/pull-requests" className="block">
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm cursor-pointer">
+          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm cursor-pointer ${stats.pullRequests.idle > 0 ? 'border-amber-200 dark:border-amber-900/50' : 'border-border dark:border-[#1a1a1a]'}`}>
             {loadingStates.pullRequests ? (
               <div className="space-y-3">
                 <div className="shimmer h-4 rounded w-16"></div>
@@ -403,9 +486,9 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <GitPullRequest className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <span className="text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded-full">
-                    Active
+                  <GitPullRequest className={`w-5 h-5 ${stats.pullRequests.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-purple-600 dark:text-purple-400'}`} />
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stats.pullRequests.idle > 0 ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50' : 'text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50'}`}>
+                    {stats.pullRequests.idle > 0 ? `${stats.pullRequests.idle} stale` : 'Active'}
                   </span>
                 </div>
                 <div className="mb-3">
@@ -415,7 +498,7 @@ export default function Dashboard() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">{stats.pullRequests.active} active</span>
-                    <span className="text-muted-foreground">{stats.pullRequests.idle} idle</span>
+                    <span className={`${stats.pullRequests.idle > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground'}`}>{stats.pullRequests.idle} idle</span>
                   </div>
                   <div className="h-1.5"></div>
                 </div>
@@ -425,97 +508,46 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Content Grid */}
-      <div className="grid lg:grid-cols-5 gap-6 animate-fade-in" style={{animationDelay: '0.2s'}}>
-        {/* Alerts */}
-        <div className="lg:col-span-3 bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-border">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-foreground flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                Attention Required
-              </h2>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+      {/* Quick Stats & Activity */}
+      <div className="grid lg:grid-cols-3 gap-6 animate-fade-in" style={{animationDelay: '0.2s'}}>
+        {/* Status Summary - Only shown when all clear */}
+        {!loadingStates.workItems && !loadingStates.builds && !loadingStates.pullRequests && 
+         stats.workItems.overdue === 0 && stats.builds.failed === 0 && stats.pullRequests.idle === 0 && (
+          <div className="lg:col-span-2 bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <div className="font-semibold text-emerald-900 dark:text-emerald-100">All systems healthy</div>
+                <div className="text-sm text-emerald-700 dark:text-emerald-300">No failed builds, overdue items, or stale PRs</div>
+              </div>
             </div>
           </div>
-          <div className="p-5">
-            {(loadingStates.workItems || loadingStates.builds || loadingStates.pullRequests) ? (
-              <div className="space-y-3">
-                {[1, 2].map(i => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="shimmer w-8 h-8 rounded-lg"></div>
-                    <div className="flex-1 space-y-2">
-                      <div className="shimmer h-3 rounded w-3/4"></div>
-                      <div className="shimmer h-2 rounded w-1/2"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {stats.workItems.overdue > 0 && (
-                  <Link to="/work-items" className="group flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/50 rounded-xl border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors cursor-pointer">
-                    <div className="w-8 h-8 bg-red-100 dark:bg-red-900/50 rounded-lg flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-red-900 dark:text-red-100 text-sm">{stats.workItems.overdue} overdue work items</div>
-                      <div className="text-xs text-red-700 dark:text-red-300">Need immediate attention</div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-red-400 dark:text-red-500 group-hover:translate-x-0.5 transition-transform" />
-                  </Link>
-                )}
-                {stats.builds.failed > 0 && (
-                  <Link to="/pipelines" className="group flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/50 rounded-xl border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors cursor-pointer">
-                    <div className="w-8 h-8 bg-red-100 dark:bg-red-900/50 rounded-lg flex items-center justify-center">
-                      <GitBranch className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-red-900 dark:text-red-100 text-sm">{stats.builds.failed} build failures</div>
-                      <div className="text-xs text-red-700 dark:text-red-300">Check pipeline logs</div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-red-400 dark:text-red-500 group-hover:translate-x-0.5 transition-transform" />
-                  </Link>
-                )}
-                {stats.pullRequests.idle > 0 && (
-                  <Link to="/pull-requests?filter=idle" className="group flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/50 rounded-xl border border-amber-100 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/70 transition-colors cursor-pointer">
-                    <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/50 rounded-lg flex items-center justify-center">
-                      <GitPullRequest className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-amber-900 dark:text-amber-100 text-sm">{stats.pullRequests.idle} overdue PRs</div>
-                      <div className="text-xs text-amber-700 dark:text-amber-300">No activity for 48h+</div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-amber-400 dark:text-amber-500 group-hover:translate-x-0.5 transition-transform" />
-                  </Link>
-                )}
-                {stats.workItems.overdue === 0 && stats.builds.failed === 0 && stats.pullRequests.idle === 0 && (
-                  <div className="flex items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-950/50 rounded-xl border border-emerald-100 dark:border-emerald-900/50">
-                    <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-emerald-900 dark:text-emerald-100 text-sm">Everything looks good</div>
-                      <div className="text-xs text-emerald-700 dark:text-emerald-300">No issues detected</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
-        {/* Activity */}
-        <div className="lg:col-span-2 bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-border">
-            <h2 className="font-semibold text-foreground flex items-center gap-2">
-              <Activity className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-              Recent Activity
-            </h2>
-          </div>
-          <div className="p-5">
+        {/* Recent Activity - Collapsible */}
+        <details className={`bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm overflow-hidden ${
+          !loadingStates.workItems && !loadingStates.builds && !loadingStates.pullRequests && 
+          stats.workItems.overdue === 0 && stats.builds.failed === 0 && stats.pullRequests.idle === 0 
+            ? 'lg:col-span-1' 
+            : 'lg:col-span-3'
+        }`}>
+          <summary className="p-4 cursor-pointer hover:bg-muted/50 transition-colors list-none">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+                <Activity className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                Recent Activity
+                {recentActivity.length > 0 && (
+                  <span className="text-xs text-muted-foreground font-normal">({recentActivity.length})</span>
+                )}
+              </h2>
+              <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-90" />
+            </div>
+          </summary>
+          <div className="px-4 pb-4">
             {loadingStates.logs ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {[1, 2, 3].map(i => (
                   <div key={i} className="flex gap-3">
                     <div className="shimmer w-1.5 h-1.5 rounded-full mt-2"></div>
@@ -527,29 +559,26 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : recentActivity.length > 0 ? (
-              <div className="space-y-4">
-                {recentActivity.slice(0, 4).map((activity, index) => (
+              <div className="space-y-3">
+                {recentActivity.slice(0, 5).map((activity, index) => (
                   <div key={index} className="flex gap-3 group">
                     <div className="w-1.5 h-1.5 bg-blue-500 dark:bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground leading-relaxed group-hover:text-muted-foreground transition-colors">
+                      <p className="text-sm text-foreground leading-relaxed">
                         {activity.message}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">{activity.timestamp}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{activity.timestamp}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-6">
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Users className="w-6 h-6 text-muted-foreground" />
-                </div>
+              <div className="text-center py-4">
                 <p className="text-sm text-muted-foreground">No recent activity</p>
               </div>
             )}
           </div>
-        </div>
+        </details>
       </div>
     </div>
   )
