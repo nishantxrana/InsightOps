@@ -128,7 +128,7 @@ export default function OrganizationsSection() {
           body: JSON.stringify({
             organization: formData.azureDevOps.organization,
             project: formData.azureDevOps.project,
-            personalAccessToken: formData.azureDevOps.pat,
+            pat: formData.azureDevOps.pat,  // Use 'pat' field name consistently
             baseUrl: formData.azureDevOps.baseUrl
           })
         })
