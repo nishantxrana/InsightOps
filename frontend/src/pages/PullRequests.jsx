@@ -83,12 +83,10 @@ export default function PullRequests() {
         setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
         // Don't set initialLoading false here - wait for all APIs or error
       } catch (err) {
-        console.error('Failed to load pull requests:', err)
         setPullRequests([])
         setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
         setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
-        // Set error and return early to show error page
-        setError('Failed to load pull requests data')
+        setError(err.userMessage || 'Failed to load pull requests. Please check your Azure DevOps configuration.')
         return
       }
 
@@ -99,8 +97,8 @@ export default function PullRequests() {
         setIdlePRs(idleList)
         setStats(prev => ({ ...prev, idle: idleList.length }))
         setLoadingStates(prev => ({ ...prev, idlePRs: false }))
-      } catch (err) {
-        console.error('Failed to load idle PRs:', err)
+      } catch {
+        // Idle PRs are secondary, fail silently
         setIdlePRs([])
         setStats(prev => ({ ...prev, idle: 0 }))
         setLoadingStates(prev => ({ ...prev, idlePRs: false }))
@@ -110,9 +108,7 @@ export default function PullRequests() {
       setInitialLoading(false)
 
     } catch (err) {
-      setError('Failed to load pull requests data')
-      console.error('Pull requests error:', err)
-      // Don't set initialLoading to false on error so error page shows
+      setError(err.userMessage || 'Failed to load pull requests. Please check your connection and try again.')
       setPullRequests([])
       setIdlePRs([])
       setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })

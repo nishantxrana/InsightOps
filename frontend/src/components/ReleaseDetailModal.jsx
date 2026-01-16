@@ -165,8 +165,7 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
         setLogsError('Failed to load task logs');
       }
     } catch (error) {
-      console.error('Error loading failed task logs:', error);
-      setLogsError('Failed to load task logs');
+      setLogsError(error.userMessage || 'Failed to load task logs');
     } finally {
       setLoadingLogs(false);
     }
@@ -182,8 +181,8 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
       } else {
         setApprovals(null);
       }
-    } catch (error) {
-      console.error('Error loading approvals:', error);
+    } catch {
+      // Approvals may not be available, fail silently
       setApprovals(null);
     } finally {
       setLoadingApprovals(false);
@@ -198,8 +197,8 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
         setAiAnalysis(response.analysis);
       }
     } catch (error) {
-      console.error('Error loading AI analysis:', error);
-      setAiAnalysis('Failed to generate AI analysis. Please try again.');
+      const message = error.userMessage || 'AI analysis temporarily unavailable.';
+      setAiAnalysis(message);
     } finally {
       setLoadingAI(false);
     }

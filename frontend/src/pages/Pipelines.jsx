@@ -97,8 +97,7 @@ export default function Pipelines() {
       setLoading(false);
       setInitialLoad(false);
     } catch (err) {
-      setError("Failed to load pipelines data");
-      console.error("Pipelines error:", err);
+      setError(err.userMessage || "Failed to load pipelines. Please check your Azure DevOps configuration.");
       setLoading(false);
       // Don't set initialLoad to false on error so error page shows
     }

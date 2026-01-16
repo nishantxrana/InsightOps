@@ -49,8 +49,7 @@ export default function Logs() {
       const data = await apiService.getLogs({ limit: 100 })
       setLogs(data.logs || [])
     } catch (err) {
-      setError('Failed to load logs')
-      console.error('Logs error:', err)
+      setError(err.userMessage || 'Failed to load logs. Please try again.')
     } finally {
       setLoading(false)
     }

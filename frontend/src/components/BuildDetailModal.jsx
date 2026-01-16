@@ -79,8 +79,8 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
       const response = await apiService.analyzeBuild(build.id)
       setAiAnalysis(response.analysis)
     } catch (error) {
-      console.error('Failed to load AI analysis:', error)
-      setAiAnalysis('AI analysis temporarily unavailable. Please try again later.')
+      const message = error.userMessage || 'AI analysis temporarily unavailable.'
+      setAiAnalysis(message)
     } finally {
       setLoadingAI(false)
     }
@@ -93,8 +93,8 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
       await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (error) {
-      console.error('Failed to copy link:', error)
+    } catch {
+      // Clipboard API may not be available in some contexts
     }
   }
 

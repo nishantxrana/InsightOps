@@ -42,9 +42,9 @@ export default function AIConfigSection({ data, onChange, errors }) {
       const response = await axios.get(`/api/ai/models/${data.provider}`, { headers })
       setModels(response.data.models || [])
     } catch (error) {
-      console.error('Failed to fetch models:', error)
       setModels([])
-      toast({ title: "Failed to Load Models", description: error.response?.data?.error || error.message, variant: "destructive" })
+      const message = error.userMessage || error.response?.data?.error || 'Failed to load models'
+      toast({ title: "Failed to Load Models", description: message, variant: "destructive" })
     } finally {
       setLoadingModels(false)
     }

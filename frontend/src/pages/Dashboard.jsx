@@ -138,10 +138,16 @@ export default function Dashboard() {
           logs: true // Still loading logs
         })
         setInitialLoading(false)
+        setError(null)
         
       } else {
-        // Fallback to empty stats on error
-        console.error('Dashboard summary failed:', dashboardResult.reason || dashboardResult.value?.error)
+        // Handle error with user-friendly message
+        const errorReason = dashboardResult.reason || dashboardResult.value
+        const userMessage = errorReason?.userMessage || 
+          errorReason?.error || 
+          'Unable to load dashboard data. Please check your Azure DevOps configuration.'
+        
+        setError(userMessage)
         setStats({
           workItems: { total: 0, active: 0, completed: 0, overdue: 0 },
           builds: { total: 0, succeeded: 0, failed: 0 },
@@ -167,8 +173,9 @@ export default function Dashboard() {
       setLoadingStates(prev => ({ ...prev, logs: false }))
 
     } catch (err) {
-      setError('Failed to load dashboard data')
-      console.error('Dashboard error:', err)
+      // Use user-friendly message from interceptor if available
+      const userMessage = err.userMessage || 'Unable to connect. Please check your connection and try again.'
+      setError(userMessage)
       setInitialLoading(false)
       // Reset stats to show empty state
       setStats({

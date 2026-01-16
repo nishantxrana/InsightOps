@@ -62,8 +62,8 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
       const response = await apiService.explainPullRequest(pullRequest.pullRequestId)
       setAiExplanation(response.explanation)
     } catch (error) {
-      console.error('Failed to load AI explanation:', error)
-      setAiExplanation('AI explanation temporarily unavailable. Please try again later.')
+      const message = error.userMessage || 'AI explanation temporarily unavailable.'
+      setAiExplanation(message)
     } finally {
       setLoadingAI(false)
     }
@@ -76,8 +76,8 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
       await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (error) {
-      console.error('Failed to copy link:', error)
+    } catch {
+      // Clipboard API may not be available in some contexts
     }
   }
 

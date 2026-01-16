@@ -75,10 +75,10 @@ export default function WorkItems() {
       setAiSummary(aiData);
       setLoadingStates(prev => ({ ...prev, aiSummary: false }));
     } catch (err) {
-      console.error('Failed to load AI summary:', err);
       setLoadingStates(prev => ({ ...prev, aiSummary: false }));
+      const message = err.userMessage || 'AI summary temporarily unavailable.';
       setAiSummary({ 
-        summary: 'AI summary temporarily unavailable. Please try refreshing the page.',
+        summary: message,
         status: 'error'
       });
     }
@@ -212,9 +212,8 @@ export default function WorkItems() {
         setLoadingStates(prev => ({ ...prev, sprintSummary: false }))
         setInitialLoading(false) // Show UI immediately after basic data loads
       } catch (err) {
-        console.error('Failed to load sprint summary:', err)
         setLoadingStates(prev => ({ ...prev, sprintSummary: false }))
-        setError('Failed to load sprint data')
+        setError(err.userMessage || 'Failed to load sprint data. Please check your Azure DevOps configuration.')
       }
 
       // Phase 2: Load overdue items in parallel
@@ -222,8 +221,8 @@ export default function WorkItems() {
         const overdueData = await apiService.getOverdueItems()
         setOverdueItems(overdueData.value || [])
         setLoadingStates(prev => ({ ...prev, overdueItems: false }))
-      } catch (err) {
-        console.error('Failed to load overdue items:', err)
+      } catch {
+        // Overdue items are secondary, fail silently
         setLoadingStates(prev => ({ ...prev, overdueItems: false }))
       }
 
@@ -235,8 +234,7 @@ export default function WorkItems() {
       }
 
     } catch (err) {
-      setError('Failed to load work items data')
-      console.error('Work items error:', err)
+      setError(err.userMessage || 'Failed to load work items. Please check your connection and try again.')
       setInitialLoading(false)
       setLoadingStates({
         sprintSummary: false,
