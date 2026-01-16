@@ -963,8 +963,8 @@ export default function WorkItems() {
                     }`}
                     title="Click to view details"
                   >
-                  <div className="flex items-start justify-between mb-3 gap-2">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <div className="flex items-start justify-between mb-3 gap-3">
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                       {/* Work item type icon */}
                       {getWorkItemTypeIcon(workItemType)}
                       <span className="font-mono text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md shrink-0">
