@@ -26,16 +26,12 @@ const NotificationHistory = () => {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
 
-  console.log('NotificationHistory component rendered, user:', user);
-
   useEffect(() => {
     const userId = user?._id || user?.id;
-    console.log('useEffect triggered, userId:', userId, 'orgId:', currentOrganization?._id);
     if (userId && currentOrganization?._id) {
       fetchNotifications();
       fetchCounts();
     } else {
-      console.log('No user ID or org, setting loading to false');
       setLoading(false);
     }
   }, [user, activeTab, currentOrganization]); // Refetch when tab or org changes
@@ -72,7 +68,6 @@ const NotificationHistory = () => {
       const response = await fetch(`/api/notifications?${params}`, {
         headers: getHeaders()
       });
-      console.log('Response status:', response.status);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -80,7 +75,6 @@ const NotificationHistory = () => {
       }
       
       const data = await response.json();
-      console.log('Fetched notifications:', data.length, 'items for tab:', activeTab);
       
       if (loadMore) {
         setNotifications(prev => [...prev, ...data]);
@@ -110,7 +104,6 @@ const NotificationHistory = () => {
       }
       
       const data = await response.json();
-      console.log('Fetched counts:', data);
       setCounts(data);
     } catch (error) {
       console.error('Failed to fetch counts:', error);

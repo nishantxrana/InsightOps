@@ -1,8 +1,11 @@
 import cron from 'node-cron';
+import { createComponentLogger } from '../utils/logger.js';
+
+const log = createComponentLogger('emergency-cleanup');
 
 class EmergencyCleanup {
   static async nuclearCleanup() {
-    console.log('🚨 [EMERGENCY] Starting nuclear cleanup of all cron jobs');
+    log.warn('Starting nuclear cleanup of all cron jobs', { action: 'nuclear-cleanup', status: 'starting' });
     
     // Stop all cron tasks
     const tasks = cron.getTasks();
@@ -13,11 +16,11 @@ class EmergencyCleanup {
         task.stop();
         stoppedCount++;
       } catch (error) {
-        console.error(`Failed to stop task ${key}:`, error);
+        log.error('Failed to stop cron task', { taskKey: key, error: error.message });
       }
     }
     
-    console.log(`🧹 [EMERGENCY] Stopped ${stoppedCount} cron jobs`);
+    log.info('Nuclear cleanup completed', { action: 'nuclear-cleanup', status: 'completed', stoppedCount });
     
     // Clear any remaining references
     tasks.clear();

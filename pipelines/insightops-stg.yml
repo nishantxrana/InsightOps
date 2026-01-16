@@ -6,6 +6,10 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
+variables:
+  name: VITE_DEMO_VIDEO_URL
+  value: https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4
+
 steps:
   - checkout: self
 
@@ -26,8 +30,7 @@ steps:
     workingDirectory: frontend
     displayName: "Build frontend"
     env:
-      VITE_CLARITY_PROJECT_ID: $(VITE_CLARITY_PROJECT_ID)
-      VITE_DEMO_VIDEO_URL: $(VITE_DEMO_VIDEO_URL)
+      VITE_DEMO_VIDEO_URL: ${{ variables.VITE_DEMO_VIDEO_URL }}
 
   - script: |
       mkdir -p backend/public
