@@ -855,11 +855,12 @@ router.post('/settings/test-connection', async (req, res) => {
   try {
     const { organization, project, personalAccessToken, baseUrl } = req.body;
     
-    console.log('Received test request:', {
-      organization: organization || 'EMPTY',
-      project: project || 'EMPTY', 
-      hasToken: !!personalAccessToken,
-      baseUrl: baseUrl || 'EMPTY'
+    logger.debug('Received connection test request', {
+      component: 'api',
+      action: 'test-webhook',
+      hasOrganization: !!organization,
+      hasProject: !!project,
+      hasToken: !!personalAccessToken
     });
     
     // Validate required fields
@@ -1343,9 +1344,6 @@ router.get('/releases', async (req, res) => {
           // Fallback to release status if no environments
           const azureStatus = release.status?.toLowerCase() || 'unknown';
           
-          // Debug logging for release-level status
-          console.log(`Release ${release.id} release-level status:`, azureStatus);
-          
           switch (azureStatus) {
             case 'active':
               mappedStatus = 'inprogress';
@@ -1471,7 +1469,6 @@ router.get('/releases', async (req, res) => {
                   const postApprovals = env.postDeployApprovals || [];
                   if (preApprovals.length > 0 || postApprovals.length > 0) {
                     hasApprovalData = true;
-                    console.log(`Release ${release.id} has approval data in environment ${env.name}`);
                     break;
                   }
                 }
@@ -1491,7 +1488,7 @@ router.get('/releases', async (req, res) => {
                 return { ...release, status: 'waitingforapproval' };
               }
             } catch (approvalError) {
-              console.log(`Could not check approvals for release ${release.id}:`, approvalError.message);
+              // Silently ignore approval check failures - non-critical
             }
           }
           return release;
@@ -1647,17 +1644,12 @@ router.get('/releases/stats', async (req, res) => {
         return { ...release, mappedStatus };
       });
 
-      // Debug: Log transformed status values
-      console.log('Transformed statuses:', transformedReleases.map(r => r.mappedStatus).slice(0, 10));
-
       // Calculate statistics with transformed statuses
       const totalReleases = transformedReleases.length;
       const succeededReleases = transformedReleases.filter(r => r.mappedStatus === 'succeeded').length;
-      console.log('Total releases:', totalReleases, 'Succeeded:', succeededReleases);
       const successRate = totalReleases > 0 ? Math.round((succeededReleases / totalReleases) * 100 * 10) / 10 : 0;
       const pendingApprovals = approvals.filter(a => a.status?.toLowerCase() === 'pending').length;
       const activeDeployments = transformedReleases.filter(r => r.mappedStatus === 'inprogress').length;
-      console.log('Active deployments:', activeDeployments, 'Pending approvals:', pendingApprovals);
 
       // Environment statistics
       const environmentStats = {};

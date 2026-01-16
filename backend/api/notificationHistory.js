@@ -1,10 +1,12 @@
 import express from 'express';
 import notificationHistoryService from '../services/notificationHistoryService.js';
+import { createRequestLogger } from '../utils/logger.js';
 
 const router = express.Router();
 
 // Get notifications with filters (uses org context from middleware)
 router.get('/', async (req, res) => {
+  const log = createRequestLogger(req, 'notifications-api');
   try {
     const { type, read, starred, limit, skip } = req.query;
     const userId = req.user._id;
@@ -25,13 +27,14 @@ router.get('/', async (req, res) => {
 
     res.json(notifications);
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+    log.error('Failed to fetch notifications', { error: error.message, action: 'get-notifications' });
     res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
   }
 });
 
 // Get unread count
 router.get('/unread-count', async (req, res) => {
+  const log = createRequestLogger(req, 'notifications-api');
   try {
     const userId = req.user._id;
     const organizationId = req.organizationId;
@@ -43,13 +46,14 @@ router.get('/unread-count', async (req, res) => {
     const count = await notificationHistoryService.getUnreadCount(userId, organizationId);
     res.json({ count });
   } catch (error) {
-    console.error('Error fetching unread count:', error);
+    log.error('Failed to fetch unread count', { error: error.message, action: 'get-unread-count' });
     res.status(500).json({ error: 'Failed to fetch unread count' });
   }
 });
 
 // Get counts by type
 router.get('/counts', async (req, res) => {
+  const log = createRequestLogger(req, 'notifications-api');
   try {
     const userId = req.user._id;
     const organizationId = req.organizationId;
@@ -61,13 +65,14 @@ router.get('/counts', async (req, res) => {
     const counts = await notificationHistoryService.getCountsByType(userId, organizationId);
     res.json(counts);
   } catch (error) {
-    console.error('Error fetching counts:', error);
+    log.error('Failed to fetch notification counts', { error: error.message, action: 'get-counts' });
     res.status(500).json({ error: 'Failed to fetch counts' });
   }
 });
 
 // Mark as read
 router.patch('/:id/read', async (req, res) => {
+  const log = createRequestLogger(req, 'notifications-api');
   try {
     const { id } = req.params;
     const userId = req.user._id;
@@ -81,13 +86,18 @@ router.patch('/:id/read', async (req, res) => {
 
     res.json(notification);
   } catch (error) {
-    console.error('Error marking as read:', error);
+    log.error('Failed to mark notification as read', { 
+      error: error.message, 
+      action: 'mark-read',
+      notificationId: req.params.id 
+    });
     res.status(500).json({ error: 'Failed to mark as read' });
   }
 });
 
 // Toggle star
 router.patch('/:id/star', async (req, res) => {
+  const log = createRequestLogger(req, 'notifications-api');
   try {
     const { id } = req.params;
     const userId = req.user._id;
@@ -101,7 +111,11 @@ router.patch('/:id/star', async (req, res) => {
 
     res.json(notification);
   } catch (error) {
-    console.error('Error toggling star:', error);
+    log.error('Failed to toggle notification star', { 
+      error: error.message, 
+      action: 'toggle-star',
+      notificationId: req.params.id 
+    });
     res.status(500).json({ error: 'Failed to toggle star' });
   }
 });

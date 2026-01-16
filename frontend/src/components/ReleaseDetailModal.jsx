@@ -176,7 +176,6 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
     try {
       setLoadingApprovals(true);
       const response = await releaseService.getReleaseApprovals(release.id);
-      console.log('Approvals response for release', release.id, ':', response);
       if (response.success) {
         // Always set approvals data, even if empty
         setApprovals(response.data);

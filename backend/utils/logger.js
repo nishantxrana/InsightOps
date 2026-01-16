@@ -1,20 +1,52 @@
 import winston from 'winston';
 import path from 'path';
+import fs from 'fs';
 
 const { combine, timestamp, errors, json, printf, colorize } = winston.format;
 
-// Sanitize sensitive data from logs
-function sanitizeForLogging(data) {
-  if (!data || typeof data !== 'object') return data;
+// Environment configuration
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const LOG_LEVEL = process.env.LOG_LEVEL || (NODE_ENV === 'production' ? 'info' : 'debug');
+const IS_PRODUCTION = NODE_ENV === 'production';
+const IS_DEVELOPMENT = NODE_ENV === 'development';
+
+// Sensitive field patterns for sanitization
+const SENSITIVE_PATTERNS = [
+  'password', 'token', 'secret', 'apikey', 'pat', 'authorization', 
+  'cookie', 'bearer', 'credential', 'private', 'webhook'
+];
+
+/**
+ * Sanitize sensitive data from logs
+ * @param {any} data - Data to sanitize
+ * @param {number} depth - Current recursion depth (to prevent infinite loops)
+ * @returns {any} Sanitized data
+ */
+export function sanitizeForLogging(data, depth = 0) {
+  if (depth > 10) return '[Max Depth]';
+  if (data === null || data === undefined) return data;
+  if (typeof data !== 'object') return data;
   
-  const sensitive = ['password', 'token', 'secret', 'apikey', 'pat', 'authorization', 'cookie'];
-  const sanitized = Array.isArray(data) ? [] : {};
+  // Handle arrays
+  if (Array.isArray(data)) {
+    return data.slice(0, 10).map(item => sanitizeForLogging(item, depth + 1));
+  }
+  
+  const sanitized = {};
   
   for (const key in data) {
-    if (sensitive.some(s => key.toLowerCase().includes(s))) {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+    
+    const lowerKey = key.toLowerCase();
+    
+    // Check if key matches sensitive patterns
+    if (SENSITIVE_PATTERNS.some(pattern => lowerKey.includes(pattern))) {
       sanitized[key] = '***REDACTED***';
     } else if (typeof data[key] === 'object' && data[key] !== null) {
-      sanitized[key] = sanitizeForLogging(data[key]);
+      sanitized[key] = sanitizeForLogging(data[key], depth + 1);
+    } else if (typeof data[key] === 'string' && data[key].length > 500) {
+      // Truncate very long strings
+      sanitized[key] = data[key].substring(0, 500) + '...[truncated]';
     } else {
       sanitized[key] = data[key];
     }
@@ -23,100 +55,193 @@ function sanitizeForLogging(data) {
   return sanitized;
 }
 
-// Custom format for console output
-const consoleFormat = printf(({ level, message, timestamp, ...meta }) => {
-  let log = `${timestamp} [${level}]: ${message}`;
+/**
+ * Create context object for logging
+ * @param {Object} options - Context options
+ * @returns {Object} Formatted context
+ */
+export function createLogContext(options = {}) {
+  const context = {};
   
-  if (Object.keys(meta).length > 0) {
+  if (options.requestId) context.requestId = options.requestId;
+  if (options.userId) context.userId = options.userId.toString();
+  if (options.organizationId) context.organizationId = options.organizationId.toString();
+  if (options.component) context.component = options.component;
+  if (options.action) context.action = options.action;
+  if (options.status) context.status = options.status;
+  
+  return context;
+}
+
+/**
+ * Extract logging context from Express request
+ * @param {Object} req - Express request object
+ * @returns {Object} Logging context
+ */
+export function getRequestContext(req) {
+  return {
+    requestId: req?.id || 'no-request-id',
+    userId: req?.user?._id?.toString() || undefined,
+    organizationId: req?.organizationId?.toString() || undefined,
+    path: req?.path,
+    method: req?.method
+  };
+}
+
+// Custom format for console output (development friendly)
+const consoleFormat = printf(({ level, message, timestamp, component, requestId, organizationId, userId, ...meta }) => {
+  let log = `${timestamp} [${level}]`;
+  
+  // Add component tag if present
+  if (component) log += ` [${component}]`;
+  
+  log += `: ${message}`;
+  
+  // Add context identifiers inline for easy scanning
+  const contextParts = [];
+  if (requestId && requestId !== 'no-request-id') contextParts.push(`req:${requestId.substring(0, 8)}`);
+  if (organizationId) contextParts.push(`org:${organizationId.substring(0, 8)}`);
+  if (userId) contextParts.push(`user:${userId.substring(0, 8)}`);
+  
+  if (contextParts.length > 0) {
+    log += ` (${contextParts.join(', ')})`;
+  }
+  
+  // Add additional metadata in dev/debug mode
+  const relevantMeta = { ...meta };
+  delete relevantMeta.service; // Already known
+  
+  if (Object.keys(relevantMeta).length > 0 && !IS_PRODUCTION) {
     try {
-      // Use JSON.stringify with replacer to handle circular references
-      const metaString = JSON.stringify(meta, (key, value) => {
+      const metaString = JSON.stringify(relevantMeta, (key, value) => {
+        // Handle circular references
+        if (key === 'req' || key === 'res' || key === 'socket' || key === 'client') {
+          return '[Circular]';
+        }
         if (typeof value === 'object' && value !== null) {
-          // Check for circular references by looking for common circular properties
-          if (key === 'req' || key === 'res' || key === 'socket' || key === 'client') {
-            return '[Circular]';
-          }
-          // Limit object depth to prevent large outputs
-          if (typeof value.constructor === 'function' && 
-              (value.constructor.name === 'ClientRequest' || 
-               value.constructor.name === 'IncomingMessage' ||
-               value.constructor.name === 'Socket')) {
+          if (value.constructor?.name === 'ClientRequest' || 
+              value.constructor?.name === 'IncomingMessage' ||
+              value.constructor?.name === 'Socket') {
             return '[Object]';
           }
         }
         return value;
       }, 2);
-      log += ` ${metaString}`;
+      log += `\n  ${metaString}`;
     } catch (error) {
-      log += ` [Meta serialization error: ${error.message}]`;
+      // Silently ignore serialization errors
     }
   }
   
   return log;
 });
 
+// JSON format for production (structured logs)
+const productionFormat = combine(
+  timestamp({ format: 'YYYY-MM-DDTHH:mm:ss.SSSZ' }),
+  errors({ stack: IS_DEVELOPMENT }), // Only include stack traces in dev
+  json()
+);
+
+// Create logs directory
+const logsDir = path.join(process.cwd(), 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
 // Create logger instance
 export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: combine(
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    errors({ stack: true }),
-    json()
-  ),
+  level: LOG_LEVEL,
+  format: productionFormat,
   defaultMeta: {
-    service: 'azure-devops-monitoring-agent'
+    service: 'insightops-backend',
+    environment: NODE_ENV
   },
   transports: [
-    // Write all logs to console
+    // Console transport - format differs by environment
     new winston.transports.Console({
-      format: combine(
-        colorize(),
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        consoleFormat
-      )
+      format: IS_PRODUCTION 
+        ? productionFormat
+        : combine(
+            colorize(),
+            timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+            consoleFormat
+          )
     }),
     
-    // Write all logs to file
+    // Error log file
     new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'error.log'),
+      filename: path.join(logsDir, 'error.log'),
       level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
+      maxsize: 10 * 1024 * 1024, // 10MB
+      maxFiles: 5,
+      format: productionFormat
     }),
     
-    // Write all logs to combined file
+    // Combined log file
     new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'combined.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
+      filename: path.join(logsDir, 'combined.log'),
+      maxsize: 10 * 1024 * 1024, // 10MB
+      maxFiles: 5,
+      format: productionFormat
     })
   ],
   
   // Handle uncaught exceptions
   exceptionHandlers: [
     new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'exceptions.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 3
+      filename: path.join(logsDir, 'exceptions.log'),
+      maxsize: 10 * 1024 * 1024,
+      maxFiles: 3,
+      format: productionFormat
     })
   ],
   
   // Handle unhandled promise rejections
   rejectionHandlers: [
     new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'rejections.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 3
+      filename: path.join(logsDir, 'rejections.log'),
+      maxsize: 10 * 1024 * 1024,
+      maxFiles: 3,
+      format: productionFormat
     })
   ]
 });
 
-// Create logs directory if it doesn't exist
-import fs from 'fs';
-const logsDir = path.join(process.cwd(), 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+/**
+ * Create a child logger with preset context (for services/components)
+ * @param {string} component - Component name (e.g., 'webhook', 'poller', 'agent')
+ * @param {Object} defaultContext - Default context to include in all logs
+ * @returns {Object} Child logger with context methods
+ */
+export function createComponentLogger(component, defaultContext = {}) {
+  return {
+    info: (message, meta = {}) => logger.info(message, { component, ...defaultContext, ...meta }),
+    warn: (message, meta = {}) => logger.warn(message, { component, ...defaultContext, ...meta }),
+    error: (message, meta = {}) => logger.error(message, { component, ...defaultContext, ...meta }),
+    debug: (message, meta = {}) => {
+      if (!IS_PRODUCTION) {
+        logger.debug(message, { component, ...defaultContext, ...meta });
+      }
+    }
+  };
 }
 
-// Export sanitization function for use in other modules
-export { sanitizeForLogging };
+/**
+ * Log with request context (for use in request handlers)
+ * @param {Object} req - Express request object
+ * @param {string} component - Component name
+ * @returns {Object} Logger with request context
+ */
+export function createRequestLogger(req, component) {
+  const context = getRequestContext(req);
+  return createComponentLogger(component, context);
+}
+
+// Export environment flags for conditional logging
+export const logConfig = {
+  isProduction: IS_PRODUCTION,
+  isDevelopment: IS_DEVELOPMENT,
+  level: LOG_LEVEL,
+  environment: NODE_ENV
+};

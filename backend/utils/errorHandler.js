@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger, getRequestContext } from './logger.js';
 
 export const errorHandler = (err, req, res, next) => {
   // Skip error handling for static assets - let Express handle them
@@ -6,12 +6,17 @@ export const errorHandler = (err, req, res, next) => {
     return next(err);
   }
 
-  // Log the error
-  logger.error('Unhandled error:', {
+  const context = getRequestContext(req);
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Log the error with full context
+  logger.error('Unhandled error', {
+    component: 'error-handler',
+    ...context,
     error: err.message,
-    stack: err.stack,
-    url: req.url,
-    method: req.method,
+    errorName: err.name,
+    stack: isProduction ? undefined : err.stack,
+    status: 'failure',
     ip: req.ip,
     userAgent: req.get('User-Agent')
   });
