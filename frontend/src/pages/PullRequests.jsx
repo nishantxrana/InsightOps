@@ -123,17 +123,18 @@ export default function PullRequests() {
   }
 
   const getStatusBadge = (status) => {
+    // Neutral bg, colored text/icon
     switch (status) {
       case 'active':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400">
             <Activity className="h-3 w-3" />
             Active
           </span>
         )
       case 'completed':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="h-3 w-3" />
             Completed
           </span>
@@ -156,25 +157,26 @@ export default function PullRequests() {
   }
 
   const getMergeStatusBadge = (mergeStatus) => {
+    // Neutral bg, colored text/icon
     switch (mergeStatus) {
       case 'succeeded':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="h-3 w-3" />
             Ready
           </span>
         )
       case 'conflicts':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200 ring-1 ring-red-300 dark:ring-red-800">
-            <AlertCircle className="h-3 w-3 animate-pulse" />
-            ⚠️ Conflicts
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400">
+            <AlertCircle className="h-3 w-3" />
+            Conflicts
           </span>
         )
       case 'queued':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200">
-            <Clock className="h-3 w-3 animate-pulse" />
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400">
+            <Clock className="h-3 w-3" />
             Queued
           </span>
         )
@@ -338,26 +340,25 @@ export default function PullRequests() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold text-foreground tracking-tight">Pull Requests</h1>
-              {/* Quick health indicator */}
+              {/* Quick health indicator - neutral bg, colored text/icon */}
               {!loadingStates.stats && (
                 stats.unassigned > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-                    {stats.unassigned} need reviewers
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <User className="h-3 w-3 text-orange-500" />
+                    <span className="text-orange-600 dark:text-orange-400">{stats.unassigned} need reviewers</span>
                   </span>
                 ) : stats.idle > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    {stats.idle} stale
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <Clock className="h-3 w-3 text-amber-500" />
+                    <span className="text-amber-600 dark:text-amber-400">{stats.idle} stale</span>
                   </span>
                 ) : stats.active > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                    {stats.active} in review
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <Activity className="h-3 w-3 text-blue-500" />
+                    <span className="text-blue-600 dark:text-blue-400">{stats.active} in review</span>
                   </span>
                 ) : stats.total > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
                     All clear
                   </span>
                 ) : null
@@ -384,7 +385,7 @@ export default function PullRequests() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
-        {/* Total PRs */}
+        {/* Total PRs - neutral */}
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
@@ -395,8 +396,8 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <GitPullRequest className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full">
+                <GitPullRequest className="h-5 w-5 text-blue-500" />
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                   Total
                 </span>
               </div>
@@ -408,7 +409,7 @@ export default function PullRequests() {
           )}
         </div>
 
-        {/* Active PRs */}
+        {/* Active PRs - neutral */}
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
@@ -419,9 +420,9 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <Activity className="h-5 w-5 text-green-600 dark:text-green-400" />
-                <span className="text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-full">
-                  Active
+                <Activity className="h-5 w-5 text-emerald-500" />
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  In Review
                 </span>
               </div>
               <div className="mb-3">
@@ -432,12 +433,8 @@ export default function PullRequests() {
           )}
         </div>
 
-        {/* Unassigned PRs - NO REVIEWERS = BLOCKED */}
-        <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-          stats.unassigned > 0 
-            ? 'border-orange-300 dark:border-orange-800 ring-1 ring-orange-200 dark:ring-orange-900' 
-            : 'border-border dark:border-[#1a1a1a]'
-        }`}>
+        {/* Unassigned PRs - neutral with colored icon/text */}
+        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
               <div className="shimmer h-4 rounded w-16"></div>
@@ -447,18 +444,11 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <User className={`h-5 w-5 ${stats.unassigned > 0 ? 'text-orange-600 dark:text-orange-400 animate-pulse' : 'text-muted-foreground'}`} />
-                  {stats.unassigned > 0 && (
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-                  )}
-                </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  stats.unassigned > 0 
-                    ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-950/50' 
-                    : 'text-muted-foreground bg-muted'
+                <User className={`h-5 w-5 ${stats.unassigned > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                  stats.unassigned > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'
                 }`}>
-                  {stats.unassigned > 0 ? 'Blocked' : 'Clear'}
+                  {stats.unassigned > 0 ? `${stats.unassigned} unassigned` : 'Clear'}
                 </span>
               </div>
               <div className="mb-3">
@@ -467,21 +457,15 @@ export default function PullRequests() {
                 </div>
                 <div className="text-sm text-muted-foreground">No Reviewers</div>
               </div>
-              {stats.unassigned > 0 && (
-                <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                  ⚠️ Assign reviewers to unblock
-                </div>
-              )}
+              <div className={`text-xs ${stats.unassigned > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+                {stats.unassigned > 0 ? 'Assign reviewers to unblock' : 'All PRs have reviewers'}
+              </div>
             </>
           )}
         </div>
 
-        {/* Idle PRs - STALE = NEEDS ATTENTION */}
-        <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-          stats.idle > 0 
-            ? 'border-amber-300 dark:border-amber-800 ring-1 ring-amber-200 dark:ring-amber-900' 
-            : 'border-border dark:border-[#1a1a1a]'
-        }`}>
+        {/* Idle PRs - neutral with colored icon/text */}
+        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.idlePRs ? (
             <div className="space-y-3">
               <div className="shimmer h-4 rounded w-16"></div>
@@ -491,18 +475,11 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Clock className={`h-5 w-5 ${stats.idle > 0 ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-muted-foreground'}`} />
-                  {stats.idle > 0 && (
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                  )}
-                </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  stats.idle > 0 
-                    ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50' 
-                    : 'text-muted-foreground bg-muted'
+                <Clock className={`h-5 w-5 ${stats.idle > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                  stats.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
                 }`}>
-                  {stats.idle > 0 ? 'Stale' : 'Fresh'}
+                  {stats.idle > 0 ? `${stats.idle} stale` : 'Fresh'}
                 </span>
               </div>
               <div className="mb-3">
@@ -511,11 +488,9 @@ export default function PullRequests() {
                 </div>
                 <div className="text-sm text-muted-foreground">Idle 48h+</div>
               </div>
-              {stats.idle > 0 && (
-                <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                  ⏰ Need review attention
-                </div>
-              )}
+              <div className={`text-xs ${stats.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                {stats.idle > 0 ? 'Need review attention' : 'No stale PRs'}
+              </div>
             </>
           )}
         </div>
@@ -546,26 +521,18 @@ export default function PullRequests() {
                   onClick={() => setFilter(option.value)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                     filter === option.value
-                      ? option.isDanger 
-                        ? 'bg-red-500 text-white shadow-md' 
-                        : option.isWarning 
-                          ? 'bg-orange-500 text-white shadow-md'
-                          : 'bg-blue-500 text-white shadow-md'
-                      : option.isDanger && option.count > 0
-                        ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
-                        : option.isWarning && option.count > 0
-                          ? 'bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/50'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   }`}
                 >
-                  <span>{option.label}</span>
+                  <span className={filter !== option.value && option.isDanger && option.count > 0 ? 'text-red-600 dark:text-red-400' : filter !== option.value && option.isWarning && option.count > 0 ? 'text-orange-600 dark:text-orange-400' : ''}>{option.label}</span>
                   <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
                     filter === option.value
                       ? 'bg-white/20 text-white'
                       : option.isDanger && option.count > 0
-                        ? 'bg-red-200 dark:bg-red-900 text-red-800 dark:text-red-200'
+                        ? 'text-red-600 dark:text-red-400 bg-background'
                         : option.isWarning && option.count > 0
-                          ? 'bg-orange-200 dark:bg-orange-900 text-orange-800 dark:text-orange-200'
+                          ? 'text-orange-600 dark:text-orange-400 bg-background'
                           : 'bg-background text-muted-foreground'
                   }`}>
                     {option.count}
@@ -613,7 +580,7 @@ export default function PullRequests() {
       <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
         <div className="flex items-center justify-between px-5 py-5 border-b border-border dark:border-[#1a1a1a]">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50">
+            <div className="p-2 rounded-xl bg-muted">
               <GitPullRequest className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
@@ -682,11 +649,11 @@ export default function PullRequests() {
                   key={pr.pullRequestId} 
                   className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer ${
                     hasConflicts 
-                      ? 'border-l-2 border-l-red-500 bg-red-50/30 dark:bg-red-950/20' 
+                      ? 'border-l-2 border-l-red-500' 
                       : isUnassigned 
-                        ? 'border-l-2 border-l-orange-500 bg-orange-50/30 dark:bg-orange-950/20' 
+                        ? 'border-l-2 border-l-orange-500' 
                         : isIdle 
-                          ? 'border-l-2 border-l-amber-500 bg-amber-50/30 dark:bg-amber-950/20' 
+                          ? 'border-l-2 border-l-amber-500' 
                           : ''
                   }`}
                   onClick={() => {
@@ -720,13 +687,13 @@ export default function PullRequests() {
                     <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                       {/* Problem indicators */}
                       {isUnassigned && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-orange-600 dark:text-orange-400">
                           <User className="h-3 w-3" />
                           No reviewers
                         </span>
                       )}
                       {isIdle && !isUnassigned && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-amber-600 dark:text-amber-400">
                           <Clock className="h-3 w-3" />
                           Stale
                         </span>

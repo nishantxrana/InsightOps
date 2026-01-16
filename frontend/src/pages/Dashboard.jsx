@@ -256,16 +256,15 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold text-foreground tracking-tight">Overview</h1>
-              {/* Quick status indicator */}
+              {/* Quick status indicator - neutral bg, colored text/icon only */}
               {!loadingStates.workItems && !loadingStates.builds && !loadingStates.pullRequests && (
                 (stats.builds.failed > 0 || stats.workItems.overdue > 0 || stats.pullRequests.idle > 0) ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                    {stats.builds.failed + stats.workItems.overdue + stats.pullRequests.idle} issues
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <AlertTriangle className="h-3 w-3 text-red-500" />
+                    <span className="text-red-600 dark:text-red-400">{stats.builds.failed + stats.workItems.overdue + stats.pullRequests.idle} issues</span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
                     All clear
                   </span>
                 )
@@ -290,13 +289,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Attention Required - FIRST (most actionable) */}
+      {/* Attention Required - FIRST (most actionable) - neutral cards with colored icons/text */}
       {(loadingStates.workItems || loadingStates.builds || loadingStates.pullRequests || 
         stats.workItems.overdue > 0 || stats.builds.failed > 0 || stats.pullRequests.idle > 0) && (
         <div className="animate-fade-in bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm overflow-hidden">
           <div className="p-4 border-b border-border">
             <h2 className="font-semibold text-foreground flex items-center gap-2 text-sm">
-              <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
               Needs Your Attention
             </h2>
           </div>
@@ -316,35 +315,35 @@ export default function Dashboard() {
             ) : (
               <div className="flex flex-wrap gap-3">
                 {stats.builds.failed > 0 && (
-                  <Link to="/pipelines" className="group flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/50 rounded-xl border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors cursor-pointer flex-1 min-w-[200px]">
-                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-lg flex items-center justify-center">
-                      <GitBranch className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  <Link to="/pipelines" className="group flex items-center gap-3 p-3 bg-muted/50 rounded-xl border border-border hover:bg-muted transition-colors cursor-pointer flex-1 min-w-[200px]">
+                    <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                      <GitBranch className="w-5 h-5 text-red-500" />
                     </div>
                     <div className="flex-1">
-                      <div className="font-semibold text-red-900 dark:text-red-100">{stats.builds.failed} failed builds</div>
-                      <div className="text-xs text-red-700 dark:text-red-300">Check pipeline logs →</div>
+                      <div className="font-semibold text-foreground">{stats.builds.failed} failed builds</div>
+                      <div className="text-xs text-red-600 dark:text-red-400">Check pipeline logs →</div>
                     </div>
                   </Link>
                 )}
                 {stats.workItems.overdue > 0 && (
-                  <Link to="/work-items" className="group flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/50 rounded-xl border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors cursor-pointer flex-1 min-w-[200px]">
-                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-lg flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  <Link to="/work-items" className="group flex items-center gap-3 p-3 bg-muted/50 rounded-xl border border-border hover:bg-muted transition-colors cursor-pointer flex-1 min-w-[200px]">
+                    <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-red-500" />
                     </div>
                     <div className="flex-1">
-                      <div className="font-semibold text-red-900 dark:text-red-100">{stats.workItems.overdue} overdue items</div>
-                      <div className="text-xs text-red-700 dark:text-red-300">Past target date →</div>
+                      <div className="font-semibold text-foreground">{stats.workItems.overdue} overdue items</div>
+                      <div className="text-xs text-red-600 dark:text-red-400">Past target date →</div>
                     </div>
                   </Link>
                 )}
                 {stats.pullRequests.idle > 0 && (
-                  <Link to="/pull-requests?filter=idle" className="group flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/50 rounded-xl border border-amber-100 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/70 transition-colors cursor-pointer flex-1 min-w-[200px]">
-                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/50 rounded-lg flex items-center justify-center">
-                      <GitPullRequest className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  <Link to="/pull-requests?filter=idle" className="group flex items-center gap-3 p-3 bg-muted/50 rounded-xl border border-border hover:bg-muted transition-colors cursor-pointer flex-1 min-w-[200px]">
+                    <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                      <GitPullRequest className="w-5 h-5 text-amber-500" />
                     </div>
                     <div className="flex-1">
-                      <div className="font-semibold text-amber-900 dark:text-amber-100">{stats.pullRequests.idle} stale PRs</div>
-                      <div className="text-xs text-amber-700 dark:text-amber-300">No activity in 48h+ →</div>
+                      <div className="font-semibold text-foreground">{stats.pullRequests.idle} stale PRs</div>
+                      <div className="text-xs text-amber-600 dark:text-amber-400">No activity in 48h+ →</div>
                     </div>
                   </Link>
                 )}
@@ -354,11 +353,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stats - Summary cards */}
+      {/* Stats - Summary cards - neutral backgrounds, colored icons/text only */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
         {/* Work Items */}
         <Link to="/work-items" className="block">
-          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm cursor-pointer ${stats.workItems.overdue > 0 ? 'border-red-200 dark:border-red-900/50' : 'border-border dark:border-[#1a1a1a]'}`}>
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm cursor-pointer">
             {loadingStates.workItems ? (
               <div className="space-y-3">
                 <div className="shimmer h-4 rounded w-16"></div>
@@ -368,8 +367,8 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <CheckSquare className={`w-5 h-5 ${stats.workItems.overdue > 0 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`} />
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stats.workItems.overdue > 0 ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50' : 'text-muted-foreground bg-muted'}`}>
+                  <CheckSquare className={`w-5 h-5 ${stats.workItems.overdue > 0 ? 'text-red-500' : 'text-blue-500'}`} />
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${stats.workItems.overdue > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
                     {stats.workItems.overdue > 0 ? `${stats.workItems.overdue} overdue` : 'Sprint'}
                   </span>
                 </div>
@@ -384,7 +383,7 @@ export default function Dashboard() {
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5">
                     <div 
-                      className={`progress-bar h-1.5 rounded-full ${stats.workItems.overdue > 0 ? 'bg-red-500' : 'bg-blue-600 dark:bg-blue-500'}`}
+                      className={`progress-bar h-1.5 rounded-full ${stats.workItems.overdue > 0 ? 'bg-red-500' : 'bg-blue-500'}`}
                       style={{ width: `${stats.workItems.total > 0 ? (stats.workItems.completed / stats.workItems.total) * 100 : 0}%` }}
                     />
                   </div>
@@ -406,11 +405,11 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <GitBranch className={`w-5 h-5 ${stats.builds.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    stats.builds.failed > 0 ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50' : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50'
+                  <GitBranch className={`w-5 h-5 ${stats.builds.failed > 0 ? 'text-red-500' : 'text-emerald-500'}`} />
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                    stats.builds.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
                   }`}>
-                    {stats.builds.failed > 0 ? 'Issues' : 'Healthy'}
+                    {stats.builds.failed > 0 ? `${stats.builds.failed} failed` : 'Healthy'}
                   </span>
                 </div>
                 <div className="mb-3">
@@ -422,11 +421,11 @@ export default function Dashboard() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">{stats.builds.succeeded} passed</span>
-                    <span className="text-muted-foreground">{stats.builds.failed} failed</span>
+                    <span className={`${stats.builds.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{stats.builds.failed} failed</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5">
                     <div 
-                      className={`progress-bar h-1.5 rounded-full ${stats.builds.failed > 0 ? 'bg-red-500 dark:bg-red-400' : 'bg-emerald-500 dark:bg-emerald-400'}`}
+                      className={`progress-bar h-1.5 rounded-full ${stats.builds.failed > 0 ? 'bg-red-500' : 'bg-emerald-500'}`}
                       style={{ width: `${stats.builds.total > 0 ? (stats.builds.succeeded / stats.builds.total) * 100 : 0}%` }}
                     />
                   </div>
@@ -448,8 +447,8 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <Rocket className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                  <span className="text-xs font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 px-2 py-0.5 rounded-full">
+                  <Rocket className="w-5 h-5 text-orange-500" />
+                  <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                     Recent
                   </span>
                 </div>
@@ -464,7 +463,7 @@ export default function Dashboard() {
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5">
                     <div 
-                      className="progress-bar bg-orange-600 dark:bg-orange-500 h-1.5 rounded-full"
+                      className="progress-bar bg-orange-500 h-1.5 rounded-full"
                       style={{ width: `${stats.releases?.successRate || 0}%` }}
                     />
                   </div>
@@ -476,7 +475,7 @@ export default function Dashboard() {
 
         {/* Pull Requests */}
         <Link to="/pull-requests" className="block">
-          <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm cursor-pointer ${stats.pullRequests.idle > 0 ? 'border-amber-200 dark:border-amber-900/50' : 'border-border dark:border-[#1a1a1a]'}`}>
+          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm cursor-pointer">
             {loadingStates.pullRequests ? (
               <div className="space-y-3">
                 <div className="shimmer h-4 rounded w-16"></div>
@@ -486,8 +485,8 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <GitPullRequest className={`w-5 h-5 ${stats.pullRequests.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-purple-600 dark:text-purple-400'}`} />
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stats.pullRequests.idle > 0 ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50' : 'text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50'}`}>
+                  <GitPullRequest className={`w-5 h-5 ${stats.pullRequests.idle > 0 ? 'text-amber-500' : 'text-purple-500'}`} />
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${stats.pullRequests.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
                     {stats.pullRequests.idle > 0 ? `${stats.pullRequests.idle} stale` : 'Active'}
                   </span>
                 </div>
@@ -498,7 +497,7 @@ export default function Dashboard() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">{stats.pullRequests.active} active</span>
-                    <span className={`${stats.pullRequests.idle > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground'}`}>{stats.pullRequests.idle} idle</span>
+                    <span className={`${stats.pullRequests.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{stats.pullRequests.idle} idle</span>
                   </div>
                   <div className="h-1.5"></div>
                 </div>
@@ -510,17 +509,17 @@ export default function Dashboard() {
 
       {/* Quick Stats & Activity */}
       <div className="grid lg:grid-cols-3 gap-6 animate-fade-in" style={{animationDelay: '0.2s'}}>
-        {/* Status Summary - Only shown when all clear */}
+        {/* Status Summary - Only shown when all clear - neutral styling */}
         {!loadingStates.workItems && !loadingStates.builds && !loadingStates.pullRequests && 
          stats.workItems.overdue === 0 && stats.builds.failed === 0 && stats.pullRequests.idle === 0 && (
           <div className="lg:col-span-2 bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-emerald-500" />
               </div>
               <div>
-                <div className="font-semibold text-emerald-900 dark:text-emerald-100">All systems healthy</div>
-                <div className="text-sm text-emerald-700 dark:text-emerald-300">No failed builds, overdue items, or stale PRs</div>
+                <div className="font-semibold text-foreground">All systems healthy</div>
+                <div className="text-sm text-muted-foreground">No failed builds, overdue items, or stale PRs</div>
               </div>
             </div>
           </div>
