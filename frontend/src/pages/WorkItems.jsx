@@ -56,6 +56,7 @@ export default function WorkItems() {
   
   // Filtering and interaction state
   const [selectedState, setSelectedState] = useState('all')
+  const [selectedPriority, setSelectedPriority] = useState('all')
   
   const toggleAiSummary = () => {
     const newValue = !aiSummaryEnabled;
@@ -180,6 +181,17 @@ export default function WorkItems() {
         filtered = filtered.filter(item => item.assignee === selectedAssignee)
       }
       
+      // Priority filter
+      if (selectedPriority !== 'all') {
+        filtered = filtered.filter(item => {
+          const priority = item.fields?.['Microsoft.VSTS.Common.Priority']?.toString()
+          if (selectedPriority === 'high') {
+            return priority === '1' || priority === '2'
+          }
+          return priority === selectedPriority
+        })
+      }
+      
       if (searchTerm) {
         filtered = filtered.filter(item => 
           item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -189,7 +201,7 @@ export default function WorkItems() {
       
       setFilteredWorkItems(filtered)
     }
-  }, [sprintSummary, selectedState, selectedAssignee, searchTerm])
+  }, [sprintSummary, selectedState, selectedAssignee, selectedPriority, searchTerm])
 
   const loadWorkItemsData = async () => {
     try {
@@ -538,8 +550,28 @@ export default function WorkItems() {
       <div className="animate-slide-up">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Work Items</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Current sprint status and team workload</p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">Work Items</h1>
+              {/* Quick status indicator */}
+              {!loadingStates.sprintSummary && (
+                sprintSummary?.overdue > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                    {sprintSummary.overdue} blockers
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    On track
+                  </span>
+                )
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {!loadingStates.sprintSummary && sprintSummary?.overdue > 0 
+                ? `${sprintSummary.overdue} items need attention before sprint ends` 
+                : 'Current sprint status and team workload'}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -651,20 +683,35 @@ export default function WorkItems() {
               </div>
             </div>
 
-            {/* Overdue Items */}
-            <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
+            {/* Overdue Items - Alarming when > 0 */}
+            <div className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
+              (sprintSummary.overdue || 0) > 0 
+                ? 'border-red-300 dark:border-red-800 ring-1 ring-red-200 dark:ring-red-900' 
+                : 'border-border dark:border-[#1a1a1a]'
+            }`}>
               <div className="flex items-center justify-between mb-3">
-                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                <span className="text-xs font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded-full">
-                  Overdue
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className={`w-5 h-5 ${(sprintSummary.overdue || 0) > 0 ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-muted-foreground'}`} />
+                  {(sprintSummary.overdue || 0) > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                  )}
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  (sprintSummary.overdue || 0) > 0 
+                    ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/50' 
+                    : 'text-muted-foreground bg-muted'
+                }`}>
+                  {(sprintSummary.overdue || 0) > 0 ? 'Action needed' : 'On track'}
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-foreground mb-0.5">{sprintSummary.overdue || 0}</div>
-                <div className="text-sm text-muted-foreground">Past Due</div>
+                <div className={`text-2xl font-bold mb-0.5 ${(sprintSummary.overdue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+                  {sprintSummary.overdue || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Overdue Items</div>
               </div>
-              <div className="text-xs text-red-600 dark:text-red-400">
-                {(sprintSummary.overdue || 0) > 0 ? 'Needs attention' : 'All on track'}
+              <div className={`text-xs font-medium ${(sprintSummary.overdue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {(sprintSummary.overdue || 0) > 0 ? '⚠ Blocking sprint goals' : '✓ All on schedule'}
               </div>
             </div>
           </>
@@ -834,45 +881,74 @@ export default function WorkItems() {
                 />
               </div>
               
+              {/* Quick priority filter */}
+              <div className="flex items-center gap-1 border-l border-border pl-2">
+                <button
+                  onClick={() => setSelectedPriority(selectedPriority === 'high' ? 'all' : 'high')}
+                  className={`text-xs px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 ${
+                    selectedPriority === 'high' 
+                      ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-800' 
+                      : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50'
+                  }`}
+                  title="Show high priority items (P1/P2)"
+                >
+                  <ArrowUp className="w-3 h-3" />
+                  High Priority
+                </button>
+              </div>
+              
               {/* Clear Filters */}
-              {(selectedState !== 'all' || selectedAssignee !== 'all' || searchTerm) && (
+              {(selectedState !== 'all' || selectedAssignee !== 'all' || selectedPriority !== 'all' || searchTerm) && (
                 <button
                   onClick={() => {
                     setSelectedState('all')
                     setSelectedAssignee('all')
+                    setSelectedPriority('all')
                     setSearchTerm('')
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 px-3 py-2 rounded-full transition-colors"
                 >
-                  Clear
+                  Clear all
                 </button>
               )}
             </div>
           </div>
           
           {/* Active Filters Display */}
-          {(selectedState !== 'all' || selectedAssignee !== 'all') && (
+          {(selectedState !== 'all' || selectedAssignee !== 'all' || selectedPriority !== 'all') && (
             <div className="flex items-center gap-2 mb-4 flex-wrap">
-              <span className="text-sm text-gray-600">Filtered by:</span>
+              <span className="text-sm text-muted-foreground">Filtered by:</span>
               {selectedState !== 'all' && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium border border-blue-200 dark:border-blue-800">
                   <Activity className="h-3 w-3" />
                   {selectedState}
                   <button
                     onClick={() => setSelectedState('all')}
-                    className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                    className="hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-full p-0.5 transition-colors"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </span>
               )}
               {selectedAssignee !== 'all' && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium border border-emerald-200">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-medium border border-emerald-200 dark:border-emerald-800">
                   <User className="h-3 w-3" />
                   {selectedAssignee}
                   <button
                     onClick={() => setSelectedAssignee('all')}
-                    className="hover:bg-emerald-100 rounded-full p-0.5 transition-colors"
+                    className="hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded-full p-0.5 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {selectedPriority !== 'all' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 rounded-full text-xs font-medium border border-red-200 dark:border-red-800">
+                  <ArrowUp className="h-3 w-3" />
+                  {selectedPriority === 'high' ? 'High Priority (P1/P2)' : selectedPriority}
+                  <button
+                    onClick={() => setSelectedPriority('all')}
+                    className="hover:bg-red-100 dark:hover:bg-red-900/50 rounded-full p-0.5 transition-colors"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -885,21 +961,41 @@ export default function WorkItems() {
           {filteredWorkItems.length > 0 ? (
             <ScrollArea className="h-[40vh] border border-border dark:border-[#1a1a1a] rounded-xl bg-card dark:bg-[#111111]">
               <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-                {filteredWorkItems.map((item, index) => (
+                {filteredWorkItems.map((item, index) => {
+                  const priority = item.fields?.['Microsoft.VSTS.Common.Priority']
+                  const workItemType = item.fields?.['System.WorkItemType']
+                  const isHighPriority = priority === 1 || priority === '1'
+                  
+                  return (
                   <div 
                     key={item.id} 
                     onClick={() => openWorkItemModal(item)}
-                    className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group"
+                    className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer group ${
+                      isHighPriority ? 'border-l-2 border-l-red-500 bg-red-50/30 dark:bg-red-950/20' : ''
+                    }`}
                     title="Click to view details"
                   >
                   <div className="flex items-start justify-between mb-3 gap-2">
                     <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      {/* Work item type icon */}
+                      {getWorkItemTypeIcon(workItemType)}
                       <span className="font-mono text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md shrink-0">
                         #{item.id}
                       </span>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStateColor(item.state)} shrink-0`}>
                         {item.state}
                       </span>
+                      {/* Priority indicator */}
+                      {priority && (
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full shrink-0 flex items-center gap-1 ${
+                          priority === 1 || priority === '1' ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300' :
+                          priority === 2 || priority === '2' ? 'bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {getPriorityIcon(priority)}
+                          <span className="hidden sm:inline">{getPriorityText(priority)}</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm text-foreground font-medium truncate">
@@ -916,27 +1012,29 @@ export default function WorkItems() {
                   
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="capitalize">
-                      {item.fields?.['System.WorkItemType'] || 'Work Item'}
+                      {workItemType || 'Work Item'}
                     </span>
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600">
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 dark:text-blue-400">
                       Click to view →
                     </span>
                   </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </ScrollArea>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Filter className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+            <div className="text-center py-8 text-muted-foreground">
+              <Filter className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
               <p>No work items match the current filters</p>
               <button
                 onClick={() => {
                   setSelectedState('all')
                   setSelectedAssignee('all')
+                  setSelectedPriority('all')
                   setSearchTerm('')
                 }}
-                className="mt-2 text-blue-600 hover:text-blue-800 underline text-sm"
+                className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
               >
                 Clear filters to see all items
               </button>
@@ -945,13 +1043,13 @@ export default function WorkItems() {
           
           {/* Results Summary */}
           {filteredWorkItems.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>
                   Showing {filteredWorkItems.length} of {sprintSummary.total} work items
                 </span>
-                {(selectedState !== 'all' || selectedAssignee !== 'all' || searchTerm) && (
-                  <span className="text-blue-600">
+                {(selectedState !== 'all' || selectedAssignee !== 'all' || selectedPriority !== 'all' || searchTerm) && (
+                  <span className="text-blue-600 dark:text-blue-400">
                     Filtered results
                   </span>
                 )}
@@ -962,40 +1060,49 @@ export default function WorkItems() {
         )
       )}
 
-      {/* AI Sprint Insights - Progressive Loading */}
-      <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.4s'}}>
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-            <h3 className="text-xl font-semibold text-foreground">AI Sprint Insights</h3>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={toggleAiSummary}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
-                aiSummaryEnabled 
-                  ? 'bg-purple-600 dark:bg-purple-500' 
-                  : 'bg-gray-200 dark:bg-gray-700'
-              }`}
-              title={aiSummaryEnabled ? 'Disable AI Summary' : 'Enable AI Summary'}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  aiSummaryEnabled ? 'translate-x-6' : 'translate-x-1'
+      {/* AI Sprint Insights - Collapsible, starts collapsed when blockers exist */}
+      <details className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.4s'}} open={!sprintSummary?.overdue}>
+        <summary className="p-6 cursor-pointer hover:bg-muted/30 transition-colors list-none">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              <h3 className="text-xl font-semibold text-foreground">AI Sprint Insights</h3>
+              {sprintSummary?.overdue > 0 && (
+                <span className="text-xs text-muted-foreground">(click to expand)</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  toggleAiSummary()
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                  aiSummaryEnabled 
+                    ? 'bg-purple-600 dark:bg-purple-500' 
+                    : 'bg-gray-200 dark:bg-gray-700'
                 }`}
-              />
-            </button>
-            <span className="text-xs bg-gradient-to-r from-purple-100 dark:from-purple-950/50 to-blue-100 dark:to-blue-950/50 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full font-medium border border-purple-200 dark:border-purple-800">
-              ✨ Powered by AI
-            </span>
-            {loadingStates.aiSummary && aiSummaryEnabled && (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 dark:border-purple-800 border-t-purple-600 dark:border-t-purple-400"></div>
-                <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">Analyzing...</span>
-              </div>
-            )}
+                title={aiSummaryEnabled ? 'Disable AI Summary' : 'Enable AI Summary'}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    aiSummaryEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="text-xs bg-gradient-to-r from-purple-100 dark:from-purple-950/50 to-blue-100 dark:to-blue-950/50 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full font-medium border border-purple-200 dark:border-purple-800">
+                ✨ AI
+              </span>
+              {loadingStates.aiSummary && aiSummaryEnabled && (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 dark:border-purple-800 border-t-purple-600 dark:border-t-purple-400"></div>
+                  <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">Analyzing...</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </summary>
+        <div className="px-6 pb-6">
         
         {!aiSummaryEnabled ? (
           <div className="text-center py-8">
@@ -1096,7 +1203,8 @@ export default function WorkItems() {
             </button>
           </div>
         )}
-      </div>
+        </div>
+      </details>
 
       {/* Enhanced Overdue Items */}
       {loadingStates.overdueItems ? (
@@ -1114,8 +1222,14 @@ export default function WorkItems() {
         <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.5s'}}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              <h3 className="text-xl font-semibold text-foreground">Critical: Overdue Items</h3>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-foreground">Blockers: Past Due Date</h3>
+                <p className="text-xs text-red-600 dark:text-red-400">These items are blocking sprint completion</p>
+              </div>
               <button
                 onClick={toggleOverdueExpanded}
                 className="card-hover p-2 hover:bg-muted rounded-lg transition-all duration-200"
@@ -1128,7 +1242,7 @@ export default function WorkItems() {
                 )}
               </button>
             </div>
-            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-muted text-foreground border border-border">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
               {filteredOverdueItems.length} of {overdueItems.length} items
             </span>
           </div>
@@ -1352,7 +1466,7 @@ export default function WorkItems() {
                 </div>
               )}
               {/* Scrollable Overdue Items List */}
-              <ScrollArea className="h-[600px] border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
+              <ScrollArea className="h-[350px] border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
                 <div className="space-y-0">
                   {filteredOverdueItems.map((item, index) => {
                     const title = item.fields?.['System.Title'] || 'No title'
