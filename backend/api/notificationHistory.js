@@ -78,6 +78,20 @@ router.patch('/:id/read', async (req, res) => {
     const userId = req.user._id;
     const organizationId = req.organizationId;
 
+    // ENFORCE: organizationId is required for mutation operations
+    if (!organizationId) {
+      log.warn('Attempted markAsRead without organization context', {
+        notificationId: id,
+        userId: userId?.toString(),
+        action: 'mark-read'
+      });
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        message: 'Please select an organization to manage notifications',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
+    }
+
     const notification = await notificationHistoryService.markAsRead(id, userId, organizationId);
     
     if (!notification) {
@@ -86,6 +100,14 @@ router.patch('/:id/read', async (req, res) => {
 
     res.json(notification);
   } catch (error) {
+    // Handle specific error codes
+    if (error.code === 'MISSING_ORGANIZATION_ID') {
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        code: error.code 
+      });
+    }
+    
     log.error('Failed to mark notification as read', { 
       error: error.message, 
       action: 'mark-read',
@@ -103,6 +125,20 @@ router.patch('/:id/star', async (req, res) => {
     const userId = req.user._id;
     const organizationId = req.organizationId;
 
+    // ENFORCE: organizationId is required for mutation operations
+    if (!organizationId) {
+      log.warn('Attempted toggleStar without organization context', {
+        notificationId: id,
+        userId: userId?.toString(),
+        action: 'toggle-star'
+      });
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        message: 'Please select an organization to manage notifications',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
+    }
+
     const notification = await notificationHistoryService.toggleStar(id, userId, organizationId);
     
     if (!notification) {
@@ -111,6 +147,14 @@ router.patch('/:id/star', async (req, res) => {
 
     res.json(notification);
   } catch (error) {
+    // Handle specific error codes
+    if (error.code === 'MISSING_ORGANIZATION_ID') {
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        code: error.code 
+      });
+    }
+    
     log.error('Failed to toggle notification star', { 
       error: error.message, 
       action: 'toggle-star',
