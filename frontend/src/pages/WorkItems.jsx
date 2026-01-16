@@ -286,13 +286,13 @@ export default function WorkItems() {
   const getStateColor = (state) => {
     switch (state?.toLowerCase()) {
       case 'new':
-        return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200'
+        return 'bg-muted text-blue-600 dark:text-blue-400'
       case 'active':
       case 'in progress':
         return 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200'
       case 'resolved':
       case 'done':
-        return 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200'
+        return 'bg-muted text-emerald-600 dark:text-emerald-400'
       case 'closed':
         return 'bg-muted text-muted-foreground'
       default:

@@ -81,7 +81,7 @@ export default function Logs() {
       case 'warn':
         return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-amber-600 dark:text-amber-400'
       case 'info':
-        return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200'
+        return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400'
       case 'debug':
         return 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground'
       default:

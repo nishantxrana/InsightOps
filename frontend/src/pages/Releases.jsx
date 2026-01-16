@@ -684,7 +684,7 @@ export default function Releases() {
           <div className="flex items-center gap-2 mb-4 flex-wrap">
             <span className="text-sm text-muted-foreground">Filtered by:</span>
             {statusFilter !== 'all' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium border border-blue-200 dark:border-blue-800">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted text-blue-600 dark:text-blue-400 rounded-full text-xs font-medium border border-border">
                 <Filter className="h-3 w-3" />
                 {statusFilter}
                 <button
@@ -696,7 +696,7 @@ export default function Releases() {
               </span>
             )}
             {environmentFilter !== 'all' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-300 rounded-full text-xs font-medium border border-green-200 dark:border-green-800">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted text-emerald-600 dark:text-emerald-400 rounded-full text-xs font-medium border border-border">
                 <Server className="h-3 w-3" />
                 {environmentFilter}
                 <button
