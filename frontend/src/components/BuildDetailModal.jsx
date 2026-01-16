@@ -139,6 +139,9 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
+      document.body.style.position = 'fixed'
+      document.body.style.width = '100%'
+      document.body.style.top = `-${window.scrollY}px`
       
       const handleEscape = (e) => {
         if (e.key === 'Escape') {
@@ -149,7 +152,12 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
       document.addEventListener('keydown', handleEscape)
       
       return () => {
-        document.body.style.overflow = 'unset'
+        const scrollY = document.body.style.top
+        document.body.style.overflow = ''
+        document.body.style.position = ''
+        document.body.style.width = ''
+        document.body.style.top = ''
+        window.scrollTo(0, parseInt(scrollY || '0') * -1)
         document.removeEventListener('keydown', handleEscape)
       }
     }
