@@ -89,18 +89,18 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
     switch (state?.toLowerCase()) {
       case 'new':
       case 'to do':
-        return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200'
+        return 'bg-muted text-blue-600 dark:text-blue-400'
       case 'active':
       case 'in progress':
-        return 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200'
+        return 'bg-muted text-amber-600 dark:text-amber-400'
       case 'resolved':
       case 'done':
       case 'closed':
-        return 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200'
+        return 'bg-muted text-emerald-600 dark:text-emerald-400'
       case 'removed':
-        return 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200'
+        return 'bg-muted text-red-600 dark:text-red-400'
       case 'blocked':
-        return 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200'
+        return 'bg-muted text-red-600 dark:text-red-400'
       default:
         return 'bg-muted text-muted-foreground'
     }
@@ -209,14 +209,14 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
       <div className="bg-card dark:bg-[#111111] rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-border dark:border-[#1a1a1a] flex flex-col">
         {/* Urgency Banner (if applicable) */}
         {needsAttention && (
-          <div className={`px-6 py-2 flex items-center gap-2 text-sm font-medium ${
+          <div className={`px-6 py-2 flex items-center gap-2 text-sm font-medium border-b ${
             isOverdue 
-              ? 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200' 
+              ? 'bg-muted text-red-600 dark:text-red-400 border-red-200 dark:border-red-900' 
               : isCritical 
-                ? 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200'
-                : 'bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200'
+                ? 'bg-muted text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-900'
+                : 'bg-muted text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900'
           }`}>
-            <AlertTriangle className="h-4 w-4" />
+            <AlertTriangle className={`h-4 w-4 ${isOverdue ? 'text-red-500' : isCritical ? 'text-orange-500' : 'text-amber-500'}`} />
             {isOverdue && 'Overdue'}
             {!isOverdue && isCritical && 'Critical Priority'}
             {!isOverdue && !isCritical && assignee === 'Unassigned' && 'Needs Assignment'}
@@ -236,10 +236,10 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
                   {state}
                 </span>
                 {isHighPriority && (
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted ${
                     priority === 1 
-                      ? 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200' 
-                      : 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200'
+                      ? 'text-red-600 dark:text-red-400' 
+                      : 'text-orange-600 dark:text-orange-400'
                   }`}>
                     {getPriorityIcon(priority)}
                     {getPriorityText(priority)}
@@ -278,7 +278,7 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
             {/* Key Metadata Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {/* Assignee */}
-              <div className={`p-3 rounded-lg ${assignee === 'Unassigned' ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800' : 'bg-muted'}`}>
+              <div className={`p-3 rounded-lg bg-muted ${assignee === 'Unassigned' ? 'border border-amber-400 dark:border-amber-700' : ''}`}>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                   <User className="h-3.5 w-3.5" />
                   Assignee
@@ -289,7 +289,7 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
               </div>
               
               {/* Priority */}
-              <div className={`p-3 rounded-lg ${isHighPriority ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800' : 'bg-muted'}`}>
+              <div className={`p-3 rounded-lg bg-muted ${isHighPriority ? 'border border-red-400 dark:border-red-700' : ''}`}>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                   {getPriorityIcon(priority)}
                   Priority
@@ -311,7 +311,7 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
               </div>
               
               {/* Due Date */}
-              <div className={`p-3 rounded-lg ${isOverdue ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800' : dueDate ? 'bg-muted' : 'bg-muted'}`}>
+              <div className={`p-3 rounded-lg bg-muted ${isOverdue ? 'border border-red-400 dark:border-red-700' : ''}`}>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                   <Clock className="h-3.5 w-3.5" />
                   Due Date
@@ -336,41 +336,41 @@ const WorkItemDetailModal = ({ workItem, isOpen, onClose }) => {
 
             {/* AI Explanation Section - Collapsible */}
             <details className="group">
-              <summary className="flex items-center justify-between cursor-pointer bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800/30 hover:bg-blue-100 dark:hover:bg-blue-950/30 transition-colors">
+              <summary className="flex items-center justify-between cursor-pointer bg-muted rounded-lg p-4 border border-border hover:bg-muted/80 transition-colors">
                 <div className="flex items-center gap-2">
                   <Bot className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  <span className="font-medium text-blue-900 dark:text-blue-100">AI Insights</span>
-                  <span className="text-xs text-blue-600 dark:text-blue-400">
+                  <span className="font-medium text-foreground">AI Insights</span>
+                  <span className="text-xs text-muted-foreground">
                     {aiExplanation ? '(loaded)' : '(click to expand)'}
                   </span>
                 </div>
-                <svg className="h-5 w-5 text-blue-600 dark:text-blue-400 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-5 w-5 text-muted-foreground transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </summary>
               
-              <div className="mt-2 bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800/30">
+              <div className="mt-2 bg-muted rounded-lg p-4 border border-border">
                 {loadingAI && (
-                  <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm">AI is analyzing this work item...</span>
                   </div>
                 )}
                 
                 {aiExplanation && (
-                  <div className="prose prose-sm max-w-none text-blue-800 dark:text-blue-200 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-900 dark:prose-code:text-blue-100 prose-code:bg-blue-100 dark:prose-code:bg-blue-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                  <div className="prose prose-sm max-w-none text-foreground prose-strong:text-foreground prose-code:text-foreground prose-code:bg-background prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
                     <ReactMarkdown>{aiExplanation}</ReactMarkdown>
                   </div>
                 )}
                 
                 {!aiExplanation && !loadingAI && (
                   <div className="text-center py-2">
-                    <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                    <p className="text-sm text-muted-foreground mb-3">
                       Get AI-powered insights: summary, complexity, and suggested next steps.
                     </p>
                     <button
                       onClick={loadAIExplanation}
-                      className="px-4 py-2 text-sm bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors inline-flex items-center gap-2"
+                      className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
                     >
                       <Bot className="h-4 w-4" />
                       Generate AI Insights

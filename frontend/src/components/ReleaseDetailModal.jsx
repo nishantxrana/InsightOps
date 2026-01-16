@@ -56,24 +56,24 @@ const getStatusIcon = (status) => {
 const getStatusColor = (status) => {
   switch (status?.toLowerCase()) {
     case 'succeeded':
-      return 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200';
+      return 'bg-muted text-emerald-600 dark:text-emerald-400';
     case 'failed':
     case 'rejected':
-      return 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200';
+      return 'bg-muted text-red-600 dark:text-red-400';
     case 'canceled':
     case 'cancelled':
-      return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
+      return 'bg-muted text-muted-foreground';
     case 'abandoned':
-      return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
+      return 'bg-muted text-orange-600 dark:text-orange-400';
     case 'waitingforapproval':
-      return 'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200';
+      return 'bg-muted text-orange-600 dark:text-orange-400';
     case 'inprogress':
     case 'deploying':
-      return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200';
+      return 'bg-muted text-blue-600 dark:text-blue-400';
     case 'pending':
     case 'notstarted':
     case 'notDeployed':
-      return 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200';
+      return 'bg-muted text-amber-600 dark:text-amber-400';
     default:
       return 'bg-muted text-muted-foreground';
   }
@@ -281,9 +281,9 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
       <div className="bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Status Banners */}
         {isFailedRelease && (
-          <div className="px-6 py-3 bg-red-100 dark:bg-red-950/50 border-b border-red-200 dark:border-red-800 flex items-center gap-2 text-red-800 dark:text-red-200">
-            <AlertTriangle className="h-5 w-5 animate-pulse" />
-            <span className="font-medium">Deployment Failed</span>
+          <div className="px-6 py-3 bg-muted border-b border-red-200 dark:border-red-800 flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
+            <span className="font-medium text-red-600 dark:text-red-400">Deployment Failed</span>
             {failedEnvCount > 0 && (
               <span className="text-sm text-red-600 dark:text-red-300">— {failedEnvCount} environment{failedEnvCount > 1 ? 's' : ''} failed</span>
             )}
@@ -291,10 +291,10 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
         )}
         
         {isWaitingForApproval && (
-          <div className="px-6 py-3 bg-orange-100 dark:bg-orange-950/50 border-b border-orange-200 dark:border-orange-800 flex items-center gap-2 text-orange-800 dark:text-orange-200">
-            <Shield className="h-5 w-5 animate-pulse" />
-            <span className="font-medium">Waiting for Approval</span>
-            <span className="text-sm text-orange-600 dark:text-orange-300">— Action required to continue deployment</span>
+          <div className="px-6 py-3 bg-muted border-b border-orange-200 dark:border-orange-800 flex items-center gap-2">
+            <Shield className="h-5 w-5 text-orange-500 animate-pulse" />
+            <span className="font-medium text-orange-600 dark:text-orange-400">Waiting for Approval</span>
+            <span className="text-sm text-muted-foreground">— Action required to continue deployment</span>
           </div>
         )}
         
@@ -309,16 +309,16 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
         )}
         
         {isInProgress && (
-          <div className="px-6 py-2 bg-blue-100 dark:bg-blue-950/50 border-b border-blue-200 dark:border-blue-800 flex items-center gap-2 text-blue-800 dark:text-blue-200">
-            <Clock className="h-4 w-4 animate-pulse" />
-            <span className="font-medium text-sm">Deployment In Progress</span>
+          <div className="px-6 py-2 bg-muted border-b border-border flex items-center gap-2">
+            <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
+            <span className="font-medium text-sm text-blue-600 dark:text-blue-400">Deployment In Progress</span>
           </div>
         )}
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border dark:border-[#1a1a1a]">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className={`p-2 rounded-lg ${isFailedRelease ? 'bg-red-100 dark:bg-red-950/50' : isSucceeded ? 'bg-emerald-100 dark:bg-emerald-950/50' : isWaitingForApproval ? 'bg-orange-100 dark:bg-orange-950/50' : 'bg-muted'}`}>
+            <div className="p-2 rounded-lg bg-muted">
               {isFailedRelease ? (
                 <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
               ) : isSucceeded ? (
@@ -411,7 +411,7 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
               </div>
               
               {/* Environments */}
-              <div className={`p-3 rounded-lg ${failedEnvCount > 0 ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800' : 'bg-muted'}`}>
+              <div className={`p-3 rounded-lg bg-muted ${failedEnvCount > 0 ? 'border border-red-400 dark:border-red-700' : ''}`}>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                   <Rocket className="h-3.5 w-3.5" />
                   Environments
@@ -446,14 +446,14 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                     
                     return (
                       <React.Fragment key={env.id}>
-                        <div className={`flex-shrink-0 p-3 rounded-lg border-2 min-w-[140px] ${
+                        <div className={`flex-shrink-0 p-3 rounded-lg border-2 min-w-[140px] bg-muted ${
                           isFailed 
-                            ? 'bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700' 
+                            ? 'border-red-400 dark:border-red-700' 
                             : isEnvSucceeded 
-                              ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700' 
+                              ? 'border-emerald-400 dark:border-emerald-700' 
                               : isBlocked
-                                ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-700'
-                                : 'bg-muted border-border'
+                                ? 'border-orange-400 dark:border-orange-700'
+                                : 'border-border'
                         }`}>
                           <div className="flex items-center gap-2 mb-1">
                             <div className={`w-2.5 h-2.5 rounded-full ${getEnvironmentStatusColor(env.status)} ${isFailed || isBlocked ? 'animate-pulse' : ''}`} />
@@ -563,8 +563,8 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                 )}
 
                 {logsError && (
-                  <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
+                  <div className="bg-muted border border-red-300 dark:border-red-700 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                       <XCircle className="h-4 w-4" />
                       <span className="text-sm font-medium">Error loading logs</span>
                     </div>
@@ -587,10 +587,10 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
 
                         {/* AI Explanation Section - Reframed for debugging */}
                         <details className="group" open>
-                          <summary className="flex items-center justify-between cursor-pointer bg-red-50 dark:bg-red-950/20 rounded-lg p-4 border border-red-200 dark:border-red-800/30 hover:bg-red-100 dark:hover:bg-red-950/30 transition-colors">
+                          <summary className="flex items-center justify-between cursor-pointer bg-muted rounded-lg p-4 border border-border hover:bg-muted/80 transition-colors">
                             <div className="flex items-center gap-2">
                               <Bot className="h-5 w-5 text-red-600 dark:text-red-400" />
-                              <span className="font-medium text-red-900 dark:text-red-100">AI Failure Diagnosis</span>
+                              <span className="font-medium text-foreground">AI Failure Diagnosis</span>
                               <span className="text-xs text-red-600 dark:text-red-400">
                                 {aiAnalysis ? '(loaded)' : '— identify root cause faster'}
                               </span>
@@ -600,16 +600,16 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                             </svg>
                           </summary>
                           
-                          <div className="mt-2 bg-red-50 dark:bg-red-950/20 rounded-lg p-4 border border-red-200 dark:border-red-800/30">
+                          <div className="mt-2 bg-muted rounded-lg p-4 border border-border">
                             {loadingAI && (
-                              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                              <div className="flex items-center gap-2 text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" />
                                 <span className="text-sm">AI is analyzing task logs and errors...</span>
                               </div>
                             )}
                             
                             {aiAnalysis && (
-                              <div className="prose prose-sm max-w-none text-red-800 dark:text-red-200 prose-strong:text-red-900 dark:prose-strong:text-red-100 prose-code:text-red-900 dark:prose-code:text-red-100 prose-code:bg-red-100 dark:prose-code:bg-red-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                              <div className="prose prose-sm max-w-none text-foreground prose-strong:text-foreground prose-code:text-foreground prose-code:bg-background prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
                                 <ReactMarkdown>{aiAnalysis}</ReactMarkdown>
                               </div>
                             )}
@@ -621,7 +621,7 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                                 </p>
                                 <button
                                   onClick={loadAIAnalysis}
-                                  className="px-4 py-2 text-sm bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors inline-flex items-center gap-2"
+                                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
                                 >
                                   <Bot className="h-4 w-4" />
                                   Diagnose Failure
@@ -632,11 +632,11 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                         </details>
                         
                         {failedLogs.failedTasks.map((task, index) => (
-                          <div key={`${task.environmentId}-${task.taskId}`} className="border border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
-                            <div className="bg-red-50 dark:bg-red-950/50 px-4 py-3 border-b border-red-200 dark:border-red-800">
+                          <div key={`${task.environmentId}-${task.taskId}`} className="border border-red-300 dark:border-red-700 rounded-lg overflow-hidden">
+                            <div className="bg-muted px-4 py-3 border-b border-red-200 dark:border-red-800">
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <h4 className="font-medium text-red-900 dark:text-red-100">
+                                  <h4 className="font-medium text-foreground">
                                     {task.taskName}
                                   </h4>
                                   <div className="flex items-center gap-4 text-xs text-red-700 dark:text-red-300 mt-1">
@@ -647,7 +647,7 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                                     )}
                                   </div>
                                 </div>
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400">
                                   <XCircle className="h-3 w-3 mr-1" />
                                   Failed
                                 </span>
@@ -722,19 +722,19 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                 {approvals && (
                   <div className="mt-4">
                     <div className="grid grid-cols-3 gap-4 mb-6">
-                      <div className="text-center p-3 bg-orange-50 dark:bg-orange-950/50 rounded-lg">
+                      <div className="text-center p-3 bg-muted rounded-lg">
                         <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                           {approvals.pendingApprovals}
                         </div>
                         <div className="text-sm text-muted-foreground">Pending</div>
                       </div>
-                      <div className="text-center p-3 bg-green-50 dark:bg-green-950/50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      <div className="text-center p-3 bg-muted rounded-lg">
+                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                           {approvals.approvedCount}
                         </div>
                         <div className="text-sm text-muted-foreground">Approved</div>
                       </div>
-                      <div className="text-center p-3 bg-red-50 dark:bg-red-950/50 rounded-lg">
+                      <div className="text-center p-3 bg-muted rounded-lg">
                         <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                           {approvals.rejectedCount}
                         </div>
@@ -755,10 +755,10 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                         <div className="bg-muted px-4 py-3 border-b border-border">
                           <div className="flex items-center justify-between">
                             <h4 className="font-medium text-foreground">{envApproval.environmentName}</h4>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              approvalStatus === 'approved' ? 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200' :
-                              approvalStatus === 'rejected' ? 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200' :
-                              'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200'
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium bg-muted ${
+                              approvalStatus === 'approved' ? 'text-emerald-600 dark:text-emerald-400' :
+                              approvalStatus === 'rejected' ? 'text-red-600 dark:text-red-400' :
+                              'text-orange-600 dark:text-orange-400'
                             }`}>
                               {approvalStatus}
                             </span>
@@ -804,10 +804,10 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                                       {approval.approver.displayName}
                                     </p>
                                     <div className="flex items-center gap-2">
-                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                        approval.status === 'approved' ? 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200' :
-                                        approval.status === 'rejected' ? 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200' :
-                                        'bg-orange-100 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200'
+                                      <span className={`px-2 py-1 rounded-full text-xs font-medium bg-muted ${
+                                        approval.status === 'approved' ? 'text-emerald-600 dark:text-emerald-400' :
+                                        approval.status === 'rejected' ? 'text-red-600 dark:text-red-400' :
+                                        'text-orange-600 dark:text-orange-400'
                                       }`}>
                                         {approval.status}
                                       </span>
@@ -858,8 +858,8 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
                 )}
 
                 {approvals && Object.keys(approvals.environmentApprovals).length === 0 && !loadingApprovals && (
-                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <p className="text-blue-700 dark:text-blue-300">
+                  <div className="mt-4 p-4 bg-muted border border-border rounded-lg">
+                    <p className="text-muted-foreground">
                       {release.status === 'succeeded' 
                         ? 'Approval history is not available for completed releases. All required approvals were granted.'
                         : 'No approval gates configured for this release pipeline.'}
@@ -888,13 +888,7 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
               href={getReleaseUrl()}
               target="_blank"
               rel="noopener noreferrer"
-              className={`px-4 py-2 text-sm rounded-lg transition-colors inline-flex items-center gap-2 ${
-                isFailedRelease 
-                  ? 'bg-red-600 text-white hover:bg-red-700' 
-                  : isWaitingForApproval
-                    ? 'bg-orange-600 text-white hover:bg-orange-700'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
-              }`}
+              className="px-4 py-2 text-sm rounded-lg transition-colors inline-flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <ExternalLink className="h-4 w-4" />
               {isFailedRelease 
