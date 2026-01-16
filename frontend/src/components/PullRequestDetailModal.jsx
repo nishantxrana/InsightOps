@@ -61,11 +61,11 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case 'active':
-        return 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200'
+        return 'bg-muted text-blue-600 dark:text-blue-400'
       case 'completed':
-        return 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200'
+        return 'bg-muted text-emerald-600 dark:text-emerald-400'
       case 'abandoned':
-        return 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200'
+        return 'bg-muted text-red-600 dark:text-red-400'
       default:
         return 'bg-muted text-muted-foreground'
     }
@@ -85,14 +85,14 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
         icon: <XCircle className="h-4 w-4 text-red-500" />,
         label: vote === -10 ? 'Rejected' : 'Needs work',
         color: 'text-red-600 dark:text-red-400',
-        bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
+        bg: 'bg-muted border-red-300 dark:border-red-700'
       }
     }
     return {
       icon: <Clock className="h-4 w-4 text-amber-500" />,
       label: 'Waiting',
       color: 'text-amber-600 dark:text-amber-400',
-      bg: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+      bg: 'bg-muted border-amber-300 dark:border-amber-700'
     }
   }
 
@@ -184,34 +184,34 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
         )}
         
         {isActive && hasConflicts && (
-          <div className="px-6 py-3 bg-red-100 dark:bg-red-950/50 border-b border-red-200 dark:border-red-800 flex items-center gap-2 text-red-800 dark:text-red-200">
-            <AlertTriangle className="h-5 w-5 animate-pulse" />
-            <span className="font-medium">Merge Conflicts</span>
-            <span className="text-sm text-red-600 dark:text-red-300">— Resolve conflicts before merging</span>
+          <div className="px-6 py-3 bg-muted border-b border-red-200 dark:border-red-800 flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
+            <span className="font-medium text-red-600 dark:text-red-400">Merge Conflicts</span>
+            <span className="text-sm text-muted-foreground">— Resolve conflicts before merging</span>
           </div>
         )}
         
         {isActive && rejectedReviewers.length > 0 && !hasConflicts && (
-          <div className="px-6 py-3 bg-red-100 dark:bg-red-950/50 border-b border-red-200 dark:border-red-800 flex items-center gap-2 text-red-800 dark:text-red-200">
-            <XCircle className="h-5 w-5" />
-            <span className="font-medium">Changes Requested</span>
-            <span className="text-sm text-red-600 dark:text-red-300">— {rejectedReviewers.length} reviewer{rejectedReviewers.length > 1 ? 's' : ''} requested changes</span>
+          <div className="px-6 py-3 bg-muted border-b border-red-200 dark:border-red-800 flex items-center gap-2">
+            <XCircle className="h-5 w-5 text-red-500" />
+            <span className="font-medium text-red-600 dark:text-red-400">Changes Requested</span>
+            <span className="text-sm text-muted-foreground">— {rejectedReviewers.length} reviewer{rejectedReviewers.length > 1 ? 's' : ''} requested changes</span>
           </div>
         )}
         
         {isActive && needsReview && (
-          <div className="px-6 py-3 bg-orange-100 dark:bg-orange-950/50 border-b border-orange-200 dark:border-orange-800 flex items-center gap-2 text-orange-800 dark:text-orange-200">
-            <UserCheck className="h-5 w-5 animate-pulse" />
-            <span className="font-medium">Needs Reviewers</span>
-            <span className="text-sm text-orange-600 dark:text-orange-300">— Assign reviewers to proceed</span>
+          <div className="px-6 py-3 bg-muted border-b border-orange-200 dark:border-orange-800 flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-orange-500 animate-pulse" />
+            <span className="font-medium text-orange-600 dark:text-orange-400">Needs Reviewers</span>
+            <span className="text-sm text-muted-foreground">— Assign reviewers to proceed</span>
           </div>
         )}
         
         {isActive && waitingReviewers.length > 0 && !needsReview && !isReadyToMerge && !isBlocked && (
-          <div className="px-6 py-2 bg-amber-100 dark:bg-amber-950/50 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2 text-amber-800 dark:text-amber-200">
-            <Clock className="h-4 w-4" />
-            <span className="font-medium text-sm">Waiting for Review</span>
-            <span className="text-xs text-amber-600 dark:text-amber-300">— {waitingReviewers.length} reviewer{waitingReviewers.length > 1 ? 's' : ''} pending</span>
+          <div className="px-6 py-2 bg-muted border-b border-border flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <span className="font-medium text-sm text-amber-600 dark:text-amber-400">Waiting for Review</span>
+            <span className="text-xs text-muted-foreground">— {waitingReviewers.length} reviewer{waitingReviewers.length > 1 ? 's' : ''} pending</span>
           </div>
         )}
         
@@ -232,7 +232,7 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border dark:border-[#1a1a1a]">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className={`p-2 rounded-lg ${isBlocked ? 'bg-red-100 dark:bg-red-950/50' : isReadyToMerge || isCompleted ? 'bg-emerald-100 dark:bg-emerald-950/50' : 'bg-muted'}`}>
+            <div className="p-2 rounded-lg bg-muted">
               {isBlocked ? (
                 <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
               ) : isReadyToMerge || isCompleted ? (
@@ -319,7 +319,7 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
                 </div>
                 
                 {/* Reviewers */}
-                <div className={`p-3 rounded-lg ${hasNoReviewers ? 'bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800' : 'bg-muted'}`}>
+                <div className={`p-3 rounded-lg bg-muted ${hasNoReviewers ? 'border border-orange-400 dark:border-orange-700' : ''}`}>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     <Eye className="h-3.5 w-3.5" />
                     Reviewers
@@ -333,7 +333,7 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
                 </div>
                 
                 {/* Merge Status */}
-                <div className={`p-3 rounded-lg ${hasConflicts ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800' : 'bg-muted'}`}>
+                <div className={`p-3 rounded-lg bg-muted ${hasConflicts ? 'border border-red-400 dark:border-red-700' : ''}`}>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     <GitMerge className="h-3.5 w-3.5" />
                     Merge Status
@@ -347,7 +347,7 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
               {/* Branch Flow */}
               <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
                 <GitBranch className="h-4 w-4 text-muted-foreground" />
-                <span className="font-mono text-sm bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
+                <span className="font-mono text-sm bg-muted text-blue-600 dark:text-blue-400 px-2 py-1 rounded border border-border">
                   {sourceBranch}
                 </span>
                 <span className="text-muted-foreground">→</span>
@@ -385,10 +385,10 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
 
               {/* AI Code Review Section */}
               <details className="group">
-                <summary className="flex items-center justify-between cursor-pointer bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800/30 hover:bg-blue-100 dark:hover:bg-blue-950/30 transition-colors">
+                <summary className="flex items-center justify-between cursor-pointer bg-muted rounded-lg p-4 border border-border hover:bg-muted/80 transition-colors">
                   <div className="flex items-center gap-2">
                     <Bot className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    <span className="font-medium text-blue-900 dark:text-blue-100">AI Code Summary</span>
+                    <span className="font-medium text-foreground">AI Code Summary</span>
                     <span className="text-xs text-blue-600 dark:text-blue-400">
                       {aiExplanation ? '(loaded)' : '— understand changes faster'}
                     </span>
@@ -398,16 +398,16 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
                   </svg>
                 </summary>
                 
-                <div className="mt-2 bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800/30">
+                <div className="mt-2 bg-muted rounded-lg p-4 border border-border">
                   {loadingAI && (
-                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <span className="text-sm">AI is analyzing code changes and commits...</span>
                     </div>
                   )}
                   
                   {aiExplanation && (
-                    <div className="prose prose-sm max-w-none text-blue-800 dark:text-blue-200 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-900 dark:prose-code:text-blue-100 prose-code:bg-blue-100 dark:prose-code:bg-blue-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                    <div className="prose prose-sm max-w-none text-foreground prose-strong:text-foreground prose-code:text-foreground prose-code:bg-background prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
                       <ReactMarkdown>{aiExplanation}</ReactMarkdown>
                     </div>
                   )}
@@ -419,7 +419,7 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
                       </p>
                       <button
                         onClick={loadAIExplanation}
-                        className="px-4 py-2 text-sm bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors inline-flex items-center gap-2"
+                        className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
                       >
                         <Bot className="h-4 w-4" />
                         Summarize Changes
@@ -468,12 +468,8 @@ const PullRequestDetailModal = ({ pullRequest, isOpen, onClose }) => {
               rel="noopener noreferrer"
               className={`px-4 py-2 text-sm rounded-lg transition-colors inline-flex items-center gap-2 ${
                 isReadyToMerge 
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
-                  : hasConflicts
-                    ? 'bg-red-600 text-white hover:bg-red-700'
-                    : needsReview
-                      ? 'bg-orange-600 text-white hover:bg-orange-700'
-                      : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
+                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
               }`}
             >
               <ExternalLink className="h-4 w-4" />

@@ -41,7 +41,7 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
   const getStatusInfo = (status, result) => {
     if (status === 'inProgress') {
       return {
-        color: 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200',
+        color: 'bg-muted text-blue-600 dark:text-blue-400',
         icon: <Clock className="h-4 w-4" />
       }
     }
@@ -49,12 +49,12 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
     switch (result?.toLowerCase()) {
       case 'succeeded':
         return {
-          color: 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200',
+          color: 'bg-muted text-emerald-600 dark:text-emerald-400',
           icon: <CheckCircle className="h-4 w-4" />
         }
       case 'failed':
         return {
-          color: 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200',
+          color: 'bg-muted text-red-600 dark:text-red-400',
           icon: <XCircle className="h-4 w-4" />
         }
       default:
@@ -165,10 +165,10 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
       <div className="bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Failure Banner */}
         {isFailed && (
-          <div className="px-6 py-3 bg-red-100 dark:bg-red-950/50 border-b border-red-200 dark:border-red-800 flex items-center gap-2 text-red-800 dark:text-red-200">
-            <AlertTriangle className="h-5 w-5 animate-pulse" />
-            <span className="font-medium">Build Failed</span>
-            <span className="text-sm text-red-600 dark:text-red-300">— Review logs and AI analysis below</span>
+          <div className="px-6 py-3 bg-muted border-b border-red-200 dark:border-red-800 flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
+            <span className="font-medium text-red-600 dark:text-red-400">Build Failed</span>
+            <span className="text-sm text-muted-foreground">— Review logs and AI analysis below</span>
           </div>
         )}
         
@@ -182,16 +182,16 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
         
         {/* In Progress Banner */}
         {isInProgress && (
-          <div className="px-6 py-2 bg-blue-100 dark:bg-blue-950/50 border-b border-blue-200 dark:border-blue-800 flex items-center gap-2 text-blue-800 dark:text-blue-200">
-            <Clock className="h-4 w-4 animate-pulse" />
-            <span className="font-medium text-sm">Build In Progress</span>
+          <div className="px-6 py-2 bg-muted border-b border-border flex items-center gap-2">
+            <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
+            <span className="font-medium text-sm text-blue-600 dark:text-blue-400">Build In Progress</span>
           </div>
         )}
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border dark:border-[#1a1a1a]">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className={`p-2 rounded-lg ${isFailed ? 'bg-red-100 dark:bg-red-950/50' : isSucceeded ? 'bg-emerald-100 dark:bg-emerald-950/50' : 'bg-muted'}`}>
+            <div className="p-2 rounded-lg bg-muted">
               {isFailed ? (
                 <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
               ) : isSucceeded ? (
@@ -283,7 +283,7 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
               </div>
               
               {/* Duration / Reason */}
-              <div className={`p-3 rounded-lg ${isFailed ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800' : 'bg-muted'}`}>
+              <div className={`p-3 rounded-lg bg-muted ${isFailed ? 'border border-red-400 dark:border-red-700' : ''}`}>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                   {duration ? <Timer className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
                   {duration ? 'Duration' : 'Trigger'}
@@ -297,10 +297,10 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
             {/* AI Analysis Section - For Failed Builds */}
             {isFailed && (
               <details className="group" open>
-                <summary className="flex items-center justify-between cursor-pointer bg-red-50 dark:bg-red-950/20 rounded-lg p-4 border border-red-200 dark:border-red-800/30 hover:bg-red-100 dark:hover:bg-red-950/30 transition-colors">
+                <summary className="flex items-center justify-between cursor-pointer bg-muted rounded-lg p-4 border border-border hover:bg-muted/80 transition-colors">
                   <div className="flex items-center gap-2">
                     <Bot className="h-5 w-5 text-red-600 dark:text-red-400" />
-                    <span className="font-medium text-red-900 dark:text-red-100">AI Failure Analysis</span>
+                    <span className="font-medium text-foreground">AI Failure Analysis</span>
                     <span className="text-xs text-red-600 dark:text-red-400">
                       {aiAnalysis ? '(loaded)' : '— find root cause faster'}
                     </span>
@@ -310,28 +310,28 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
                   </svg>
                 </summary>
                 
-                <div className="mt-2 bg-red-50 dark:bg-red-950/20 rounded-lg p-4 border border-red-200 dark:border-red-800/30">
+                <div className="mt-2 bg-muted rounded-lg p-4 border border-border">
                   {loadingAI && (
-                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                    <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <span className="text-sm">AI is analyzing build logs and timeline...</span>
                     </div>
                   )}
                   
                   {aiAnalysis && (
-                    <div className="prose prose-sm max-w-none text-red-800 dark:text-red-200 prose-strong:text-red-900 dark:prose-strong:text-red-100 prose-code:text-red-900 dark:prose-code:text-red-100 prose-code:bg-red-100 dark:prose-code:bg-red-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                    <div className="prose prose-sm max-w-none text-foreground prose-strong:text-foreground prose-code:text-foreground prose-code:bg-background prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
                       <ReactMarkdown>{aiAnalysis}</ReactMarkdown>
                     </div>
                   )}
                   
                   {!aiAnalysis && !loadingAI && (
                     <div className="text-center py-2">
-                      <p className="text-sm text-red-700 dark:text-red-300 mb-3">
+                      <p className="text-sm text-muted-foreground mb-3">
                         Get AI-powered root cause analysis, error explanations, and suggested fixes.
                       </p>
                       <button
                         onClick={loadAIAnalysis}
-                        className="px-4 py-2 text-sm bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors inline-flex items-center gap-2"
+                        className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
                       >
                         <Bot className="h-4 w-4" />
                         Analyze Failure
@@ -366,11 +366,7 @@ const BuildDetailModal = ({ build, isOpen, onClose }) => {
               href={getBuildUrl(build)}
               target="_blank"
               rel="noopener noreferrer"
-              className={`px-4 py-2 text-sm rounded-lg transition-colors inline-flex items-center gap-2 ${
-                isFailed 
-                  ? 'bg-red-600 text-white hover:bg-red-700' 
-                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
-              }`}
+              className="px-4 py-2 text-sm rounded-lg transition-colors inline-flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <ExternalLink className="h-4 w-4" />
               {isFailed ? 'View Logs in Azure DevOps' : 'Open in Azure DevOps'}
