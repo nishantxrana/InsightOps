@@ -9,6 +9,9 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const LOG_LEVEL = process.env.LOG_LEVEL || (NODE_ENV === 'production' ? 'info' : 'debug');
 const IS_PRODUCTION = NODE_ENV === 'production';
 const IS_DEVELOPMENT = NODE_ENV === 'development';
+const IS_STAGING = NODE_ENV === 'staging';
+// Staging behaves like development for logging (full debug, stack traces, etc.)
+const VERBOSE_MODE = IS_DEVELOPMENT || IS_STAGING;
 
 // Sensitive field patterns for sanitization
 const SENSITIVE_PATTERNS = [
@@ -107,11 +110,11 @@ const consoleFormat = printf(({ level, message, timestamp, component, requestId,
     log += ` (${contextParts.join(', ')})`;
   }
   
-  // Add additional metadata in dev/debug mode
+  // Add additional metadata in dev/staging mode
   const relevantMeta = { ...meta };
   delete relevantMeta.service; // Already known
   
-  if (Object.keys(relevantMeta).length > 0 && !IS_PRODUCTION) {
+  if (Object.keys(relevantMeta).length > 0 && VERBOSE_MODE) {
     try {
       const metaString = JSON.stringify(relevantMeta, (key, value) => {
         // Handle circular references
@@ -139,7 +142,7 @@ const consoleFormat = printf(({ level, message, timestamp, component, requestId,
 // JSON format for production (structured logs)
 const productionFormat = combine(
   timestamp({ format: 'YYYY-MM-DDTHH:mm:ss.SSSZ' }),
-  errors({ stack: IS_DEVELOPMENT }), // Only include stack traces in dev
+  errors({ stack: VERBOSE_MODE }), // Include stack traces in dev/staging
   json()
 );
 
@@ -159,14 +162,16 @@ export const logger = winston.createLogger({
   },
   transports: [
     // Console transport - format differs by environment
+    // Production: JSON format for log aggregators
+    // Dev/Staging: Human-readable colored format
     new winston.transports.Console({
-      format: IS_PRODUCTION 
-        ? productionFormat
-        : combine(
+      format: VERBOSE_MODE 
+        ? combine(
             colorize(),
             timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
             consoleFormat
           )
+        : productionFormat
     }),
     
     // Error log file
@@ -220,7 +225,7 @@ export function createComponentLogger(component, defaultContext = {}) {
     warn: (message, meta = {}) => logger.warn(message, { component, ...defaultContext, ...meta }),
     error: (message, meta = {}) => logger.error(message, { component, ...defaultContext, ...meta }),
     debug: (message, meta = {}) => {
-      if (!IS_PRODUCTION) {
+      if (VERBOSE_MODE) {
         logger.debug(message, { component, ...defaultContext, ...meta });
       }
     }
@@ -242,6 +247,8 @@ export function createRequestLogger(req, component) {
 export const logConfig = {
   isProduction: IS_PRODUCTION,
   isDevelopment: IS_DEVELOPMENT,
+  isStaging: IS_STAGING,
+  verboseMode: VERBOSE_MODE,
   level: LOG_LEVEL,
   environment: NODE_ENV
 };
