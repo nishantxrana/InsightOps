@@ -278,7 +278,7 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
       className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl lg:max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+      <div className="bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl lg:max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
         {/* Status Banners */}
         {isFailedRelease && (
           <div className="px-6 py-3 bg-muted border-b border-red-200 dark:border-red-800 flex items-center gap-2">
