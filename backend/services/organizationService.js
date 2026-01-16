@@ -41,24 +41,26 @@ class OrganizationService {
     if (!org) return null;
 
     // Decrypt sensitive fields
+    // Note: decrypt() returns null on failure (key mismatch, corruption, etc.)
     if (org.azureDevOps?.pat) {
-      try {
-        const encryptedPat = org.azureDevOps.pat;
-        org.azureDevOps.pat = decrypt(encryptedPat);
+      const encryptedPat = org.azureDevOps.pat;
+      const decryptedPat = decrypt(encryptedPat);
+      
+      if (decryptedPat === null) {
+        // Decryption failed - likely ENCRYPTION_KEY changed
+        logger.error('Failed to decrypt PAT - ENCRYPTION_KEY may have changed', {
+          component: 'org-service',
+          organizationId: organizationId.toString(),
+          hint: 'Re-save the organization credentials to encrypt with the current key'
+        });
+        org.azureDevOps.pat = null;
+        org.azureDevOps._decryptionFailed = true; // Flag for callers to check
+      } else {
+        org.azureDevOps.pat = decryptedPat;
         logger.debug('PAT decrypted successfully', {
           component: 'org-service',
-          organizationId: organizationId.toString(),
-          encryptedLength: encryptedPat?.length,
-          decryptedLength: org.azureDevOps.pat?.length
+          organizationId: organizationId.toString()
         });
-      } catch (e) {
-        logger.error('Failed to decrypt PAT', {
-          component: 'org-service',
-          organizationId: organizationId.toString(),
-          error: e.message
-        });
-        // Clear invalid PAT so we don't use garbage
-        org.azureDevOps.pat = null;
       }
     } else {
       logger.warn('No PAT found in database for organization', {
@@ -70,15 +72,19 @@ class OrganizationService {
     if (org.ai?.apiKeys) {
       for (const provider of ['openai', 'groq', 'gemini']) {
         if (org.ai.apiKeys[provider]) {
-          try {
-            org.ai.apiKeys[provider] = decrypt(org.ai.apiKeys[provider]);
-          } catch (e) {
-            logger.error(`Failed to decrypt ${provider} API key`, {
+          const decryptedKey = decrypt(org.ai.apiKeys[provider]);
+          
+          if (decryptedKey === null) {
+            logger.error(`Failed to decrypt ${provider} API key - ENCRYPTION_KEY may have changed`, {
               component: 'org-service',
               organizationId: organizationId.toString(),
-              error: e.message
+              hint: 'Re-save the AI configuration to encrypt with the current key'
             });
             org.ai.apiKeys[provider] = null;
+            org.ai._decryptionFailed = org.ai._decryptionFailed || {};
+            org.ai._decryptionFailed[provider] = true;
+          } else {
+            org.ai.apiKeys[provider] = decryptedKey;
           }
         }
       }
@@ -301,7 +307,7 @@ class OrganizationService {
       throw new Error('Organization not found');
     }
 
-    const { organization, project, pat, baseUrl } = org.azureDevOps || {};
+    const { organization, project, pat, baseUrl, _decryptionFailed } = org.azureDevOps || {};
     
     // Debug: Log what we have (without exposing PAT)
     logger.info('Testing connection with saved credentials', {
@@ -312,7 +318,8 @@ class OrganizationService {
       hasProject: !!project,
       hasPat: !!pat,
       patLength: pat?.length || 0,
-      baseUrl: baseUrl || 'not set'
+      baseUrl: baseUrl || 'not set',
+      decryptionFailed: !!_decryptionFailed
     });
 
     // Validate we have credentials
@@ -320,6 +327,15 @@ class OrganizationService {
       return {
         success: false,
         error: 'Azure DevOps organization and project are not configured'
+      };
+    }
+
+    // Check if decryption failed (key mismatch)
+    if (_decryptionFailed) {
+      return {
+        success: false,
+        error: 'Unable to decrypt saved credentials. The encryption key may have changed. Please re-enter your Personal Access Token.',
+        code: 'DECRYPTION_FAILED'
       };
     }
 
