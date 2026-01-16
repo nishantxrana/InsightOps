@@ -19,7 +19,8 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       }
-    }
+    },
+    allowedHosts: ['sure-ant-informally.ngrok-free.app']
   },
   build: {
     outDir: 'dist',
