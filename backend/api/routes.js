@@ -15,6 +15,7 @@ import { userPollingManager } from '../polling/userPollingManager.js';
 import { validateRequest } from '../middleware/validation.js';
 import { settingsSchema, testConnectionSchema } from '../validators/schemas.js';
 import { AzureDevOpsReleaseClient } from '../devops/releaseClient.js';
+import { azureDevOpsCache } from '../cache/AzureDevOpsCache.js';
 import emergencyRoutes from './emergency.js';
 
 const router = express.Router();
@@ -52,28 +53,26 @@ router.get('/health', async (req, res) => {
 // User settings endpoints - Now returns current organization settings
 router.get('/settings', async (req, res) => {
   try {
+    // STRICT: Organization context is REQUIRED
+    if (!req.organizationId) {
+      logger.warn('GET /settings called without organization context', {
+        userId: req.user._id,
+        action: 'get-settings'
+      });
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        message: 'Please select an organization to view settings',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
+    }
+
     const org = await getOrganizationSettings(req);
     
     if (!org) {
-      // No organization configured - return empty settings
-      return res.json({
-        azureDevOps: {
-          organization: '',
-          project: '',
-          pat: '',
-          baseUrl: 'https://dev.azure.com'
-        },
-        ai: {
-          provider: 'gemini',
-          model: 'gemini-2.0-flash',
-          apiKeys: { openai: '', groq: '', gemini: '' }
-        },
-        notifications: { enabled: true },
-        polling: {
-          workItemsInterval: '*/10 * * * *',
-          pullRequestInterval: '0 */10 * * *',
-          overdueCheckInterval: '0 */10 * * *'
-        }
+      // Organization ID provided but not found
+      return res.status(404).json({
+        error: 'Organization not found',
+        message: 'The selected organization does not exist or you do not have access'
       });
     }
     
@@ -112,6 +111,20 @@ router.get('/settings', async (req, res) => {
 
 router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
   try {
+    // STRICT: Organization context is REQUIRED
+    if (!req.organizationId) {
+      logger.error('PUT /settings called without organization context', {
+        userId: req.user._id,
+        action: 'update-settings',
+        status: 'rejected'
+      });
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        message: 'Please select an organization before updating settings. Use PUT /api/organizations/:id instead.',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
+    }
+
     const updates = { ...req.validatedData };
     
     // Handle masked values - don't update if value is '***'
@@ -127,37 +140,24 @@ router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
       });
     }
     
-    // DEPRECATION: This endpoint is deprecated. Use PUT /api/organizations/:id instead.
-    // For backward compatibility, we update organization settings if org context exists.
-    if (req.organizationId) {
-      logger.warn('⚠️ DEPRECATED: PUT /settings called with org context. Use PUT /api/organizations/:id instead.');
-      
-      // Update organization settings instead of user settings
-      const updatedOrg = await organizationService.updateOrganization(
-        req.organizationId,
-        req.user._id,
-        updates
-      );
-      
-      if (!updatedOrg) {
-        return res.status(404).json({ error: 'Organization not found' });
-      }
-      
-      res.json({ message: 'Settings updated successfully (via organization)' });
-    } else {
-      // Legacy fallback: Update user settings if no org context
-      logger.warn('⚠️ DEPRECATED: PUT /settings called without org context. This endpoint is deprecated.');
-      
-      const settings = await updateUserSettings(req.user._id, updates);
-      
-      // Update user polling with new settings if polling settings were updated
-      if (updates.polling) {
-        logger.info('Polling settings updated - updating user polling configuration');
-        await userPollingManager.updateUserPolling(req.user._id, updates);
-      }
-      
-      res.json({ message: 'Settings updated successfully (legacy user settings)' });
+    // DEPRECATED: Use PUT /api/organizations/:id instead
+    logger.warn('⚠️ DEPRECATED: PUT /settings called. Use PUT /api/organizations/:id instead.', {
+      organizationId: req.organizationId,
+      userId: req.user._id
+    });
+    
+    // Update organization settings
+    const updatedOrg = await organizationService.updateOrganization(
+      req.organizationId,
+      req.user._id,
+      updates
+    );
+    
+    if (!updatedOrg) {
+      return res.status(404).json({ error: 'Organization not found' });
     }
+    
+    res.json({ message: 'Settings updated successfully (via organization)' });
   } catch (error) {
     logger.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });
@@ -345,19 +345,36 @@ router.get('/work-items/sprint-summary', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required. Please configure an organization in settings.' });
     }
     
+    const orgId = org._id?.toString();
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     
-    // Get all work items for summary calculations (without pagination)
-    const allWorkItems = await client.getAllCurrentSprintWorkItems();
+    // Use cache-first pattern (same cache as dashboard)
+    let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
+    
+    if (!allWorkItems) {
+      allWorkItems = await client.getAllCurrentSprintWorkItems();
+      azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
+    } else {
+      logger.debug('[Performance] Sprint summary using cached work items');
+    }
     
     // Use utility functions for consistent state categorization
     const activeItems = filterActiveWorkItems(allWorkItems.value || []);
     const completedItems = filterCompletedWorkItems(allWorkItems.value || []);
     
-    // Get overdue items count for dashboard
+    // Get overdue items count (with caching)
     let overdueCount = 0;
     try {
-      const overdueItems = await client.getOverdueWorkItems();
+      const overdueCacheKey = 'workItems:overdue';
+      let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
+      
+      if (!overdueItems) {
+        overdueItems = await client.getOverdueWorkItems();
+        azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
+      } else {
+        logger.debug('[Performance] Sprint summary using cached overdue items');
+      }
+      
       overdueCount = overdueItems.count || 0;
     } catch (error) {
       logger.warn('Failed to fetch overdue items for summary:', error.message);
@@ -368,10 +385,10 @@ router.get('/work-items/sprint-summary', async (req, res) => {
       total: allWorkItems.count || 0,
       active: activeItems.length,
       completed: completedItems.length,
-      overdue: overdueCount, // Add overdue count for dashboard
+      overdue: overdueCount,
       workItemsByState: groupWorkItemsByState(allWorkItems.value || []),
       workItemsByAssignee: groupWorkItemsByAssignee(allWorkItems.value || []),
-      summary: null, // Will be populated via separate AI endpoint
+      summary: null,
       summaryStatus: 'available'
     };
     
@@ -409,8 +426,18 @@ router.get('/work-items/ai-summary', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
+    const orgId = org._id?.toString();
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    const allWorkItems = await client.getAllCurrentSprintWorkItems();
+    
+    // Use cache-first pattern (same cache as dashboard/sprint-summary)
+    let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
+    
+    if (!allWorkItems) {
+      allWorkItems = await client.getAllCurrentSprintWorkItems();
+      azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
+    } else {
+      logger.debug('[Performance] AI summary using cached work items');
+    }
     
     if (!allWorkItems.value || allWorkItems.value.length === 0) {
       return res.json({ summary: 'No work items found in current sprint.' });
@@ -539,8 +566,20 @@ router.get('/work-items/overdue', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    const overdueItems = await client.getOverdueWorkItems();
+    const orgId = org._id?.toString();
+    const overdueCacheKey = 'workItems:overdue';
+    
+    // Check cache first
+    let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
+    
+    if (!overdueItems) {
+      const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
+      overdueItems = await client.getOverdueWorkItems();
+      azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
+    } else {
+      logger.debug('[Performance] Overdue items using cache');
+    }
+    
     res.json(overdueItems);
   } catch (error) {
     logger.error('Error fetching overdue items:', error);
@@ -707,9 +746,10 @@ router.get('/pull-requests', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
-    // Check cache first (60s TTL - short enough to be fresh, long enough to help dashboard)
-    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
-    const cached = azureDevOpsCache.getPullRequests(org._id?.toString());
+    const orgId = org._id?.toString();
+    
+    // Check cache first (60s TTL)
+    const cached = azureDevOpsCache.getPullRequests(orgId);
     if (cached) {
       logger.debug('[Performance] PR cache hit');
       return res.json(cached);
@@ -719,7 +759,7 @@ router.get('/pull-requests', async (req, res) => {
     const pullRequests = await client.getPullRequests('active');
     
     // Cache for 60 seconds
-    azureDevOpsCache.setPullRequests(org._id?.toString(), pullRequests, 60);
+    azureDevOpsCache.setPullRequests(orgId, pullRequests, 60);
     
     res.json(pullRequests);
   } catch (error) {
@@ -736,15 +776,16 @@ router.get('/pull-requests/idle', async (req, res) => {
       return res.status(400).json({ error: 'Azure DevOps configuration required' });
     }
     
+    const orgId = org._id?.toString();
+    
     // Check cache for base PR data (shared with /pull-requests endpoint)
-    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
-    let allPRs = azureDevOpsCache.getPullRequests(org._id?.toString());
+    let allPRs = azureDevOpsCache.getPullRequests(orgId);
     
     if (!allPRs) {
       // Fetch and cache if not available
       const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
       allPRs = await client.getPullRequests('active');
-      azureDevOpsCache.setPullRequests(org._id?.toString(), allPRs, 60);
+      azureDevOpsCache.setPullRequests(orgId, allPRs, 60);
     } else {
       logger.debug('[Performance] Idle PRs using cached PR data');
     }

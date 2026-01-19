@@ -78,36 +78,105 @@ class NotificationHistoryService {
     return result;
   }
 
-  async markAsRead(notificationId, userId, organizationId = null) {
+  /**
+   * Mark a notification as read
+   * 
+   * @param {string} notificationId - The notification ID
+   * @param {string} userId - The user ID (REQUIRED)
+   * @param {string} organizationId - The organization ID (REQUIRED for multi-tenant isolation)
+   * @throws {Error} If organizationId is not provided
+   */
+  async markAsRead(notificationId, userId, organizationId) {
+    // ENFORCE: organizationId is REQUIRED for multi-tenant isolation
+    if (!organizationId) {
+      const error = new Error('organizationId is required for markAsRead - multi-tenant isolation violation');
+      error.code = 'MISSING_ORGANIZATION_ID';
+      log.error('markAsRead called without organizationId', {
+        notificationId,
+        userId: userId?.toString(),
+        action: 'mark-read',
+        status: 'rejected'
+      });
+      throw error;
+    }
+
+    if (!userId) {
+      const error = new Error('userId is required for markAsRead');
+      error.code = 'MISSING_USER_ID';
+      throw error;
+    }
+
     const query = { 
       _id: notificationId, 
-      userId: new mongoose.Types.ObjectId(userId) 
+      userId: new mongoose.Types.ObjectId(userId),
+      organizationId: new mongoose.Types.ObjectId(organizationId)
     };
-    // Enforce organization isolation if organizationId provided
-    if (organizationId) {
-      query.organizationId = new mongoose.Types.ObjectId(organizationId);
-    }
-    return await NotificationHistory.findOneAndUpdate(
+
+    const result = await NotificationHistory.findOneAndUpdate(
       query,
       { read: true },
       { new: true }
     );
+
+    if (result) {
+      log.debug('Notification marked as read', {
+        notificationId,
+        userId: userId.toString(),
+        organizationId: organizationId.toString()
+      });
+    }
+
+    return result;
   }
 
-  async toggleStar(notificationId, userId, organizationId = null) {
+  /**
+   * Toggle star status on a notification
+   * 
+   * @param {string} notificationId - The notification ID
+   * @param {string} userId - The user ID (REQUIRED)
+   * @param {string} organizationId - The organization ID (REQUIRED for multi-tenant isolation)
+   * @throws {Error} If organizationId is not provided
+   */
+  async toggleStar(notificationId, userId, organizationId) {
+    // ENFORCE: organizationId is REQUIRED for multi-tenant isolation
+    if (!organizationId) {
+      const error = new Error('organizationId is required for toggleStar - multi-tenant isolation violation');
+      error.code = 'MISSING_ORGANIZATION_ID';
+      log.error('toggleStar called without organizationId', {
+        notificationId,
+        userId: userId?.toString(),
+        action: 'toggle-star',
+        status: 'rejected'
+      });
+      throw error;
+    }
+
+    if (!userId) {
+      const error = new Error('userId is required for toggleStar');
+      error.code = 'MISSING_USER_ID';
+      throw error;
+    }
+
     const query = { 
       _id: notificationId, 
-      userId: new mongoose.Types.ObjectId(userId) 
+      userId: new mongoose.Types.ObjectId(userId),
+      organizationId: new mongoose.Types.ObjectId(organizationId)
     };
-    // Enforce organization isolation if organizationId provided
-    if (organizationId) {
-      query.organizationId = new mongoose.Types.ObjectId(organizationId);
-    }
+
     const notification = await NotificationHistory.findOne(query);
     if (!notification) return null;
     
     notification.starred = !notification.starred;
-    return await notification.save();
+    const result = await notification.save();
+
+    log.debug('Notification star toggled', {
+      notificationId,
+      userId: userId.toString(),
+      organizationId: organizationId.toString(),
+      starred: result.starred
+    });
+
+    return result;
   }
 }
 

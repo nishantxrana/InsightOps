@@ -293,7 +293,7 @@ export default function OrganizationsSection() {
       </div>
       
       <div className="grid gap-2">
-        <Label htmlFor="pat">Personal Access Token</Label>
+        <Label htmlFor="pat">Personal Access Token (PAT)</Label>
         <Input
           id="pat"
           type="password"
@@ -304,6 +304,17 @@ export default function OrganizationsSection() {
             azureDevOps: { ...prev.azureDevOps, pat: e.target.value }
           }))}
         />
+        <p className="text-xs text-muted-foreground">
+          Required scopes: <span className="font-medium">Work Items (Read), Build (Read), Code (Read), Release (Read)</span>.{' '}
+          <a 
+            href="https://dev.azure.com/_usersSettings/tokens" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Create a PAT →
+          </a>
+        </p>
         {errors.pat && <p className="text-sm text-destructive">{errors.pat}</p>}
       </div>
       
@@ -522,8 +533,11 @@ export default function OrganizationsSection() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Organization</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{selectedOrg?.name}"? This action cannot be undone.
+            <AlertDialogDescription className="space-y-2">
+              <p>Are you sure you want to delete <span className="font-semibold">"{selectedOrg?.name}"</span>?</p>
+              <p className="text-sm text-muted-foreground">
+                This will permanently remove all settings, notification history, and polling configuration for this organization. Your Azure DevOps data will not be affected.
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -532,7 +546,7 @@ export default function OrganizationsSection() {
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              Delete Organization
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

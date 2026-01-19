@@ -39,7 +39,8 @@ export default function PullRequests() {
     total: 0,
     active: 0,
     unassigned: 0,
-    idle: 0
+    idle: 0,
+    conflicts: 0
   })
   const [selectedPR, setSelectedPR] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -77,18 +78,17 @@ export default function PullRequests() {
           total: prsList.length,
           active: prsList.filter(pr => pr.status === 'active' && pr.reviewers && pr.reviewers.length > 0).length,
           unassigned: prsList.filter(pr => pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)).length,
+          conflicts: prsList.filter(pr => pr.mergeStatus === 'conflicts').length,
           idle: 0
         }
         setStats(prev => ({ ...prev, ...newStats }))
         setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
         // Don't set initialLoading false here - wait for all APIs or error
       } catch (err) {
-        console.error('Failed to load pull requests:', err)
         setPullRequests([])
-        setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
+        setStats({ total: 0, active: 0, unassigned: 0, idle: 0, conflicts: 0 })
         setLoadingStates(prev => ({ ...prev, pullRequests: false, stats: false }))
-        // Set error and return early to show error page
-        setError('Failed to load pull requests data')
+        setError(err.userMessage || 'Failed to load pull requests. Please check your Azure DevOps configuration.')
         return
       }
 
@@ -99,8 +99,8 @@ export default function PullRequests() {
         setIdlePRs(idleList)
         setStats(prev => ({ ...prev, idle: idleList.length }))
         setLoadingStates(prev => ({ ...prev, idlePRs: false }))
-      } catch (err) {
-        console.error('Failed to load idle PRs:', err)
+      } catch {
+        // Idle PRs are secondary, fail silently
         setIdlePRs([])
         setStats(prev => ({ ...prev, idle: 0 }))
         setLoadingStates(prev => ({ ...prev, idlePRs: false }))
@@ -110,12 +110,10 @@ export default function PullRequests() {
       setInitialLoading(false)
 
     } catch (err) {
-      setError('Failed to load pull requests data')
-      console.error('Pull requests error:', err)
-      // Don't set initialLoading to false on error so error page shows
+      setError(err.userMessage || 'Failed to load pull requests. Please check your connection and try again.')
       setPullRequests([])
       setIdlePRs([])
-      setStats({ total: 0, active: 0, unassigned: 0, idle: 0 })
+      setStats({ total: 0, active: 0, unassigned: 0, idle: 0, conflicts: 0 })
       setLoadingStates({
         pullRequests: false,
         idlePRs: false,
@@ -125,17 +123,18 @@ export default function PullRequests() {
   }
 
   const getStatusBadge = (status) => {
+    // Neutral bg, colored text/icon
     switch (status) {
       case 'active':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400">
             <Activity className="h-3 w-3" />
             Active
           </span>
         )
       case 'completed':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="h-3 w-3" />
             Completed
           </span>
@@ -158,24 +157,25 @@ export default function PullRequests() {
   }
 
   const getMergeStatusBadge = (mergeStatus) => {
+    // Neutral bg, colored text/icon
     switch (mergeStatus) {
       case 'succeeded':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="h-3 w-3" />
             Ready
           </span>
         )
       case 'conflicts':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400">
             <AlertCircle className="h-3 w-3" />
             Conflicts
           </span>
         )
       case 'queued':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-200">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400">
             <Clock className="h-3 w-3" />
             Queued
           </span>
@@ -184,7 +184,7 @@ export default function PullRequests() {
         return (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
             <AlertCircle className="h-3 w-3" />
-            {mergeStatus || 'Unknown'}
+            {mergeStatus || 'Pending'}
           </span>
         )
     }
@@ -214,7 +214,20 @@ export default function PullRequests() {
     return 'Unknown'
   }
 
-  // Filter and sort PRs
+  // Helper to check if PR has problems
+  const getPRPriority = (pr) => {
+    const isUnassigned = pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)
+    const hasConflicts = pr.mergeStatus === 'conflicts'
+    const isIdle = idlePRs.some(idle => idle.pullRequestId === pr.pullRequestId)
+    
+    if (hasConflicts) return 0 // Conflicts first - merge blocked!
+    if (isUnassigned) return 1 // Unassigned second - blocked waiting
+    if (isIdle) return 2 // Idle third - needs attention
+    if (pr.status === 'active') return 3 // Active PRs
+    return 4 // Completed/abandoned last
+  }
+
+  // Filter and sort PRs - problems first for operational clarity
   const getFilteredAndSortedPRs = () => {
     let filtered = [...pullRequests]
 
@@ -229,27 +242,33 @@ export default function PullRequests() {
       case 'idle':
         filtered = filtered.filter(pr => idlePRs.some(idle => idle.pullRequestId === pr.pullRequestId))
         break
+      case 'conflicts':
+        filtered = filtered.filter(pr => pr.mergeStatus === 'conflicts')
+        break
       case 'all':
       default:
         // No filter
         break
     }
 
-    // Apply sort
-    switch (sortBy) {
-      case 'oldest':
-        filtered.sort((a, b) => new Date(a.creationDate) - new Date(b.creationDate))
-        break
-      case 'title':
-        filtered.sort((a, b) => a.title.localeCompare(b.title))
-        break
-      case 'newest':
-      default:
-        filtered.sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate))
-        break
-    }
+    // Sort by priority first (problems first), then by user-selected sort
+    const sorted = [...filtered].sort((a, b) => {
+      const priorityDiff = getPRPriority(a) - getPRPriority(b)
+      if (priorityDiff !== 0) return priorityDiff
+      
+      // Within same priority, apply user sort
+      switch (sortBy) {
+        case 'oldest':
+          return new Date(a.creationDate) - new Date(b.creationDate)
+        case 'title':
+          return a.title.localeCompare(b.title)
+        case 'newest':
+        default:
+          return new Date(b.creationDate) - new Date(a.creationDate)
+      }
+    })
 
-    return filtered
+    return sorted
   }
 
   if (error && initialLoading) {
@@ -319,14 +338,43 @@ export default function PullRequests() {
       <div className="animate-slide-up">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Pull Requests</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Active pull requests and review status</p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">Pull Requests</h1>
+              {/* Quick health indicator - neutral bg, colored text/icon */}
+              {!loadingStates.stats && (
+                stats.unassigned > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <User className="h-3 w-3 text-orange-500" />
+                    <span className="text-orange-600 dark:text-orange-400">{stats.unassigned} need reviewers</span>
+                  </span>
+                ) : stats.idle > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <Clock className="h-3 w-3 text-amber-500" />
+                    <span className="text-amber-600 dark:text-amber-400">{stats.idle} stale</span>
+                  </span>
+                ) : stats.active > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
+                    <Activity className="h-3 w-3 text-blue-500" />
+                    <span className="text-blue-600 dark:text-blue-400">{stats.active} in review</span>
+                  </span>
+                ) : stats.total > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                    All clear
+                  </span>
+                ) : null
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {!loadingStates.stats && stats.unassigned > 0 
+                ? `${stats.unassigned} PR${stats.unassigned > 1 ? 's' : ''} waiting for reviewer assignment`
+                : 'Active pull requests and review status'}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={handleSync}
               disabled={Object.values(loadingStates).some(loading => loading)}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-foreground text-background text-sm font-medium rounded-full hover:bg-foreground/90 disabled:opacity-60 transition-all duration-200"
+              className="group flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${Object.values(loadingStates).some(loading => loading) ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-300`} />
               Sync
@@ -336,8 +384,8 @@ export default function PullRequests() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
-        {/* Total PRs */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+        {/* Total PRs - neutral */}
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
@@ -348,8 +396,8 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <GitPullRequest className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full">
+                <GitPullRequest className="h-5 w-5 text-blue-500" />
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                   Total
                 </span>
               </div>
@@ -361,7 +409,7 @@ export default function PullRequests() {
           )}
         </div>
 
-        {/* Active PRs */}
+        {/* Active PRs - neutral */}
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
@@ -372,9 +420,9 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <Activity className="h-5 w-5 text-green-600 dark:text-green-400" />
-                <span className="text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-full">
-                  Active
+                <Activity className="h-5 w-5 text-emerald-500" />
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  In Review
                 </span>
               </div>
               <div className="mb-3">
@@ -385,7 +433,7 @@ export default function PullRequests() {
           )}
         </div>
 
-        {/* Unassigned PRs */}
+        {/* Unassigned PRs - neutral with colored icon/text */}
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.stats ? (
             <div className="space-y-3">
@@ -396,20 +444,27 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <User className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                <span className="text-xs font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 px-2 py-0.5 rounded-full">
-                  Unassigned
+                <User className={`h-5 w-5 ${stats.unassigned > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                  stats.unassigned > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'
+                }`}>
+                  {stats.unassigned > 0 ? `${stats.unassigned} unassigned` : 'Clear'}
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.unassigned}</div>
-                <div className="text-sm text-muted-foreground">Need Reviewers</div>
+                <div className={`text-2xl font-bold mb-0.5 ${stats.unassigned > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-foreground'}`}>
+                  {stats.unassigned}
+                </div>
+                <div className="text-sm text-muted-foreground">No Reviewers</div>
+              </div>
+              <div className={`text-xs ${stats.unassigned > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+                {stats.unassigned > 0 ? 'Assign reviewers to unblock' : 'All PRs have reviewers'}
               </div>
             </>
           )}
         </div>
 
-        {/* Idle PRs */}
+        {/* Idle PRs - neutral with colored icon/text */}
         <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
           {loadingStates.idlePRs ? (
             <div className="space-y-3">
@@ -420,14 +475,21 @@ export default function PullRequests() {
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
-                <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-                <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
-                  Overdue
+                <Clock className={`h-5 w-5 ${stats.idle > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                  stats.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
+                }`}>
+                  {stats.idle > 0 ? `${stats.idle} stale` : 'Fresh'}
                 </span>
               </div>
               <div className="mb-3">
-                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.idle}</div>
-                <div className="text-sm text-muted-foreground">Overdue (48h+)</div>
+                <div className={`text-2xl font-bold mb-0.5 ${stats.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
+                  {stats.idle}
+                </div>
+                <div className="text-sm text-muted-foreground">Idle 48h+</div>
+              </div>
+              <div className={`text-xs ${stats.idle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                {stats.idle > 0 ? 'Need review attention' : 'No stale PRs'}
               </div>
             </>
           )}
@@ -449,24 +511,29 @@ export default function PullRequests() {
             <div className="flex flex-wrap gap-2">
               {[
                 { value: 'all', label: 'All', count: pullRequests.length },
-                { value: 'under-review', label: 'Under Review', count: stats.active },
-                { value: 'unassigned', label: 'Unassigned', count: stats.unassigned },
-                { value: 'idle', label: 'Overdue', count: stats.idle }
+                { value: 'under-review', label: 'In Review', count: stats.active },
+                { value: 'unassigned', label: 'No Reviewers', count: stats.unassigned, isWarning: stats.unassigned > 0 },
+                { value: 'conflicts', label: 'Conflicts', count: stats.conflicts, isDanger: stats.conflicts > 0 },
+                { value: 'idle', label: 'Stale (48h+)', count: stats.idle, isWarning: stats.idle > 0 }
               ].map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setFilter(option.value)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                     filter === option.value
-                      ? 'bg-blue-500 text-white shadow-md'
+                      ? 'bg-primary text-primary-foreground shadow-md'
                       : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   }`}
                 >
-                  <span>{option.label}</span>
+                  <span className={filter !== option.value && option.isDanger && option.count > 0 ? 'text-red-600 dark:text-red-400' : filter !== option.value && option.isWarning && option.count > 0 ? 'text-orange-600 dark:text-orange-400' : ''}>{option.label}</span>
                   <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
                     filter === option.value
                       ? 'bg-white/20 text-white'
-                      : 'bg-background text-muted-foreground'
+                      : option.isDanger && option.count > 0
+                        ? 'text-red-600 dark:text-red-400 bg-background'
+                        : option.isWarning && option.count > 0
+                          ? 'text-orange-600 dark:text-orange-400 bg-background'
+                          : 'bg-background text-muted-foreground'
                   }`}>
                     {option.count}
                   </span>
@@ -513,7 +580,7 @@ export default function PullRequests() {
       <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in" style={{animationDelay: '0.3s'}}>
         <div className="flex items-center justify-between px-5 py-5 border-b border-border dark:border-[#1a1a1a]">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50">
+            <div className="p-2 rounded-xl bg-muted">
               <GitPullRequest className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
@@ -572,10 +639,23 @@ export default function PullRequests() {
             </div>
           ) : getFilteredAndSortedPRs().length > 0 ? (
             <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-              {getFilteredAndSortedPRs().map((pr) => (
+              {getFilteredAndSortedPRs().map((pr) => {
+                const isUnassigned = pr.status === 'active' && (!pr.reviewers || pr.reviewers.length === 0)
+                const hasConflicts = pr.mergeStatus === 'conflicts'
+                const isIdle = idlePRs.some(idle => idle.pullRequestId === pr.pullRequestId)
+                
+                return (
                 <div 
                   key={pr.pullRequestId} 
-                  className="px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                  className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer ${
+                    hasConflicts 
+                      ? 'border-l-2 border-l-red-500' 
+                      : isUnassigned 
+                        ? 'border-l-2 border-l-orange-500' 
+                        : isIdle 
+                          ? 'border-l-2 border-l-amber-500' 
+                          : ''
+                  }`}
                   onClick={() => {
                     setSelectedPR(pr)
                     setIsModalOpen(true)
@@ -605,6 +685,19 @@ export default function PullRequests() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                      {/* Problem indicators */}
+                      {isUnassigned && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-orange-600 dark:text-orange-400">
+                          <User className="h-3 w-3" />
+                          No reviewers
+                        </span>
+                      )}
+                      {isIdle && !isUnassigned && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-amber-600 dark:text-amber-400">
+                          <Clock className="h-3 w-3" />
+                          Stale
+                        </span>
+                      )}
                       {getStatusBadge(pr.status)}
                       {getMergeStatusBadge(pr.mergeStatus)}
                     </div>
@@ -680,7 +773,8 @@ export default function PullRequests() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="px-6 py-12 text-center text-muted-foreground">

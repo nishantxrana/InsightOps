@@ -16,6 +16,7 @@ export function DevOpsNavMain({ items }) {
     if (isMobile) {
       setOpenMobile(false)
     }
+    window.scrollTo(0, 0)
   }
 
   return (

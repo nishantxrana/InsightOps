@@ -14,9 +14,11 @@ import queueStatusRoutes from './api/queueStatus.js';
 import { errorHandler } from './utils/errorHandler.js';
 import { userPollingManager } from './polling/userPollingManager.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
+import { requestMetrics } from './middleware/requestMetrics.js';
 import { authenticate } from './middleware/auth.js';
 import { injectOrganizationContext } from './middleware/organizationContext.js';
 import { env, database, security, rateLimits, isProduction, isStaging } from './config/env.js';
+import diagnosticsRoutes from './api/diagnostics.js';
 
 // Agentic system imports
 import { agentRegistry } from './agents/AgentRegistry.js';
@@ -71,6 +73,9 @@ app.set('trust proxy', true);
 
 // Request ID middleware (must be early in the chain)
 app.use(requestIdMiddleware);
+
+// Request metrics middleware (for observability)
+app.use(requestMetrics);
 
 // Security middleware
 app.use(helmet({
@@ -169,6 +174,9 @@ app.use((req, res, next) => {
 
 // Auth routes (public)
 app.use('/api/auth', authRoutes);
+
+// Diagnostics routes (health is public, others authenticated)
+app.use('/api/diagnostics', diagnosticsRoutes);
 
 // Organization routes (authenticated)
 app.use('/api/organizations', authenticate, injectOrganizationContext, organizationRoutes);

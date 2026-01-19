@@ -8,6 +8,25 @@ import BaseWebhook from './BaseWebhook.js';
 class WorkItemWebhook extends BaseWebhook {
   async handleCreated(req, res, userId = null, organizationId = null) {
     try {
+      // STRICT: organizationId is REQUIRED
+      if (!organizationId) {
+        logger.error('Work item webhook called without organizationId', {
+          userId,
+          action: 'workitem-created',
+          status: 'rejected'
+        });
+        return res.status(400).json({
+          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/workitem/created',
+          code: 'MISSING_ORGANIZATION_ID'
+        });
+      }
+
+      // Validate organization exists and is active
+      const orgValidation = await this.validateOrganization(organizationId, res);
+      if (!orgValidation.valid) {
+        return this.sendOrgValidationError(res, orgValidation);
+      }
+
       const { resource } = req.body;
       
       if (!resource) {
@@ -17,7 +36,7 @@ class WorkItemWebhook extends BaseWebhook {
       const workItemId = resource.id;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(workItemId, userId || organizationId, 'workitem');
+      const dupeCheck = this.isDuplicate(workItemId, organizationId, 'workitem');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(workItemId, 'workitem', dupeCheck.timeSince));
       }
@@ -40,42 +59,28 @@ class WorkItemWebhook extends BaseWebhook {
         workItemType: resource.fields?.['System.WorkItemType'],
         title: resource.fields?.['System.Title'],
         assignedTo: resource.fields?.['System.AssignedTo']?.displayName,
-        userId: userId || 'legacy-global',
-        organizationId: organizationId || null,
-        hasUserId: !!userId
+        organizationId
       });
 
-      // Get settings - prefer organization context over user context
+      // Get organization settings with credentials
       let userConfig = null;
       let userSettings = null;
       
-      if (organizationId) {
-        try {
-          const { organizationService } = await import('../services/organizationService.js');
-          const org = await organizationService.getOrganizationWithCredentials(organizationId);
-          if (org) {
-            userId = org.userId;
-            userConfig = org.azureDevOps;
-            userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
-          }
-        } catch (error) {
-          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
+      try {
+        const { organizationService } = await import('../services/organizationService.js');
+        const org = await organizationService.getOrganizationWithCredentials(organizationId);
+        if (org) {
+          userId = org.userId;
+          userConfig = org.azureDevOps;
+          userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
         }
-      } else if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          userSettings = await getUserSettings(userId);
-          userConfig = userSettings.azureDevOps;
-          logger.info(`Retrieved user config for ${userId}`, {
-            hasOrganization: !!userConfig?.organization,
-            hasProject: !!userConfig?.project,
-            hasBaseUrl: !!userConfig?.baseUrl
-          });
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
-        }
-      } else {
-        logger.warn('No userId or organizationId provided - using legacy webhook handler');
+      } catch (error) {
+        logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
+        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+      }
+
+      if (!userSettings) {
+        return res.status(404).json({ error: 'Organization settings not found' });
       }
 
       // Generate AI summary if configured
@@ -131,6 +136,25 @@ class WorkItemWebhook extends BaseWebhook {
 
   async handleUpdated(req, res, userId = null, organizationId = null) {
     try {
+      // STRICT: organizationId is REQUIRED
+      if (!organizationId) {
+        logger.error('Work item updated webhook called without organizationId', {
+          userId,
+          action: 'workitem-updated',
+          status: 'rejected'
+        });
+        return res.status(400).json({
+          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/workitem/updated',
+          code: 'MISSING_ORGANIZATION_ID'
+        });
+      }
+
+      // Validate organization exists and is active
+      const orgValidation = await this.validateOrganization(organizationId, res);
+      if (!orgValidation.valid) {
+        return this.sendOrgValidationError(res, orgValidation);
+      }
+
       const webhookData = req.body;
       const { resource } = webhookData;
       
@@ -169,40 +193,26 @@ class WorkItemWebhook extends BaseWebhook {
         assignedTo,
         changedBy,
         eventType: webhookData.eventType,
-        userId: userId || 'legacy-global',
-        organizationId: organizationId || null,
-        hasUserId: !!userId
+        organizationId
       });
 
-      // Get settings - prefer organization context over user context
+      // Get organization settings with credentials
       let userConfig = null;
       
-      if (organizationId) {
-        try {
-          const { organizationService } = await import('../services/organizationService.js');
-          const org = await organizationService.getOrganizationWithCredentials(organizationId);
-          if (org) {
-            userId = org.userId;
-            userConfig = org.azureDevOps;
-          }
-        } catch (error) {
-          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
+      try {
+        const { organizationService } = await import('../services/organizationService.js');
+        const org = await organizationService.getOrganizationWithCredentials(organizationId);
+        if (org) {
+          userId = org.userId;
+          userConfig = org.azureDevOps;
         }
-      } else if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          const settings = await getUserSettings(userId);
-          userConfig = settings.azureDevOps;
-          logger.info(`Retrieved user config for ${userId}`, {
-            hasOrganization: !!userConfig?.organization,
-            hasProject: !!userConfig?.project,
-            hasBaseUrl: !!userConfig?.baseUrl
-          });
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
-        }
-      } else {
-        logger.warn('No userId or organizationId provided - using legacy webhook handler');
+      } catch (error) {
+        logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
+        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+      }
+
+      if (!userConfig) {
+        logger.warn('No Azure DevOps config found for organization', { organizationId });
       }
 
       // Format notification message with user config for proper URL construction
