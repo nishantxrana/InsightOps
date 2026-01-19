@@ -3,142 +3,247 @@ import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../utils/logger.js';
 import { configLoader } from '../config/settings.js';
+import { metrics } from '../observability/metrics.js';
 
-class AIService {
-  constructor() {
+/**
+ * AI Client - Isolated instance for a specific organization/user
+ * NOT shared across requests - created fresh per request context
+ */
+class AIClient {
+  constructor(config) {
+    this.config = config;
     this.client = null;
-    this.initialized = false;
+    this._initialize();
   }
 
-  initializeClient() {
-    if (this.initialized) return;
-    
-    this.config = configLoader.getAIConfig();
-    
-    if (this.config.provider === 'openai') {
-      if (!this.config.openaiApiKey) {
+  _initialize() {
+    const { provider, openaiApiKey, groqApiKey, geminiApiKey } = this.config;
+
+    if (provider === 'openai') {
+      if (!openaiApiKey) {
         throw new Error('OpenAI API key is required when using OpenAI provider');
       }
-      this.client = new OpenAI({
-        apiKey: this.config.openaiApiKey
-      });
-    } else if (this.config.provider === 'groq') {
-      if (!this.config.groqApiKey) {
+      this.client = new OpenAI({ apiKey: openaiApiKey });
+    } else if (provider === 'groq') {
+      if (!groqApiKey) {
         throw new Error('Groq API key is required when using Groq provider');
       }
-      this.client = new Groq({
-        apiKey: this.config.groqApiKey
-      });
-    } else if (this.config.provider === 'gemini') {
-      if (!this.config.geminiApiKey) {
+      this.client = new Groq({ apiKey: groqApiKey });
+    } else if (provider === 'gemini') {
+      if (!geminiApiKey) {
         throw new Error('Gemini API key is required when using Gemini provider');
       }
-      this.client = new GoogleGenerativeAI(this.config.geminiApiKey);
+      this.client = new GoogleGenerativeAI(geminiApiKey);
     } else {
-      throw new Error(`Unsupported AI provider: ${this.config.provider}`);
+      throw new Error(`Unsupported AI provider: ${provider}`);
     }
-    
-    this.initialized = true;
   }
 
+  async generateCompletion(messages, options = {}) {
+    const defaultOptions = {
+      model: this.config.model,
+      max_tokens: 500,
+      temperature: 0.3
+    };
+
+    const completionOptions = { ...defaultOptions, ...options };
+
+    if (this.config.provider === 'openai') {
+      const response = await this.client.chat.completions.create({
+        ...completionOptions,
+        messages
+      });
+      return response.choices[0].message.content;
+    } else if (this.config.provider === 'groq') {
+      const response = await this.client.chat.completions.create({
+        ...completionOptions,
+        messages
+      });
+      return response.choices[0].message.content;
+    } else if (this.config.provider === 'gemini') {
+      const model = this.client.getGenerativeModel({ model: completionOptions.model });
+      
+      const systemMessage = messages.find(m => m.role === 'system');
+      const userMessage = messages.find(m => m.role === 'user');
+      
+      let prompt = '';
+      if (systemMessage) {
+        prompt += `${systemMessage.content}\n\n`;
+      }
+      if (userMessage) {
+        prompt += userMessage.content;
+      }
+      
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    }
+  }
+}
+
+/**
+ * AI Service - Factory for creating isolated AI clients
+ * 
+ * IMPORTANT: This service does NOT maintain shared state across requests.
+ * Each request that needs AI should call createClientFromSettings() to get
+ * an isolated client instance.
+ * 
+ * For backward compatibility, legacy methods that don't pass settings
+ * will use the global configLoader settings.
+ */
+class AIService {
+  constructor() {
+    // NO shared client state - each request gets its own client
+    // These are only used for legacy backward compatibility
+    this._legacyClient = null;
+    this._legacyInitialized = false;
+  }
+
+  /**
+   * Create an isolated AI client from organization/user settings
+   * This is the PREFERRED method - creates request-scoped client
+   * 
+   * @param {Object} settings - Settings object with ai.provider, ai.model, ai.apiKeys
+   * @returns {AIClient} - Isolated AI client instance
+   */
+  createClientFromSettings(settings) {
+    if (!settings?.ai?.provider) {
+      throw new Error('AI provider is required in settings');
+    }
+
+    const config = {
+      provider: settings.ai.provider,
+      model: settings.ai.model,
+      openaiApiKey: settings.ai.apiKeys?.openai,
+      groqApiKey: settings.ai.apiKeys?.groq,
+      geminiApiKey: settings.ai.apiKeys?.gemini
+    };
+
+    return new AIClient(config);
+  }
+
+  /**
+   * DEPRECATED: Initialize with user settings
+   * This method exists for backward compatibility but stores state temporarily.
+   * New code should use createClientFromSettings() instead.
+   * 
+   * @deprecated Use createClientFromSettings() for proper isolation
+   */
   initializeWithUserSettings(userSettings) {
-    // Force reinitialization even if already initialized
-    this.initialized = false;
-    this.client = null;
-    
-    this.config = {
+    // Create isolated client but store reference for legacy methods
+    // WARNING: This is NOT thread-safe in concurrent environments
+    // The client is replaced on each call, which can cause race conditions
+    logger.warn('DEPRECATED: initializeWithUserSettings called. Use createClientFromSettings() for proper isolation.', {
+      provider: userSettings.ai?.provider
+    });
+
+    const config = {
       provider: userSettings.ai.provider,
       model: userSettings.ai.model,
       openaiApiKey: userSettings.ai.apiKeys?.openai,
       groqApiKey: userSettings.ai.apiKeys?.groq,
       geminiApiKey: userSettings.ai.apiKeys?.gemini
     };
+
+    this._legacyClient = new AIClient(config);
+    this._legacyInitialized = true;
     
-    if (this.config.provider === 'openai') {
-      if (!this.config.openaiApiKey) {
-        throw new Error('OpenAI API key is required when using OpenAI provider');
-      }
-      this.client = new OpenAI({
-        apiKey: this.config.openaiApiKey
-      });
-    } else if (this.config.provider === 'groq') {
-      if (!this.config.groqApiKey) {
-        throw new Error('Groq API key is required when using Groq provider');
-      }
-      this.client = new Groq({
-        apiKey: this.config.groqApiKey
-      });
-    } else if (this.config.provider === 'gemini') {
-      if (!this.config.geminiApiKey) {
-        throw new Error('Gemini API key is required when using Gemini provider');
-      }
-      this.client = new GoogleGenerativeAI(this.config.geminiApiKey);
-    } else {
-      throw new Error(`Unsupported AI provider: ${this.config.provider}`);
-    }
-    
-    this.initialized = true;
-    logger.info(`AI service initialized with user settings - provider: ${this.config.provider}`);
+    logger.info(`AI service initialized with user settings - provider: ${config.provider}`);
   }
 
-  async generateCompletion(messages, options = {}) {
+  /**
+   * LEGACY: Initialize from global config
+   * Only used when no org/user settings are provided
+   */
+  initializeClient() {
+    if (this._legacyInitialized) return;
+    
+    const globalConfig = configLoader.getAIConfig();
+    
+    const config = {
+      provider: globalConfig.provider,
+      model: globalConfig.model,
+      openaiApiKey: globalConfig.openaiApiKey,
+      groqApiKey: globalConfig.groqApiKey,
+      geminiApiKey: globalConfig.geminiApiKey
+    };
+
+    this._legacyClient = new AIClient(config);
+    this._legacyInitialized = true;
+  }
+
+  // Helper to get current client (for legacy methods)
+  _getClient() {
+    if (!this._legacyInitialized) {
+      this.initializeClient();
+    }
+    return this._legacyClient;
+  }
+
+  // Expose initialized state for backward compatibility
+  get initialized() {
+    return this._legacyInitialized;
+  }
+
+  get config() {
+    return this._legacyClient?.config || {};
+  }
+
+  /**
+   * Generate AI completion
+   * For org-isolated calls, pass orgSettings to create fresh client
+   */
+  async generateCompletion(messages, options = {}, orgSettings = null) {
+    const startTime = Date.now();
+    const provider = orgSettings?.ai?.provider || this.config?.provider || 'unknown';
+    
     try {
-      if (!this.initialized) {
-        this.initializeClient();
-      }
+      let client;
       
-      const defaultOptions = {
-        model: this.config.model,
-        max_tokens: 500,
-        temperature: 0.3
-      };
-
-      const completionOptions = { ...defaultOptions, ...options };
-
-      let response;
-      if (this.config.provider === 'openai') {
-        response = await this.client.chat.completions.create({
-          ...completionOptions,
-          messages
-        });
-        return response.choices[0].message.content;
-      } else if (this.config.provider === 'groq') {
-        response = await this.client.chat.completions.create({
-          ...completionOptions,
-          messages
-        });
-        return response.choices[0].message.content;
-      } else if (this.config.provider === 'gemini') {
-        // Gemini uses a different API structure
-        const model = this.client.getGenerativeModel({ model: completionOptions.model });
-        
-        // Convert messages to Gemini format
-        const systemMessage = messages.find(m => m.role === 'system');
-        const userMessage = messages.find(m => m.role === 'user');
-        
-        let prompt = '';
-        if (systemMessage) {
-          prompt += `${systemMessage.content}\n\n`;
-        }
-        if (userMessage) {
-          prompt += userMessage.content;
-        }
-        
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-        return responseText;
+      if (orgSettings) {
+        // Create isolated client for this request
+        client = this.createClientFromSettings(orgSettings);
+      } else {
+        // Fall back to legacy client
+        client = this._getClient();
       }
+
+      const result = await client.generateCompletion(messages, options);
+      
+      // Record success metric
+      const durationMs = Date.now() - startTime;
+      metrics.recordAICall(provider, true, durationMs);
+      
+      return result;
     } catch (error) {
+      // Record failure metric
+      const durationMs = Date.now() - startTime;
+      metrics.recordAICall(provider, false, durationMs);
+      
       logger.error('Error generating AI completion:', error);
       throw error;
     }
   }
 
-  async summarizeWorkItem(workItem) {
+  // Helper method to convert priority number to readable text
+  getPriorityText(priority) {
+    if (!priority) return 'Not set';
+    const priorityMap = {
+      1: 'Critical',
+      2: 'High', 
+      3: 'Medium',
+      4: 'Low'
+    };
+    return priorityMap[priority] || `Priority ${priority}`;
+  }
+
+  async summarizeWorkItem(workItem, orgSettings = null) {
     try {
-      if (!this.initialized) {
+      let client;
+      if (orgSettings) {
+        client = this.createClientFromSettings(orgSettings);
+      } else {
         try {
-          this.initializeClient();
+          client = this._getClient();
         } catch (error) {
           logger.warn('AI service not configured, returning fallback summary');
           return 'AI summarization not available - please configure AI provider in settings.';
@@ -150,7 +255,6 @@ class AIService {
       const workItemType = workItem.fields?.['System.WorkItemType'] || 'Unknown';
       const priority = workItem.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
 
-      // Clean HTML from description
       const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
 
       const messages = [
@@ -183,9 +287,9 @@ Summarize what needs to be done, why it's important, and any key technical or bu
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { 
-        max_tokens: 150,  // Increased for 2-3 sentences
-        temperature: 0.1  // Very low for factual, consistent responses
+      const summary = await client.generateCompletion(messages, { 
+        max_tokens: 150,
+        temperature: 0.1
       });
       
       logger.info('Generated work item summary', {
@@ -202,30 +306,14 @@ Summarize what needs to be done, why it's important, and any key technical or bu
     }
   }
 
-  // Helper method to convert priority number to readable text
-  getPriorityText(priority) {
-    if (!priority) return 'Not set';
-    const priorityMap = {
-      1: 'Critical',
-      2: 'High', 
-      3: 'Medium',
-      4: 'Low'
-    };
-    return priorityMap[priority] || `Priority ${priority}`;
-  }
-
   async explainWorkItem(workItem, userSettings = null) {
     try {
-      if (!this.initialized && userSettings) {
+      let client;
+      if (userSettings) {
+        client = this.createClientFromSettings(userSettings);
+      } else {
         try {
-          this.initializeWithUserSettings(userSettings);
-        } catch (error) {
-          logger.warn('AI service not configured, returning fallback explanation');
-          return 'AI explanation not available - please configure AI provider in settings.';
-        }
-      } else if (!this.initialized) {
-        try {
-          this.initializeClient();
+          client = this._getClient();
         } catch (error) {
           logger.warn('AI service not configured, returning fallback explanation');
           return 'AI explanation not available - please configure AI provider in settings.';
@@ -238,9 +326,7 @@ Summarize what needs to be done, why it's important, and any key technical or bu
       const priority = workItem.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
       const state = workItem.fields?.['System.State'] || 'Unknown';
       const assignee = workItem.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
-      const tags = workItem.fields?.['System.Tags'] || '';
 
-      // Clean HTML from description
       const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
 
       const messages = [
@@ -275,9 +361,9 @@ Provide a concise explanation (3-5 sentences max) based on this data.`
         }
       ];
 
-      const explanation = await this.generateCompletion(messages, { 
-        max_tokens: 500,  // Increased from 200
-        temperature: 0.4  // Very low for factual, consistent responses
+      const explanation = await client.generateCompletion(messages, { 
+        max_tokens: 500,
+        temperature: 0.4
       });
 
       logger.info('Generated work item explanation', {
@@ -296,16 +382,12 @@ Provide a concise explanation (3-5 sentences max) based on this data.`
 
   async explainPullRequest(pullRequest, changes = null, commits = null, userSettings = null) {
     try {
-      if (!this.initialized && userSettings) {
+      let client;
+      if (userSettings) {
+        client = this.createClientFromSettings(userSettings);
+      } else {
         try {
-          this.initializeWithUserSettings(userSettings);
-        } catch (error) {
-          logger.warn('AI service not configured, returning fallback explanation');
-          return 'AI explanation not available - please configure AI provider in settings.';
-        }
-      } else if (!this.initialized) {
-        try {
-          this.initializeClient();
+          client = this._getClient();
         } catch (error) {
           logger.warn('AI service not configured, returning fallback explanation');
           return 'AI analysis not available - please configure AI provider in settings.';
@@ -322,14 +404,12 @@ Provide a concise explanation (3-5 sentences max) based on this data.`
       const reviewers = pullRequest.reviewers || [];
       const workItemRefs = pullRequest.workItemRefs || [];
 
-      // Format changes summary with file analysis
       let changesSummary = 'No file changes available';
       let fileAnalysis = '';
       
       if (changes?.changeEntries && changes.changeEntries.length > 0) {
         const summary = changes.summary || {};
         
-        // Create detailed file analysis
         const filesByType = summary.fileTypes || {};
         const fileTypeAnalysis = Object.entries(filesByType)
           .map(([type, count]) => `${count} ${type} file${count !== 1 ? 's' : ''}`)
@@ -342,7 +422,6 @@ Provide a concise explanation (3-5 sentences max) based on this data.`
 
 File types: ${fileTypeAnalysis || 'Mixed files'}`;
 
-        // List key files for context
         const keyFiles = changes.changeEntries
           .filter(c => !c.isFolder)
           .slice(0, 10)
@@ -354,7 +433,6 @@ File types: ${fileTypeAnalysis || 'Mixed files'}`;
         }
       }
 
-      // Format commits summary
       let commitsSummary = 'No commit information available';
       if (commits?.value && commits.value.length > 0) {
         const commitMessages = commits.value
@@ -365,14 +443,12 @@ File types: ${fileTypeAnalysis || 'Mixed files'}`;
         commitsSummary = `${commits.value.length} commit${commits.value.length !== 1 ? 's' : ''}:\n${commitMessages}`;
       }
 
-      // Format reviewers info
       let reviewerInfo = '';
       if (reviewers.length > 0) {
         const reviewerNames = reviewers.map(r => r.displayName).join(', ');
         reviewerInfo = `\nReviewers: ${reviewerNames}`;
       }
 
-      // Format work items info
       let workItemInfo = '';
       if (workItemRefs.length > 0) {
         workItemInfo = `\nLinked work items: ${workItemRefs.length} item${workItemRefs.length !== 1 ? 's' : ''}`;
@@ -416,7 +492,7 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
         }
       ];
 
-      const explanation = await this.generateCompletion(messages, { 
+      const explanation = await client.generateCompletion(messages, { 
         max_tokens: 500,
         temperature: 0.3
       });
@@ -435,11 +511,14 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
     }
   }
 
-  async summarizeBuildFailure(build, timeline, logs, userClient = null) {
+  async summarizeBuildFailure(build, timeline, logs, userClient = null, orgSettings = null) {
     try {
-      if (!this.initialized) {
+      let aiClient;
+      if (orgSettings) {
+        aiClient = this.createClientFromSettings(orgSettings);
+      } else {
         try {
-          this.initializeClient();
+          aiClient = this._getClient();
         } catch (error) {
           logger.warn('AI service not configured, returning fallback summary');
           return 'AI analysis not available - please configure AI provider in settings.';
@@ -448,18 +527,15 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
       
       const buildName = build.definition?.name || 'Unknown Build';
       const buildNumber = build.buildNumber || 'Unknown';
-      const result = build.result || 'Unknown';
       
-      // Handle PR branches - fallback to master since pipeline YAML rarely changes
       let sourceBranch = build.sourceBranch || 'Unknown';
       if (sourceBranch.includes('refs/pull/')) {
-        sourceBranch = 'master'; // Fallback to master for PR builds
+        sourceBranch = 'master';
         logger.info(`PR build detected, using master branch for YAML analysis instead of ${build.sourceBranch}`);
       } else {
         sourceBranch = sourceBranch.replace('refs/heads/', '');
       }
       
-      // Extract relevant error information from timeline
       const failedJobs = timeline?.records?.filter(record => 
         record.result === 'failed' || record.result === 'canceled'
       ) || [];
@@ -470,7 +546,6 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
         return `${jobName}: ${issues}`;
       }).join('\n');
 
-      // Try to get pipeline definition to determine type and fetch YAML if applicable
       let pipelineContent = '';
       let pipelineType = 'classic';
       let pipelineAnalysisNote = '';
@@ -479,7 +554,6 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
         if (build.definition?.id && userClient) {
           const definition = await userClient.getBuildDefinition(build.definition.id);
           
-          // Check if it's YAML pipeline (type 2) or classic (type 1)
           if (definition.process?.type === 2 && definition.process?.yamlFilename) {
             pipelineType = 'yaml';
             const yamlPath = definition.process.yamlFilename;
@@ -509,11 +583,9 @@ Provide a comprehensive analysis of what this PR accomplishes, the technical app
         pipelineAnalysisNote = `Unable to fetch build definition. Analysis limited to timeline data.`;
       }
 
-      // Create focused prompts based on pipeline type
       let systemPrompt, userPrompt;
 
       if (pipelineType === 'classic') {
-        // Classic pipeline: Focus only on timeline errors with general solutions
         systemPrompt = `You are a DevOps build failure analyzer for classic Azure DevOps pipelines.
 
 FORMATTING RULES:
@@ -542,7 +614,6 @@ Timeline Errors: ${errorMessages || 'No specific error details available from ti
 Explain the likely cause based on the timeline errors and provide general troubleshooting steps for classic pipeline configuration. Write in flowing paragraphs without section headers.`;
 
       } else if (pipelineType === 'yaml' && pipelineContent) {
-        // YAML pipeline with content: Use both timeline and YAML for specific solutions
         systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
 
 FORMATTING RULES:
@@ -578,7 +649,6 @@ ${pipelineContent}
 Cross-reference the timeline errors with the YAML configuration to identify the specific issue and provide exact YAML fixes needed. Write in flowing paragraphs without section headers.`;
 
       } else {
-        // YAML pipeline without content: Timeline errors only with YAML guidance
         systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
 
 FORMATTING RULES:
@@ -607,32 +677,22 @@ Note: ${pipelineAnalysisNote}
 Explain the likely cause based on timeline errors and suggest what to check in the YAML pipeline configuration. Write in flowing paragraphs without section headers.`;
       }
 
-      // Log what we're sending to AI
       logger.info('AI Prompt being sent:', {
         systemPrompt,
         userPrompt
       });
 
       const messages = [
-        {
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: userPrompt
-        }
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
       ];
 
-      const summary = await this.generateCompletion(messages, { 
+      const summary = await aiClient.generateCompletion(messages, { 
         max_tokens: 1000,
         temperature: 0.1
       });
       
-      // Log what we got back from AI
-      logger.info('AI Response received:', {
-        response: summary
-      });
+      logger.info('AI Response received:', { response: summary });
       
       logger.info('Build failure analysis completed', {
         buildId: build.id,
@@ -654,11 +714,14 @@ Explain the likely cause based on timeline errors and suggest what to check in t
     }
   }
 
-  async summarizePullRequest(pullRequest) {
+  async summarizePullRequest(pullRequest, orgSettings = null) {
     try {
-      if (!this.initialized) {
+      let client;
+      if (orgSettings) {
+        client = this.createClientFromSettings(orgSettings);
+      } else {
         try {
-          this.initializeClient();
+          client = this._getClient();
         } catch (error) {
           logger.warn('AI service not configured, returning fallback summary');
           return 'AI summarization not available - please configure AI provider in settings.';
@@ -703,9 +766,9 @@ Summarize what type of change this is, what specific functionality is affected, 
         }
       ];
 
-      const summary = await this.generateCompletion(messages, { 
-        max_tokens: 120,  // Slightly reduced for more focused output
-        temperature: 0.2  // Slightly higher for more natural language
+      const summary = await client.generateCompletion(messages, { 
+        max_tokens: 120,
+        temperature: 0.2
       });
       
       logger.info('Generated pull request summary', {
@@ -723,22 +786,24 @@ Summarize what type of change this is, what specific functionality is affected, 
     }
   }
 
-  async summarizeSprintWorkItems(workItems) {
+  async summarizeSprintWorkItems(workItems, orgSettings = null) {
     try {
       if (!workItems || workItems.length === 0) {
         return 'No work items found in the current sprint.';
       }
 
-      if (!this.initialized) {
+      let client;
+      if (orgSettings) {
+        client = this.createClientFromSettings(orgSettings);
+      } else {
         try {
-          this.initializeClient();
+          client = this._getClient();
         } catch (error) {
           logger.warn('AI service not configured, returning fallback message');
           return 'AI insights not available - please configure AI provider in settings.';
         }
       }
 
-      // Group work items by state and assignee for analysis (not for display)
       const groupedItems = workItems.reduce((acc, item) => {
         const state = item.fields?.['System.State'] || 'Unknown';
         const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
@@ -756,7 +821,6 @@ Summarize what type of change this is, what specific functionality is affected, 
         return acc;
       }, {});
 
-      // Create data summary for AI analysis (internal use only)
       const dataSummary = Object.entries(groupedItems).map(([state, assignees]) => {
         const assigneeSummary = Object.entries(assignees).map(([assignee, items]) => {
           return `${assignee}: ${items.length} items (${items.map(i => `${i.type} #${i.id}`).join(', ')})`;
@@ -765,16 +829,13 @@ Summarize what type of change this is, what specific functionality is affected, 
         return `${state} (${Object.values(assignees).flat().length} items): ${assigneeSummary}`;
       }).join('\n');
 
-      // Calculate key metrics for AI analysis
       const totalItems = workItems.length;
-      const completedStates = ['Closed', 'Removed', 'Released to Production'];
       const activeStates = workItems.filter(item => {
         const state = item.fields?.['System.State'];
         return state && !['Defined', 'New', 'Closed', 'Blocked', 'Paused', 'Removed', 'Released to Production'].includes(state);
       });
       const unassignedItems = workItems.filter(item => !item.fields?.['System.AssignedTo']?.displayName);
       
-      // Get unique assignees and their workloads
       const assigneeWorkloads = {};
       workItems.forEach(item => {
         const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
@@ -833,7 +894,7 @@ Do NOT repeat the raw data - focus on analysis and actionable insights only.`
         }
       ];
 
-      const aiInsights = await this.generateCompletion(messages, { 
+      const aiInsights = await client.generateCompletion(messages, { 
         max_tokens: 800,
         temperature: 0.3 
       });
@@ -853,8 +914,15 @@ Do NOT repeat the raw data - focus on analysis and actionable insights only.`
     }
   }
 
-  async analyzeReleaseFailure(release, failedTasks) {
+  async analyzeReleaseFailure(release, failedTasks, orgSettings = null) {
     try {
+      let client;
+      if (orgSettings) {
+        client = this.createClientFromSettings(orgSettings);
+      } else {
+        client = this._getClient();
+      }
+
       const tasksSummary = failedTasks.map(task => {
         const logPreview = task.logContent.length > 2000 
           ? task.logContent.slice(-2000) 
@@ -888,7 +956,7 @@ Explain in simple terms why this release failed. Focus on the root cause and wha
         }
       ];
 
-      const analysis = await this.generateCompletion(messages, {
+      const analysis = await client.generateCompletion(messages, {
         max_tokens: 500,
         temperature: 0.3
       });

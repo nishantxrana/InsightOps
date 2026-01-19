@@ -9,13 +9,20 @@ const api = axios.create({
   }
 })
 
-// Request interceptor for adding auth token
+// Request interceptor for adding auth token and organization context
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    
+    // Add organization context header
+    const currentOrgId = localStorage.getItem('currentOrganizationId')
+    if (currentOrgId) {
+      config.headers['X-Organization-ID'] = currentOrgId
+    }
+    
     return config
   },
   (error) => {
@@ -23,22 +30,46 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor for handling errors
+// Response interceptor for handling errors with user-friendly messages
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.code === 'ECONNABORTED') {
-      console.error('Request timeout - server took too long to respond')
-      throw new Error('Request timeout - please try again')
+    const status = error.response?.status
+    const errorData = error.response?.data
+    
+    // Create user-friendly error messages
+    let userMessage = 'Something went wrong. Please try again.'
+    
+    if (error.code === 'ECONNABORTED' || status === 504) {
+      userMessage = 'Request timed out. Please check your connection and try again.'
+    } else if (status === 400) {
+      // Bad request - usually missing org or invalid input
+      if (errorData?.code === 'MISSING_ORGANIZATION_ID') {
+        userMessage = 'Please select an organization to continue.'
+      } else {
+        userMessage = errorData?.error || 'Invalid request. Please check your input.'
+      }
+    } else if (status === 401) {
+      // Unauthorized - session expired
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      localStorage.removeItem('currentOrganizationId')
+      window.location.href = '/signin'
+      userMessage = 'Your session has expired. Please sign in again.'
+    } else if (status === 403) {
+      userMessage = 'You don\'t have permission to perform this action.'
+    } else if (status === 410) {
+      // Gone - organization deactivated
+      userMessage = errorData?.error || 'This resource is no longer available.'
+    } else if (status === 429) {
+      userMessage = 'Too many requests. Please wait a moment and try again.'
+    } else if (status >= 500) {
+      userMessage = 'Server error. Our team has been notified. Please try again later.'
     }
-    if (error.response?.status === 504) {
-      throw new Error('Server timeout - please try again')
-    }
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      localStorage.removeItem('apiToken')
-      window.location.href = '/settings'
-    }
+    
+    // Attach user-friendly message to error
+    error.userMessage = userMessage
+    
     return Promise.reject(error)
   }
 )
@@ -48,6 +79,13 @@ export const apiService = {
   // Health check
   async getHealth() {
     const response = await api.get('/health')
+    return response.data
+  },
+
+  // Aggregated Dashboard Summary (performance optimized)
+  // Fetches all dashboard data in a single request
+  async getDashboardSummary() {
+    const response = await api.get('/dashboard/summary')
     return response.data
   },
 

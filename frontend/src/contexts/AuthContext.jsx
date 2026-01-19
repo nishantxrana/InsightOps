@@ -85,9 +85,13 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       const errorData = error.response?.data;
+      // Handle both string errors and object errors from error handler
+      const errorMessage = typeof errorData?.error === 'object' 
+        ? errorData.error.message 
+        : errorData?.error;
       return { 
         success: false, 
-        error: errorData?.error || 'Login failed',
+        error: errorMessage || 'Login failed',
         details: errorData?.details || null
       };
     }
@@ -110,9 +114,13 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       const errorData = error.response?.data;
+      // Handle both string errors and object errors from error handler
+      const errorMessage = typeof errorData?.error === 'object' 
+        ? errorData.error.message 
+        : errorData?.error;
       return { 
         success: false, 
-        error: errorData?.error || 'Signup failed',
+        error: errorMessage || 'Signup failed',
         details: errorData?.details || null
       };
     }
