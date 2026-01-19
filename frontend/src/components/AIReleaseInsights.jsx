@@ -31,8 +31,7 @@ const AIReleaseInsights = ({ enabled = false, onToggle }) => {
         setAnalysis(response.data);
       }
     } catch (err) {
-      console.error('Failed to load AI analysis:', err);
-      setError('Failed to generate AI insights. Please try again.');
+      setError(err.userMessage || 'AI insights temporarily unavailable. Please try again.');
     } finally {
       setLoading(false);
     }

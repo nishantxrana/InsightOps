@@ -3,6 +3,7 @@ import { mongoVectorStore } from './MongoVectorStore.js';
 
 /**
  * Context Manager - Builds context for AI queries from memories
+ * All operations are scoped by organizationId for multi-tenant isolation
  */
 class ContextManager {
   constructor() {
@@ -11,17 +12,23 @@ class ContextManager {
 
   /**
    * Build context for a task
+   * @param {Object} task - Task object (should include organizationId for multi-tenant)
+   * @param {Object} options - Context building options
    */
   async buildContext(task, options = {}) {
     const {
       maxMemories = 5,
       includeMetadata = true,
-      filterType = null
+      filterType = null,
+      organizationId = null
     } = options;
 
+    // Get organizationId from options, task, or task.data
+    const orgId = organizationId || task.organizationId || task.data?.organizationId || null;
+
     try {
-      // Get relevant memories
-      const memories = await this.retrieveRelevant(task.description || task.data, maxMemories);
+      // Get relevant memories (scoped to organization)
+      const memories = await this.retrieveRelevant(task.description || task.data, maxMemories, orgId);
 
       // Filter by type if specified
       const filtered = filterType
@@ -33,6 +40,7 @@ class ContextManager {
 
       logger.debug('Context built', {
         taskType: task.type,
+        organizationId: orgId,
         memoriesFound: filtered.length,
         contextLength: context.length
       });
@@ -53,11 +61,14 @@ class ContextManager {
   }
 
   /**
-   * Retrieve relevant memories
+   * Retrieve relevant memories - scoped to organization
+   * @param {string} query - Search query
+   * @param {number} limit - Max results
+   * @param {string} organizationId - Required for multi-tenant isolation
    */
-  async retrieveRelevant(query, limit = 5) {
+  async retrieveRelevant(query, limit = 5, organizationId = null) {
     try {
-      const results = await mongoVectorStore.searchSimilar(query, limit);
+      const results = await mongoVectorStore.searchSimilar(query, organizationId, limit);
       return results;
     } catch (error) {
       logger.error('Failed to retrieve memories:', error);
@@ -98,12 +109,17 @@ class ContextManager {
   }
 
   /**
-   * Store new memory
+   * Store new memory - scoped to organization
+   * @param {string} content - Content to store
+   * @param {Object} metadata - Additional metadata
+   * @param {string} organizationId - Required for multi-tenant isolation
    */
-  async storeMemory(content, metadata = {}) {
+  async storeMemory(content, metadata = {}, organizationId = null) {
     try {
-      const memory = await mongoVectorStore.store(content, metadata);
-      logger.debug('Memory stored', { id: memory._id });
+      const memory = await mongoVectorStore.store(content, metadata, organizationId);
+      if (memory) {
+        logger.debug('Memory stored', { id: memory._id, organizationId });
+      }
       return memory;
     } catch (error) {
       logger.error('Failed to store memory:', error);
@@ -112,9 +128,15 @@ class ContextManager {
   }
 
   /**
-   * Store task outcome as memory
+   * Store task outcome as memory - scoped to organization
+   * @param {Object} task - The task that was executed
+   * @param {Object} result - The result of the execution
+   * @param {string} organizationId - Required for multi-tenant isolation
    */
-  async storeTaskOutcome(task, result) {
+  async storeTaskOutcome(task, result, organizationId = null) {
+    // Get organizationId from parameter, task, or task.data
+    const orgId = organizationId || task.organizationId || task.data?.organizationId || null;
+    
     const content = this.formatTaskOutcome(task, result);
     const metadata = {
       type: task.type,
@@ -123,7 +145,7 @@ class ContextManager {
       timestamp: new Date()
     };
 
-    return await this.storeMemory(content, metadata);
+    return await this.storeMemory(content, metadata, orgId);
   }
 
   /**
@@ -150,17 +172,20 @@ class ContextManager {
   }
 
   /**
-   * Get context statistics
+   * Get context statistics - optionally scoped to organization
+   * @param {string} organizationId - If provided, stats for this org only
    */
-  async getStats() {
-    return await mongoVectorStore.getStats();
+  async getStats(organizationId = null) {
+    return await mongoVectorStore.getStats(organizationId);
   }
 
   /**
-   * Cleanup old memories
+   * Cleanup old memories - optionally scoped to organization
+   * @param {number} olderThanDays - Days threshold
+   * @param {string} organizationId - If provided, cleanup only for this org
    */
-  async cleanup(olderThanDays = 30) {
-    return await mongoVectorStore.cleanup(olderThanDays);
+  async cleanup(olderThanDays = 30, organizationId = null) {
+    return await mongoVectorStore.cleanup(olderThanDays, organizationId);
   }
 }
 

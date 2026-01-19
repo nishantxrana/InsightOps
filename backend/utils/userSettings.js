@@ -126,13 +126,11 @@ export const updateUserSettings = async (userId, updates) => {
   }
   
   if (updates.polling) {
-    console.log('Updating polling settings:', updates.polling);
     // Ensure polling object exists
     if (!settings.polling) {
       settings.polling = {};
     }
     settings.polling = { ...settings.polling, ...updates.polling };
-    console.log('Final polling settings:', settings.polling);
     
     // Start/restart user-specific polling jobs
     const { userPollingManager } = await import('../polling/userPollingManager.js');

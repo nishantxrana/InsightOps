@@ -7,8 +7,27 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 import BaseWebhook from './BaseWebhook.js';
 
 class PullRequestWebhook extends BaseWebhook {
-  async handleCreated(req, res, userId = null) {
+  async handleCreated(req, res, userId = null, organizationId = null) {
     try {
+      // STRICT: organizationId is REQUIRED
+      if (!organizationId) {
+        logger.error('Pull request webhook called without organizationId', {
+          userId,
+          action: 'pullrequest-created',
+          status: 'rejected'
+        });
+        return res.status(400).json({
+          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/pullrequest/created',
+          code: 'MISSING_ORGANIZATION_ID'
+        });
+      }
+
+      // Validate organization exists and is active
+      const orgValidation = await this.validateOrganization(organizationId, res);
+      if (!orgValidation.valid) {
+        return this.sendOrgValidationError(res, orgValidation);
+      }
+
       const { resource } = req.body;
       
       if (!resource) {
@@ -18,7 +37,7 @@ class PullRequestWebhook extends BaseWebhook {
       const pullRequestId = resource.pullRequestId;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(pullRequestId, userId, 'pullrequest');
+      const dupeCheck = this.isDuplicate(pullRequestId, organizationId, 'pullrequest');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(pullRequestId, 'pullrequest', dupeCheck.timeSince));
       }
@@ -36,28 +55,28 @@ class PullRequestWebhook extends BaseWebhook {
         sourceBranch,
         targetBranch,
         reviewers,
-        userId: userId || 'legacy-global',
-        hasUserId: !!userId
+        organizationId
       });
 
-      // Get user settings for URL construction and AI
+      // Get organization settings with credentials
       let userConfig = null;
       let userSettings = null;
-      if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          userSettings = await getUserSettings(userId);
-          userConfig = userSettings.azureDevOps;
-          logger.info(`Retrieved user config for ${userId}`, {
-            hasOrganization: !!userConfig?.organization,
-            hasProject: !!userConfig?.project,
-            hasBaseUrl: !!userConfig?.baseUrl
-          });
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
+      
+      try {
+        const { organizationService } = await import('../services/organizationService.js');
+        const org = await organizationService.getOrganizationWithCredentials(organizationId);
+        if (org) {
+          userId = org.userId;
+          userConfig = org.azureDevOps;
+          userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
         }
-      } else {
-        logger.warn('No userId provided - using legacy webhook handler');
+      } catch (error) {
+        logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
+        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+      }
+
+      if (!userSettings) {
+        return res.status(404).json({ error: 'Organization settings not found' });
       }
 
       // Generate AI summary if configured
@@ -76,7 +95,7 @@ class PullRequestWebhook extends BaseWebhook {
       
       // Send notification
       if (userId) {
-        await this.sendUserNotification(card, userId, resource, aiSummary);
+        await this.sendUserNotification(card, userId, organizationId, resource, aiSummary);
       } else {
         await notificationService.sendNotification(card, 'pull-request-created');
       }
@@ -107,13 +126,30 @@ class PullRequestWebhook extends BaseWebhook {
     return resource?.reviewers?.map(r => r.displayName) || [];
   }
 
-  async sendUserNotification(card, userId, pr, aiSummary) {
+  async sendUserNotification(card, userId, organizationId, pr, aiSummary) {
     try {
-      const { getUserSettings } = await import('../utils/userSettings.js');
-      const settings = await getUserSettings(userId);
+      // Get notification settings - prefer org settings over user settings
+      let settings;
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            settings = { notifications: org.notifications };
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
+        }
+      }
+      
+      // Fall back to user settings if org settings not available
+      if (!settings) {
+        const { getUserSettings } = await import('../utils/userSettings.js');
+        settings = await getUserSettings(userId);
+      }
       
       if (!settings.notifications?.enabled) {
-        logger.info(`Notifications disabled for user ${userId}`);
+        logger.info(`Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`);
         return;
       }
 
@@ -141,27 +177,35 @@ class PullRequestWebhook extends BaseWebhook {
         }
       }
 
-      const prUrl = pr._links?.web?.href || 
-                    (userConfig?.organization && pr.repository?.project?.name ? 
-                     `${userConfig.baseUrl || 'https://dev.azure.com'}/${userConfig.organization}/${encodeURIComponent(pr.repository.project.name)}/_git/${encodeURIComponent(pr.repository?.name)}/pullrequest/${pr.pullRequestId}` : 
-                     null);
+      const prUrl = pr._links?.web?.href || null;
 
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'pull-request',
-        subType: 'created',
-        title: `PR: ${pr.title}`,
-        message: `Pull request created by ${pr.createdBy?.displayName}`,
-        source: 'webhook',
-        metadata: {
-          pullRequestId: pr.pullRequestId,
-          repository: pr.repository?.name,
-          sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
-          targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
-          createdBy: pr.createdBy?.displayName,
-          url: prUrl
-        },
-        channels
-      });
+      // Save notification with organizationId if available
+      if (organizationId) {
+        try {
+          logger.info(`📝 [NOTIFICATION] Saving PR notification to history for org ${organizationId}, userId: ${userId}`);
+          await notificationHistoryService.saveNotification(userId, organizationId, {
+            type: 'pull-request',
+            subType: 'created',
+            title: `PR: ${pr.title}`,
+            message: `Pull request created by ${pr.createdBy?.displayName}`,
+            source: 'webhook',
+            metadata: {
+              pullRequestId: pr.pullRequestId,
+              repository: pr.repository?.name,
+              sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
+              targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
+              createdBy: pr.createdBy?.displayName,
+              url: prUrl
+            },
+            channels
+          });
+          logger.info(`✅ [NOTIFICATION] Saved PR notification to history for org ${organizationId}`);
+        } catch (historyError) {
+          logger.error(`❌ [NOTIFICATION] Failed to save PR notification to history for org ${organizationId}:`, historyError);
+        }
+      } else {
+        logger.warn(`⚠️ [NOTIFICATION] Skipping PR notification history save - no organizationId provided`);
+      }
 
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);

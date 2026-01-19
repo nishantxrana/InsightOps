@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
 import { getWiqlExcludeCompletedCondition } from '../utils/workItemStates.js';
+import { metrics } from '../observability/metrics.js';
 
 class AzureDevOpsClient {
   constructor() {
@@ -33,6 +34,34 @@ class AzureDevOpsClient {
       },
       timeout: 30000
     });
+
+    // Add metrics interceptors
+    const addMetricsInterceptor = (axiosInstance) => {
+      axiosInstance.interceptors.response.use(
+        (response) => {
+          metrics.recordAzureDevOpsCall(response.config.url, true, response.status);
+          return response;
+        },
+        (error) => {
+          const status = error.response?.status || 0;
+          metrics.recordAzureDevOpsCall(error.config?.url || 'unknown', false, status);
+          
+          // Log rate limiting
+          if (status === 429) {
+            logger.warn('Azure DevOps rate limit hit', {
+              component: 'azure-devops-client',
+              url: error.config?.url,
+              retryAfter: error.response?.headers?.['retry-after']
+            });
+          }
+          
+          return Promise.reject(error);
+        }
+      );
+    };
+    
+    addMetricsInterceptor(client);
+    addMetricsInterceptor(orgClient);
 
     return new UserAzureDevOpsClient(client, orgClient, userConfig);
   }

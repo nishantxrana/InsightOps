@@ -43,12 +43,13 @@ class LearningScheduler {
       }
     });
 
-    // Cleanup old patterns monthly on 1st at 5 AM
+    // Cleanup old patterns monthly on 1st at 5 AM (all organizations)
     const cleanupJob = cron.schedule('0 5 1 * *', async () => {
-      logger.info('Running scheduled pattern cleanup');
+      logger.info('Running scheduled pattern cleanup for all organizations');
       try {
-        const cleaned = await patternTracker.cleanup(90);
-        logger.info(`Cleaned up ${cleaned} old patterns`);
+        // Cleanup patterns without org filter (admin-level cleanup for all)
+        const cleaned = await patternTracker.cleanup(90, null);
+        logger.info(`Cleaned up ${cleaned} old patterns across all organizations`);
       } catch (error) {
         logger.error('Pattern cleanup failed:', error);
       }

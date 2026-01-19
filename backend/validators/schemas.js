@@ -63,9 +63,13 @@ export const settingsSchema = z.object({
 });
 
 // Azure DevOps test connection schema
+// Note: Validation is now done inline in the route handler to support both 'pat' and 'personalAccessToken'
 export const testConnectionSchema = z.object({
   organization: z.string().min(1).max(100),
   project: z.string().min(1).max(100),
-  pat: z.string().min(20).max(200),
-  baseUrl: z.string().url()
+  pat: z.string().min(20).max(200).optional(),
+  personalAccessToken: z.string().min(20).max(200).optional(),
+  baseUrl: z.string().url().optional()
+}).refine(data => data.pat || data.personalAccessToken, {
+  message: 'Either pat or personalAccessToken is required'
 });

@@ -1,44 +1,83 @@
 import { logger } from '../utils/logger.js';
 import { ruleEngine } from '../agents/RuleEngine.js';
 import { patternTracker } from './PatternTracker.js';
+import { Organization } from '../models/Organization.js';
 
 /**
  * Rule Generator - Automatically generates rules from learned patterns
+ * Rules are generated per-organization for multi-tenant isolation
  */
 class RuleGenerator {
   constructor() {
-    this.generatedRules = new Set();
+    // Per-organization generated rules: Map<organizationId, Set<ruleId>>
+    this.generatedRulesByOrg = new Map();
   }
 
   /**
-   * Generate rules from high-confidence patterns
+   * Get or create rules set for an organization
+   */
+  getGeneratedRulesForOrg(organizationId) {
+    if (!this.generatedRulesByOrg.has(organizationId)) {
+      this.generatedRulesByOrg.set(organizationId, new Set());
+    }
+    return this.generatedRulesByOrg.get(organizationId);
+  }
+
+  /**
+   * Generate rules from high-confidence patterns for all organizations
    */
   async generateRules(minConfidence = 0.85, minSuccessCount = 5) {
     try {
-      const patterns = await patternTracker.getPatterns(null, minConfidence);
+      // Get all active organizations
+      const organizations = await Organization.find({ isActive: true }).select('_id name').lean();
+      
+      let totalGenerated = 0;
+      
+      for (const org of organizations) {
+        const generated = await this.generateRulesForOrg(org._id.toString(), minConfidence, minSuccessCount);
+        totalGenerated += generated;
+      }
+      
+      logger.info(`Generated ${totalGenerated} new rules across ${organizations.length} organizations`);
+      return totalGenerated;
+    } catch (error) {
+      logger.error('Failed to generate rules:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Generate rules for a specific organization
+   */
+  async generateRulesForOrg(organizationId, minConfidence = 0.85, minSuccessCount = 5) {
+    try {
+      const patterns = await patternTracker.getPatterns(organizationId, null, minConfidence);
+      const generatedRules = this.getGeneratedRulesForOrg(organizationId);
       
       let generated = 0;
       
       for (const pattern of patterns) {
         if (pattern.successCount >= minSuccessCount) {
-          const ruleId = `learned-${pattern.signature.substring(0, 30)}`;
+          // Include orgId in ruleId for uniqueness
+          const ruleId = `learned-${organizationId}-${pattern.signature.substring(0, 30)}`;
           
           // Skip if already generated
-          if (this.generatedRules.has(ruleId)) {
+          if (generatedRules.has(ruleId)) {
             continue;
           }
           
           // Generate rule
-          const rule = this.createRule(pattern, ruleId);
+          const rule = this.createRule(pattern, ruleId, organizationId);
           
           if (rule) {
             try {
               ruleEngine.addRule(rule);
-              this.generatedRules.add(ruleId);
+              generatedRules.add(ruleId);
               generated++;
               
               logger.info('Generated rule from pattern', {
                 ruleId,
+                organizationId,
                 confidence: pattern.confidence,
                 successCount: pattern.successCount
               });
@@ -49,10 +88,12 @@ class RuleGenerator {
         }
       }
       
-      logger.info(`Generated ${generated} new rules from patterns`);
+      if (generated > 0) {
+        logger.info(`Generated ${generated} new rules for org ${organizationId}`);
+      }
       return generated;
     } catch (error) {
-      logger.error('Failed to generate rules:', error);
+      logger.error(`Failed to generate rules for org ${organizationId}:`, error);
       return 0;
     }
   }
@@ -60,7 +101,7 @@ class RuleGenerator {
   /**
    * Create rule from pattern
    */
-  createRule(pattern, ruleId) {
+  createRule(pattern, ruleId, organizationId = null) {
     try {
       // Extract keywords for pattern matching
       const keywords = pattern.pattern.split(' ').filter(k => k.length > 2);
@@ -74,6 +115,7 @@ class RuleGenerator {
       
       return {
         id: ruleId,
+        organizationId,
         category: pattern.category || pattern.type,
         pattern: new RegExp(regexPattern, 'i'),
         action: this.extractAction(pattern.solution),
@@ -111,39 +153,41 @@ class RuleGenerator {
   }
 
   /**
-   * Review and update rules based on performance
+   * Review and update rules based on performance for all organizations
    */
   async reviewRules() {
     try {
       const ruleStats = ruleEngine.getStats();
-      let updated = 0;
+      let totalUpdated = 0;
       
-      // Check each learned rule
-      for (const ruleId of this.generatedRules) {
-        const rule = ruleEngine.getRule(ruleId);
-        if (!rule) continue;
-        
-        const hits = ruleStats.ruleHits[ruleId] || 0;
-        
-        // If rule is being used, boost confidence
-        if (hits > 5) {
-          ruleEngine.updateConfidence(ruleId, true);
-          updated++;
-        }
-        
-        // If rule has low confidence and no hits, consider removing
-        if (rule.confidence < 0.6 && hits === 0) {
-          ruleEngine.disableRule(ruleId);
-          this.generatedRules.delete(ruleId);
-          logger.info(`Disabled low-performing rule: ${ruleId}`);
+      // Check each organization's learned rules
+      for (const [organizationId, generatedRules] of this.generatedRulesByOrg) {
+        for (const ruleId of generatedRules) {
+          const rule = ruleEngine.getRule(ruleId);
+          if (!rule) continue;
+          
+          const hits = ruleStats.ruleHits[ruleId] || 0;
+          
+          // If rule is being used, boost confidence
+          if (hits > 5) {
+            ruleEngine.updateConfidence(ruleId, true);
+            totalUpdated++;
+          }
+          
+          // If rule has low confidence and no hits, consider removing
+          if (rule.confidence < 0.6 && hits === 0) {
+            ruleEngine.disableRule(ruleId);
+            generatedRules.delete(ruleId);
+            logger.info(`Disabled low-performing rule: ${ruleId}`, { organizationId });
+          }
         }
       }
       
-      if (updated > 0) {
-        logger.info(`Updated ${updated} rule confidences`);
+      if (totalUpdated > 0) {
+        logger.info(`Updated ${totalUpdated} rule confidences across all organizations`);
       }
       
-      return updated;
+      return totalUpdated;
     } catch (error) {
       logger.error('Failed to review rules:', error);
       return 0;
@@ -154,9 +198,18 @@ class RuleGenerator {
    * Get statistics
    */
   getStats() {
+    let totalRules = 0;
+    const rulesByOrg = {};
+    
+    for (const [organizationId, generatedRules] of this.generatedRulesByOrg) {
+      rulesByOrg[organizationId] = generatedRules.size;
+      totalRules += generatedRules.size;
+    }
+    
     return {
-      generatedRules: this.generatedRules.size,
-      ruleIds: Array.from(this.generatedRules)
+      totalGeneratedRules: totalRules,
+      organizationCount: this.generatedRulesByOrg.size,
+      rulesByOrg
     };
   }
 }

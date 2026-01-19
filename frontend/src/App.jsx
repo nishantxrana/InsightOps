@@ -15,7 +15,49 @@ import SignUp from './pages/SignUp'
 import { HealthProvider } from './contexts/HealthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { OrganizationProvider, useOrganization } from './contexts/OrganizationContext'
 import { Toaster } from './components/ui/toaster'
+
+function AuthenticatedApp() {
+  const { needsSetup, loading } = useOrganization();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-foreground">Loading organizations...</div>
+      </div>
+    );
+  }
+
+  // If user needs to set up their first organization, redirect to settings
+  if (needsSetup) {
+    return (
+      <Layout>
+        <Routes>
+          <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/settings?setup=true" replace />} />
+        </Routes>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/work-items" element={<WorkItems />} />
+        <Route path="/pipelines" element={<Pipelines />} />
+        <Route path="/releases" element={<Releases />} />
+        <Route path="/pull-requests" element={<PullRequests />} />
+        <Route path="/logs" element={<Logs />} />
+        <Route path="/notifications" element={<NotificationHistory />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Layout>
+  );
+}
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -40,20 +82,9 @@ function AppContent() {
   }
 
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/work-items" element={<WorkItems />} />
-        <Route path="/pipelines" element={<Pipelines />} />
-        <Route path="/releases" element={<Releases />} />
-        <Route path="/pull-requests" element={<PullRequests />} />
-        <Route path="/logs" element={<Logs />} />
-        <Route path="/notifications" element={<NotificationHistory />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Layout>
+    <OrganizationProvider>
+      <AuthenticatedApp />
+    </OrganizationProvider>
   );
 }
 

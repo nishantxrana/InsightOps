@@ -7,6 +7,12 @@ const pollingJobSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true
+  },
   jobType: { 
     type: String, 
     enum: ['workItems', 'pullRequests', 'overdue'], 
@@ -44,11 +50,14 @@ const pollingJobSchema = new mongoose.Schema({
   collection: 'polling_jobs'
 });
 
-// Compound unique index - one job per user per type
-pollingJobSchema.index({ userId: 1, jobType: 1 }, { unique: true });
+// Compound unique index - one job per organization per type
+pollingJobSchema.index({ organizationId: 1, jobType: 1 }, { unique: true });
 
-// Index for querying active jobs
-pollingJobSchema.index({ status: 1, 'config.enabled': 1 });
+// Index for querying active jobs by org
+pollingJobSchema.index({ organizationId: 1, status: 1, 'config.enabled': 1 });
+
+// Index for user's jobs across orgs
+pollingJobSchema.index({ userId: 1, status: 1 });
 
 // Index for cleanup operations
 pollingJobSchema.index({ updatedAt: 1 });
