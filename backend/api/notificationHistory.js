@@ -4,7 +4,7 @@ import { createRequestLogger } from '../utils/logger.js';
 
 const router = express.Router();
 
-// Get notifications with filters (uses org context from middleware)
+// Get notifications with filters (STRICT: org context required)
 router.get('/', async (req, res) => {
   const log = createRequestLogger(req, 'notifications-api');
   try {
@@ -12,9 +12,17 @@ router.get('/', async (req, res) => {
     const userId = req.user._id;
     const organizationId = req.organizationId;
     
-    // Return empty if no org context (user hasn't set up org yet)
+    // STRICT: Organization context is required
     if (!organizationId) {
-      return res.json([]);
+      log.warn('GET /notifications called without organization context', {
+        userId: userId?.toString(),
+        action: 'get-notifications'
+      });
+      return res.status(400).json({
+        error: 'Organization context required',
+        message: 'Please select an organization to view notifications',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
     }
 
     const notifications = await notificationHistoryService.getNotifications(userId, organizationId, {
@@ -32,7 +40,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get unread count
+// Get unread count (STRICT: org context required)
 router.get('/unread-count', async (req, res) => {
   const log = createRequestLogger(req, 'notifications-api');
   try {
@@ -40,7 +48,10 @@ router.get('/unread-count', async (req, res) => {
     const organizationId = req.organizationId;
     
     if (!organizationId) {
-      return res.json({ count: 0 });
+      return res.status(400).json({
+        error: 'Organization context required',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
     }
 
     const count = await notificationHistoryService.getUnreadCount(userId, organizationId);
@@ -51,7 +62,7 @@ router.get('/unread-count', async (req, res) => {
   }
 });
 
-// Get counts by type
+// Get counts by type (STRICT: org context required)
 router.get('/counts', async (req, res) => {
   const log = createRequestLogger(req, 'notifications-api');
   try {
@@ -59,7 +70,10 @@ router.get('/counts', async (req, res) => {
     const organizationId = req.organizationId;
     
     if (!organizationId) {
-      return res.json({});
+      return res.status(400).json({
+        error: 'Organization context required',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
     }
 
     const counts = await notificationHistoryService.getCountsByType(userId, organizationId);
@@ -78,6 +92,20 @@ router.patch('/:id/read', async (req, res) => {
     const userId = req.user._id;
     const organizationId = req.organizationId;
 
+    // ENFORCE: organizationId is required for mutation operations
+    if (!organizationId) {
+      log.warn('Attempted markAsRead without organization context', {
+        notificationId: id,
+        userId: userId?.toString(),
+        action: 'mark-read'
+      });
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        message: 'Please select an organization to manage notifications',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
+    }
+
     const notification = await notificationHistoryService.markAsRead(id, userId, organizationId);
     
     if (!notification) {
@@ -86,6 +114,14 @@ router.patch('/:id/read', async (req, res) => {
 
     res.json(notification);
   } catch (error) {
+    // Handle specific error codes
+    if (error.code === 'MISSING_ORGANIZATION_ID') {
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        code: error.code 
+      });
+    }
+    
     log.error('Failed to mark notification as read', { 
       error: error.message, 
       action: 'mark-read',
@@ -103,6 +139,20 @@ router.patch('/:id/star', async (req, res) => {
     const userId = req.user._id;
     const organizationId = req.organizationId;
 
+    // ENFORCE: organizationId is required for mutation operations
+    if (!organizationId) {
+      log.warn('Attempted toggleStar without organization context', {
+        notificationId: id,
+        userId: userId?.toString(),
+        action: 'toggle-star'
+      });
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        message: 'Please select an organization to manage notifications',
+        code: 'MISSING_ORGANIZATION_ID'
+      });
+    }
+
     const notification = await notificationHistoryService.toggleStar(id, userId, organizationId);
     
     if (!notification) {
@@ -111,6 +161,14 @@ router.patch('/:id/star', async (req, res) => {
 
     res.json(notification);
   } catch (error) {
+    // Handle specific error codes
+    if (error.code === 'MISSING_ORGANIZATION_ID') {
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        code: error.code 
+      });
+    }
+    
     log.error('Failed to toggle notification star', { 
       error: error.message, 
       action: 'toggle-star',

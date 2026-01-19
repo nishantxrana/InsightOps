@@ -283,8 +283,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Unsaved Changes Dialog */}
+    <>
+      {/* Unsaved Changes Dialog - outside space-y container to not affect layout */}
       <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -308,6 +308,7 @@ export default function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex justify-between items-center mb-2">
@@ -393,6 +394,7 @@ export default function Settings() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

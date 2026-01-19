@@ -9,10 +9,23 @@ import BaseWebhook from './BaseWebhook.js';
 class BuildWebhook extends BaseWebhook {
   async handleCompleted(req, res, userId = null, organizationId = null) {
     try {
-      // Validate userId parameter
-      if (userId && typeof userId !== 'string') {
-        logger.warn('Invalid userId parameter received', { userId: typeof userId });
-        userId = null;
+      // STRICT: organizationId is REQUIRED
+      if (!organizationId) {
+        logger.error('Build webhook called without organizationId', {
+          userId,
+          action: 'build-completed',
+          status: 'rejected'
+        });
+        return res.status(400).json({
+          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/build/completed',
+          code: 'MISSING_ORGANIZATION_ID'
+        });
+      }
+
+      // Validate organization exists and is active
+      const orgValidation = await this.validateOrganization(organizationId, res);
+      if (!orgValidation.valid) {
+        return this.sendOrgValidationError(res, orgValidation);
       }
 
       const { resource } = req.body;
@@ -24,7 +37,7 @@ class BuildWebhook extends BaseWebhook {
       const buildId = resource.id;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(buildId, userId || organizationId, 'build');
+      const dupeCheck = this.isDuplicate(buildId, organizationId, 'build');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(buildId, 'build', dupeCheck.timeSince));
       }
@@ -42,51 +55,40 @@ class BuildWebhook extends BaseWebhook {
         result,
         definition,
         requestedBy,
-        userId: userId || 'legacy-global',
-        organizationId: organizationId || null,
-        userIdType: typeof userId,
-        hasUserId: !!userId
+        organizationId
       });
 
-      // Get settings - prefer organization context over user context
+      // Get organization settings with credentials
       let userSettings = null;
       let userClient = null;
       
-      if (organizationId) {
-        try {
-          const { organizationService } = await import('../services/organizationService.js');
-          const org = await organizationService.getOrganizationWithCredentials(organizationId);
-          if (org) {
-            userId = org.userId;
-            userSettings = {
-              azureDevOps: org.azureDevOps,
-              ai: org.ai,
-              notifications: org.notifications
-            };
-            if (org.azureDevOps) {
-              userClient = azureDevOpsClient.createUserClient(org.azureDevOps);
-            }
+      try {
+        const { organizationService } = await import('../services/organizationService.js');
+        const org = await organizationService.getOrganizationWithCredentials(organizationId);
+        if (org) {
+          userId = org.userId;
+          userSettings = {
+            azureDevOps: org.azureDevOps,
+            ai: org.ai,
+            notifications: org.notifications
+          };
+          if (org.azureDevOps?.pat) {
+            userClient = azureDevOpsClient.createUserClient(org.azureDevOps);
           }
-        } catch (error) {
-          logger.warn(`Failed to get org settings for ${organizationId}:`, error);
         }
-      } else if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          userSettings = await getUserSettings(userId);
-          if (userSettings.azureDevOps) {
-            userClient = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
-          }
-          logger.info(`Retrieved user settings for ${userId}`, {
-            hasAzureDevOpsConfig: !!userSettings.azureDevOps,
-            hasAIConfig: !!userSettings.ai
-          });
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
-        }
-      } else {
-        logger.warn('No userId or organizationId provided - using legacy webhook handler');
+      } catch (error) {
+        logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
+        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
       }
+
+      if (!userSettings) {
+        return res.status(404).json({ error: 'Organization settings not found' });
+      }
+
+      logger.info(`Retrieved organization settings for ${organizationId}`, {
+        hasAzureDevOpsConfig: !!userSettings.azureDevOps,
+        hasAIConfig: !!userSettings.ai
+      });
 
       let message;
       let aiSummary = null;

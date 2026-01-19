@@ -1,7 +1,8 @@
 import { logger } from '../utils/logger.js';
+import { Organization } from '../models/Organization.js';
 
 /**
- * Base webhook class with deduplication functionality
+ * Base webhook class with deduplication and org validation
  */
 class BaseWebhook {
   constructor() {
@@ -10,6 +11,66 @@ class BaseWebhook {
     
     // Cleanup old entries every 5 minutes
     setInterval(() => this.cleanupOldEntries(), 300000);
+  }
+
+  /**
+   * Validate organization exists and is active
+   * Returns { valid: true, org } or { valid: false, error, statusCode }
+   */
+  async validateOrganization(organizationId, res) {
+    if (!organizationId) {
+      logger.error('Webhook called without organizationId', {
+        action: 'webhook-validation',
+        status: 'rejected'
+      });
+      return {
+        valid: false,
+        error: 'organizationId is required',
+        statusCode: 400
+      };
+    }
+
+    // Check if organization exists and is active
+    const org = await Organization.findById(organizationId).lean();
+    
+    if (!org) {
+      logger.error('Webhook received for non-existent organization', {
+        organizationId,
+        action: 'webhook-validation',
+        status: 'rejected'
+      });
+      return {
+        valid: false,
+        error: 'Organization not found',
+        statusCode: 404
+      };
+    }
+
+    if (org.isActive === false) {
+      logger.warn('Webhook received for inactive (soft-deleted) organization', {
+        organizationId,
+        orgName: org.name,
+        action: 'webhook-validation',
+        status: 'rejected'
+      });
+      return {
+        valid: false,
+        error: 'Organization is inactive. Webhooks are disabled for deactivated organizations.',
+        statusCode: 410 // Gone
+      };
+    }
+
+    return { valid: true, org };
+  }
+
+  /**
+   * Helper to send org validation error response
+   */
+  sendOrgValidationError(res, validation) {
+    return res.status(validation.statusCode).json({
+      error: validation.error,
+      code: 'ORGANIZATION_VALIDATION_FAILED'
+    });
   }
 
   /**
