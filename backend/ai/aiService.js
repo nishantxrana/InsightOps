@@ -53,13 +53,21 @@ class AIClient {
         ...completionOptions,
         messages
       });
-      return response.choices[0].message.content;
+      const content = response?.choices?.[0]?.message?.content;
+      if (!content || content.trim() === '') {
+        throw new Error('OpenAI returned empty response');
+      }
+      return content;
     } else if (this.config.provider === 'groq') {
       const response = await this.client.chat.completions.create({
         ...completionOptions,
         messages
       });
-      return response.choices[0].message.content;
+      const content = response?.choices?.[0]?.message?.content;
+      if (!content || content.trim() === '') {
+        throw new Error('Groq returned empty response');
+      }
+      return content;
     } else if (this.config.provider === 'gemini') {
       const model = this.client.getGenerativeModel({ model: completionOptions.model });
       
@@ -75,8 +83,14 @@ class AIClient {
       }
       
       const result = await model.generateContent(prompt);
-      return result.response.text();
+      const content = result?.response?.text();
+      if (!content || content.trim() === '') {
+        throw new Error('Gemini returned empty response');
+      }
+      return content;
     }
+    
+    throw new Error(`Unsupported AI provider: ${this.config.provider}`);
   }
 }
 
