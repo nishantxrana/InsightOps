@@ -1,14 +1,23 @@
-import React, { useCallback } from 'react'
-import { Bell } from 'lucide-react'
-import { Switch } from '../../components/ui/switch'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
-import { Input } from '../../components/ui/input'
-import { Label } from '../../components/ui/label'
+import React, { useCallback } from "react";
+import { Bell } from "lucide-react";
+import { Switch } from "../../components/ui/switch";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
 
 export default function NotificationsSection({ data, onChange }) {
-  const handleChange = useCallback((field, value) => {
-    onChange({ ...data, [field]: value })
-  }, [data, onChange])
+  const handleChange = useCallback(
+    (field, value) => {
+      onChange({ ...data, [field]: value });
+    },
+    [data, onChange]
+  );
 
   return (
     <Card>
@@ -30,20 +39,24 @@ export default function NotificationsSection({ data, onChange }) {
           <Switch
             id="notifications-enabled"
             checked={data.enabled}
-            onCheckedChange={(checked) => handleChange('enabled', checked)}
+            onCheckedChange={(checked) => handleChange("enabled", checked)}
           />
         </div>
-        
-        <div className={`space-y-4 p-4 border rounded-lg ${!data.enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+
+        <div
+          className={`space-y-4 p-4 border rounded-lg ${!data.enabled ? "opacity-50 pointer-events-none" : ""}`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="gchat-enabled">Google Chat</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">Send notifications to a Google Chat space</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Send notifications to a Google Chat space
+              </p>
             </div>
             <Switch
               id="gchat-enabled"
               checked={data.googleChatEnabled}
-              onCheckedChange={(checked) => handleChange('googleChatEnabled', checked)}
+              onCheckedChange={(checked) => handleChange("googleChatEnabled", checked)}
               disabled={!data.enabled}
             />
           </div>
@@ -52,14 +65,14 @@ export default function NotificationsSection({ data, onChange }) {
               <Input
                 placeholder="https://chat.googleapis.com/v1/spaces/..."
                 value={data.googleChatWebhookUrl}
-                onChange={(e) => handleChange('googleChatWebhookUrl', e.target.value)}
+                onChange={(e) => handleChange("googleChatWebhookUrl", e.target.value)}
                 disabled={!data.enabled}
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                <a 
-                  href="https://developers.google.com/chat/how-tos/webhooks" 
-                  target="_blank" 
+                <a
+                  href="https://developers.google.com/chat/how-tos/webhooks"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline"
                 >
@@ -88,5 +101,5 @@ export default function NotificationsSection({ data, onChange }) {
         </details>
       </CardContent>
     </Card>
-  )
+  );
 }

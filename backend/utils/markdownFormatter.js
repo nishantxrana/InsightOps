@@ -1,25 +1,24 @@
-
-import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
+import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
 
 class MarkdownFormatter {
   formatWorkItemCreated(workItem, aiSummary = null, userConfig = null) {
     const fields = workItem.fields || {};
-    const title = fields['System.Title'] || 'No title';
-    const workItemType = fields['System.WorkItemType'] || 'Work Item';
-    const assignedTo = fields['System.AssignedTo'] || 'Unassigned';
-    const createdBy = fields['System.CreatedBy'] || 'Unknown';
-    const state = fields['System.State'] || 'New';
-    const priority = fields['Microsoft.VSTS.Common.Priority'] || 'Not set';
-    const createdDate = fields['System.CreatedDate'] || new Date().toISOString();
+    const title = fields["System.Title"] || "No title";
+    const workItemType = fields["System.WorkItemType"] || "Work Item";
+    const assignedTo = fields["System.AssignedTo"] || "Unassigned";
+    const createdBy = fields["System.CreatedBy"] || "Unknown";
+    const state = fields["System.State"] || "New";
+    const priority = fields["Microsoft.VSTS.Common.Priority"] || "Not set";
+    const createdDate = fields["System.CreatedDate"] || new Date().toISOString();
 
     // Construct work item URL with user config
     let webUrl = workItem.webUrl || workItem._links?.html?.href;
-    
+
     if (!webUrl && userConfig && userConfig.organization && userConfig.project) {
       // Construct URL using user's Azure DevOps configuration
       const organization = userConfig.organization;
-      const project = fields['System.TeamProject'] || userConfig.project;
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const project = fields["System.TeamProject"] || userConfig.project;
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
       const encodedProject = encodeURIComponent(project);
       webUrl = `${baseUrl}/${organization}/${encodedProject}/_workitems/edit/${workItem.id}`;
     } else if (!webUrl) {
@@ -49,57 +48,63 @@ class MarkdownFormatter {
     const revision = resource.revision || resource;
     const fields = revision.fields || resource.fields || {};
     const changedFields = resource.fields || {}; // This contains old/new values
-    
+
     const workItemId = resource.workItemId || revision.id || resource.id;
-    const title = fields['System.Title'] || 'No title';
-    const workItemType = fields['System.WorkItemType'] || 'Work Item';
-    const currentState = fields['System.State'] || 'Unknown';
-    const currentAssignedTo = fields['System.AssignedTo'] || 'Unassigned';
-    const priority = fields['Microsoft.VSTS.Common.Priority'] || 'Not set';
-    const changedBy = fields['System.ChangedBy'] || 'Unknown';
-    const changedDate = fields['System.ChangedDate'] || new Date().toISOString();
-    
+    const title = fields["System.Title"] || "No title";
+    const workItemType = fields["System.WorkItemType"] || "Work Item";
+    const currentState = fields["System.State"] || "Unknown";
+    const currentAssignedTo = fields["System.AssignedTo"] || "Unassigned";
+    const priority = fields["Microsoft.VSTS.Common.Priority"] || "Not set";
+    const changedBy = fields["System.ChangedBy"] || "Unknown";
+    const changedDate = fields["System.ChangedDate"] || new Date().toISOString();
+
     // Extract what changed
     const changes = [];
-    
+
     // Check for state change
-    if (changedFields['System.State']) {
-      const oldState = changedFields['System.State'].oldValue || 'Unknown';
-      const newState = changedFields['System.State'].newValue || currentState;
+    if (changedFields["System.State"]) {
+      const oldState = changedFields["System.State"].oldValue || "Unknown";
+      const newState = changedFields["System.State"].newValue || currentState;
       changes.push(`*State*: ${oldState} ➝ ${newState}`);
     }
-    
+
     // Check for assignment change
-    if (changedFields['System.AssignedTo']) {
-      const oldAssignee = this.extractDisplayName(changedFields['System.AssignedTo'].oldValue) || 'Unassigned';
-      const newAssignee = this.extractDisplayName(changedFields['System.AssignedTo'].newValue) || 'Unassigned';
+    if (changedFields["System.AssignedTo"]) {
+      const oldAssignee =
+        this.extractDisplayName(changedFields["System.AssignedTo"].oldValue) || "Unassigned";
+      const newAssignee =
+        this.extractDisplayName(changedFields["System.AssignedTo"].newValue) || "Unassigned";
       changes.push(`*Assigned To*: ${oldAssignee} ➝ ${newAssignee}`);
     }
-    
+
     // Check for priority change
-    if (changedFields['Microsoft.VSTS.Common.Priority']) {
-      const oldPriority = this.getPriorityText(changedFields['Microsoft.VSTS.Common.Priority'].oldValue);
-      const newPriority = this.getPriorityText(changedFields['Microsoft.VSTS.Common.Priority'].newValue);
+    if (changedFields["Microsoft.VSTS.Common.Priority"]) {
+      const oldPriority = this.getPriorityText(
+        changedFields["Microsoft.VSTS.Common.Priority"].oldValue
+      );
+      const newPriority = this.getPriorityText(
+        changedFields["Microsoft.VSTS.Common.Priority"].newValue
+      );
       changes.push(`*Priority*: ${oldPriority} ➝ ${newPriority}`);
     }
 
     // Check for due date change
-    if (changedFields['Microsoft.VSTS.Scheduling.DueDate']) {
-      const oldDueDate = changedFields['Microsoft.VSTS.Scheduling.DueDate'].oldValue;
-      const newDueDate = changedFields['Microsoft.VSTS.Scheduling.DueDate'].newValue;
-      const oldDueDateFormatted = oldDueDate ? this.formatLocalDate(oldDueDate) : 'Not set';
-      const newDueDateFormatted = newDueDate ? this.formatLocalDate(newDueDate) : 'Not set';
+    if (changedFields["Microsoft.VSTS.Scheduling.DueDate"]) {
+      const oldDueDate = changedFields["Microsoft.VSTS.Scheduling.DueDate"].oldValue;
+      const newDueDate = changedFields["Microsoft.VSTS.Scheduling.DueDate"].newValue;
+      const oldDueDateFormatted = oldDueDate ? this.formatLocalDate(oldDueDate) : "Not set";
+      const newDueDateFormatted = newDueDate ? this.formatLocalDate(newDueDate) : "Not set";
       changes.push(`*Due Date*: ${oldDueDateFormatted} ➝ ${newDueDateFormatted}`);
     }
 
     // Construct work item URL with user config
     let webUrl = resource._links?.html?.href || revision._links?.html?.href;
-    
+
     if (!webUrl && userConfig && userConfig.organization && userConfig.project) {
       // Construct URL using user's Azure DevOps configuration
       const organization = userConfig.organization;
-      const project = fields['System.TeamProject'] || userConfig.project;
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const project = fields["System.TeamProject"] || userConfig.project;
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
       const encodedProject = encodeURIComponent(project);
       webUrl = `${baseUrl}/${organization}/${encodedProject}/_workitems/edit/${workItemId}`;
     } else if (!webUrl) {
@@ -109,15 +114,15 @@ class MarkdownFormatter {
 
     let message = `*📝 Work Item Updated*\n\n`;
     message += `*${workItemType} #${workItemId}*: ${title}\n\n`;
-    
+
     if (changes.length > 0) {
       message += `*Changes:*\n`;
-      changes.forEach(change => {
+      changes.forEach((change) => {
         message += `- ${change}\n`;
       });
       message += `\n`;
     }
-    
+
     message += `- *Current State*: ${currentState}\n`;
     message += `- *Current Assigned To*: ${this.extractDisplayName(currentAssignedTo)}\n`;
     message += `- *Priority*: ${this.getPriorityText(priority)}\n`;
@@ -130,43 +135,43 @@ class MarkdownFormatter {
 
   // Helper method to extract display name from Azure DevOps user string
   extractDisplayName(userString) {
-    if (!userString) return 'Unassigned';
-    if (typeof userString === 'string') {
+    if (!userString) return "Unassigned";
+    if (typeof userString === "string") {
       // Handle formats like "Nishant Rana <nishantrana249000@gmail.com>" or just "nishantrana249000@gmail.com"
       const match = userString.match(/^([^<]+)<.*>$/) || userString.match(/^(.+)$/);
       return match ? match[1].trim() : userString;
     }
-    return userString.displayName || userString.name || 'Unknown';
+    return userString.displayName || userString.name || "Unknown";
   }
 
   // Helper method to convert priority number to text
   getPriorityText(priority) {
-    if (!priority) return 'Not set';
+    if (!priority) return "Not set";
     const priorityMap = {
-      1: 'Critical',
-      2: 'High', 
-      3: 'Medium',
-      4: 'Low'
+      1: "Critical",
+      2: "High",
+      3: "Medium",
+      4: "Low",
     };
     return priorityMap[priority] || `Priority ${priority}`;
   }
 
   // Helper method to format time in IST timezone (+5:30)
   formatLocalTime(dateString) {
-    if (!dateString) return 'Unknown';
-    
+    if (!dateString) return "Unknown";
+
     try {
       const date = new Date(dateString);
       // Format in IST timezone (Asia/Kolkata)
-      return date.toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
+      return date.toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
       });
     } catch (error) {
       return dateString; // Fallback to original string if parsing fails
@@ -175,16 +180,16 @@ class MarkdownFormatter {
 
   // Helper method to format date only in IST timezone (+5:30)
   formatLocalDate(dateString) {
-    if (!dateString) return 'Not set';
-    
+    if (!dateString) return "Not set";
+
     try {
       const date = new Date(dateString);
       // Format date only in IST timezone (Asia/Kolkata)
-      return date.toLocaleDateString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
+      return date.toLocaleDateString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
       });
     } catch (error) {
       return dateString; // Fallback to original string if parsing fails
@@ -192,37 +197,37 @@ class MarkdownFormatter {
   }
 
   formatBuildCompleted(build, userConfig = null) {
-    const buildName = build.definition?.name || 'Unknown Build';
-    const buildNumber = build.buildNumber || 'Unknown';
-    const result = build.result || 'Unknown';
-    const requestedBy = build.requestedBy?.displayName || 'Unknown';
-    const startTime = build.startTime ? new Date(build.startTime).toLocaleString() : 'Unknown';
-    const finishTime = build.finishTime ? new Date(build.finishTime).toLocaleString() : 'Unknown';
-    const sourceBranch = build.sourceBranch?.replace('refs/heads/', '') || 'Unknown';
-    
+    const buildName = build.definition?.name || "Unknown Build";
+    const buildNumber = build.buildNumber || "Unknown";
+    const result = build.result || "Unknown";
+    const requestedBy = build.requestedBy?.displayName || "Unknown";
+    const startTime = build.startTime ? new Date(build.startTime).toLocaleString() : "Unknown";
+    const finishTime = build.finishTime ? new Date(build.finishTime).toLocaleString() : "Unknown";
+    const sourceBranch = build.sourceBranch?.replace("refs/heads/", "") || "Unknown";
+
     // Extract additional build information
-    const projectName = build.project?.name || 'Unknown Project';
-    const repositoryName = build.repository?.name || 'Unknown Repository';
-    const sourceVersion = build.sourceVersion ? build.sourceVersion.substring(0, 8) : 'Unknown';
-    
+    const projectName = build.project?.name || "Unknown Project";
+    const repositoryName = build.repository?.name || "Unknown Repository";
+    const sourceVersion = build.sourceVersion ? build.sourceVersion.substring(0, 8) : "Unknown";
+
     // Construct build URL with user config
     let buildUrl = build._links?.web?.href;
-    
+
     if (!buildUrl && userConfig && userConfig.organization && userConfig.project) {
       // Construct URL using user's Azure DevOps configuration
       const organization = userConfig.organization;
       const project = userConfig.project;
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
       buildUrl = `${baseUrl}/${organization}/${project}/_build/results?buildId=${build.id}`;
     } else if (!buildUrl) {
       buildUrl = `Build #${build.id}`;
     }
-    
+
     // Extract PR information if available
     let commitInfo = sourceVersion;
-    if (build.triggerInfo && build.triggerInfo['pr.number']) {
-      commitInfo += ` (PR #${build.triggerInfo['pr.number']})`;
-    } else if (build.reason === 'pullRequest' && build.parameters) {
+    if (build.triggerInfo && build.triggerInfo["pr.number"]) {
+      commitInfo += ` (PR #${build.triggerInfo["pr.number"]})`;
+    } else if (build.reason === "pullRequest" && build.parameters) {
       // Try to extract PR number from parameters or other sources
       const prMatch = JSON.stringify(build.parameters).match(/pr[.\s]*(\d+)/i);
       if (prMatch) {
@@ -230,8 +235,8 @@ class MarkdownFormatter {
       }
     }
 
-    const emoji = result === 'succeeded' ? '✅' : result === 'failed' ? '🚨' : '⚠️';
-    
+    const emoji = result === "succeeded" ? "✅" : result === "failed" ? "🚨" : "⚠️";
+
     let message = `${emoji} *Build ${result.charAt(0).toUpperCase() + result.slice(1)}*\n\n`;
     message += `*Build Run*: #${buildNumber}\n`;
     message += `*Pipeline*: ${buildName}\n`;
@@ -240,7 +245,6 @@ class MarkdownFormatter {
     message += `*Branch*: ${sourceBranch}\n`;
     message += `*Commit*: ${commitInfo}\n`;
     message += `*Requested By*: ${requestedBy}\n`;
-
 
     return message;
   }
@@ -254,46 +258,45 @@ class MarkdownFormatter {
       message += `\n🤖 *AI Analysis*\nAI analysis not available - please configure AI provider in settings.\n`;
     }
 
-
-
     return message;
   }
 
   formatPullRequestCreated(pullRequest, aiSummary = null, userConfig = null) {
-      const title = pullRequest.title || 'No title';
-      const createdBy = pullRequest.createdBy?.displayName || 'Unknown';
-      const project = pullRequest.repository?.project?.name || 'Unknown';
-      const repository = pullRequest.repository?.name || 'Unknown';
-      const sourceBranch = pullRequest.sourceRefName?.replace('refs/heads/', '') || 'unknown';
-      const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
-      const description = ((pullRequest.description || 'No description').slice(0, 200)) +
-                    ((pullRequest.description?.length ?? 0) > 200 ? '...' : '');
+    const title = pullRequest.title || "No title";
+    const createdBy = pullRequest.createdBy?.displayName || "Unknown";
+    const project = pullRequest.repository?.project?.name || "Unknown";
+    const repository = pullRequest.repository?.name || "Unknown";
+    const sourceBranch = pullRequest.sourceRefName?.replace("refs/heads/", "") || "unknown";
+    const targetBranch = pullRequest.targetRefName?.replace("refs/heads/", "") || "unknown";
+    const description =
+      (pullRequest.description || "No description").slice(0, 200) +
+      ((pullRequest.description?.length ?? 0) > 200 ? "..." : "");
 
-      // Construct PR URL with user config (prioritize custom construction)
-      let prUrl = null;
-      
-      if (userConfig && userConfig.organization && userConfig.project) {
-        // Construct URL using user's Azure DevOps configuration
-        const organization = userConfig.organization;
-        const projectName = userConfig.project;
-        const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
-        prUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
-      } else {
-        // Fallback to provided URLs
-        prUrl = pullRequest.webUrl || pullRequest.url;
-      }
+    // Construct PR URL with user config (prioritize custom construction)
+    let prUrl = null;
 
-      let message = `*New Pull Request Created!*\n`;
+    if (userConfig && userConfig.organization && userConfig.project) {
+      // Construct URL using user's Azure DevOps configuration
+      const organization = userConfig.organization;
+      const projectName = userConfig.project;
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
+      prUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
+    } else {
+      // Fallback to provided URLs
+      prUrl = pullRequest.webUrl || pullRequest.url;
+    }
 
-      message += `- *Title:* ${title}\n`;
-      message += `- *PR ID:* ${pullRequest.pullRequestId}\n`;
-      message += `- *Created By:* ${createdBy}\n`;
-      message += `- *Project:* ${project}\n`;
-      message += `- *Repository:* ${repository}\n`;
-      message += `- *Source Branch:* ${sourceBranch}\n`;
-      message += `- *Target Branch:* ${targetBranch}\n`;
-      message += `- *PR Url:* <${prUrl}|Open Pull Request>\n`;
-      message += `- *Description:* ${description}\n\n`;
+    let message = `*New Pull Request Created!*\n`;
+
+    message += `- *Title:* ${title}\n`;
+    message += `- *PR ID:* ${pullRequest.pullRequestId}\n`;
+    message += `- *Created By:* ${createdBy}\n`;
+    message += `- *Project:* ${project}\n`;
+    message += `- *Repository:* ${repository}\n`;
+    message += `- *Source Branch:* ${sourceBranch}\n`;
+    message += `- *Target Branch:* ${targetBranch}\n`;
+    message += `- *PR Url:* <${prUrl}|Open Pull Request>\n`;
+    message += `- *Description:* ${description}\n\n`;
 
     if (aiSummary) {
       message += `\n*🤖 AI Summary*\n${aiSummary}\n`;
@@ -303,32 +306,32 @@ class MarkdownFormatter {
   }
 
   formatPullRequestUpdated(pullRequest, userConfig = null) {
-    const title = pullRequest.title || 'No title';
-    const status = pullRequest.status || 'unknown';
-    const mergeStatus = pullRequest.mergeStatus || 'unknown';
-    const updatedBy = pullRequest.createdBy?.displayName || 'Unknown';
-    const sourceBranch = pullRequest.sourceRefName?.replace('refs/heads/', '') || 'unknown';
-    const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
-    const repository = pullRequest.repository?.name || 'Unknown Repository';
+    const title = pullRequest.title || "No title";
+    const status = pullRequest.status || "unknown";
+    const mergeStatus = pullRequest.mergeStatus || "unknown";
+    const updatedBy = pullRequest.createdBy?.displayName || "Unknown";
+    const sourceBranch = pullRequest.sourceRefName?.replace("refs/heads/", "") || "unknown";
+    const targetBranch = pullRequest.targetRefName?.replace("refs/heads/", "") || "unknown";
+    const repository = pullRequest.repository?.name || "Unknown Repository";
 
     // Use web URL from _links first, then fallback to custom construction
     let prUrl = pullRequest._links?.web?.href;
-    
+
     if (!prUrl && userConfig && userConfig.organization) {
       const organization = userConfig.organization;
       const projectName = pullRequest.repository?.project?.name || userConfig.project;
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
       prUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
     }
-    
+
     if (!prUrl) {
       prUrl = pullRequest.url;
     }
 
     // Determine update type based on merge status
-    let updateType = '🔄 Pull Request Updated';
-    if (mergeStatus === 'conflicts') {
-      updateType = '⚠️ Pull Request Has Conflicts';
+    let updateType = "🔄 Pull Request Updated";
+    if (mergeStatus === "conflicts") {
+      updateType = "⚠️ Pull Request Has Conflicts";
     }
 
     let message = `*${updateType}*\n\n`;
@@ -336,7 +339,7 @@ class MarkdownFormatter {
     message += `- *Status*: ${status}\n`;
     message += `- *Repository*: ${repository}\n`;
     message += `- *Source*: ${sourceBranch} → ${targetBranch}\n`;
-    if (mergeStatus !== 'unknown') {
+    if (mergeStatus !== "unknown") {
       message += `- *Merge Status*: ${mergeStatus}\n`;
     }
     message += `- *Updated By*: ${updatedBy}\n`;
@@ -346,18 +349,18 @@ class MarkdownFormatter {
   }
 
   formatPullRequestReviewerAssigned(pullRequest, reviewers, userConfig = null) {
-    const title = pullRequest.title || 'No title';
-    const reviewerList = Array.isArray(reviewers) ? reviewers.join(', ') : reviewers;
+    const title = pullRequest.title || "No title";
+    const reviewerList = Array.isArray(reviewers) ? reviewers.join(", ") : reviewers;
 
     // Construct PR URL with user config (prioritize custom construction)
     let prUrl = null;
-    
+
     if (userConfig && userConfig.organization && userConfig.project) {
       // Construct URL using user's Azure DevOps configuration
       const organization = userConfig.organization;
       const projectName = userConfig.project;
-      const repository = pullRequest.repository?.name || 'unknown';
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const repository = pullRequest.repository?.name || "unknown";
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
       prUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
     } else {
       // Fallback to provided URLs
@@ -375,23 +378,26 @@ class MarkdownFormatter {
 
   formatIdlePullRequestReminder(pullRequests) {
     if (!pullRequests || pullRequests.length === 0) {
-      return '';
+      return "";
     }
 
     let message = `*⏰ Idle Pull Requests Reminder* \n\n`;
     message += `The following pull requests have been inactive for more than 48 hours:\n\n`;
 
-    pullRequests.forEach(pr => {
-      const title = pr.title || 'No title';
-      const createdBy = pr.createdBy?.displayName || 'Unknown';
+    pullRequests.forEach((pr) => {
+      const title = pr.title || "No title";
+      const createdBy = pr.createdBy?.displayName || "Unknown";
       const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
-      const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
-      const project = pr.repository?.project?.name || 'Unknown';
-      const repository = pr.repository?.name || 'Unknown';
-      const sourceBranch = pr.sourceRefName?.replace('refs/heads/', '') || 'unknown';
-      const targetBranch = pr.targetRefName?.replace('refs/heads/', '') || 'unknown';
-      const description = ((pr.description || 'No description').slice(0, 100)) +
-                    ((pr.description?.length ?? 0) > 100 ? '...' : '');
+      const daysSinceActivity = Math.floor(
+        (Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24)
+      );
+      const project = pr.repository?.project?.name || "Unknown";
+      const repository = pr.repository?.name || "Unknown";
+      const sourceBranch = pr.sourceRefName?.replace("refs/heads/", "") || "unknown";
+      const targetBranch = pr.targetRefName?.replace("refs/heads/", "") || "unknown";
+      const description =
+        (pr.description || "No description").slice(0, 100) +
+        ((pr.description?.length ?? 0) > 100 ? "..." : "");
 
       message += `*Pull Request ID:* ${pr.pullRequestId}\n`;
       message += `- *Title:* ${title}\n`;
@@ -412,23 +418,26 @@ class MarkdownFormatter {
 
   formatIdlePullRequestBatch(pullRequests, batchNumber, totalBatches, totalCount) {
     if (!pullRequests || pullRequests.length === 0) {
-      return '';
+      return "";
     }
 
     let message = `*⏰ Overdue Pull Requests (Batch ${batchNumber} of ${totalBatches}) - ${pullRequests.length} of ${totalCount} total* \n\n`;
     message += `The following pull requests have been inactive for more than 48 hours:\n\n`;
 
-    pullRequests.forEach(pr => {
-      const title = pr.title || 'No title';
-      const createdBy = pr.createdBy?.displayName || 'Unknown';
+    pullRequests.forEach((pr) => {
+      const title = pr.title || "No title";
+      const createdBy = pr.createdBy?.displayName || "Unknown";
       const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
-      const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
-      const project = pr.repository?.project?.name || 'Unknown';
-      const repository = pr.repository?.name || 'Unknown';
-      const sourceBranch = pr.sourceRefName?.replace('refs/heads/', '') || 'unknown';
-      const targetBranch = pr.targetRefName?.replace('refs/heads/', '') || 'unknown';
-      const description = ((pr.description || 'No description').slice(0, 100)) +
-                    ((pr.description?.length ?? 0) > 100 ? '...' : '');
+      const daysSinceActivity = Math.floor(
+        (Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24)
+      );
+      const project = pr.repository?.project?.name || "Unknown";
+      const repository = pr.repository?.name || "Unknown";
+      const sourceBranch = pr.sourceRefName?.replace("refs/heads/", "") || "unknown";
+      const targetBranch = pr.targetRefName?.replace("refs/heads/", "") || "unknown";
+      const description =
+        (pr.description || "No description").slice(0, 100) +
+        ((pr.description?.length ?? 0) > 100 ? "..." : "");
 
       message += `*Pull Request ID:* ${pr.pullRequestId}\n`;
       message += `- *Title:* ${title}\n`;
@@ -451,27 +460,29 @@ class MarkdownFormatter {
 
   formatOverdueItemsBatch(overdueItems, batchNumber, totalBatches, totalCount) {
     if (!overdueItems || overdueItems.length === 0) {
-      return '';
+      return "";
     }
 
     let message = `*⚠️ Overdue Work Items (Batch ${batchNumber} of ${totalBatches}) - ${overdueItems.length} of ${totalCount} total* \n\n`;
     message += `The following work items are past their due date and need attention:\n\n`;
 
-    overdueItems.forEach(item => {
-      const title = item.fields?.['System.Title'] || 'No title';
-      const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
-      const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
-      const workItemType = item.fields?.['System.WorkItemType'] || 'Item';
-      const state = item.fields?.['System.State'] || 'Unknown';
-      const priority = item.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
-      const createdBy = item.fields?.['System.CreatedBy']?.displayName || 'Unknown';
-      const daysPastDue = dueDate ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+    overdueItems.forEach((item) => {
+      const title = item.fields?.["System.Title"] || "No title";
+      const assignee = item.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
+      const dueDate = item.fields?.["Microsoft.VSTS.Scheduling.DueDate"];
+      const workItemType = item.fields?.["System.WorkItemType"] || "Item";
+      const state = item.fields?.["System.State"] || "Unknown";
+      const priority = item.fields?.["Microsoft.VSTS.Common.Priority"] || "Not set";
+      const createdBy = item.fields?.["System.CreatedBy"]?.displayName || "Unknown";
+      const daysPastDue = dueDate
+        ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24))
+        : 0;
 
       message += `*${workItemType}* #${item.id}: ${title}\n`;
       message += `- *Assigned To:* ${assignee}\n`;
       message += `- *State:* ${state}\n`;
       message += `- *Priority:* ${priority}\n`;
-      message += `- *Due Date:* ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No due date'}\n`;
+      message += `- *Due Date:* ${dueDate ? new Date(dueDate).toLocaleDateString() : "No due date"}\n`;
       if (dueDate && daysPastDue > 0) {
         message += `- *Days Overdue:* ${daysPastDue} days\n`;
       }
@@ -487,27 +498,29 @@ class MarkdownFormatter {
 
   formatOverdueItemsMessage(overdueItems) {
     if (!overdueItems || overdueItems.length === 0) {
-      return '';
+      return "";
     }
 
     let message = `*⚠️ Overdue Work Items (${overdueItems.length})* \n\n`;
     message += `The following work items are past their due date and need attention:\n\n`;
 
-    overdueItems.forEach(item => {
-      const title = item.fields?.['System.Title'] || 'No title';
-      const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
-      const dueDate = item.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
-      const workItemType = item.fields?.['System.WorkItemType'] || 'Item';
-      const state = item.fields?.['System.State'] || 'Unknown';
-      const priority = item.fields?.['Microsoft.VSTS.Common.Priority'] || 'Not set';
-      const createdBy = item.fields?.['System.CreatedBy']?.displayName || 'Unknown';
-      const daysPastDue = dueDate ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+    overdueItems.forEach((item) => {
+      const title = item.fields?.["System.Title"] || "No title";
+      const assignee = item.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
+      const dueDate = item.fields?.["Microsoft.VSTS.Scheduling.DueDate"];
+      const workItemType = item.fields?.["System.WorkItemType"] || "Item";
+      const state = item.fields?.["System.State"] || "Unknown";
+      const priority = item.fields?.["Microsoft.VSTS.Common.Priority"] || "Not set";
+      const createdBy = item.fields?.["System.CreatedBy"]?.displayName || "Unknown";
+      const daysPastDue = dueDate
+        ? Math.floor((Date.now() - new Date(dueDate)) / (1000 * 60 * 60 * 24))
+        : 0;
 
       message += `*${workItemType}* #${item.id}: ${title}\n`;
       message += `- *Assigned To:* ${assignee}\n`;
       message += `- *State:* ${state}\n`;
       message += `- *Priority:* ${priority}\n`;
-      message += `- *Due Date:* ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No due date'}\n`;
+      message += `- *Due Date:* ${dueDate ? new Date(dueDate).toLocaleDateString() : "No due date"}\n`;
       if (dueDate && daysPastDue > 0) {
         message += `- *Days Overdue:* ${daysPastDue} days\n`;
       }
@@ -523,61 +536,65 @@ class MarkdownFormatter {
     const release = resource.release || {};
     const environment = resource.environment || {};
     const deployment = resource.deployment || {};
-    
+
     // Extract release info from nested structures
     const releaseId = environment.releaseId || release.id;
-    const releaseName = environment.preDeployApprovals?.[0]?.release?.name || 
-                       environment.postDeployApprovals?.[0]?.release?.name ||
-                       release.name || 
-                       `Release-${releaseId}`;
-    const releaseDefinitionName = environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
-                                 environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
-                                 release.releaseDefinition?.name ||
-                                 'Unknown Pipeline';
-    
-    const environmentName = environment.name || 'Unknown Environment';
-    const status = (environment.status || deployment.deploymentStatus || 'unknown').toLowerCase();
-    const requestedFor = deployment.requestedFor?.displayName || 
-                        environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
-                        release.createdBy?.displayName || 
-                        'Unknown';
-    const completedOn = deployment.completedOn || environment.modifiedOn || new Date().toISOString();
-    
+    const releaseName =
+      environment.preDeployApprovals?.[0]?.release?.name ||
+      environment.postDeployApprovals?.[0]?.release?.name ||
+      release.name ||
+      `Release-${releaseId}`;
+    const releaseDefinitionName =
+      environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
+      environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
+      release.releaseDefinition?.name ||
+      "Unknown Pipeline";
+
+    const environmentName = environment.name || "Unknown Environment";
+    const status = (environment.status || deployment.deploymentStatus || "unknown").toLowerCase();
+    const requestedFor =
+      deployment.requestedFor?.displayName ||
+      environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
+      release.createdBy?.displayName ||
+      "Unknown";
+    const completedOn =
+      deployment.completedOn || environment.modifiedOn || new Date().toISOString();
+
     // Construct release URL
     let webUrl = release.webAccessUri || release._links?.web?.href;
     if (!webUrl && releaseId && userConfig && userConfig.organization && userConfig.project) {
       const organization = userConfig.organization;
       const project = userConfig.project;
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
       const encodedProject = encodeURIComponent(project);
       webUrl = `${baseUrl}/${organization}/${encodedProject}/_release?releaseId=${releaseId}&_a=release-summary`;
     }
-    
+
     // Map status to emoji and text
     let emoji, statusText;
     switch (status) {
-      case 'succeeded':
-        emoji = '🚀';
-        statusText = 'Succeeded';
+      case "succeeded":
+        emoji = "🚀";
+        statusText = "Succeeded";
         break;
-      case 'partiallysucceeded':
-        emoji = '⚠️';
-        statusText = 'Partially Succeeded';
+      case "partiallysucceeded":
+        emoji = "⚠️";
+        statusText = "Partially Succeeded";
         break;
-      case 'failed':
-      case 'rejected':
-        emoji = '❌';
-        statusText = 'Failed';
+      case "failed":
+      case "rejected":
+        emoji = "❌";
+        statusText = "Failed";
         break;
-      case 'canceled':
-        emoji = '🚫';
-        statusText = 'Canceled';
+      case "canceled":
+        emoji = "🚫";
+        statusText = "Canceled";
         break;
       default:
-        emoji = '❓';
+        emoji = "❓";
         statusText = status.charAt(0).toUpperCase() + status.slice(1);
     }
-    
+
     let message = `*${emoji} Production Deployment ${statusText}*\n\n`;
     message += `*Pipeline*: ${releaseDefinitionName}\n`;
     message += `*Release*: ${releaseName}\n`;
@@ -588,7 +605,7 @@ class MarkdownFormatter {
     if (webUrl) {
       message += `*Release URL*: <${webUrl}|View Release>\n`;
     }
-    
+
     return message;
   }
 }

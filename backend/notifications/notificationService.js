@@ -1,7 +1,7 @@
-import axios from 'axios';
-import { logger } from '../utils/logger.js';
-import { configLoader } from '../config/settings.js';
-import { markdownFormatter } from '../utils/markdownFormatter.js';
+import axios from "axios";
+import { logger } from "../utils/logger.js";
+import { configLoader } from "../config/settings.js";
+import { markdownFormatter } from "../utils/markdownFormatter.js";
 
 class NotificationService {
   constructor() {
@@ -9,22 +9,24 @@ class NotificationService {
   }
 
   getConfig() {
-    return configLoader.getNotificationConfig() || { 
-      enabled: false,
-      teamsEnabled: false,
-      slackEnabled: false,
-      googleChatEnabled: false,
-      teamsWebhookUrl: '',
-      slackWebhookUrl: '',
-      googleChatWebhookUrl: ''
-    };
+    return (
+      configLoader.getNotificationConfig() || {
+        enabled: false,
+        teamsEnabled: false,
+        slackEnabled: false,
+        googleChatEnabled: false,
+        teamsWebhookUrl: "",
+        slackWebhookUrl: "",
+        googleChatWebhookUrl: "",
+      }
+    );
   }
 
-  async sendNotification(message, type = 'general') {
+  async sendNotification(message, type = "general") {
     const config = this.getConfig();
-    
+
     if (!config.enabled) {
-      logger.debug('Notifications are disabled, skipping notification');
+      logger.debug("Notifications are disabled, skipping notification");
       return;
     }
 
@@ -46,15 +48,15 @@ class NotificationService {
     }
 
     if (promises.length === 0) {
-      logger.warn('No notification channels configured');
+      logger.warn("No notification channels configured");
       return;
     }
 
     try {
       await Promise.allSettled(promises);
-      logger.info('Notifications sent successfully', { type });
+      logger.info("Notifications sent successfully", { type });
     } catch (error) {
-      logger.error('Error sending notifications:', error);
+      logger.error("Error sending notifications:", error);
     }
   }
 
@@ -66,28 +68,28 @@ class NotificationService {
       const teamsMessage = {
         "@type": "MessageCard",
         "@context": "http://schema.org/extensions",
-        "themeColor": color,
-        "summary": title,
-        "sections": [
+        themeColor: color,
+        summary: title,
+        sections: [
           {
-            "activityTitle": title,
-            "activitySubtitle": new Date().toLocaleString(),
-            "text": message,
-            "markdown": true
-          }
-        ]
+            activityTitle: title,
+            activitySubtitle: new Date().toLocaleString(),
+            text: message,
+            markdown: true,
+          },
+        ],
       };
 
       await axios.post(config.teamsWebhookUrl, teamsMessage, {
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
-        timeout: 10000
+        timeout: 10000,
       });
 
-      logger.debug('Teams notification sent successfully', { type });
+      logger.debug("Teams notification sent successfully", { type });
     } catch (error) {
-      logger.error('Error sending Teams notification:', error);
+      logger.error("Error sending Teams notification:", error);
       throw error;
     }
   }
@@ -104,21 +106,21 @@ class NotificationService {
             color: color,
             text: message,
             mrkdwn_in: ["text"],
-            ts: Math.floor(Date.now() / 1000)
-          }
-        ]
+            ts: Math.floor(Date.now() / 1000),
+          },
+        ],
       };
 
       await axios.post(config.slackWebhookUrl, slackMessage, {
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
-        timeout: 10000
+        timeout: 10000,
       });
 
-      logger.debug('Slack notification sent successfully', { type });
+      logger.debug("Slack notification sent successfully", { type });
     } catch (error) {
-      logger.error('Error sending Slack notification:', error);
+      logger.error("Error sending Slack notification:", error);
       throw error;
     }
   }
@@ -129,69 +131,69 @@ class NotificationService {
       // const formattedMessage = `${title}\n\n${message}`;
 
       const googleChatMessage = {
-        text: message
+        text: message,
       };
 
       await axios.post(config.googleChatWebhookUrl, googleChatMessage, {
         headers: {
-          'Content-Type': 'application/json; charset=UTF-8'
+          "Content-Type": "application/json; charset=UTF-8",
         },
-        timeout: 10000
+        timeout: 10000,
       });
 
-      logger.debug('Google Chat notification sent successfully', { type });
+      logger.debug("Google Chat notification sent successfully", { type });
     } catch (error) {
-      logger.error('Error sending Google Chat notification:', error);
+      logger.error("Error sending Google Chat notification:", error);
       throw error;
     }
   }
 
   getColorForType(type) {
     const colorMap = {
-      'work-item-created': '0078D4', // Blue
-      'work-item-updated': '00BCF2', // Light Blue
-      'build-succeeded': '107C10', // Green
-      'build-failed': 'D13438', // Red
-      'pull-request-created': '8764B8', // Purple
-      'pull-request-reviewer-assigned': 'FF8C00', // Orange
-      'overdue-reminder': 'FF4B4B', // Bright Red
-      'sprint-summary': '00A4EF', // Azure Blue
-      'general': '666666' // Gray
+      "work-item-created": "0078D4", // Blue
+      "work-item-updated": "00BCF2", // Light Blue
+      "build-succeeded": "107C10", // Green
+      "build-failed": "D13438", // Red
+      "pull-request-created": "8764B8", // Purple
+      "pull-request-reviewer-assigned": "FF8C00", // Orange
+      "overdue-reminder": "FF4B4B", // Bright Red
+      "sprint-summary": "00A4EF", // Azure Blue
+      general: "666666", // Gray
     };
 
-    return colorMap[type] || colorMap['general'];
+    return colorMap[type] || colorMap["general"];
   }
 
   getSlackColorForType(type) {
     const colorMap = {
-      'work-item-created': '#0078D4',
-      'work-item-updated': '#00BCF2',
-      'build-succeeded': 'good',
-      'build-failed': 'danger',
-      'pull-request-created': '#8764B8',
-      'pull-request-reviewer-assigned': 'warning',
-      'overdue-reminder': 'danger',
-      'sprint-summary': '#00A4EF',
-      'general': '#666666'
+      "work-item-created": "#0078D4",
+      "work-item-updated": "#00BCF2",
+      "build-succeeded": "good",
+      "build-failed": "danger",
+      "pull-request-created": "#8764B8",
+      "pull-request-reviewer-assigned": "warning",
+      "overdue-reminder": "danger",
+      "sprint-summary": "#00A4EF",
+      general: "#666666",
     };
 
-    return colorMap[type] || colorMap['general'];
+    return colorMap[type] || colorMap["general"];
   }
 
   getTitleForType(type) {
     const titleMap = {
-      'work-item-created': '🆕 New Work Item Created',
-      'work-item-updated': '📝 Work Item Updated',
-      'build-succeeded': '✅ Build Succeeded',
-      'build-failed': '❌ Build Failed',
-      'pull-request-created': '🔀 New Pull Request',
-      'pull-request-reviewer-assigned': '👥 Reviewer Assigned',
-      'overdue-reminder': '⏰ Overdue Items Reminder',
-      'sprint-summary': '📊 Sprint Summary',
-      'general': '📢 Azure DevOps Notification'
+      "work-item-created": "🆕 New Work Item Created",
+      "work-item-updated": "📝 Work Item Updated",
+      "build-succeeded": "✅ Build Succeeded",
+      "build-failed": "❌ Build Failed",
+      "pull-request-created": "🔀 New Pull Request",
+      "pull-request-reviewer-assigned": "👥 Reviewer Assigned",
+      "overdue-reminder": "⏰ Overdue Items Reminder",
+      "sprint-summary": "📊 Sprint Summary",
+      general: "📢 Azure DevOps Notification",
     };
 
-    return titleMap[type] || titleMap['general'];
+    return titleMap[type] || titleMap["general"];
   }
 
   async sendOverdueReminder(overdueItems) {
@@ -200,7 +202,7 @@ class NotificationService {
     }
 
     const message = markdownFormatter.formatOverdueItemsMessage(overdueItems);
-    await this.sendNotification(message, 'overdue-reminder');
+    await this.sendNotification(message, "overdue-reminder");
   }
 }
 

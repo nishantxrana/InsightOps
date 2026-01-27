@@ -1,5 +1,5 @@
-import LightweightAgent from './LightweightAgent.js';
-import { logger } from '../utils/logger.js';
+import LightweightAgent from "./LightweightAgent.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * ExecuteAgent - Takes actions based on analysis
@@ -7,9 +7,9 @@ import { logger } from '../utils/logger.js';
 class ExecuteAgent extends LightweightAgent {
   constructor() {
     super({
-      type: 'execute',
-      name: 'ExecuteAgent',
-      capabilities: ['send_notifications', 'trigger_actions', 'update_items']
+      type: "execute",
+      name: "ExecuteAgent",
+      capabilities: ["send_notifications", "trigger_actions", "update_items"],
     });
   }
 
@@ -20,19 +20,19 @@ class ExecuteAgent extends LightweightAgent {
     // Handle both direct params and object input
     const recipient = input.recipient || input;
     const message = input.message || input;
-    const priority = input.priority || 'normal';
+    const priority = input.priority || "normal";
 
-    logger.info('ExecuteAgent sending notification', {
+    logger.info("ExecuteAgent sending notification", {
       recipient,
       priority,
-      messageLength: typeof message === 'string' ? message.length : JSON.stringify(message).length
+      messageLength: typeof message === "string" ? message.length : JSON.stringify(message).length,
     });
 
     return {
-      status: 'notification_sent',
+      status: "notification_sent",
       recipient,
       priority,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
   }
 
@@ -40,17 +40,17 @@ class ExecuteAgent extends LightweightAgent {
    * Escalate issue to team lead
    */
   async escalate(issue, reason) {
-    logger.info('ExecuteAgent escalating issue', {
+    logger.info("ExecuteAgent escalating issue", {
       issue: issue.type,
-      reason
+      reason,
     });
 
     return {
-      status: 'escalated',
+      status: "escalated",
       issue,
       reason,
-      escalatedTo: 'team_lead',
-      timestamp: new Date()
+      escalatedTo: "team_lead",
+      timestamp: new Date(),
     };
   }
 
@@ -58,16 +58,16 @@ class ExecuteAgent extends LightweightAgent {
    * Suggest action without executing
    */
   async suggest(action, context) {
-    logger.info('ExecuteAgent suggesting action', {
+    logger.info("ExecuteAgent suggesting action", {
       action,
-      context: context.type
+      context: context.type,
     });
 
     return {
-      status: 'suggestion_made',
+      status: "suggestion_made",
       action,
       context,
-      requiresApproval: true
+      requiresApproval: true,
     };
   }
 
@@ -75,34 +75,34 @@ class ExecuteAgent extends LightweightAgent {
    * Execute safe automated actions
    */
   async executeAction(action, solution) {
-    logger.info('ExecuteAgent executing action', { action });
+    logger.info("ExecuteAgent executing action", { action });
 
     switch (action) {
-      case 'send_notification':
-        return await this.sendNotification('team', solution, 'normal');
+      case "send_notification":
+        return await this.sendNotification("team", solution, "normal");
 
-      case 'escalate':
-        return await this.escalate({ type: 'pr_idle' }, solution);
+      case "escalate":
+        return await this.escalate({ type: "pr_idle" }, solution);
 
-      case 'escalate_urgent':
-        return await this.escalate({ type: 'blocker' }, solution);
+      case "escalate_urgent":
+        return await this.escalate({ type: "blocker" }, solution);
 
-      case 'retry_build':
+      case "retry_build":
         return {
-          status: 'action_queued',
-          action: 'retry_build',
+          status: "action_queued",
+          action: "retry_build",
           solution,
-          note: 'Build retry would be triggered here'
+          note: "Build retry would be triggered here",
         };
 
-      case 'ai_suggested':
+      case "ai_suggested":
         return await this.suggest(action, { solution });
 
       default:
         return {
-          status: 'completed',
+          status: "completed",
           action,
-          solution
+          solution,
         };
     }
   }
@@ -113,26 +113,26 @@ class ExecuteAgent extends LightweightAgent {
   async decide(analysis) {
     const riskLevel = this.assessRisk(analysis);
 
-    if (riskLevel === 'low') {
+    if (riskLevel === "low") {
       return {
-        decision: 'auto_execute',
+        decision: "auto_execute",
         action: analysis.action,
-        reason: 'Low risk, safe to auto-execute'
+        reason: "Low risk, safe to auto-execute",
       };
     }
 
-    if (riskLevel === 'medium') {
+    if (riskLevel === "medium") {
       return {
-        decision: 'notify_and_suggest',
+        decision: "notify_and_suggest",
         action: analysis.action,
-        reason: 'Medium risk, notify team with suggestion'
+        reason: "Medium risk, notify team with suggestion",
       };
     }
 
     return {
-      decision: 'escalate',
-      action: 'human_review',
-      reason: 'High risk, requires human approval'
+      decision: "escalate",
+      action: "human_review",
+      reason: "High risk, requires human approval",
     };
   }
 
@@ -141,14 +141,14 @@ class ExecuteAgent extends LightweightAgent {
    */
   assessRisk(analysis) {
     if (analysis.autoFix && analysis.confidence > 0.9) {
-      return 'low';
+      return "low";
     }
 
     if (analysis.confidence > 0.7) {
-      return 'medium';
+      return "medium";
     }
 
-    return 'high';
+    return "high";
   }
 
   /**
@@ -168,9 +168,9 @@ class ExecuteAgent extends LightweightAgent {
 
     return {
       total: actions.length,
-      successful: results.filter(r => r.success).length,
-      failed: results.filter(r => !r.success).length,
-      results
+      successful: results.filter((r) => r.success).length,
+      failed: results.filter((r) => !r.success).length,
+      results,
     };
   }
 }

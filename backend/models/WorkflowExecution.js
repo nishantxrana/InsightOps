@@ -1,49 +1,51 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const WorkflowExecutionSchema = new mongoose.Schema({
   id: {
     type: String,
     required: true,
     unique: true,
-    index: true
+    index: true,
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true
+    ref: "User",
+    index: true,
   },
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Organization',
-    index: true
+    ref: "Organization",
+    index: true,
   },
   workflowId: {
     type: String,
     required: true,
-    index: true
+    index: true,
   },
   status: {
     type: String,
-    enum: ['running', 'completed', 'failed', 'paused'],
-    default: 'running',
-    index: true
+    enum: ["running", "completed", "failed", "paused"],
+    default: "running",
+    index: true,
   },
   startTime: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   endTime: Date,
   duration: Number,
-  steps: [{
-    id: String,
-    status: String,
-    result: mongoose.Schema.Types.Mixed,
-    error: String,
-    timestamp: Date
-  }],
+  steps: [
+    {
+      id: String,
+      status: String,
+      result: mongoose.Schema.Types.Mixed,
+      error: String,
+      timestamp: Date,
+    },
+  ],
   context: mongoose.Schema.Types.Mixed,
   outputs: mongoose.Schema.Types.Mixed,
-  error: String
+  error: String,
 });
 
 // Indexes for multi-tenant queries
@@ -53,12 +55,12 @@ WorkflowExecutionSchema.index({ organizationId: 1, workflowId: 1 });
 // TTL index - auto-delete completed executions after 7 days
 WorkflowExecutionSchema.index(
   { startTime: 1 },
-  { 
+  {
     expireAfterSeconds: 7 * 24 * 60 * 60,
-    partialFilterExpression: { status: 'completed' }
+    partialFilterExpression: { status: "completed" },
   }
 );
 
-const WorkflowExecution = mongoose.model('WorkflowExecution', WorkflowExecutionSchema);
+const WorkflowExecution = mongoose.model("WorkflowExecution", WorkflowExecutionSchema);
 
 export default WorkflowExecution;

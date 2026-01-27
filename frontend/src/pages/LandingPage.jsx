@@ -80,7 +80,7 @@ const stats = [
   { value: "99.9%", label: "Uptime SLA", icon: TrendingUp, suffix: "" },
   { value: "50", label: "Response Time", icon: Zap, suffix: "ms" },
   { value: "10k+", label: "Daily Events", icon: Globe, suffix: "" },
-  { value: "SOC2", label: "Compliant", icon: Award, suffix: "" }
+  { value: "SOC2", label: "Compliant", icon: Award, suffix: "" },
 ];
 
 const KEY_METRICS = [
@@ -110,20 +110,9 @@ const KEY_METRICS = [
   },
 ];
 
-const TRUST_POINTS = [
-  "Free 14-day trial",
-  "SOC2 & GDPR ready",
-  "No credit card required",
-];
+const TRUST_POINTS = ["Free 14-day trial", "SOC2 & GDPR ready", "No credit card required"];
 
-const PARTNER_LOGOS = [
-  "Azure DevOps",
-  "GitHub",
-  "Slack",
-  "Microsoft Teams",
-  "PagerDuty",
-  "Jira",
-];
+const PARTNER_LOGOS = ["Azure DevOps", "GitHub", "Slack", "Microsoft Teams", "PagerDuty", "Jira"];
 
 const DOCS_TIMELINE = [
   {
@@ -230,9 +219,7 @@ export default function LandingPage() {
       { threshold: 0.2, rootMargin: "0px 0px -10% 0px" }
     );
 
-    document
-      .querySelectorAll("[data-animate]")
-      .forEach((el) => observer.observe(el));
+    document.querySelectorAll("[data-animate]").forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
   }, []);
@@ -275,14 +262,10 @@ export default function LandingPage() {
   }, [isMenuOpen]);
 
   const animateClass = (key) =>
-    isVisible[key]
-      ? "opacity-100 translate-y-0"
-      : "opacity-0 translate-y-10 md:translate-y-12";
+    isVisible[key] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 md:translate-y-12";
 
   const heroParallaxStyle = {
-    transform: `translate3d(${mousePosition.x * 16}px, ${
-      mousePosition.y * 16
-    }px, 0)`,
+    transform: `translate3d(${mousePosition.x * 16}px, ${mousePosition.y * 16}px, 0)`,
   };
 
   const closeMobileMenu = () => setIsMenuOpen(false);
@@ -344,11 +327,7 @@ export default function LandingPage() {
                 onClick={toggleTheme}
                 className="p-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all duration-200"
               >
-                {theme === "dark" ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
 
               <Link to="/signin">
@@ -387,9 +366,7 @@ export default function LandingPage() {
           {/* Status badge */}
           <div className="inline-flex items-center space-x-2 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-full px-4 py-2 text-sm text-slate-600 dark:text-slate-400 mb-8 border border-slate-200/50 dark:border-slate-700/50 animate-fade-in-up">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className="font-medium">
-              Now supporting GPT-4, Gemini, and Llama models
-            </span>
+            <span className="font-medium">Now supporting GPT-4, Gemini, and Llama models</span>
           </div>
 
           {/* Main headline */}
@@ -399,9 +376,7 @@ export default function LandingPage() {
           >
             DevOps monitoring
             <br />
-            <span className="text-slate-600 dark:text-slate-400">
-              that actually works
-            </span>
+            <span className="text-slate-600 dark:text-slate-400">that actually works</span>
           </h1>
 
           {/* Subtitle */}
@@ -409,8 +384,8 @@ export default function LandingPage() {
             className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-12 max-w-3xl mx-auto leading-relaxed font-light animate-fade-in-up"
             style={{ animationDelay: "0.4s" }}
           >
-            AI-powered insights for Azure DevOps. Monitor builds, track sprints,
-            and catch issues before they reach production.
+            AI-powered insights for Azure DevOps. Monitor builds, track sprints, and catch issues
+            before they reach production.
           </p>
 
           {/* CTA buttons */}
@@ -443,9 +418,7 @@ export default function LandingPage() {
             className="text-sm text-slate-500 dark:text-slate-500 space-y-2 animate-fade-in-up"
             style={{ animationDelay: "0.8s" }}
           >
-            <p className="font-medium">
-              Free 14-day trial • No credit card required
-            </p>
+            <p className="font-medium">Free 14-day trial • No credit card required</p>
             <div className="flex items-center justify-center space-x-6 text-xs">
               <span className="flex items-center space-x-1">
                 <CheckCircle className="w-3 h-3 text-emerald-500" />
@@ -469,17 +442,13 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
-              <div 
-                key={index} 
-                className="text-center group"
-                data-animate
-                id={`stat-${index}`}
-              >
+              <div key={index} className="text-center group" data-animate id={`stat-${index}`}>
                 <div className="flex items-center justify-center mb-3">
                   <stat.icon className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform duration-300" />
                 </div>
                 <div className="text-4xl font-bold text-white mb-2 group-hover:scale-105 transition-transform duration-300">
-                  {stat.value}{stat.suffix && <span className="text-2xl text-blue-400">{stat.suffix}</span>}
+                  {stat.value}
+                  {stat.suffix && <span className="text-2xl text-blue-400">{stat.suffix}</span>}
                 </div>
                 <div className="text-sm font-medium text-slate-400">{stat.label}</div>
               </div>
@@ -489,10 +458,7 @@ export default function LandingPage() {
       </section>
 
       {/* Enhanced Features Section */}
-      <section
-        id="features"
-        className="py-20 px-6 lg:px-8 bg-slate-50/50 dark:bg-slate-900/50"
-      >
+      <section id="features" className="py-20 px-6 lg:px-8 bg-slate-50/50 dark:bg-slate-900/50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <div className="inline-flex items-center space-x-2 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded-full px-3 py-1 text-xs font-medium mb-4">
@@ -500,14 +466,13 @@ export default function LandingPage() {
               <span>Enterprise-grade platform</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4 tracking-tight">
-              Everything you need for{' '}
+              Everything you need for{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
                 DevOps excellence
               </span>
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-              Comprehensive monitoring and analysis tools designed for modern
-              development teams.
+              Comprehensive monitoring and analysis tools designed for modern development teams.
             </p>
           </div>
 
@@ -576,10 +541,7 @@ export default function LandingPage() {
       </section>
 
       {/* Enhanced Testimonials Section */}
-      <section
-        id="testimonials"
-        className="py-20 px-6 lg:px-8 bg-white dark:bg-slate-950"
-      >
+      <section id="testimonials" className="py-20 px-6 lg:px-8 bg-white dark:bg-slate-950">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4 tracking-tight text-balance">
@@ -591,10 +553,7 @@ export default function LandingPage() {
             <div className="flex items-center justify-center space-x-2 mb-4">
               <div className="flex items-center space-x-1">
                 {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className="w-5 h-5 fill-amber-400 text-amber-400"
-                  />
+                  <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
                 ))}
               </div>
               <span className="text-slate-600 dark:text-slate-400 font-semibold text-sm ml-3">
@@ -612,7 +571,7 @@ export default function LandingPage() {
                 role: "Engineering Manager",
                 company: "TechFlow",
                 avatar: "SC",
-                gradient: "from-blue-500 to-cyan-500"
+                gradient: "from-blue-500 to-cyan-500",
               },
               {
                 quote:
@@ -621,7 +580,7 @@ export default function LandingPage() {
                 role: "DevOps Lead",
                 company: "BuildLab",
                 avatar: "MR",
-                gradient: "from-purple-500 to-pink-500"
+                gradient: "from-purple-500 to-pink-500",
               },
               {
                 quote:
@@ -630,7 +589,7 @@ export default function LandingPage() {
                 role: "CTO",
                 company: "DevCorp",
                 avatar: "EW",
-                gradient: "from-emerald-500 to-teal-500"
+                gradient: "from-emerald-500 to-teal-500",
               },
             ].map((testimonial, index) => (
               <Card
@@ -638,8 +597,10 @@ export default function LandingPage() {
                 className="group border-0 bg-white dark:bg-slate-800/50 shadow-soft hover:shadow-soft-lg transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden"
               >
                 {/* Gradient accent */}
-                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${testimonial.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-                
+                <div
+                  className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${testimonial.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}
+                />
+
                 <CardContent className="p-8">
                   {/* Stars */}
                   <div className="flex items-center space-x-1 mb-6">
@@ -659,7 +620,9 @@ export default function LandingPage() {
 
                   {/* Author */}
                   <div className="flex items-center space-x-4">
-                    <div className={`w-12 h-12 bg-gradient-to-br ${testimonial.gradient} rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                    <div
+                      className={`w-12 h-12 bg-gradient-to-br ${testimonial.gradient} rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform duration-300`}
+                    >
                       {testimonial.avatar}
                     </div>
                     <div>
@@ -697,9 +660,8 @@ export default function LandingPage() {
           </h2>
 
           <p className="text-xl text-slate-300 mb-12 max-w-2xl mx-auto leading-relaxed">
-            Start monitoring your Azure DevOps workflow today. Catch issues
-            before they reach production and accelerate your development
-            process.
+            Start monitoring your Azure DevOps workflow today. Catch issues before they reach
+            production and accelerate your development process.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
@@ -747,8 +709,8 @@ export default function LandingPage() {
                 </span>
               </div>
               <p className="text-slate-600 dark:text-slate-400 leading-relaxed mb-6 max-w-md">
-                The most advanced AI-powered DevOps monitoring platform for
-                modern development teams who demand excellence.
+                The most advanced AI-powered DevOps monitoring platform for modern development teams
+                who demand excellence.
               </p>
               <div className="flex items-center space-x-4">
                 {["Twitter", "GitHub", "LinkedIn", "Discord"].map((social) => (
@@ -770,22 +732,18 @@ export default function LandingPage() {
                 Product
               </h4>
               <ul className="space-y-3">
-                {[
-                  "Features",
-                  "Documentation",
-                  "API Reference",
-                  "Integrations",
-                  "Changelog",
-                ].map((item) => (
-                  <li key={item}>
-                    <a
-                      href="#"
-                      className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
-                    >
-                      {item}
-                    </a>
-                  </li>
-                ))}
+                {["Features", "Documentation", "API Reference", "Integrations", "Changelog"].map(
+                  (item) => (
+                    <li key={item}>
+                      <a
+                        href="#"
+                        className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
+                      >
+                        {item}
+                      </a>
+                    </li>
+                  )
+                )}
               </ul>
             </div>
 
@@ -794,14 +752,7 @@ export default function LandingPage() {
                 Company
               </h4>
               <ul className="space-y-3">
-                {[
-                  "About Us",
-                  "Blog",
-                  "Careers",
-                  "Press Kit",
-                  "Contact",
-                  "Partners",
-                ].map((item) => (
+                {["About Us", "Blog", "Careers", "Press Kit", "Contact", "Partners"].map((item) => (
                   <li key={item}>
                     <a
                       href="#"
@@ -842,8 +793,7 @@ export default function LandingPage() {
 
           <div className="border-t border-slate-200 dark:border-slate-800 pt-8 flex flex-col lg:flex-row justify-between items-center space-y-4 lg:space-y-0">
             <p className="text-slate-500 dark:text-slate-500">
-              © 2024 InsightOps. All rights reserved. Built with ❤️ for
-              developers.
+              © 2024 InsightOps. All rights reserved. Built with ❤️ for developers.
             </p>
             <div className="flex items-center space-x-6 text-sm">
               <a

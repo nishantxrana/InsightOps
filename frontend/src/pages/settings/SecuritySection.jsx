@@ -1,14 +1,23 @@
-import React, { useCallback } from 'react'
-import { Shield } from 'lucide-react'
-import { Switch } from '../../components/ui/switch'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
-import { Input } from '../../components/ui/input'
-import { Label } from '../../components/ui/label'
+import React, { useCallback } from "react";
+import { Shield } from "lucide-react";
+import { Switch } from "../../components/ui/switch";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
 
 export default function SecuritySection({ data, onChange }) {
-  const handleChange = useCallback((field, value) => {
-    onChange({ ...data, [field]: value })
-  }, [data, onChange])
+  const handleChange = useCallback(
+    (field, value) => {
+      onChange({ ...data, [field]: value });
+    },
+    [data, onChange]
+  );
 
   return (
     <Card>
@@ -34,10 +43,11 @@ export default function SecuritySection({ data, onChange }) {
             type="password"
             placeholder="Optional: Enter a secret to verify webhook authenticity"
             value={data.webhookSecret}
-            onChange={(e) => handleChange('webhookSecret', e.target.value)}
+            onChange={(e) => handleChange("webhookSecret", e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            If set, Azure DevOps webhooks must include this secret to be accepted. Leave empty to accept all webhooks from your configured URLs.
+            If set, Azure DevOps webhooks must include this secret to be accepted. Leave empty to
+            accept all webhooks from your configured URLs.
           </p>
         </div>
 
@@ -48,7 +58,7 @@ export default function SecuritySection({ data, onChange }) {
             type="password"
             placeholder="Optional: Token for external integrations"
             value={data.apiToken}
-            onChange={(e) => handleChange('apiToken', e.target.value)}
+            onChange={(e) => handleChange("apiToken", e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
             Generate a token to allow external services to send data to InsightOps.
@@ -66,7 +76,7 @@ export default function SecuritySection({ data, onChange }) {
             <Switch
               id="rateLimit"
               checked={data.enableRateLimit}
-              onCheckedChange={(checked) => handleChange('enableRateLimit', checked)}
+              onCheckedChange={(checked) => handleChange("enableRateLimit", checked)}
             />
           </div>
           {data.enableRateLimit && (
@@ -77,7 +87,9 @@ export default function SecuritySection({ data, onChange }) {
                 type="number"
                 placeholder="100"
                 value={data.maxRequestsPerMinute}
-                onChange={(e) => handleChange('maxRequestsPerMinute', parseInt(e.target.value) || 100)}
+                onChange={(e) =>
+                  handleChange("maxRequestsPerMinute", parseInt(e.target.value) || 100)
+                }
                 className="w-32"
               />
             </div>
@@ -85,5 +97,5 @@ export default function SecuritySection({ data, onChange }) {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from "./logger.js";
 
 class NotificationQueue {
   constructor() {
@@ -17,10 +17,12 @@ class NotificationQueue {
     this.queues.get(userId).push({
       ...notification,
       attempt: 0,
-      enqueuedAt: Date.now()
+      enqueuedAt: Date.now(),
     });
 
-    logger.debug(`Enqueued notification for user ${userId}, queue size: ${this.queues.get(userId).length}`);
+    logger.debug(
+      `Enqueued notification for user ${userId}, queue size: ${this.queues.get(userId).length}`
+    );
 
     // Start processing if not already running
     if (!this.processing.get(userId)) {
@@ -41,17 +43,16 @@ class NotificationQueue {
 
       try {
         await this.sendNotification(notification);
-        
+
         // Success - remove from queue
         queue.shift();
         const stats = this.stats.get(userId);
         stats.sent++;
-        
+
         logger.info(`Notification sent successfully for user ${userId}`);
 
         // Rate limit: wait 500ms between requests
         await this.delay(500);
-
       } catch (error) {
         notification.attempt++;
         notification.lastError = error.message;
@@ -60,20 +61,22 @@ class NotificationQueue {
           // Max retries reached - move to dead letter
           queue.shift();
           this.moveToDeadLetter(userId, notification, error);
-          
+
           const stats = this.stats.get(userId);
           stats.failed++;
-          
+
           logger.error(`Notification failed permanently for user ${userId} after 3 attempts`);
         } else {
           // Retry with exponential backoff
           const backoffDelay = Math.pow(2, notification.attempt - 1) * 1000; // 1s, 2s, 4s
-          
+
           const stats = this.stats.get(userId);
           stats.retried++;
-          
-          logger.warn(`Notification failed for user ${userId}, retrying in ${backoffDelay}ms (attempt ${notification.attempt}/3)`);
-          
+
+          logger.warn(
+            `Notification failed for user ${userId}, retrying in ${backoffDelay}ms (attempt ${notification.attempt}/3)`
+          );
+
           await this.delay(backoffDelay);
         }
       }
@@ -83,11 +86,11 @@ class NotificationQueue {
   }
 
   async sendNotification(notification) {
-    const axios = (await import('axios')).default;
-    
+    const axios = (await import("axios")).default;
+
     await axios.post(notification.webhookUrl, notification.payload, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 10000
+      headers: { "Content-Type": "application/json" },
+      timeout: 10000,
     });
   }
 
@@ -96,7 +99,7 @@ class NotificationQueue {
       userId,
       notification,
       error: error.message,
-      failedAt: Date.now()
+      failedAt: Date.now(),
     });
 
     // Keep only last 100 failed notifications
@@ -106,14 +109,14 @@ class NotificationQueue {
   }
 
   delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   getQueueStatus(userId) {
     return {
       queueSize: this.queues.get(userId)?.length || 0,
       processing: this.processing.get(userId) || false,
-      stats: this.stats.get(userId) || { sent: 0, failed: 0, retried: 0 }
+      stats: this.stats.get(userId) || { sent: 0, failed: 0, retried: 0 },
     };
   }
 
@@ -124,7 +127,7 @@ class NotificationQueue {
     }
     return {
       queues: status,
-      deadLetterCount: this.deadLetter.length
+      deadLetterCount: this.deadLetter.length,
     };
   }
 

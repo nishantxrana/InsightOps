@@ -1,7 +1,7 @@
-import { logger } from '../utils/logger.js';
-import { monitorAgent } from './MonitorAgent.js';
-import { analyzeAgent } from './AnalyzeAgent.js';
-import { executeAgent } from './ExecuteAgent.js';
+import { logger } from "../utils/logger.js";
+import { monitorAgent } from "./MonitorAgent.js";
+import { analyzeAgent } from "./AnalyzeAgent.js";
+import { executeAgent } from "./ExecuteAgent.js";
 
 /**
  * Central registry for all agents
@@ -54,7 +54,7 @@ class AgentRegistry {
    */
   getStats() {
     const stats = {};
-    
+
     for (const [type, agent] of this.agents.entries()) {
       stats[type] = agent.getStats();
     }
@@ -69,7 +69,7 @@ class AgentRegistry {
     for (const agent of this.agents.values()) {
       agent.resetStats();
     }
-    logger.info('All agent stats reset');
+    logger.info("All agent stats reset");
   }
 
   /**
@@ -78,14 +78,14 @@ class AgentRegistry {
   healthCheck() {
     const health = {
       healthy: true,
-      agents: {}
+      agents: {},
     };
 
     for (const [type, agent] of this.agents.entries()) {
       const agentHealth = {
         name: agent.name,
         type: agent.type,
-        stats: agent.getStats()
+        stats: agent.getStats(),
       };
 
       health.agents[type] = agentHealth;

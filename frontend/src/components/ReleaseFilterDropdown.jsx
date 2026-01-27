@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import { ChevronDown } from "lucide-react";
 
-const ReleaseFilterDropdown = ({ 
-  options, 
-  value, 
-  onChange, 
-  icon: Icon, 
-  placeholder = "Select..."
+const ReleaseFilterDropdown = ({
+  options,
+  value,
+  onChange,
+  icon: Icon,
+  placeholder = "Select...",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -18,11 +18,11 @@ const ReleaseFilterDropdown = ({
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedOption = options.find(opt => opt.value === value);
+  const selectedOption = options.find((opt) => opt.value === value);
 
   return (
     <div className="relative dropdown-container" ref={dropdownRef}>
@@ -34,12 +34,14 @@ const ReleaseFilterDropdown = ({
         <span className="flex-1 text-left text-foreground truncate">
           {selectedOption ? selectedOption.label : placeholder}
         </span>
-        <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`h-3 w-3 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
-      
+
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-lg shadow-lg z-50 py-1 max-h-60 overflow-y-auto">
-          {options.map(option => (
+          {options.map((option) => (
             <button
               key={option.value}
               onClick={() => {
@@ -47,7 +49,9 @@ const ReleaseFilterDropdown = ({
                 setIsOpen(false);
               }}
               className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors ${
-                value === option.value ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300' : 'text-foreground'
+                value === option.value
+                  ? "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300"
+                  : "text-foreground"
               }`}
             >
               {option.label}

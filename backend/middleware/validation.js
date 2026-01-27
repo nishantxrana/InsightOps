@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { logger, sanitizeForLogging } from '../utils/logger.js';
+import { z } from "zod";
+import { logger, sanitizeForLogging } from "../utils/logger.js";
 
 export const validateRequest = (schema) => (req, res, next) => {
   try {
@@ -7,23 +7,23 @@ export const validateRequest = (schema) => (req, res, next) => {
     next();
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn('Validation failed', {
+      logger.warn("Validation failed", {
         path: req.path,
         method: req.method,
-        errors: error.errors.map(e => ({
-          field: e.path.join('.'),
+        errors: error.errors.map((e) => ({
+          field: e.path.join("."),
           message: e.message,
-          code: e.code
+          code: e.code,
         })),
-        body: sanitizeForLogging(req.body)
+        body: sanitizeForLogging(req.body),
       });
-      
+
       return res.status(400).json({
-        error: 'Validation failed',
-        details: error.errors.map(e => ({
-          field: e.path.join('.'),
-          message: e.message
-        }))
+        error: "Validation failed",
+        details: error.errors.map((e) => ({
+          field: e.path.join("."),
+          message: e.message,
+        })),
       });
     }
     next(error);

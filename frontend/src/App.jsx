@@ -1,22 +1,22 @@
-import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import Layout from './components/Layout'
-import Dashboard from './pages/Dashboard'
-import Settings from './pages/Settings'
-import Logs from './pages/Logs'
-import WorkItems from './pages/WorkItems'
-import Pipelines from './pages/Pipelines'
-import Releases from './pages/Releases'
-import PullRequests from './pages/PullRequests'
-import NotificationHistory from './pages/NotificationHistory'
-import LandingPage from './pages/LandingPage'
-import SignIn from './pages/SignIn'
-import SignUp from './pages/SignUp'
-import { HealthProvider } from './contexts/HealthContext'
-import { ThemeProvider } from './contexts/ThemeContext'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { OrganizationProvider, useOrganization } from './contexts/OrganizationContext'
-import { Toaster } from './components/ui/toaster'
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import Layout from "./components/Layout";
+import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
+import Logs from "./pages/Logs";
+import WorkItems from "./pages/WorkItems";
+import Pipelines from "./pages/Pipelines";
+import Releases from "./pages/Releases";
+import PullRequests from "./pages/PullRequests";
+import NotificationHistory from "./pages/NotificationHistory";
+import LandingPage from "./pages/LandingPage";
+import SignIn from "./pages/SignIn";
+import SignUp from "./pages/SignUp";
+import { HealthProvider } from "./contexts/HealthContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { OrganizationProvider, useOrganization } from "./contexts/OrganizationContext";
+import { Toaster } from "./components/ui/toaster";
 
 function AuthenticatedApp() {
   const { needsSetup, loading } = useOrganization();
@@ -98,7 +98,7 @@ function App() {
         </HealthProvider>
       </AuthProvider>
     </ThemeProvider>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -1,6 +1,6 @@
-import LightweightAgent from './LightweightAgent.js';
-import { logger } from '../utils/logger.js';
-import { cacheManager } from '../cache/CacheManager.js';
+import LightweightAgent from "./LightweightAgent.js";
+import { logger } from "../utils/logger.js";
+import { cacheManager } from "../cache/CacheManager.js";
 
 /**
  * MonitorAgent - Observes Azure DevOps state and detects changes
@@ -8,9 +8,9 @@ import { cacheManager } from '../cache/CacheManager.js';
 class MonitorAgent extends LightweightAgent {
   constructor() {
     super({
-      type: 'monitor',
-      name: 'MonitorAgent',
-      capabilities: ['observe', 'detect_changes', 'track_state']
+      type: "monitor",
+      name: "MonitorAgent",
+      capabilities: ["observe", "detect_changes", "track_state"],
     });
   }
 
@@ -19,10 +19,10 @@ class MonitorAgent extends LightweightAgent {
    */
   async monitorBuildFailure(build, timeline, logs, client) {
     const task = {
-      type: 'build_failure',
-      category: 'build',
+      type: "build_failure",
+      category: "build",
       description: this.extractBuildError(build, timeline),
-      data: { build, timeline, logs, client }
+      data: { build, timeline, logs, client },
     };
 
     return await this.execute(task);
@@ -33,12 +33,12 @@ class MonitorAgent extends LightweightAgent {
    */
   async monitorPullRequest(pr) {
     const idleHours = this.calculateIdleTime(pr);
-    
+
     const task = {
-      type: 'pr_status',
-      category: 'pr',
+      type: "pr_status",
+      category: "pr",
       description: `PR idle for ${idleHours} hours`,
-      data: { pr, idleHours }
+      data: { pr, idleHours },
     };
 
     return await this.execute(task);
@@ -48,27 +48,27 @@ class MonitorAgent extends LightweightAgent {
    * Monitor work item status
    */
   async monitorWorkItem(workItem) {
-    const state = workItem.fields?.['System.State'];
-    const assignee = workItem.fields?.['System.AssignedTo']?.displayName;
-    
-    let description = '';
-    if (state === 'Blocked') {
-      description = 'blocked';
+    const state = workItem.fields?.["System.State"];
+    const assignee = workItem.fields?.["System.AssignedTo"]?.displayName;
+
+    let description = "";
+    if (state === "Blocked") {
+      description = "blocked";
     } else if (!assignee) {
-      description = 'unassigned';
+      description = "unassigned";
     } else if (this.isOverdue(workItem)) {
-      description = 'overdue';
+      description = "overdue";
     }
 
     if (!description) {
-      return { success: true, result: { status: 'ok' } };
+      return { success: true, result: { status: "ok" } };
     }
 
     const task = {
-      type: 'work_item_issue',
-      category: 'workitem',
+      type: "work_item_issue",
+      category: "workitem",
       description,
-      data: { workItem }
+      data: { workItem },
     };
 
     return await this.execute(task);
@@ -78,46 +78,46 @@ class MonitorAgent extends LightweightAgent {
    * Execute monitoring action
    */
   async executeAction(action, solution) {
-    logger.info('MonitorAgent executing action', { action, solution });
+    logger.info("MonitorAgent executing action", { action, solution });
 
     switch (action) {
-      case 'retry_with_clean_cache':
+      case "retry_with_clean_cache":
         return {
-          status: 'action_suggested',
-          action: 'retry_build',
+          status: "action_suggested",
+          action: "retry_build",
           solution,
-          autoExecute: true
+          autoExecute: true,
         };
 
-      case 'notify_reviewers':
+      case "notify_reviewers":
         return {
-          status: 'action_suggested',
-          action: 'send_notification',
+          status: "action_suggested",
+          action: "send_notification",
           solution,
-          autoExecute: true
+          autoExecute: true,
         };
 
-      case 'escalate_to_lead':
+      case "escalate_to_lead":
         return {
-          status: 'action_suggested',
-          action: 'escalate',
+          status: "action_suggested",
+          action: "escalate",
           solution,
-          autoExecute: true
+          autoExecute: true,
         };
 
-      case 'escalate_blocker':
+      case "escalate_blocker":
         return {
-          status: 'action_suggested',
-          action: 'escalate_urgent',
+          status: "action_suggested",
+          action: "escalate_urgent",
           solution,
-          autoExecute: true
+          autoExecute: true,
         };
 
       default:
         return {
-          status: 'completed',
+          status: "completed",
           action,
-          solution
+          solution,
         };
     }
   }
@@ -127,22 +127,22 @@ class MonitorAgent extends LightweightAgent {
    */
   async aiAnalyze(task) {
     // For build failures, use the specialized aiService
-    if (task.type === 'build_failure' && task.data.build) {
-      const { aiService } = await import('../ai/aiService.js');
+    if (task.type === "build_failure" && task.data.build) {
+      const { aiService } = await import("../ai/aiService.js");
       const { build, timeline, logs, client } = task.data;
-      
+
       const analysis = await aiService.summarizeBuildFailure(build, timeline, logs, client);
-      
+
       return {
-        method: 'ai',
+        method: "ai",
         analysis,
         solution: analysis,
         confidence: 0.8,
-        action: 'provide_solution',
-        autoFix: false
+        action: "provide_solution",
+        autoFix: false,
       };
     }
-    
+
     // For other tasks, use parent implementation
     return await super.aiAnalyze(task);
   }
@@ -151,16 +151,17 @@ class MonitorAgent extends LightweightAgent {
    * Extract error from build timeline
    */
   extractBuildError(build, timeline) {
-    const failedJobs = timeline?.records?.filter(r => 
-      r.result === 'failed' || r.result === 'canceled'
-    ) || [];
+    const failedJobs =
+      timeline?.records?.filter((r) => r.result === "failed" || r.result === "canceled") || [];
 
-    const errors = failedJobs.map(job => {
-      const issues = job.issues?.map(i => i.message).join('; ') || '';
-      return `${job.name}: ${issues}`;
-    }).join('\n');
+    const errors = failedJobs
+      .map((job) => {
+        const issues = job.issues?.map((i) => i.message).join("; ") || "";
+        return `${job.name}: ${issues}`;
+      })
+      .join("\n");
 
-    return errors || 'Build failed with no specific error details';
+    return errors || "Build failed with no specific error details";
   }
 
   /**
@@ -176,7 +177,7 @@ class MonitorAgent extends LightweightAgent {
    * Check if work item is overdue
    */
   isOverdue(workItem) {
-    const dueDate = workItem.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+    const dueDate = workItem.fields?.["Microsoft.VSTS.Scheduling.DueDate"];
     if (!dueDate) return false;
 
     const due = new Date(dueDate);
@@ -188,18 +189,18 @@ class MonitorAgent extends LightweightAgent {
    * Detect state changes
    */
   async detectChanges(currentState, stateKey) {
-    const previousState = cacheManager.get('api', `state_${stateKey}`);
-    
+    const previousState = cacheManager.get("api", `state_${stateKey}`);
+
     if (!previousState) {
       // First time seeing this state
-      cacheManager.set('api', `state_${stateKey}`, currentState, 3600);
+      cacheManager.set("api", `state_${stateKey}`, currentState, 3600);
       return { changed: false, isNew: true };
     }
 
     const changed = JSON.stringify(currentState) !== JSON.stringify(previousState);
-    
+
     if (changed) {
-      cacheManager.set('api', `state_${stateKey}`, currentState, 3600);
+      cacheManager.set("api", `state_${stateKey}`, currentState, 3600);
     }
 
     return { changed, isNew: false, previousState };
