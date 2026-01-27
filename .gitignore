@@ -104,4 +104,7 @@ backend/public/
 
 copy-frontend.sh
 Amazon-Q
-Docs
+Docs/
+
+# Git credential files
+.git-credentials-local
