@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from "./logger.js";
 
 /**
  * In-memory rate limiter for API calls
@@ -19,7 +19,7 @@ class RateLimiter {
       window: config.window, // in milliseconds
       tokens: config.tokens || null,
       history: [],
-      tokenHistory: []
+      tokenHistory: [],
     });
   }
 
@@ -34,7 +34,7 @@ class RateLimiter {
     const windowStart = now - limit.window;
 
     // Clean old history
-    limit.history = limit.history.filter(time => time > windowStart);
+    limit.history = limit.history.filter((time) => time > windowStart);
 
     // Check if under limit
     return limit.history.length < limit.requests;
@@ -67,7 +67,7 @@ class RateLimiter {
       }
 
       // Wait for 1 second before checking again
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
     this.recordRequest(provider);
@@ -84,7 +84,7 @@ class RateLimiter {
     const windowStart = now - limit.window;
 
     // Clean old history
-    limit.history = limit.history.filter(time => time > windowStart);
+    limit.history = limit.history.filter((time) => time > windowStart);
 
     const stats = {
       provider,
@@ -92,19 +92,17 @@ class RateLimiter {
       maxRequests: limit.requests,
       window: limit.window,
       available: limit.requests - limit.history.length,
-      resetIn: limit.history.length > 0 
-        ? Math.max(0, limit.history[0] + limit.window - now)
-        : 0
+      resetIn: limit.history.length > 0 ? Math.max(0, limit.history[0] + limit.window - now) : 0,
     };
 
     // Add token stats if applicable
     if (limit.tokens) {
-      limit.tokenHistory = limit.tokenHistory.filter(t => t.time > windowStart);
+      limit.tokenHistory = limit.tokenHistory.filter((t) => t.time > windowStart);
       const tokensUsed = limit.tokenHistory.reduce((sum, t) => sum + t.tokens, 0);
       stats.tokens = {
         used: tokensUsed,
         max: limit.tokens,
-        available: limit.tokens - tokensUsed
+        available: limit.tokens - tokensUsed,
       };
     }
 
@@ -148,15 +146,15 @@ class RateLimiter {
 export const rateLimiter = new RateLimiter();
 
 // Configure default limits for free tier
-rateLimiter.configure('gemini', {
+rateLimiter.configure("gemini", {
   requests: 15,
   window: 60000, // 1 minute
-  tokens: 1000000 // 1M tokens per day (not enforced per minute)
+  tokens: 1000000, // 1M tokens per day (not enforced per minute)
 });
 
-rateLimiter.configure('openai', {
+rateLimiter.configure("openai", {
   requests: 500,
-  window: 60000 // 1 minute
+  window: 60000, // 1 minute
 });
 
 export default rateLimiter;

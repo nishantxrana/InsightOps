@@ -1,8 +1,8 @@
-import { Organization } from '../models/Organization.js';
-import { PollingJob } from '../models/PollingJob.js';
-import { encrypt, decrypt } from '../utils/encryption.js';
-import { logger } from '../utils/logger.js';
-import axios from 'axios';
+import { Organization } from "../models/Organization.js";
+import { PollingJob } from "../models/PollingJob.js";
+import { encrypt, decrypt } from "../utils/encryption.js";
+import { logger } from "../utils/logger.js";
+import axios from "axios";
 
 class OrganizationService {
   /**
@@ -12,20 +12,20 @@ class OrganizationService {
     const orgs = await Organization.find({ userId, isActive: true })
       .sort({ isDefault: -1, createdAt: -1 })
       .lean();
-    
-    return orgs.map(org => this.sanitizeOrganization(org));
+
+    return orgs.map((org) => this.sanitizeOrganization(org));
   }
 
   /**
    * Get a single organization by ID (with ownership check)
    */
   async getOrganization(organizationId, userId) {
-    const org = await Organization.findOne({ 
-      _id: organizationId, 
-      userId, 
-      isActive: true 
+    const org = await Organization.findOne({
+      _id: organizationId,
+      userId,
+      isActive: true,
     }).lean();
-    
+
     if (!org) return null;
     return this.sanitizeOrganization(org);
   }
@@ -36,7 +36,7 @@ class OrganizationService {
   async getOrganizationWithCredentials(organizationId, userId = null) {
     const query = { _id: organizationId, isActive: true };
     if (userId) query.userId = userId;
-    
+
     const org = await Organization.findOne(query).lean();
     if (!org) return null;
 
@@ -45,41 +45,44 @@ class OrganizationService {
     if (org.azureDevOps?.pat) {
       const encryptedPat = org.azureDevOps.pat;
       const decryptedPat = decrypt(encryptedPat);
-      
+
       if (decryptedPat === null) {
         // Decryption failed - likely ENCRYPTION_KEY changed
-        logger.error('Failed to decrypt PAT - ENCRYPTION_KEY may have changed', {
-          component: 'org-service',
+        logger.error("Failed to decrypt PAT - ENCRYPTION_KEY may have changed", {
+          component: "org-service",
           organizationId: organizationId.toString(),
-          hint: 'Re-save the organization credentials to encrypt with the current key'
+          hint: "Re-save the organization credentials to encrypt with the current key",
         });
         org.azureDevOps.pat = null;
         org.azureDevOps._decryptionFailed = true; // Flag for callers to check
       } else {
         org.azureDevOps.pat = decryptedPat;
-        logger.debug('PAT decrypted successfully', {
-          component: 'org-service',
-          organizationId: organizationId.toString()
+        logger.debug("PAT decrypted successfully", {
+          component: "org-service",
+          organizationId: organizationId.toString(),
         });
       }
     } else {
-      logger.warn('No PAT found in database for organization', {
-        component: 'org-service',
-        organizationId: organizationId.toString()
+      logger.warn("No PAT found in database for organization", {
+        component: "org-service",
+        organizationId: organizationId.toString(),
       });
     }
-    
+
     if (org.ai?.apiKeys) {
-      for (const provider of ['openai', 'groq', 'gemini']) {
+      for (const provider of ["openai", "groq", "gemini"]) {
         if (org.ai.apiKeys[provider]) {
           const decryptedKey = decrypt(org.ai.apiKeys[provider]);
-          
+
           if (decryptedKey === null) {
-            logger.error(`Failed to decrypt ${provider} API key - ENCRYPTION_KEY may have changed`, {
-              component: 'org-service',
-              organizationId: organizationId.toString(),
-              hint: 'Re-save the AI configuration to encrypt with the current key'
-            });
+            logger.error(
+              `Failed to decrypt ${provider} API key - ENCRYPTION_KEY may have changed`,
+              {
+                component: "org-service",
+                organizationId: organizationId.toString(),
+                hint: "Re-save the AI configuration to encrypt with the current key",
+              }
+            );
             org.ai.apiKeys[provider] = null;
             org.ai._decryptionFailed = org.ai._decryptionFailed || {};
             org.ai._decryptionFailed[provider] = true;
@@ -100,17 +103,17 @@ class OrganizationService {
     // Check if org already exists (including soft-deleted)
     const existing = await Organization.findOne({
       userId,
-      'azureDevOps.organization': data.azureDevOps.organization
+      "azureDevOps.organization": data.azureDevOps.organization,
     });
 
     if (existing) {
       if (existing.isActive) {
-        throw new Error('Organization already exists for this Azure DevOps org');
+        throw new Error("Organization already exists for this Azure DevOps org");
       }
       // Reactivate soft-deleted org with new data
       // Check if there are other active orgs - if so, don't make this default
       const activeOrgCount = await Organization.countDocuments({ userId, isActive: true });
-      
+
       existing.isActive = true;
       existing.isDefault = activeOrgCount === 0; // Only default if no other active orgs
       existing.name = data.name || data.azureDevOps.organization;
@@ -137,7 +140,7 @@ class OrganizationService {
       ai: encryptedData.ai,
       notifications: data.notifications || {},
       polling: data.polling || {},
-      isDefault
+      isDefault,
     });
 
     await org.save();
@@ -152,12 +155,12 @@ class OrganizationService {
   async updateOrganization(organizationId, userId, data) {
     const org = await Organization.findOne({ _id: organizationId, userId, isActive: true });
     if (!org) {
-      throw new Error('Organization not found');
+      throw new Error("Organization not found");
     }
 
     // Encrypt sensitive data if provided
     if (data.azureDevOps) {
-      if (data.azureDevOps.pat && data.azureDevOps.pat !== '********') {
+      if (data.azureDevOps.pat && data.azureDevOps.pat !== "********") {
         data.azureDevOps.pat = encrypt(data.azureDevOps.pat);
       } else {
         delete data.azureDevOps.pat; // Keep existing
@@ -167,8 +170,8 @@ class OrganizationService {
 
     if (data.ai) {
       if (data.ai.apiKeys) {
-        for (const provider of ['openai', 'groq', 'gemini']) {
-          if (data.ai.apiKeys[provider] && data.ai.apiKeys[provider] !== '********') {
+        for (const provider of ["openai", "groq", "gemini"]) {
+          if (data.ai.apiKeys[provider] && data.ai.apiKeys[provider] !== "********") {
             data.ai.apiKeys[provider] = encrypt(data.ai.apiKeys[provider]);
           } else {
             delete data.ai.apiKeys[provider];
@@ -185,12 +188,12 @@ class OrganizationService {
     }
 
     // Track if polling settings changed
-    const pollingChanged = data.polling && (
-      data.polling.pullRequestEnabled !== undefined ||
-      data.polling.overdueCheckEnabled !== undefined ||
-      data.polling.pullRequestInterval !== undefined ||
-      data.polling.overdueCheckInterval !== undefined
-    );
+    const pollingChanged =
+      data.polling &&
+      (data.polling.pullRequestEnabled !== undefined ||
+        data.polling.overdueCheckEnabled !== undefined ||
+        data.polling.pullRequestInterval !== undefined ||
+        data.polling.overdueCheckInterval !== undefined);
 
     if (data.polling) {
       Object.assign(org.polling, data.polling);
@@ -206,8 +209,10 @@ class OrganizationService {
     // Restart polling if polling settings changed
     if (pollingChanged) {
       try {
-        const { userPollingManager } = await import('../polling/userPollingManager.js');
-        logger.info(`🔄 [POLLING] Restarting polling for org ${organizationId} due to settings change`);
+        const { userPollingManager } = await import("../polling/userPollingManager.js");
+        logger.info(
+          `🔄 [POLLING] Restarting polling for org ${organizationId} due to settings change`
+        );
         await userPollingManager.startOrganizationPolling(organizationId);
       } catch (pollingError) {
         logger.error(`Failed to restart polling for org ${organizationId}:`, pollingError);
@@ -223,21 +228,21 @@ class OrganizationService {
   async deleteOrganization(organizationId, userId) {
     const org = await Organization.findOne({ _id: organizationId, userId, isActive: true });
     if (!org) {
-      throw new Error('Organization not found');
+      throw new Error("Organization not found");
     }
 
     // Check if it's the only org
     const orgCount = await Organization.countDocuments({ userId, isActive: true });
     if (orgCount <= 1) {
-      throw new Error('Cannot delete the only organization');
+      throw new Error("Cannot delete the only organization");
     }
 
     // If deleting default, set another as default
     if (org.isDefault) {
-      const nextDefault = await Organization.findOne({ 
-        userId, 
-        isActive: true, 
-        _id: { $ne: organizationId } 
+      const nextDefault = await Organization.findOne({
+        userId,
+        isActive: true,
+        _id: { $ne: organizationId },
       });
       if (nextDefault) {
         nextDefault.isDefault = true;
@@ -261,10 +266,7 @@ class OrganizationService {
    */
   async setDefaultOrganization(organizationId, userId) {
     // Unset current default
-    await Organization.updateMany(
-      { userId, isDefault: true },
-      { isDefault: false }
-    );
+    await Organization.updateMany({ userId, isDefault: true }, { isDefault: false });
 
     // Set new default
     const org = await Organization.findOneAndUpdate(
@@ -274,7 +276,7 @@ class OrganizationService {
     );
 
     if (!org) {
-      throw new Error('Organization not found');
+      throw new Error("Organization not found");
     }
 
     return this.sanitizeOrganization(org.toObject());
@@ -285,7 +287,7 @@ class OrganizationService {
    */
   async getDefaultOrganization(userId) {
     let org = await Organization.findOne({ userId, isDefault: true, isActive: true }).lean();
-    
+
     // If no default, get first active org
     if (!org) {
       org = await Organization.findOne({ userId, isActive: true }).lean();
@@ -304,29 +306,29 @@ class OrganizationService {
   async testConnection(organizationId, userId) {
     const org = await this.getOrganizationWithCredentials(organizationId, userId);
     if (!org) {
-      throw new Error('Organization not found');
+      throw new Error("Organization not found");
     }
 
     const { organization, project, pat, baseUrl, _decryptionFailed } = org.azureDevOps || {};
-    
+
     // Debug: Log what we have (without exposing PAT)
-    logger.info('Testing connection with saved credentials', {
-      component: 'org-service',
-      action: 'test-connection',
+    logger.info("Testing connection with saved credentials", {
+      component: "org-service",
+      action: "test-connection",
       organizationId,
       hasOrg: !!organization,
       hasProject: !!project,
       hasPat: !!pat,
       patLength: pat?.length || 0,
-      baseUrl: baseUrl || 'not set',
-      decryptionFailed: !!_decryptionFailed
+      baseUrl: baseUrl || "not set",
+      decryptionFailed: !!_decryptionFailed,
     });
 
     // Validate we have credentials
     if (!organization || !project) {
       return {
         success: false,
-        error: 'Azure DevOps organization and project are not configured'
+        error: "Azure DevOps organization and project are not configured",
       };
     }
 
@@ -334,72 +336,73 @@ class OrganizationService {
     if (_decryptionFailed) {
       return {
         success: false,
-        error: 'Unable to decrypt saved credentials. The encryption key may have changed. Please re-enter your Personal Access Token.',
-        code: 'DECRYPTION_FAILED'
+        error:
+          "Unable to decrypt saved credentials. The encryption key may have changed. Please re-enter your Personal Access Token.",
+        code: "DECRYPTION_FAILED",
       };
     }
 
     if (!pat || pat.length < 20) {
       return {
         success: false,
-        error: 'Personal Access Token is not configured or invalid. Please update your PAT in settings.'
+        error:
+          "Personal Access Token is not configured or invalid. Please update your PAT in settings.",
       };
     }
 
-    const url = `${baseUrl || 'https://dev.azure.com'}/${organization}/_apis/projects?api-version=7.0`;
+    const url = `${baseUrl || "https://dev.azure.com"}/${organization}/_apis/projects?api-version=7.0`;
 
     try {
       const response = await axios.get(url, {
         headers: {
-          'Authorization': `Basic ${Buffer.from(':' + pat).toString('base64')}`,
-          'Content-Type': 'application/json'
+          Authorization: `Basic ${Buffer.from(":" + pat).toString("base64")}`,
+          "Content-Type": "application/json",
         },
-        timeout: 10000
+        timeout: 10000,
       });
 
       // Verify project exists
       const projects = response.data.value || [];
-      const projectExists = projects.some(p => 
-        p.name.toLowerCase() === project.toLowerCase()
-      );
+      const projectExists = projects.some((p) => p.name.toLowerCase() === project.toLowerCase());
 
       if (!projectExists) {
         return {
           success: false,
-          error: `Project "${project}" not found in organization "${organization}"`
+          error: `Project "${project}" not found in organization "${organization}"`,
         };
       }
 
-      logger.info('Connection test successful', {
-        component: 'org-service',
-        action: 'test-connection',
+      logger.info("Connection test successful", {
+        component: "org-service",
+        action: "test-connection",
         organizationId,
-        projectCount: projects.length
+        projectCount: projects.length,
       });
 
       return {
         success: true,
         message: `Connected successfully to ${organization}/${project}`,
-        projectCount: projects.length
+        projectCount: projects.length,
       };
     } catch (error) {
-      const errorMessage = error.response?.status === 401 
-        ? 'Authentication failed. Your PAT may have expired or been revoked.'
-        : error.response?.status === 403
-        ? 'Access denied. Check your PAT permissions.'
-        : error.response?.data?.message || error.message;
+      const errorMessage =
+        error.response?.status === 401
+          ? "Authentication failed. Your PAT may have expired or been revoked."
+          : error.response?.status === 403
+            ? "Access denied. Check your PAT permissions."
+            : error.response?.data?.message || error.message;
 
-      logger.error('Azure DevOps connection test failed', {
-        component: 'org-service',
-        action: 'test-connection',
+      logger.error("Azure DevOps connection test failed", {
+        component: "org-service",
+        action: "test-connection",
         organizationId,
         status: error.response?.status,
-        error: errorMessage
+        error: errorMessage,
       });
 
       return {
         success: false,
-        error: errorMessage
+        error: errorMessage,
       };
     }
   }
@@ -410,7 +413,7 @@ class OrganizationService {
   async fetchProjects(organizationId, userId) {
     const org = await this.getOrganizationWithCredentials(organizationId, userId);
     if (!org) {
-      throw new Error('Organization not found');
+      throw new Error("Organization not found");
     }
 
     const { organization, pat, baseUrl } = org.azureDevOps;
@@ -419,23 +422,24 @@ class OrganizationService {
     try {
       const response = await axios.get(url, {
         headers: {
-          'Authorization': `Basic ${Buffer.from(':' + pat).toString('base64')}`,
-          'Content-Type': 'application/json'
+          Authorization: `Basic ${Buffer.from(":" + pat).toString("base64")}`,
+          "Content-Type": "application/json",
         },
-        timeout: 10000
+        timeout: 10000,
       });
 
-      const projects = response.data.value?.map(p => ({
-        id: p.id,
-        name: p.name,
-        description: p.description
-      })) || [];
+      const projects =
+        response.data.value?.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+        })) || [];
 
       return { projects };
     } catch (error) {
-      logger.error('Failed to fetch projects:', error.message);
+      logger.error("Failed to fetch projects:", error.message);
       return {
-        error: error.response?.data?.message || error.message
+        error: error.response?.data?.message || error.message,
       };
     }
   }
@@ -453,7 +457,7 @@ class OrganizationService {
 
     if (result.ai?.apiKeys) {
       result.ai = { ...result.ai, apiKeys: { ...result.ai.apiKeys } };
-      for (const provider of ['openai', 'groq', 'gemini']) {
+      for (const provider of ["openai", "groq", "gemini"]) {
         if (result.ai.apiKeys[provider]) {
           result.ai.apiKeys[provider] = encrypt(result.ai.apiKeys[provider]);
         }
@@ -468,19 +472,19 @@ class OrganizationService {
    */
   sanitizeOrganization(org) {
     const sanitized = { ...org };
-    
+
     if (sanitized.azureDevOps?.pat) {
-      sanitized.azureDevOps = { ...sanitized.azureDevOps, pat: '********' };
+      sanitized.azureDevOps = { ...sanitized.azureDevOps, pat: "********" };
     }
-    
+
     if (sanitized.ai?.apiKeys) {
-      sanitized.ai = { 
-        ...sanitized.ai, 
+      sanitized.ai = {
+        ...sanitized.ai,
         apiKeys: {
-          openai: sanitized.ai.apiKeys.openai ? '********' : '',
-          groq: sanitized.ai.apiKeys.groq ? '********' : '',
-          gemini: sanitized.ai.apiKeys.gemini ? '********' : ''
-        }
+          openai: sanitized.ai.apiKeys.openai ? "********" : "",
+          groq: sanitized.ai.apiKeys.groq ? "********" : "",
+          gemini: sanitized.ai.apiKeys.gemini ? "********" : "",
+        },
       };
     }
 

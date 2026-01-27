@@ -1,12 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import axios from "axios";
 
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -14,14 +14,14 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(localStorage.getItem("token"));
 
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    delete axios.defaults.headers.common['Authorization'];
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    delete axios.defaults.headers.common["Authorization"];
   };
 
   useEffect(() => {
@@ -36,14 +36,14 @@ export const AuthProvider = ({ children }) => {
           return Promise.reject(error);
         }
       );
-      
-      const storedToken = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
-      
+
+      const storedToken = localStorage.getItem("token");
+      const storedUser = localStorage.getItem("user");
+
       if (storedToken && storedUser) {
         // Force set the authorization header
-        axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-        
+        axios.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
+
         try {
           const userData = JSON.parse(storedUser);
           if (userData.id) {
@@ -56,72 +56,70 @@ export const AuthProvider = ({ children }) => {
           logout();
         }
       }
-      
+
       setLoading(false);
-      
+
       // Cleanup interceptor on unmount
       return () => {
         axios.interceptors.response.eject(interceptor);
       };
     };
-    
+
     initializeAuth();
   }, []);
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post('/api/auth/login', { email, password });
+      const response = await axios.post("/api/auth/login", { email, password });
       const { token: newToken, user: userData } = response.data;
-      
+
       setToken(newToken);
       setUser(userData);
-      localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userData));
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      
+      localStorage.setItem("token", newToken);
+      localStorage.setItem("user", JSON.stringify(userData));
+      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+
       // Notify other components that auth state changed
-      window.dispatchEvent(new CustomEvent('auth-change'));
-      
+      window.dispatchEvent(new CustomEvent("auth-change"));
+
       return { success: true };
     } catch (error) {
       const errorData = error.response?.data;
       // Handle both string errors and object errors from error handler
-      const errorMessage = typeof errorData?.error === 'object' 
-        ? errorData.error.message 
-        : errorData?.error;
-      return { 
-        success: false, 
-        error: errorMessage || 'Login failed',
-        details: errorData?.details || null
+      const errorMessage =
+        typeof errorData?.error === "object" ? errorData.error.message : errorData?.error;
+      return {
+        success: false,
+        error: errorMessage || "Login failed",
+        details: errorData?.details || null,
       };
     }
   };
 
   const signup = async (email, password, name) => {
     try {
-      const response = await axios.post('/api/auth/signup', { email, password, name });
+      const response = await axios.post("/api/auth/signup", { email, password, name });
       const { token: newToken, user: userData } = response.data;
-      
+
       setToken(newToken);
       setUser(userData);
-      localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userData));
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      
+      localStorage.setItem("token", newToken);
+      localStorage.setItem("user", JSON.stringify(userData));
+      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+
       // Notify other components that auth state changed
-      window.dispatchEvent(new CustomEvent('auth-change'));
-      
+      window.dispatchEvent(new CustomEvent("auth-change"));
+
       return { success: true };
     } catch (error) {
       const errorData = error.response?.data;
       // Handle both string errors and object errors from error handler
-      const errorMessage = typeof errorData?.error === 'object' 
-        ? errorData.error.message 
-        : errorData?.error;
-      return { 
-        success: false, 
-        error: errorMessage || 'Signup failed',
-        details: errorData?.details || null
+      const errorMessage =
+        typeof errorData?.error === "object" ? errorData.error.message : errorData?.error;
+      return {
+        success: false,
+        error: errorMessage || "Signup failed",
+        details: errorData?.details || null,
       };
     }
   };
@@ -132,12 +130,8 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     loading,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

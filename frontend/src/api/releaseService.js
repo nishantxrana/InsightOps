@@ -1,53 +1,53 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = "/api";
 
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 // Add auth token and organization context to requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  
+
   // Add organization context header
-  const currentOrgId = localStorage.getItem('currentOrganizationId');
+  const currentOrgId = localStorage.getItem("currentOrganizationId");
   if (currentOrgId) {
-    config.headers['X-Organization-ID'] = currentOrgId;
+    config.headers["X-Organization-ID"] = currentOrgId;
   }
-  
+
   return config;
 });
 
 export const releaseService = {
   // Get recent releases with optional filtering
   async getReleases(params = {}) {
-    const response = await api.get('/releases', { params });
+    const response = await api.get("/releases", { params });
     return response.data;
   },
 
   // Get release statistics
   async getReleaseStats(params = {}) {
-    const response = await api.get('/releases/stats', { params });
+    const response = await api.get("/releases/stats", { params });
     return response.data;
   },
 
   // Get release definitions
   async getReleaseDefinitions() {
-    const response = await api.get('/releases/definitions');
+    const response = await api.get("/releases/definitions");
     return response.data;
   },
 
   // Get pending approvals
   async getPendingApprovals() {
-    const response = await api.get('/releases/approvals');
+    const response = await api.get("/releases/approvals");
     return response.data;
   },
 
@@ -65,7 +65,7 @@ export const releaseService = {
 
   // Get AI-powered release analysis
   async getAIAnalysis() {
-    const response = await api.get('/releases/ai-analysis');
+    const response = await api.get("/releases/ai-analysis");
     return response.data;
   },
 
