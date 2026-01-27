@@ -118,7 +118,7 @@ async function fetchPRMetrics(client, startDate, endDate) {
  */
 async function fetchPRDiscussionMetrics(client, startDate, endDate) {
   try {
-    // Get active PRs in date range (limit to 50 to avoid rate limits)
+    // Get ALL PRs in date range (no artificial limit)
     const activeRes = await client.getPullRequests("active");
     const completedRes = await client.getPullRequests("completed");
 
@@ -126,12 +126,10 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const prsInRange = allPRs
-      .filter((pr) => {
-        const created = new Date(pr.creationDate);
-        return created >= start && created <= end;
-      })
-      .slice(0, 50); // LIMIT: Process max 50 PRs
+    const prsInRange = allPRs.filter((pr) => {
+      const created = new Date(pr.creationDate);
+      return created >= start && created <= end;
+    });
 
     if (prsInRange.length === 0) {
       return {
@@ -145,13 +143,21 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
         prsWithComments: 0,
         prsWithUnresolvedThreads: 0,
         prsWithAllThreadsResolved: 0,
+        totalPRsAnalyzed: 0,
       };
     }
 
-    // Fetch threads for each PR
-    const threadResults = await Promise.allSettled(
-      prsInRange.map((pr) => client.getPullRequestThreads(pr.repository.id, pr.pullRequestId))
-    );
+    // Fetch threads for ALL PRs in batches to avoid overwhelming the API
+    const batchSize = 10;
+    const threadResults = [];
+
+    for (let i = 0; i < prsInRange.length; i += batchSize) {
+      const batch = prsInRange.slice(i, i + batchSize);
+      const batchResults = await Promise.allSettled(
+        batch.map((pr) => client.getPullRequestThreads(pr.repository.id, pr.pullRequestId))
+      );
+      threadResults.push(...batchResults);
+    }
 
     let totalThreads = 0;
     let resolvedThreads = 0;
@@ -161,7 +167,7 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
     let prsWithUnresolvedThreads = 0;
     let prsWithAllThreadsResolved = 0;
 
-    threadResults.forEach((result, index) => {
+    threadResults.forEach((result) => {
       if (result.status === "fulfilled" && result.value?.value) {
         const threads = result.value.value;
         const prThreadCount = threads.length;
@@ -178,10 +184,18 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
             const commentCount = thread.comments?.length || 0;
             totalComments += commentCount;
 
-            if (status === "fixed" || status === "closed") {
+            // Resolved: fixed, closed, wontFix, byDesign
+            // Unresolved: active, pending, unknown, or any other status
+            if (
+              status === "fixed" ||
+              status === "closed" ||
+              status === "wontfix" ||
+              status === "bydesign"
+            ) {
               resolvedThreads++;
               prResolvedCount++;
-            } else if (status === "active") {
+            } else {
+              // Everything else is unresolved (active, pending, unknown, etc.)
               unresolvedThreads++;
               prUnresolvedCount++;
             }
@@ -212,7 +226,7 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
       prsWithComments,
       prsWithUnresolvedThreads,
       prsWithAllThreadsResolved,
-      prsSampled: prsInRange.length, // Indicate if limited
+      totalPRsAnalyzed: prsInRange.length,
     };
   } catch (error) {
     logger.error("[ActivityReport] Error fetching PR discussion metrics:", error);
