@@ -261,18 +261,31 @@ async function fetchBuildMetrics(client, startDate, endDate) {
  */
 async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
   try {
-    const response = await releaseClient.getReleases({
-      minCreatedTime: startDate,
-      maxCreatedTime: endDate,
-      top: 200,
-    });
+    // Fetch ALL releases using continuation token pagination (like /releases/stats does)
+    let allReleases = [];
+    let continuationToken = null;
+    let hasMore = true;
 
-    const releases = response.value || [];
+    while (hasMore && allReleases.length < 1000) {
+      const response = await releaseClient.getReleases({
+        top: 100,
+        minCreatedTime: startDate,
+        maxCreatedTime: endDate,
+        continuationToken,
+      });
+
+      const releases = response.value || [];
+      allReleases = [...allReleases, ...releases];
+
+      continuationToken = response.continuationToken;
+      hasMore = !!continuationToken && releases.length > 0;
+    }
+
     let succeeded = 0;
     let failed = 0;
     let failedEnvironments = 0;
 
-    releases.forEach((release) => {
+    allReleases.forEach((release) => {
       if (release.environments && release.environments.length > 0) {
         const envStatuses = release.environments.map((env) => env.status?.toLowerCase());
         const hasFailure = envStatuses.some((s) => s === "rejected" || s === "failed");
@@ -289,10 +302,10 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
       }
     });
 
-    const successRate = releases.length > 0 ? (succeeded / releases.length) * 100 : 0;
+    const successRate = allReleases.length > 0 ? (succeeded / allReleases.length) * 100 : 0;
 
     return {
-      totalReleases: releases.length,
+      totalReleases: allReleases.length,
       succeeded,
       failed,
       failedEnvironments,
@@ -309,9 +322,9 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
  */
 async function fetchWorkItemMetrics(client, startDate, endDate) {
   try {
-    const start = new Date(startDate).toISOString();
-    const end = new Date(endDate).toISOString();
-    const today = new Date().toISOString();
+    // Azure DevOps WIQL requires date-only format (YYYY-MM-DD), not ISO timestamps
+    const start = new Date(startDate).toISOString().split("T")[0];
+    const end = new Date(endDate).toISOString().split("T")[0];
 
     // Query 1: Created in range
     const createdQuery = `
