@@ -1,10 +1,19 @@
 import mongoose from 'mongoose';
 
 const PatternSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
+    index: true
+  },
   signature: {
     type: String,
     required: true,
-    unique: true,
     index: true
   },
   type: {
@@ -50,8 +59,9 @@ const PatternSchema = new mongoose.Schema({
   }
 });
 
-// Compound index for queries
-PatternSchema.index({ type: 1, confidence: -1 });
+// Compound indexes for multi-tenant queries
+PatternSchema.index({ organizationId: 1, type: 1, confidence: -1 });
+PatternSchema.index({ organizationId: 1, signature: 1 }, { unique: true, sparse: true });
 PatternSchema.index({ lastSeen: 1, successCount: 1 });
 
 const Pattern = mongoose.model('Pattern', PatternSchema);

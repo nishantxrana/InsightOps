@@ -7,12 +7,25 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 import BaseWebhook from './BaseWebhook.js';
 
 class BuildWebhook extends BaseWebhook {
-  async handleCompleted(req, res, userId = null) {
+  async handleCompleted(req, res, userId = null, organizationId = null) {
     try {
-      // Validate userId parameter
-      if (userId && typeof userId !== 'string') {
-        logger.warn('Invalid userId parameter received', { userId: typeof userId });
-        userId = null;
+      // STRICT: organizationId is REQUIRED
+      if (!organizationId) {
+        logger.error('Build webhook called without organizationId', {
+          userId,
+          action: 'build-completed',
+          status: 'rejected'
+        });
+        return res.status(400).json({
+          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/build/completed',
+          code: 'MISSING_ORGANIZATION_ID'
+        });
+      }
+
+      // Validate organization exists and is active
+      const orgValidation = await this.validateOrganization(organizationId, res);
+      if (!orgValidation.valid) {
+        return this.sendOrgValidationError(res, orgValidation);
       }
 
       const { resource } = req.body;
@@ -24,7 +37,7 @@ class BuildWebhook extends BaseWebhook {
       const buildId = resource.id;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(buildId, userId, 'build');
+      const dupeCheck = this.isDuplicate(buildId, organizationId, 'build');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(buildId, 'build', dupeCheck.timeSince));
       }
@@ -42,31 +55,40 @@ class BuildWebhook extends BaseWebhook {
         result,
         definition,
         requestedBy,
-        userId: userId || 'legacy-global',
-        userIdType: typeof userId,
-        hasUserId: !!userId
+        organizationId
       });
 
-      // Get user settings for AI and client configuration
+      // Get organization settings with credentials
       let userSettings = null;
       let userClient = null;
-      if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          userSettings = await getUserSettings(userId);
-          if (userSettings.azureDevOps) {
-            userClient = azureDevOpsClient.createUserClient(userSettings.azureDevOps);
+      
+      try {
+        const { organizationService } = await import('../services/organizationService.js');
+        const org = await organizationService.getOrganizationWithCredentials(organizationId);
+        if (org) {
+          userId = org.userId;
+          userSettings = {
+            azureDevOps: org.azureDevOps,
+            ai: org.ai,
+            notifications: org.notifications
+          };
+          if (org.azureDevOps?.pat) {
+            userClient = azureDevOpsClient.createUserClient(org.azureDevOps);
           }
-          logger.info(`Retrieved user settings for ${userId}`, {
-            hasAzureDevOpsConfig: !!userSettings.azureDevOps,
-            hasAIConfig: !!userSettings.ai
-          });
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
         }
-      } else {
-        logger.warn('No userId provided - using legacy webhook handler');
+      } catch (error) {
+        logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
+        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
       }
+
+      if (!userSettings) {
+        return res.status(404).json({ error: 'Organization settings not found' });
+      }
+
+      logger.info(`Retrieved organization settings for ${organizationId}`, {
+        hasAzureDevOpsConfig: !!userSettings.azureDevOps,
+        hasAIConfig: !!userSettings.ai
+      });
 
       let message;
       let aiSummary = null;
@@ -104,7 +126,7 @@ class BuildWebhook extends BaseWebhook {
       
       if (userId) {
         // User-specific notification with card format
-        await this.sendUserNotification(message, userId, notificationType, resource, aiSummary, userSettings?.azureDevOps);
+        await this.sendUserNotification(message, userId, organizationId, notificationType, resource, aiSummary, userSettings?.azureDevOps);
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, notificationType);
@@ -126,13 +148,30 @@ class BuildWebhook extends BaseWebhook {
     }
   }
 
-  async sendUserNotification(message, userId, notificationType, build, aiSummary, userConfig) {
+  async sendUserNotification(message, userId, organizationId, notificationType, build, aiSummary, userConfig) {
     try {
-      const { getUserSettings } = await import('../utils/userSettings.js');
-      const settings = await getUserSettings(userId);
+      // Get notification settings - prefer org settings over user settings
+      let settings;
+      if (organizationId) {
+        try {
+          const { organizationService } = await import('../services/organizationService.js');
+          const org = await organizationService.getOrganizationWithCredentials(organizationId);
+          if (org) {
+            settings = { notifications: org.notifications };
+          }
+        } catch (error) {
+          logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
+        }
+      }
+      
+      // Fall back to user settings if org settings not available
+      if (!settings) {
+        const { getUserSettings } = await import('../utils/userSettings.js');
+        settings = await getUserSettings(userId);
+      }
       
       if (!settings.notifications?.enabled) {
-        logger.info(`Notifications disabled for user ${userId}`);
+        logger.info(`Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`);
         return;
       }
 
@@ -178,32 +217,43 @@ class BuildWebhook extends BaseWebhook {
         buildUrl = `${baseUrl}/${organization}/${encodeURIComponent(project)}/_build/results?buildId=${build.id}`;
       }
 
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'build',
-        subType: build.result?.toLowerCase(),
-        title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
-        message,
-        source: 'webhook',
-        metadata: {
-          buildId: build.id,
-          buildNumber: build.buildNumber,
-          result: build.result,
-          status: build.status,
-          repository: build.repository?.name,
-          branch: build.sourceBranch?.replace('refs/heads/', ''),
-          commit: build.sourceVersion?.substring(0, 8),
-          commitMessage: build.triggerInfo?.['ci.message'],
-          requestedBy: build.requestedBy?.displayName,
-          requestedFor: build.requestedFor?.displayName,
-          reason: build.reason,
-          queueTime: build.queueTime,
-          startTime: build.startTime,
-          finishTime: build.finishTime,
-          duration,
-          url: buildUrl
-        },
-        channels
-      });
+      // Save notification with organizationId if available
+      if (organizationId) {
+        try {
+          logger.info(`📝 [NOTIFICATION] Saving build notification to history for org ${organizationId}, userId: ${userId}`);
+          await notificationHistoryService.saveNotification(userId, organizationId, {
+            type: 'build',
+            subType: build.result?.toLowerCase(),
+            title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
+            message,
+            source: 'webhook',
+            metadata: {
+              buildId: build.id,
+              buildNumber: build.buildNumber,
+              result: build.result,
+              status: build.status,
+              repository: build.repository?.name,
+              branch: build.sourceBranch?.replace('refs/heads/', ''),
+              commit: build.sourceVersion?.substring(0, 8),
+              commitMessage: build.triggerInfo?.['ci.message'],
+              requestedBy: build.requestedBy?.displayName,
+              requestedFor: build.requestedFor?.displayName,
+              reason: build.reason,
+              queueTime: build.queueTime,
+              startTime: build.startTime,
+              finishTime: build.finishTime,
+              duration,
+              url: buildUrl
+            },
+            channels
+          });
+          logger.info(`✅ [NOTIFICATION] Saved build notification to history for org ${organizationId}`);
+        } catch (historyError) {
+          logger.error(`❌ [NOTIFICATION] Failed to save build notification to history for org ${organizationId}:`, historyError);
+        }
+      } else {
+        logger.warn(`⚠️ [NOTIFICATION] Skipping build notification history save - no organizationId provided`);
+      }
 
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);

@@ -1,0 +1,50 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "22"
+    displayName: "Use Node.js 22"
+
+  - script: npm ci
+    workingDirectory: frontend
+    displayName: "Install frontend dependencies"
+
+  - script: npm ci
+    workingDirectory: backend
+    displayName: "Install backend dependencies"
+
+  - script: npm run build
+    workingDirectory: frontend
+    displayName: "Build frontend"
+    env:
+      VITE_CLARITY_PROJECT_ID: $(VITE_CLARITY_PROJECT_ID)
+      VITE_DEMO_VIDEO_URL: $(VITE_DEMO_VIDEO_URL)
+
+  - script: |
+      mkdir -p backend/public
+      cp -r frontend/dist/. backend/public/
+    displayName: "Move frontend build to backend"
+
+  - task: ArchiveFiles@2
+    displayName: "Create deployment zip"
+    inputs:
+      rootFolderOrFile: backend
+      includeRootFolder: false
+      archiveType: zip
+      archiveFile: "$(Build.ArtifactStagingDirectory)/insightops_production.zip"
+      replaceExistingArchive: true
+
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish artifact"
+    inputs:
+      PathtoPublish: "$(Build.ArtifactStagingDirectory)/insightops_production.zip"
+      ArtifactName: "InsightOpsArtifact_Prd"

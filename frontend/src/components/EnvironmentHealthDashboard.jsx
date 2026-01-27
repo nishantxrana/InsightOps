@@ -120,10 +120,10 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
                     <div className="mx-4 group relative overflow-hidden bg-gradient-to-br from-card to-card/50 dark:from-[#111111] dark:to-[#0a0a0a] p-6 rounded-xl border border-border dark:border-[#1a1a1a] shadow-sm">
                       {/* Success Rate Badge */}
                       <div className="absolute top-4 right-4">
-                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                          successRate >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300' :
-                          successRate >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/50 dark:text-yellow-300' :
-                          'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300'
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-muted ${
+                          successRate >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
+                          successRate >= 70 ? 'text-amber-600 dark:text-amber-400' :
+                          'text-red-600 dark:text-red-400'
                         }`}>
                           {getEnvironmentHealthIcon(successRate)}
                           {successRate}%
@@ -174,10 +174,10 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
                   <div key={envName} className="min-w-[280px] max-w-[400px] mx-auto w-full group relative overflow-hidden bg-gradient-to-br from-card to-card/50 dark:from-[#111111] dark:to-[#0a0a0a] p-6 rounded-xl border border-border dark:border-[#1a1a1a] shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.02]">
                     {/* Success Rate Badge */}
                     <div className="absolute top-4 right-4">
-                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                        successRate >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300' :
-                        successRate >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/50 dark:text-yellow-300' :
-                        'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300'
+                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-muted ${
+                        successRate >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
+                        successRate >= 70 ? 'text-amber-600 dark:text-amber-400' :
+                        'text-red-600 dark:text-red-400'
                       }`}>
                         {getEnvironmentHealthIcon(successRate)}
                         {successRate}%

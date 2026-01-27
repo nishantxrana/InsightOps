@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger, getRequestContext, logConfig } from './logger.js';
 
 export const errorHandler = (err, req, res, next) => {
   // Skip error handling for static assets - let Express handle them
@@ -6,18 +6,23 @@ export const errorHandler = (err, req, res, next) => {
     return next(err);
   }
 
-  // Log the error
-  logger.error('Unhandled error:', {
+  const context = getRequestContext(req);
+
+  // Log the error with full context
+  // Stack traces included in dev/staging (verbose mode)
+  logger.error('Unhandled error', {
+    component: 'error-handler',
+    ...context,
     error: err.message,
-    stack: err.stack,
-    url: req.url,
-    method: req.method,
+    errorName: err.name,
+    stack: logConfig.verboseMode ? err.stack : undefined,
+    status: 'failure',
     ip: req.ip,
     userAgent: req.get('User-Agent')
   });
 
-  // Don't leak error details in production
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  // Show error details in dev/staging, hide in production
+  const showDetails = logConfig.verboseMode;
   
   // Default error response
   let statusCode = 500;
@@ -28,7 +33,7 @@ export const errorHandler = (err, req, res, next) => {
   if (err.name === 'ValidationError') {
     statusCode = 400;
     message = 'Validation Error';
-    details = isDevelopment ? err.details : null;
+    details = showDetails ? err.details : null;
   } else if (err.name === 'UnauthorizedError') {
     statusCode = 401;
     message = 'Unauthorized';
@@ -51,7 +56,7 @@ export const errorHandler = (err, req, res, next) => {
     error: {
       message,
       ...(details && { details }),
-      ...(isDevelopment && { stack: err.stack }),
+      ...(showDetails && { stack: err.stack }),
       timestamp: new Date().toISOString(),
       requestId: req.id || 'unknown'
     }

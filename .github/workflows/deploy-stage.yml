@@ -1,8 +1,6 @@
 name: InsightOps Staging Deployment
 
 on:
-  push:
-    branches: [stage]
   workflow_dispatch:
 
 jobs:
