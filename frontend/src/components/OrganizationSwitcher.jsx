@@ -1,7 +1,7 @@
-import React from 'react';
-import { Building2, ChevronDown, Check, Plus, Settings } from 'lucide-react';
-import { useOrganization } from '../contexts/OrganizationContext';
-import { useNavigate } from 'react-router-dom';
+import React from "react";
+import { Building2, ChevronDown, Check, Plus, Settings } from "lucide-react";
+import { useOrganization } from "../contexts/OrganizationContext";
+import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,11 +9,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-import { Button } from './ui/button';
+} from "./ui/dropdown-menu";
+import { Button } from "./ui/button";
 
 export default function OrganizationSwitcher() {
-  const { organizations, currentOrganization, switchOrganization, loading } = useOrganization();
+  const { organizations, currentOrganization, switchOrganization, loading } =
+    useOrganization();
   const navigate = useNavigate();
 
   if (loading) {
@@ -27,11 +28,11 @@ export default function OrganizationSwitcher() {
 
   if (!currentOrganization) {
     return (
-      <Button 
-        variant="outline" 
-        size="sm" 
+      <Button
+        variant="outline"
+        size="sm"
         className="gap-2"
-        onClick={() => navigate('/settings')}
+        onClick={() => navigate("/settings")}
       >
         <Plus className="h-4 w-4" />
         <span className="hidden sm:inline">Add Organization</span>
@@ -40,7 +41,7 @@ export default function OrganizationSwitcher() {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-2 max-w-[200px]">
           <Building2 className="h-4 w-4 shrink-0" />
@@ -55,7 +56,7 @@ export default function OrganizationSwitcher() {
           Switch Organization
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        
+
         {organizations.map((org) => (
           <DropdownMenuItem
             key={org._id}
@@ -74,19 +75,19 @@ export default function OrganizationSwitcher() {
             )}
           </DropdownMenuItem>
         ))}
-        
+
         <DropdownMenuSeparator />
-        
+
         <DropdownMenuItem
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate("/settings")}
           className="gap-2 cursor-pointer"
         >
           <Settings className="h-4 w-4" />
           <span>Manage Organizations</span>
         </DropdownMenuItem>
-        
+
         <DropdownMenuItem
-          onClick={() => navigate('/settings?action=add-org')}
+          onClick={() => navigate("/settings?action=add-org")}
           className="gap-2 cursor-pointer"
         >
           <Plus className="h-4 w-4" />
