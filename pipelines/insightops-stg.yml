@@ -1,0 +1,53 @@
+trigger:
+  branches:
+    include:
+      - stage
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  name: VITE_DEMO_VIDEO_URL
+  value: https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4
+
+steps:
+  - checkout: self
+
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "22"
+    displayName: "Use Node.js 22"
+
+  - script: npm ci
+    workingDirectory: frontend
+    displayName: "Install frontend dependencies"
+
+  - script: npm ci
+    workingDirectory: backend
+    displayName: "Install backend dependencies"
+
+  - script: npm run build
+    workingDirectory: frontend
+    displayName: "Build frontend"
+    env:
+      VITE_DEMO_VIDEO_URL: ${{ variables.VITE_DEMO_VIDEO_URL }}
+
+  - script: |
+      mkdir -p backend/public
+      cp -r frontend/dist/. backend/public/
+    displayName: "Move frontend build to backend"
+
+  - task: ArchiveFiles@2
+    displayName: "Create deployment zip"
+    inputs:
+      rootFolderOrFile: backend
+      includeRootFolder: false
+      archiveType: zip
+      archiveFile: "$(Build.ArtifactStagingDirectory)/insightops_staging.zip"
+      replaceExistingArchive: true
+
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish artifact"
+    inputs:
+      PathtoPublish: "$(Build.ArtifactStagingDirectory)/insightops_staging.zip"
+      ArtifactName: "InsightOpsArtifact_Stg"

@@ -7,6 +7,16 @@ const WorkflowExecutionSchema = new mongoose.Schema({
     unique: true,
     index: true
   },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
+    index: true
+  },
   workflowId: {
     type: String,
     required: true,
@@ -36,8 +46,9 @@ const WorkflowExecutionSchema = new mongoose.Schema({
   error: String
 });
 
-// Index for cleanup
-WorkflowExecutionSchema.index({ status: 1, startTime: 1 });
+// Indexes for multi-tenant queries
+WorkflowExecutionSchema.index({ organizationId: 1, status: 1, startTime: -1 });
+WorkflowExecutionSchema.index({ organizationId: 1, workflowId: 1 });
 
 // TTL index - auto-delete completed executions after 7 days
 WorkflowExecutionSchema.index(

@@ -36,16 +36,26 @@ class MongoVectorStore {
   }
 
   /**
-   * Store memory with embedding
+   * Store memory with embedding - scoped to organization
+   * @param {string} content - Content to store
+   * @param {Object} metadata - Additional metadata
+   * @param {string} organizationId - Required for multi-tenant isolation
    */
-  async store(content, metadata = {}) {
+  async store(content, metadata = {}, organizationId = null) {
     try {
+      // Skip storing if no organizationId (required for multi-tenant)
+      if (!organizationId) {
+        logger.warn('store called without organizationId - skipping to prevent data leakage');
+        return null;
+      }
+
       // Generate embedding
       const embedding = await this.getEmbedding(content);
 
-      // Store in MongoDB
+      // Store in MongoDB with organizationId
       const Memory = mongoose.model('Memory');
       const memory = await Memory.create({
+        organizationId,
         content,
         embedding,
         metadata,
@@ -53,7 +63,7 @@ class MongoVectorStore {
         accessCount: 0
       });
 
-      logger.debug('Memory stored', { id: memory._id, contentLength: content.length });
+      logger.debug('Memory stored', { id: memory._id, organizationId, contentLength: content.length });
       return memory;
     } catch (error) {
       logger.error('Failed to store memory:', error);
@@ -62,14 +72,23 @@ class MongoVectorStore {
   }
 
   /**
-   * Search similar memories using vector search
+   * Search similar memories using vector search - scoped to organization
+   * @param {string} query - Search query
+   * @param {string} organizationId - Required for multi-tenant isolation
+   * @param {number} limit - Max results
    */
-  async searchSimilar(query, limit = 5) {
+  async searchSimilar(query, organizationId = null, limit = 5) {
     try {
+      // Skip search if no organizationId (required for multi-tenant)
+      if (!organizationId) {
+        logger.warn('searchSimilar called without organizationId - returning empty to prevent data leakage');
+        return [];
+      }
+
       const queryEmbedding = await this.getEmbedding(query);
       const Memory = mongoose.model('Memory');
 
-      // Use MongoDB Atlas Vector Search
+      // Use MongoDB Atlas Vector Search with organization filter
       const results = await Memory.aggregate([
         {
           $vectorSearch: {
@@ -77,29 +96,39 @@ class MongoVectorStore {
             path: 'embedding',
             queryVector: queryEmbedding,
             numCandidates: 100,
-            limit: limit
+            limit: limit * 2, // Fetch more to account for filtering
+            filter: { organizationId: new mongoose.Types.ObjectId(organizationId) }
           }
+        },
+        {
+          $match: {
+            organizationId: new mongoose.Types.ObjectId(organizationId)
+          }
+        },
+        {
+          $limit: limit
         },
         {
           $project: {
             content: 1,
             metadata: 1,
+            organizationId: 1,
             score: { $meta: 'vectorSearchScore' },
             createdAt: 1
           }
         }
       ]);
 
-      // Update access count
+      // Update access count (only for this org's memories)
       const ids = results.map(r => r._id);
       if (ids.length > 0) {
         await Memory.updateMany(
-          { _id: { $in: ids } },
+          { _id: { $in: ids }, organizationId },
           { $inc: { accessCount: 1 } }
         );
       }
 
-      logger.debug('Vector search completed', { query: query.substring(0, 50), results: results.length });
+      logger.debug('Vector search completed', { query: query.substring(0, 50), organizationId, results: results.length });
       return results;
     } catch (error) {
       logger.warn('Vector search failed, returning empty results:', error.message);
@@ -207,21 +236,30 @@ class MongoVectorStore {
   }
 
   /**
-   * Delete old memories (cleanup)
+   * Delete old memories (cleanup) - scoped to organization
+   * @param {number} olderThanDays - Days threshold
+   * @param {string} organizationId - If provided, cleanup only for this org. If null, cleanup all (admin only)
    */
-  async cleanup(olderThanDays = 30) {
+  async cleanup(olderThanDays = 30, organizationId = null) {
     try {
       const Memory = mongoose.model('Memory');
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
-      const result = await Memory.deleteMany({
+      const query = {
         createdAt: { $lt: cutoffDate },
         accessCount: 0 // Only delete unused memories
-      });
+      };
+
+      // Scope to organization if provided
+      if (organizationId) {
+        query.organizationId = organizationId;
+      }
+
+      const result = await Memory.deleteMany(query);
 
       if (result.deletedCount > 0) {
-        logger.info(`Cleaned up ${result.deletedCount} old memories`);
+        logger.info(`Cleaned up ${result.deletedCount} old memories`, { organizationId: organizationId || 'all' });
       }
 
       return result.deletedCount;
@@ -232,20 +270,27 @@ class MongoVectorStore {
   }
 
   /**
-   * Get statistics
+   * Get statistics - optionally scoped to organization
+   * @param {string} organizationId - If provided, stats for this org only
    */
-  async getStats() {
+  async getStats(organizationId = null) {
     try {
       const Memory = mongoose.model('Memory');
-      const total = await Memory.countDocuments();
-      const recentCount = await Memory.countDocuments({
+      
+      const query = organizationId ? { organizationId } : {};
+      const recentQuery = { 
+        ...query,
         createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
-      });
+      };
+
+      const total = await Memory.countDocuments(query);
+      const recentCount = await Memory.countDocuments(recentQuery);
 
       return {
         total,
         recent: recentCount,
-        cacheSize: this.embeddingCache.cache.size
+        cacheSize: this.embeddingCache.cache.size,
+        organizationId: organizationId || 'all'
       };
     } catch (error) {
       logger.error('Failed to get memory stats:', error);

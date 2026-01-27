@@ -6,6 +6,7 @@ import { buildWebhook } from './buildWebhook.js';
 import { pullRequestWebhook } from './pullRequestWebhook.js';
 import { releaseWebhook } from './releaseWebhook.js';
 import { validateWebhookSignature } from '../utils/webhookValidator.js';
+import { metrics } from '../observability/metrics.js';
 
 const router = express.Router();
 
@@ -27,16 +28,24 @@ const webhookAuth = (req, res, next) => {
   next();
 };
 
-// Middleware to log all webhook events
+// Middleware to log all webhook events and record metrics
 const logWebhookEvent = (req, res, next) => {
   const eventType = req.body?.eventType || 'unknown';
   const resourceType = req.body?.resource?.resourceType || 'unknown';
+  const organizationId = req.params?.organizationId || null;
   
   logger.info('Webhook event received', {
     eventType,
     resourceType,
     subscriptionId: req.body?.subscriptionId,
+    organizationId,
     ip: req.ip
+  });
+  
+  // Track response status for metrics
+  res.on('finish', () => {
+    const status = res.statusCode >= 200 && res.statusCode < 400 ? 'processed' : 'rejected';
+    metrics.recordWebhook(organizationId, eventType, status);
   });
   
   next();
@@ -46,52 +55,86 @@ const logWebhookEvent = (req, res, next) => {
 // router.use(webhookAuth);
 router.use(logWebhookEvent);
 
-// User-specific webhook routes
-router.post('/:userId/workitem/created', (req, res) => {
-  logger.info('User-specific workitem/created route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
-  workItemWebhook.handleCreated(req, res, req.params.userId);
+// ============================================================
+// LEGACY USER-BASED WEBHOOKS - REMOVED (SECURITY RISK)
+// ============================================================
+// User-based webhook routes have been removed as they bypass
+// organization isolation. All webhooks MUST use organization
+// context: /org/:organizationId/...
+// ============================================================
+
+const rejectLegacyUserWebhook = (req, res) => {
+  logger.error('REJECTED: Legacy user-based webhook called', {
+    path: req.path,
+    userId: req.params.userId,
+    ip: req.ip,
+    action: 'webhook-rejected',
+    reason: 'user-based-webhooks-removed'
+  });
+  res.status(410).json({
+    error: 'User-based webhooks are no longer supported',
+    message: 'Please update your webhook URLs to use organization-based endpoints: /api/webhooks/org/{organizationId}/...',
+    code: 'LEGACY_WEBHOOK_REMOVED'
+  });
+};
+
+// Reject all legacy user-specific webhook routes with clear error
+router.post('/:userId/workitem/created', rejectLegacyUserWebhook);
+router.post('/:userId/workitem/updated', rejectLegacyUserWebhook);
+router.post('/:userId/build/completed', rejectLegacyUserWebhook);
+router.post('/:userId/pullrequest/created', rejectLegacyUserWebhook);
+router.post('/:userId/release/deployment', rejectLegacyUserWebhook);
+
+// ============================================================
+// ORGANIZATION-BASED WEBHOOK ROUTES (REQUIRED)
+// ============================================================
+// Organization-specific webhook routes (multi-tenant)
+router.post('/org/:organizationId/workitem/created', (req, res) => {
+  logger.info('Org workitem/created route hit', { organizationId: req.params.organizationId });
+  workItemWebhook.handleCreated(req, res, null, req.params.organizationId);
 });
 
-router.post('/:userId/workitem/updated', (req, res) => {
-  logger.info('User-specific workitem/updated route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
-  workItemWebhook.handleUpdated(req, res, req.params.userId);
+router.post('/org/:organizationId/workitem/updated', (req, res) => {
+  logger.info('Org workitem/updated route hit', { organizationId: req.params.organizationId });
+  workItemWebhook.handleUpdated(req, res, null, req.params.organizationId);
 });
 
-router.post('/:userId/build/completed', (req, res) => {
-  logger.info('User-specific build/completed route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
-  buildWebhook.handleCompleted(req, res, req.params.userId);
+router.post('/org/:organizationId/build/completed', (req, res) => {
+  logger.info('Org build/completed route hit', { organizationId: req.params.organizationId });
+  buildWebhook.handleCompleted(req, res, null, req.params.organizationId);
 });
 
-router.post('/:userId/pullrequest/created', (req, res) => {
-  logger.info('User-specific pullrequest/created route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
-  pullRequestWebhook.handleCreated(req, res, req.params.userId);
+router.post('/org/:organizationId/pullrequest/created', (req, res) => {
+  logger.info('Org pullrequest/created route hit', { organizationId: req.params.organizationId });
+  pullRequestWebhook.handleCreated(req, res, null, req.params.organizationId);
 });
 
-router.post('/:userId/release/deployment', (req, res) => {
-  logger.info('User-specific release/deployment route hit', { userId: req.params.userId, userIdType: typeof req.params.userId });
-  releaseWebhook.handleDeploymentCompleted(req, res, req.params.userId);
+router.post('/org/:organizationId/release/deployment', (req, res) => {
+  logger.info('Org release/deployment route hit', { organizationId: req.params.organizationId });
+  releaseWebhook.handleDeploymentCompleted(req, res, null, req.params.organizationId);
 });
 
-// Legacy global webhooks (for backward compatibility)
-router.post('/workitem/created', (req, res) => {
-  logger.info('Legacy workitem/created route hit');
-  workItemWebhook.handleCreated(req, res);
-});
+// ============================================================
+// LEGACY GLOBAL WEBHOOKS - REMOVED (NO ORG CONTEXT)
+// ============================================================
+const rejectLegacyGlobalWebhook = (req, res) => {
+  logger.error('REJECTED: Legacy global webhook called (no org context)', {
+    path: req.path,
+    ip: req.ip,
+    action: 'webhook-rejected',
+    reason: 'global-webhooks-removed'
+  });
+  res.status(410).json({
+    error: 'Global webhooks are no longer supported',
+    message: 'Please update your webhook URLs to use organization-based endpoints: /api/webhooks/org/{organizationId}/...',
+    code: 'LEGACY_WEBHOOK_REMOVED'
+  });
+};
 
-router.post('/workitem/updated', (req, res) => {
-  logger.info('Legacy workitem/updated route hit');
-  workItemWebhook.handleUpdated(req, res);
-});
-
-router.post('/build/completed', (req, res) => {
-  logger.info('Legacy build/completed route hit');
-  buildWebhook.handleCompleted(req, res);
-});
-
-router.post('/pullrequest/created', (req, res) => {
-  logger.info('Legacy pullrequest/created route hit');
-  pullRequestWebhook.handleCreated(req, res);
-});
+router.post('/workitem/created', rejectLegacyGlobalWebhook);
+router.post('/workitem/updated', rejectLegacyGlobalWebhook);
+router.post('/build/completed', rejectLegacyGlobalWebhook);
+router.post('/pullrequest/created', rejectLegacyGlobalWebhook);
 
 // Generic webhook endpoint for testing
 router.post('/test', (req, res) => {

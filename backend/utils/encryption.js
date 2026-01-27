@@ -2,6 +2,18 @@ import crypto from 'crypto';
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 
+/**
+ * Custom error for decryption failures
+ * This allows callers to distinguish decryption errors from other errors
+ */
+export class DecryptionError extends Error {
+  constructor(message, originalError = null) {
+    super(message);
+    this.name = 'DecryptionError';
+    this.originalError = originalError;
+  }
+}
+
 class SettingsEncryption {
   constructor() {
     this.algorithm = 'aes-256-gcm';
@@ -10,25 +22,58 @@ class SettingsEncryption {
     this.tagLength = 16;
     this.prefix = 'encrypted:AES256:';
     
-    // Get encryption key from env or generate one
-    this.encryptionKey = this.getOrGenerateKey();
+    // Get encryption key - REQUIRED, no fallback
+    this.encryptionKey = this.getRequiredKey();
   }
 
-  getOrGenerateKey() {
-    let key = env.ENCRYPTION_KEY;
+  /**
+   * Get encryption key from environment - REQUIRED
+   * Application will fail to start if key is not set
+   */
+  getRequiredKey() {
+    const key = env.ENCRYPTION_KEY;
     
     if (!key) {
-      // Generate a random key and warn user
-      key = crypto.randomBytes(this.keyLength).toString('hex');
-      logger.warn('No ENCRYPTION_KEY found in environment. Generated temporary key. Settings will not persist across restarts unless you set ENCRYPTION_KEY in your environment.');
-      logger.warn(`Generated key: ${key}`);
+      const errorMessage = `
+========================================================
+FATAL: ENCRYPTION_KEY environment variable is not set!
+========================================================
+The application cannot start without a valid encryption key.
+
+To generate a secure key, run:
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+Then set it in your environment:
+  export ENCRYPTION_KEY=<generated_key>
+
+Or add to your .env file:
+  ENCRYPTION_KEY=<generated_key>
+
+This key is required to encrypt/decrypt sensitive data like:
+  - Azure DevOps PATs
+  - AI API keys
+  - Webhook URLs
+========================================================
+`;
+      logger.error(errorMessage);
+      throw new Error('ENCRYPTION_KEY environment variable is required but not set. See logs for details.');
     }
     
-    // Ensure key is correct length
-    if (key.length !== this.keyLength * 2) { // hex string is 2x length
-      throw new Error(`ENCRYPTION_KEY must be ${this.keyLength * 2} characters (${this.keyLength} bytes in hex)`);
+    // Validate key length
+    if (key.length !== this.keyLength * 2) { // hex string is 2x byte length
+      const errorMessage = `ENCRYPTION_KEY must be exactly ${this.keyLength * 2} hex characters (${this.keyLength} bytes). Got ${key.length} characters.`;
+      logger.error(errorMessage);
+      throw new Error(errorMessage);
     }
     
+    // Validate hex format
+    if (!/^[0-9a-fA-F]+$/.test(key)) {
+      const errorMessage = 'ENCRYPTION_KEY must be a valid hexadecimal string.';
+      logger.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+    
+    logger.info('Encryption key validated successfully');
     return Buffer.from(key, 'hex');
   }
 
@@ -51,13 +96,19 @@ class SettingsEncryption {
       
       return this.prefix + combined.toString('base64');
     } catch (error) {
-      logger.error('Encryption failed:', error);
-      // Return original value if encryption fails (fallback)
-      return plaintext;
+      logger.error('Encryption failed:', { error: error.message });
+      // Throw instead of returning plaintext - encryption failure is critical
+      throw new Error(`Encryption failed: ${error.message}`);
     }
   }
 
-  decrypt(encryptedValue) {
+  /**
+   * Decrypt an encrypted value
+   * @param {string} encryptedValue - The encrypted value to decrypt
+   * @returns {string|null} - Decrypted value, or null if decryption fails
+   * @throws {DecryptionError} - If throwOnError is true and decryption fails
+   */
+  decrypt(encryptedValue, throwOnError = false) {
     if (!this.isEncrypted(encryptedValue)) {
       return encryptedValue;
     }
@@ -65,6 +116,12 @@ class SettingsEncryption {
     try {
       // Remove prefix and decode
       const combined = Buffer.from(encryptedValue.slice(this.prefix.length), 'base64');
+      
+      // Validate minimum length
+      const minLength = this.ivLength + this.tagLength + 1;
+      if (combined.length < minLength) {
+        throw new Error('Encrypted data is too short - data may be corrupted');
+      }
       
       // Extract components
       const iv = combined.slice(0, this.ivLength);
@@ -79,9 +136,23 @@ class SettingsEncryption {
       
       return decrypted;
     } catch (error) {
-      logger.error('Decryption failed:', error);
-      // Return encrypted value if decryption fails (don't break the app)
-      return encryptedValue;
+      const decryptError = new DecryptionError(
+        `Decryption failed - ENCRYPTION_KEY may have changed or data is corrupted`,
+        error
+      );
+      
+      logger.error('Decryption failed', {
+        error: error.message,
+        hint: 'This usually means ENCRYPTION_KEY has changed since data was encrypted. ' +
+              'Re-save the credentials to encrypt with the current key.'
+      });
+      
+      if (throwOnError) {
+        throw decryptError;
+      }
+      
+      // Return null instead of garbage - callers must handle null
+      return null;
     }
   }
 

@@ -3,93 +3,127 @@ import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
 
 class BuildPoller {
   constructor() {
-    this.lastPollTime = new Date();
-    this.processedBuilds = new Set();
+    // Per-organization state - NO shared state across orgs
+    this.lastPollTimeByOrg = new Map(); // organizationId -> Date
+    this.processedBuildsByOrg = new Map(); // organizationId -> Set of build IDs
   }
 
-  async pollBuilds(userId) {
+  /**
+   * Get last poll time for a specific organization
+   */
+  getLastPollTimeForOrg(organizationId) {
+    if (!this.lastPollTimeByOrg.has(organizationId)) {
+      this.lastPollTimeByOrg.set(organizationId, new Date(0)); // Epoch = never polled
+    }
+    return this.lastPollTimeByOrg.get(organizationId);
+  }
+
+  /**
+   * Update last poll time for a specific organization
+   */
+  setLastPollTimeForOrg(organizationId) {
+    this.lastPollTimeByOrg.set(organizationId, new Date());
+  }
+
+  /**
+   * Get or create processed builds set for an organization
+   */
+  getProcessedBuildsForOrg(organizationId) {
+    if (!this.processedBuildsByOrg.has(organizationId)) {
+      this.processedBuildsByOrg.set(organizationId, new Set());
+    }
+    return this.processedBuildsByOrg.get(organizationId);
+  }
+
+  // Organization-based polling (STRICT: organizationId required)
+  async pollBuildsForOrg(organizationId, org) {
+    if (!organizationId) {
+      throw new Error('organizationId is required for pollBuildsForOrg');
+    }
+
     try {
-      let client = azureDevOpsClient;
-      
-      if (userId) {
-        const { getUserSettings } = await import('../utils/userSettings.js');
-        const settings = await getUserSettings(userId);
-        if (!settings.azureDevOps?.organization || !settings.azureDevOps?.project || !settings.azureDevOps?.pat) {
-          return;
-        }
-        client = azureDevOpsClient.createUserClient({
-          organization: settings.azureDevOps.organization,
-          project: settings.azureDevOps.project,
-          pat: settings.azureDevOps.pat,
-          baseUrl: settings.azureDevOps.baseUrl || 'https://dev.azure.com'
-        });
+      if (!org?.azureDevOps?.organization || !org?.azureDevOps?.pat) {
+        logger.warn(`Org ${organizationId} missing Azure DevOps config - skipping poll`);
+        return;
       }
 
-      logger.info(`Starting builds polling${userId ? ` for user ${userId}` : ''}`);
+      // Check org is active
+      if (org.isActive === false) {
+        logger.warn(`Org ${organizationId} is inactive - skipping poll`);
+        return;
+      }
 
-      // Get recent builds
+      const client = azureDevOpsClient.createUserClient({
+        organization: org.azureDevOps.organization,
+        project: org.azureDevOps.project,
+        pat: org.azureDevOps.pat,
+        baseUrl: org.azureDevOps.baseUrl || 'https://dev.azure.com'
+      });
+
+      const processedBuilds = this.getProcessedBuildsForOrg(organizationId);
+      const lastPollTime = this.getLastPollTimeForOrg(organizationId);
+
+      logger.info(`Starting builds polling for org ${organizationId}`);
       const recentBuilds = await client.getRecentBuilds(20);
       
       if (recentBuilds.count > 0) {
-        logger.info(`Found ${recentBuilds.count} recent builds`);
-        
-        // Filter builds that completed since last poll
         const newBuilds = recentBuilds.value.filter(build => {
           const finishTime = new Date(build.finishTime);
-          return finishTime > this.lastPollTime && !this.processedBuilds.has(build.id);
+          return finishTime > lastPollTime && !processedBuilds.has(build.id);
         });
 
         if (newBuilds.length > 0) {
-          logger.info(`Found ${newBuilds.length} new completed builds since last poll`);
-          
+          logger.info(`Found ${newBuilds.length} new builds for org ${organizationId}`);
           for (const build of newBuilds) {
-            await this.processBuild(build);
-            this.processedBuilds.add(build.id);
+            processedBuilds.add(build.id);
           }
         }
-      } else {
-        logger.info('No recent builds found');
       }
 
-      this.lastPollTime = new Date();
-      
-      // Clean up processed builds set to prevent memory leaks
-      this.cleanupProcessedBuilds();
-      
+      this.setLastPollTimeForOrg(organizationId);
+      this.cleanupProcessedBuilds(organizationId);
     } catch (error) {
-      logger.error('Error polling builds:', error);
+      logger.error(`Error polling builds for org ${organizationId}:`, error);
     }
   }
 
-  async processBuild(build) {
-    try {
-      logger.info(`Processing build: ${build.definition?.name} #${build.buildNumber}`, {
-        buildId: build.id,
-        result: build.result,
-        status: build.status
-      });
+  /**
+   * @deprecated REMOVED - Use pollBuildsForOrg() with organizationId
+   * Legacy user-based polling is no longer supported.
+   */
+  async pollBuilds(userId) {
+    logger.error('DEPRECATED: pollBuilds(userId) called - this method is no longer supported', {
+      userId,
+      action: 'poll-builds',
+      status: 'rejected'
+    });
+    throw new Error('Legacy user-based polling is not supported. Use pollBuildsForOrg(organizationId, org) instead.');
+  }
 
-      // Note: In a real scenario, build completion notifications would typically
-      // be handled by webhooks rather than polling. This polling is mainly for
-      // backup/fallback scenarios or when webhooks aren't available.
-      
-      // For now, we'll just log the build information
-      // The actual notification logic is handled in the webhook handlers
-      
-    } catch (error) {
-      logger.error(`Error processing build ${build.id}:`, error);
+  cleanupProcessedBuilds(organizationId) {
+    if (!organizationId) {
+      logger.warn('cleanupProcessedBuilds called without organizationId');
+      return;
+    }
+    
+    const processedBuilds = this.getProcessedBuildsForOrg(organizationId);
+    if (processedBuilds.size > 500) {
+      const buildsArray = Array.from(processedBuilds);
+      const toKeep = buildsArray.slice(-250); // Keep last 250
+      this.processedBuildsByOrg.set(organizationId, new Set(toKeep));
+      logger.debug(`Cleaned up processed builds cache for org ${organizationId}`);
     }
   }
 
-  cleanupProcessedBuilds() {
-    // Keep only the last 1000 processed build IDs to prevent memory leaks
-    if (this.processedBuilds.size > 1000) {
-      const buildsArray = Array.from(this.processedBuilds);
-      const toKeep = buildsArray.slice(-500); // Keep last 500
-      this.processedBuilds = new Set(toKeep);
-      
-      logger.debug('Cleaned up processed builds cache');
-    }
+  /**
+   * Clear all polling state for an organization (call when org is deleted/deactivated)
+   */
+  clearOrganizationState(organizationId) {
+    if (!organizationId) return;
+    
+    this.processedBuildsByOrg.delete(organizationId);
+    this.lastPollTimeByOrg.delete(organizationId);
+    logger.info(`Cleared build poller state for org ${organizationId}`);
   }
 }
 

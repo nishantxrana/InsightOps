@@ -5,8 +5,27 @@ import notificationHistoryService from '../services/notificationHistoryService.j
 import BaseWebhook from './BaseWebhook.js';
 
 class ReleaseWebhook extends BaseWebhook {
-  async handleDeploymentCompleted(req, res, userId = null) {
+  async handleDeploymentCompleted(req, res, userId = null, organizationId = null) {
     try {
+      // STRICT: organizationId is REQUIRED
+      if (!organizationId) {
+        logger.error('Release webhook called without organizationId', {
+          userId,
+          action: 'release-deployment',
+          status: 'rejected'
+        });
+        return res.status(400).json({
+          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/release/deployment',
+          code: 'MISSING_ORGANIZATION_ID'
+        });
+      }
+
+      // Validate organization exists and is active
+      const orgValidation = await this.validateOrganization(organizationId, res);
+      if (!orgValidation.valid) {
+        return this.sendOrgValidationError(res, orgValidation);
+      }
+
       const { resource } = req.body;
       
       if (!resource) {
@@ -20,7 +39,7 @@ class ReleaseWebhook extends BaseWebhook {
       const eventId = `${releaseId}-${environmentName}`;
       
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(eventId, userId, 'release');
+      const dupeCheck = this.isDuplicate(eventId, organizationId, 'release');
       if (dupeCheck.isDuplicate) {
         return res.json(this.createDuplicateResponse(eventId, 'release', dupeCheck.timeSince));
       }
@@ -37,7 +56,7 @@ class ReleaseWebhook extends BaseWebhook {
         environmentName,
         environmentStatus,
         deploymentStatus,
-        userId: userId || 'legacy-global'
+        organizationId
       });
 
       // Check if environment is production
@@ -56,15 +75,23 @@ class ReleaseWebhook extends BaseWebhook {
         });
       }
 
-      // Get user settings
+      // Get organization settings with credentials
       let userSettings = null;
-      if (userId) {
-        try {
-          const { getUserSettings } = await import('../utils/userSettings.js');
-          userSettings = await getUserSettings(userId);
-        } catch (error) {
-          logger.warn(`Failed to get user settings for ${userId}:`, error);
+      
+      try {
+        const { organizationService } = await import('../services/organizationService.js');
+        const org = await organizationService.getOrganizationWithCredentials(organizationId);
+        if (org) {
+          userId = org.userId;
+          userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
         }
+      } catch (error) {
+        logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
+        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+      }
+
+      if (!userSettings) {
+        return res.status(404).json({ error: 'Organization settings not found' });
       }
 
       const status = (environmentStatus || deploymentStatus || '').toLowerCase();
@@ -85,7 +112,7 @@ class ReleaseWebhook extends BaseWebhook {
       const notificationType = this.getNotificationType(status);
       
       if (userId) {
-        await this.sendUserNotification(resource, userSettings, notificationType, failedLogs, userId);
+        await this.sendUserNotification(resource, userSettings, notificationType, failedLogs, userId, organizationId);
       }
       
       res.json({
@@ -190,7 +217,7 @@ class ReleaseWebhook extends BaseWebhook {
     }
   }
 
-  async sendUserNotification(resource, userSettings, notificationType, failedLogs, userId) {
+  async sendUserNotification(resource, userSettings, notificationType, failedLogs, userId, organizationId) {
     try {
       if (!userSettings?.notifications?.enabled) {
         logger.info('Notifications disabled for user');
@@ -262,29 +289,40 @@ class ReleaseWebhook extends BaseWebhook {
         duration = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
       }
 
-      await notificationHistoryService.saveNotification(userId, {
-        type: 'release',
-        subType: notificationType.replace('release-', ''),
-        title: `Release: ${releaseName} - ${environment.name}`,
-        message: `Release deployment ${notificationType.replace('release-', '')}`,
-        source: 'webhook',
-        metadata: {
-          releaseId,
-          releaseName,
-          releaseDefinitionName,
-          environmentName: environment.name,
-          status: environment.status,
-          deployedBy: requestedFor,
-          duration,
-          url: webUrl,
-          failedTasks: failedLogs ? failedLogs.map(task => ({
-            taskName: task.taskName,
-            environmentName: task.environmentName,
-            logContent: task.logContent
-          })) : null
-        },
-        channels
-      });
+      // Save notification with organizationId if available
+      if (organizationId) {
+        try {
+          logger.info(`📝 [NOTIFICATION] Saving release notification to history for org ${organizationId}, userId: ${userId}`);
+          await notificationHistoryService.saveNotification(userId, organizationId, {
+            type: 'release',
+            subType: notificationType.replace('release-', ''),
+            title: `Release: ${releaseName} - ${environment.name}`,
+            message: `Release deployment ${notificationType.replace('release-', '')}`,
+            source: 'webhook',
+            metadata: {
+              releaseId,
+              releaseName,
+              releaseDefinitionName,
+              environmentName: environment.name,
+              status: environment.status,
+              deployedBy: requestedFor,
+              duration,
+              url: webUrl,
+              failedTasks: failedLogs ? failedLogs.map(task => ({
+                taskName: task.taskName,
+                environmentName: task.environmentName,
+                logContent: task.logContent
+              })) : null
+            },
+            channels
+          });
+          logger.info(`✅ [NOTIFICATION] Saved release notification to history for org ${organizationId}`);
+        } catch (historyError) {
+          logger.error(`❌ [NOTIFICATION] Failed to save release notification to history for org ${organizationId}:`, historyError);
+        }
+      } else {
+        logger.warn(`⚠️ [NOTIFICATION] Skipping release notification history save - no organizationId provided`);
+      }
 
     } catch (error) {
       logger.error('Error sending user notification:', error);

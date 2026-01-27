@@ -169,7 +169,11 @@ class FreeModelRouter {
         temperature
       });
       rateLimiter.recordRequest('openai', response.usage?.total_tokens || 0);
-      return response.choices[0].message.content;
+      const content = response?.choices?.[0]?.message?.content;
+      if (!content || content.trim() === '') {
+        throw new Error('OpenAI returned empty response');
+      }
+      return content;
     }
 
     if (provider === 'groq') {
@@ -180,15 +184,22 @@ class FreeModelRouter {
         temperature
       });
       rateLimiter.recordRequest('groq', response.usage?.total_tokens || 0);
-      return response.choices[0].message.content;
+      const content = response?.choices?.[0]?.message?.content;
+      if (!content || content.trim() === '') {
+        throw new Error('Groq returned empty response');
+      }
+      return content;
     }
 
     if (provider === 'gemini') {
       const model = this.clients.gemini.getGenerativeModel({ model: name });
       const result = await model.generateContent(prompt);
-      const response = result.response.text();
-      rateLimiter.recordRequest('gemini', response.length / 4); // Rough token estimate
-      return response;
+      const content = result?.response?.text();
+      if (!content || content.trim() === '') {
+        throw new Error('Gemini returned empty response');
+      }
+      rateLimiter.recordRequest('gemini', content.length / 4);
+      return content;
     }
 
     throw new Error(`Unsupported provider: ${provider}`);
