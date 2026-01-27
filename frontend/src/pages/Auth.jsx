@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { LoginForm } from '../components/auth/LoginForm';
-import { SignupForm } from '../components/auth/SignupForm';
+import React, { useState } from "react";
+import { LoginForm } from "../components/auth/LoginForm";
+import { SignupForm } from "../components/auth/SignupForm";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -16,7 +16,7 @@ const Auth = () => {
             AI-powered monitoring and automation
           </p>
         </div>
-        
+
         {isLogin ? (
           <LoginForm onToggleMode={() => setIsLogin(false)} />
         ) : (

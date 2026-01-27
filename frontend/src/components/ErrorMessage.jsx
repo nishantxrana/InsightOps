@@ -1,5 +1,5 @@
-import React from 'react'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import React from "react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 export default function ErrorMessage({ message, onRetry }) {
   return (
@@ -9,7 +9,9 @@ export default function ErrorMessage({ message, onRetry }) {
           <AlertTriangle className="h-8 w-8 text-red-500 dark:text-red-400" />
         </div>
         <h3 className="text-xl font-semibold text-foreground mb-3">Oops! Something went wrong</h3>
-        <p className="text-muted-foreground mb-8 leading-relaxed">{message || "We encountered an unexpected error. Please try again."}</p>
+        <p className="text-muted-foreground mb-8 leading-relaxed">
+          {message || "We encountered an unexpected error. Please try again."}
+        </p>
         {onRetry && (
           <button
             onClick={onRetry}
@@ -21,5 +23,5 @@ export default function ErrorMessage({ message, onRetry }) {
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,24 +1,25 @@
-import { logger } from '../utils/logger.js';
-import { aiService } from '../ai/aiService.js';
-import { notificationService } from '../notifications/notificationService.js';
-import { markdownFormatter } from '../utils/markdownFormatter.js';
-import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
-import notificationHistoryService from '../services/notificationHistoryService.js';
-import BaseWebhook from './BaseWebhook.js';
+import { logger } from "../utils/logger.js";
+import { aiService } from "../ai/aiService.js";
+import { notificationService } from "../notifications/notificationService.js";
+import { markdownFormatter } from "../utils/markdownFormatter.js";
+import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
+import notificationHistoryService from "../services/notificationHistoryService.js";
+import BaseWebhook from "./BaseWebhook.js";
 
 class PullRequestWebhook extends BaseWebhook {
   async handleCreated(req, res, userId = null, organizationId = null) {
     try {
       // STRICT: organizationId is REQUIRED
       if (!organizationId) {
-        logger.error('Pull request webhook called without organizationId', {
+        logger.error("Pull request webhook called without organizationId", {
           userId,
-          action: 'pullrequest-created',
-          status: 'rejected'
+          action: "pullrequest-created",
+          status: "rejected",
         });
         return res.status(400).json({
-          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/pullrequest/created',
-          code: 'MISSING_ORGANIZATION_ID'
+          error:
+            "organizationId is required. Use /api/webhooks/org/{organizationId}/pullrequest/created",
+          code: "MISSING_ORGANIZATION_ID",
         });
       }
 
@@ -29,54 +30,60 @@ class PullRequestWebhook extends BaseWebhook {
       }
 
       const { resource } = req.body;
-      
+
       if (!resource) {
-        return res.status(400).json({ error: 'Missing resource in webhook payload' });
+        return res.status(400).json({ error: "Missing resource in webhook payload" });
       }
 
       const pullRequestId = resource.pullRequestId;
-      
+
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(pullRequestId, organizationId, 'pullrequest');
+      const dupeCheck = this.isDuplicate(pullRequestId, organizationId, "pullrequest");
       if (dupeCheck.isDuplicate) {
-        return res.json(this.createDuplicateResponse(pullRequestId, 'pullrequest', dupeCheck.timeSince));
+        return res.json(
+          this.createDuplicateResponse(pullRequestId, "pullrequest", dupeCheck.timeSince)
+        );
       }
 
       const title = resource.title;
       const createdBy = resource.createdBy?.displayName;
       const sourceBranch = resource.sourceRefName;
       const targetBranch = resource.targetRefName;
-      const reviewers = resource.reviewers?.map(r => r.displayName) || [];
+      const reviewers = resource.reviewers?.map((r) => r.displayName) || [];
 
-      logger.info('Pull request created webhook received', {
+      logger.info("Pull request created webhook received", {
         pullRequestId,
         title,
         createdBy,
         sourceBranch,
         targetBranch,
         reviewers,
-        organizationId
+        organizationId,
       });
 
       // Get organization settings with credentials
       let userConfig = null;
       let userSettings = null;
-      
+
       try {
-        const { organizationService } = await import('../services/organizationService.js');
+        const { organizationService } = await import("../services/organizationService.js");
         const org = await organizationService.getOrganizationWithCredentials(organizationId);
         if (org) {
           userId = org.userId;
           userConfig = org.azureDevOps;
-          userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
+          userSettings = {
+            azureDevOps: org.azureDevOps,
+            ai: org.ai,
+            notifications: org.notifications,
+          };
         }
       } catch (error) {
         logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
-        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+        return res.status(500).json({ error: "Failed to retrieve organization settings" });
       }
 
       if (!userSettings) {
-        return res.status(404).json({ error: 'Organization settings not found' });
+        return res.status(404).json({ error: "Organization settings not found" });
       }
 
       // Generate AI summary if configured
@@ -86,31 +93,30 @@ class PullRequestWebhook extends BaseWebhook {
           aiService.initializeWithUserSettings(userSettings);
           aiSummary = await aiService.summarizePullRequest(resource);
         } catch (error) {
-          logger.warn('Failed to generate AI summary:', error);
+          logger.warn("Failed to generate AI summary:", error);
         }
       }
 
       // Format notification card with user config
       const card = this.formatPRCreatedCard(resource, aiSummary, userConfig);
-      
+
       // Send notification
       if (userId) {
         await this.sendUserNotification(card, userId, organizationId, resource, aiSummary);
       } else {
-        await notificationService.sendNotification(card, 'pull-request-created');
+        await notificationService.sendNotification(card, "pull-request-created");
       }
-      
-      res.json({
-        message: 'Pull request created webhook processed successfully',
-        pullRequestId,
-        timestamp: new Date().toISOString()
-      });
 
+      res.json({
+        message: "Pull request created webhook processed successfully",
+        pullRequestId,
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
-      logger.error('Error processing pull request created webhook:', error);
+      logger.error("Error processing pull request created webhook:", error);
       res.status(500).json({
-        error: 'Failed to process pull request created webhook',
-        message: error.message
+        error: "Failed to process pull request created webhook",
+        message: error.message,
       });
     }
   }
@@ -123,7 +129,7 @@ class PullRequestWebhook extends BaseWebhook {
 
   getNewReviewers(resource) {
     // Extract newly assigned reviewers
-    return resource?.reviewers?.map(r => r.displayName) || [];
+    return resource?.reviewers?.map((r) => r.displayName) || [];
   }
 
   async sendUserNotification(card, userId, organizationId, pr, aiSummary) {
@@ -132,7 +138,7 @@ class PullRequestWebhook extends BaseWebhook {
       let settings;
       if (organizationId) {
         try {
-          const { organizationService } = await import('../services/organizationService.js');
+          const { organizationService } = await import("../services/organizationService.js");
           const org = await organizationService.getOrganizationWithCredentials(organizationId);
           if (org) {
             settings = { notifications: org.notifications };
@@ -141,15 +147,17 @@ class PullRequestWebhook extends BaseWebhook {
           logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
         }
       }
-      
+
       // Fall back to user settings if org settings not available
       if (!settings) {
-        const { getUserSettings } = await import('../utils/userSettings.js');
+        const { getUserSettings } = await import("../utils/userSettings.js");
         settings = await getUserSettings(userId);
       }
-      
+
       if (!settings.notifications?.enabled) {
-        logger.info(`Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`);
+        logger.info(
+          `Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`
+        );
         return;
       }
 
@@ -157,22 +165,32 @@ class PullRequestWebhook extends BaseWebhook {
 
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
         try {
-          const { sendGoogleChatNotification } = await import('../utils/notificationWrapper.js');
-          
-          await sendGoogleChatNotification(userId, card, settings.notifications.webhooks.googleChat);
-          
+          const { sendGoogleChatNotification } = await import("../utils/notificationWrapper.js");
+
+          await sendGoogleChatNotification(
+            userId,
+            card,
+            settings.notifications.webhooks.googleChat
+          );
+
           const dividerCard = {
-            cardsV2: [{
-              cardId: `divider-pr-${Date.now()}`,
-              card: { sections: [{ widgets: [{ divider: {} }] }] }
-            }]
+            cardsV2: [
+              {
+                cardId: `divider-pr-${Date.now()}`,
+                card: { sections: [{ widgets: [{ divider: {} }] }] },
+              },
+            ],
           };
-          await sendGoogleChatNotification(userId, dividerCard, settings.notifications.webhooks.googleChat);
-          
-          channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          await sendGoogleChatNotification(
+            userId,
+            dividerCard,
+            settings.notifications.webhooks.googleChat
+          );
+
+          channels.push({ platform: "google-chat", status: "sent", sentAt: new Date() });
           logger.info(`PR notification queued for user ${userId} via Google Chat`);
         } catch (error) {
-          channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          channels.push({ platform: "google-chat", status: "failed", error: error.message });
           logger.error(`Failed to queue Google Chat notification:`, error);
         }
       }
@@ -182,31 +200,39 @@ class PullRequestWebhook extends BaseWebhook {
       // Save notification with organizationId if available
       if (organizationId) {
         try {
-          logger.info(`📝 [NOTIFICATION] Saving PR notification to history for org ${organizationId}, userId: ${userId}`);
+          logger.info(
+            `📝 [NOTIFICATION] Saving PR notification to history for org ${organizationId}, userId: ${userId}`
+          );
           await notificationHistoryService.saveNotification(userId, organizationId, {
-            type: 'pull-request',
-            subType: 'created',
+            type: "pull-request",
+            subType: "created",
             title: `PR: ${pr.title}`,
             message: `Pull request created by ${pr.createdBy?.displayName}`,
-            source: 'webhook',
+            source: "webhook",
             metadata: {
               pullRequestId: pr.pullRequestId,
               repository: pr.repository?.name,
-              sourceBranch: pr.sourceRefName?.replace('refs/heads/', ''),
-              targetBranch: pr.targetRefName?.replace('refs/heads/', ''),
+              sourceBranch: pr.sourceRefName?.replace("refs/heads/", ""),
+              targetBranch: pr.targetRefName?.replace("refs/heads/", ""),
               createdBy: pr.createdBy?.displayName,
-              url: prUrl
+              url: prUrl,
             },
-            channels
+            channels,
           });
-          logger.info(`✅ [NOTIFICATION] Saved PR notification to history for org ${organizationId}`);
+          logger.info(
+            `✅ [NOTIFICATION] Saved PR notification to history for org ${organizationId}`
+          );
         } catch (historyError) {
-          logger.error(`❌ [NOTIFICATION] Failed to save PR notification to history for org ${organizationId}:`, historyError);
+          logger.error(
+            `❌ [NOTIFICATION] Failed to save PR notification to history for org ${organizationId}:`,
+            historyError
+          );
         }
       } else {
-        logger.warn(`⚠️ [NOTIFICATION] Skipping PR notification history save - no organizationId provided`);
+        logger.warn(
+          `⚠️ [NOTIFICATION] Skipping PR notification history save - no organizationId provided`
+        );
       }
-
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);
     }
@@ -214,27 +240,27 @@ class PullRequestWebhook extends BaseWebhook {
 
   async sendGoogleChatCard(card, webhookUrl) {
     try {
-      const axios = (await import('axios')).default;
+      const axios = (await import("axios")).default;
       await axios.post(webhookUrl, card);
     } catch (error) {
-      logger.error('Error sending Google Chat card:', error);
+      logger.error("Error sending Google Chat card:", error);
       throw error;
     }
   }
 
   formatPRCreatedCard(pullRequest, aiSummary, userConfig) {
-    const title = pullRequest.title || 'No title';
-    const createdBy = pullRequest.createdBy?.displayName || 'Unknown';
-    const project = pullRequest.repository?.project?.name || 'Unknown';
-    const repository = pullRequest.repository?.name || 'Unknown';
-    const sourceBranch = pullRequest.sourceRefName?.replace('refs/heads/', '') || 'unknown';
-    const targetBranch = pullRequest.targetRefName?.replace('refs/heads/', '') || 'unknown';
-    const description = pullRequest.description || 'No description';
-    const reviewers = pullRequest.reviewers?.map(r => r.displayName).filter(Boolean) || [];
+    const title = pullRequest.title || "No title";
+    const createdBy = pullRequest.createdBy?.displayName || "Unknown";
+    const project = pullRequest.repository?.project?.name || "Unknown";
+    const repository = pullRequest.repository?.name || "Unknown";
+    const sourceBranch = pullRequest.sourceRefName?.replace("refs/heads/", "") || "unknown";
+    const targetBranch = pullRequest.targetRefName?.replace("refs/heads/", "") || "unknown";
+    const description = pullRequest.description || "No description";
+    const reviewers = pullRequest.reviewers?.map((r) => r.displayName).filter(Boolean) || [];
 
     let prUrl = pullRequest._links?.web?.href;
     if (!prUrl && userConfig?.organization && pullRequest.repository?.project?.name) {
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
       const project = pullRequest.repository.project.name;
       prUrl = `${baseUrl}/${userConfig.organization}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pullRequest.pullRequestId}`;
     }
@@ -242,106 +268,117 @@ class PullRequestWebhook extends BaseWebhook {
     const detailWidgets = [
       {
         decoratedText: {
-          startIcon: { knownIcon: 'BOOKMARK' },
-          topLabel: 'PR ID',
-          text: `<b>#${pullRequest.pullRequestId}</b>`
-        }
+          startIcon: { knownIcon: "BOOKMARK" },
+          topLabel: "PR ID",
+          text: `<b>#${pullRequest.pullRequestId}</b>`,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'PERSON' },
-          topLabel: 'Created By',
-          text: createdBy
-        }
+          startIcon: { knownIcon: "PERSON" },
+          topLabel: "Created By",
+          text: createdBy,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'DESCRIPTION' },
-          topLabel: 'Repository',
-          text: repository
-        }
+          startIcon: { knownIcon: "DESCRIPTION" },
+          topLabel: "Repository",
+          text: repository,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'STAR' },
-          topLabel: 'Source → Target',
-          text: `${sourceBranch} → ${targetBranch}`
-        }
-      }
+          startIcon: { knownIcon: "STAR" },
+          topLabel: "Source → Target",
+          text: `${sourceBranch} → ${targetBranch}`,
+        },
+      },
     ];
 
     if (reviewers.length > 0) {
       detailWidgets.push({
         decoratedText: {
-          startIcon: { knownIcon: 'PERSON' },
-          topLabel: 'Reviewers',
-          text: reviewers.join(', ')
-        }
+          startIcon: { knownIcon: "PERSON" },
+          topLabel: "Reviewers",
+          text: reviewers.join(", "),
+        },
       });
     }
 
     const sections = [
       {
-        header: '📋 Pull Request Details',
-        widgets: detailWidgets
-      }
+        header: "📋 Pull Request Details",
+        widgets: detailWidgets,
+      },
     ];
 
-    if (description && description !== 'No description') {
-      const truncatedDesc = description.length > 300 ? description.substring(0, 300) + '...' : description;
+    if (description && description !== "No description") {
+      const truncatedDesc =
+        description.length > 300 ? description.substring(0, 300) + "..." : description;
       sections.push({
-        header: '📝 Description',
+        header: "📝 Description",
         collapsible: true,
-        widgets: [{
-          textParagraph: {
-            text: truncatedDesc
-          }
-        }]
+        widgets: [
+          {
+            textParagraph: {
+              text: truncatedDesc,
+            },
+          },
+        ],
       });
     }
 
     if (aiSummary) {
       sections.push({
-        header: '🤖 AI Summary',
+        header: "🤖 AI Summary",
         collapsible: true,
-        widgets: [{
-          textParagraph: {
-            text: aiSummary
-          }
-        }]
+        widgets: [
+          {
+            textParagraph: {
+              text: aiSummary,
+            },
+          },
+        ],
       });
     }
 
     if (prUrl) {
       sections.push({
-        widgets: [{
-          buttonList: {
-            buttons: [{
-              text: 'Review Pull Request',
-              onClick: {
-                openLink: {
-                  url: prUrl
-                }
-              }
-            }]
-          }
-        }]
+        widgets: [
+          {
+            buttonList: {
+              buttons: [
+                {
+                  text: "Review Pull Request",
+                  onClick: {
+                    openLink: {
+                      url: prUrl,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ],
       });
     }
 
     return {
-      cardsV2: [{
-        cardId: `pr-created-${pullRequest.pullRequestId}-${Date.now()}`,
-        card: {
-          header: {
-            title: '🔀 New Pull Request',
-            subtitle: title,
-            imageUrl: 'https://img.icons8.com/color/96/pull-request.png',
-            imageType: 'CIRCLE'
+      cardsV2: [
+        {
+          cardId: `pr-created-${pullRequest.pullRequestId}-${Date.now()}`,
+          card: {
+            header: {
+              title: "🔀 New Pull Request",
+              subtitle: title,
+              imageUrl: "https://img.icons8.com/color/96/pull-request.png",
+              imageType: "CIRCLE",
+            },
+            sections,
           },
-          sections
-        }
-      }]
+        },
+      ],
     };
   }
 }

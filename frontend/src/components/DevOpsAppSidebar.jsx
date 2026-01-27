@@ -1,4 +1,4 @@
-import * as React from "react"
+import * as React from "react";
 import {
   Home,
   CheckSquare,
@@ -8,17 +8,17 @@ import {
   FileText,
   Settings,
   Bell,
-} from "lucide-react"
+} from "lucide-react";
 
-import { DevOpsNavMain } from "@/components/DevOpsNavMain"
-import { NavUser } from "@/components/nav-user"
+import { DevOpsNavMain } from "@/components/DevOpsNavMain";
+import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
 // Azure DevOps navigation data
 const data = {
@@ -43,7 +43,7 @@ const data = {
           icon: CheckSquare,
         },
         {
-          title: "Pipelines", 
+          title: "Pipelines",
           url: "/pipelines",
           icon: GitBranch,
         },
@@ -54,7 +54,7 @@ const data = {
         },
         {
           title: "Pull Requests",
-          url: "/pull-requests", 
+          url: "/pull-requests",
           icon: GitPullRequest,
         },
       ],
@@ -75,17 +75,17 @@ const data = {
       ],
     },
   ],
-}
+};
 
 export function DevOpsAppSidebar({ ...props }) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <div className="flex h-16 items-center justify-center gap-2 px-4 group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 group-data-[collapsible=icon]:px-2 transition-[height,padding] ease-linear">
-          <img 
-            src="/icon.svg" 
-            alt="InsightOps" 
-            className="h-8 w-8 flex-shrink-0 group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6 transition-[width,height] ease-linear" 
+          <img
+            src="/icon.svg"
+            alt="InsightOps"
+            className="h-8 w-8 flex-shrink-0 group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6 transition-[width,height] ease-linear"
           />
           <span className="text-lg font-semibold text-foreground group-data-[collapsible=icon]:hidden transition-opacity ease-linear">
             InsightOps
@@ -100,5 +100,5 @@ export function DevOpsAppSidebar({ ...props }) {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

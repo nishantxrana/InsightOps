@@ -1,9 +1,9 @@
-import { logger } from '../utils/logger.js';
-import { metrics } from '../observability/metrics.js';
+import { logger } from "../utils/logger.js";
+import { metrics } from "../observability/metrics.js";
 
 /**
  * Per-organization cache for Azure DevOps API responses
- * 
+ *
  * This cache:
  * - Is scoped by organizationId (multi-tenant safe)
  * - Has short TTL to ensure freshness (default 60s)
@@ -18,7 +18,7 @@ class AzureDevOpsCache {
     this.stats = {
       hits: 0,
       misses: 0,
-      sets: 0
+      sets: 0,
     };
 
     // Cleanup expired entries every minute
@@ -31,8 +31,8 @@ class AzureDevOpsCache {
   generateKey(operation, params = {}) {
     const sortedParams = Object.keys(params)
       .sort()
-      .map(k => `${k}=${JSON.stringify(params[k])}`)
-      .join('&');
+      .map((k) => `${k}=${JSON.stringify(params[k])}`)
+      .join("&");
     return `${operation}:${sortedParams}`;
   }
 
@@ -44,7 +44,7 @@ class AzureDevOpsCache {
    */
   get(organizationId, cacheKey) {
     if (!organizationId) {
-      logger.warn('[AzureDevOpsCache] get called without organizationId - skipping cache');
+      logger.warn("[AzureDevOpsCache] get called without organizationId - skipping cache");
       return null;
     }
 
@@ -85,7 +85,7 @@ class AzureDevOpsCache {
    */
   set(organizationId, cacheKey, data, ttl = this.defaultTTL) {
     if (!organizationId) {
-      logger.warn('[AzureDevOpsCache] set called without organizationId - not caching');
+      logger.warn("[AzureDevOpsCache] set called without organizationId - not caching");
       return;
     }
 
@@ -96,7 +96,7 @@ class AzureDevOpsCache {
     const orgCache = this.cache.get(organizationId);
     orgCache.set(cacheKey, {
       data,
-      expiry: Date.now() + (ttl * 1000)
+      expiry: Date.now() + ttl * 1000,
     });
 
     this.stats.sets++;
@@ -119,7 +119,7 @@ class AzureDevOpsCache {
    */
   clearAll() {
     this.cache.clear();
-    logger.info('[AzureDevOpsCache] All caches cleared');
+    logger.info("[AzureDevOpsCache] All caches cleared");
   }
 
   /**
@@ -136,7 +136,7 @@ class AzureDevOpsCache {
           cleanedCount++;
         }
       }
-      
+
       // Remove empty org caches
       if (orgCache.size === 0) {
         this.cache.delete(orgId);
@@ -154,18 +154,19 @@ class AzureDevOpsCache {
   getStats() {
     const orgCount = this.cache.size;
     let totalEntries = 0;
-    
+
     for (const orgCache of this.cache.values()) {
       totalEntries += orgCache.size;
     }
 
     return {
       ...this.stats,
-      hitRate: this.stats.hits + this.stats.misses > 0 
-        ? ((this.stats.hits / (this.stats.hits + this.stats.misses)) * 100).toFixed(1) + '%'
-        : '0%',
+      hitRate:
+        this.stats.hits + this.stats.misses > 0
+          ? ((this.stats.hits / (this.stats.hits + this.stats.misses)) * 100).toFixed(1) + "%"
+          : "0%",
       organizations: orgCount,
-      totalEntries
+      totalEntries,
     };
   }
 
@@ -175,11 +176,11 @@ class AzureDevOpsCache {
 
   // Pull requests cache
   getPullRequests(organizationId) {
-    return this.get(organizationId, 'pullRequests:active');
+    return this.get(organizationId, "pullRequests:active");
   }
 
   setPullRequests(organizationId, data, ttl = 60) {
-    this.set(organizationId, 'pullRequests:active', data, ttl);
+    this.set(organizationId, "pullRequests:active", data, ttl);
   }
 
   // Builds cache
@@ -193,21 +194,21 @@ class AzureDevOpsCache {
 
   // Work items cache
   getSprintWorkItems(organizationId) {
-    return this.get(organizationId, 'workItems:sprint');
+    return this.get(organizationId, "workItems:sprint");
   }
 
   setSprintWorkItems(organizationId, data, ttl = 60) {
-    this.set(organizationId, 'workItems:sprint', data, ttl);
+    this.set(organizationId, "workItems:sprint", data, ttl);
   }
 
   // Release stats cache (longer TTL since expensive)
   getReleaseStats(organizationId, dateRange) {
-    const key = `releaseStats:${dateRange || 'default'}`;
+    const key = `releaseStats:${dateRange || "default"}`;
     return this.get(organizationId, key);
   }
 
   setReleaseStats(organizationId, dateRange, data, ttl = 300) {
-    const key = `releaseStats:${dateRange || 'default'}`;
+    const key = `releaseStats:${dateRange || "default"}`;
     this.set(organizationId, key, data, ttl);
   }
 }
@@ -215,4 +216,3 @@ class AzureDevOpsCache {
 // Singleton export
 export const azureDevOpsCache = new AzureDevOpsCache();
 export default azureDevOpsCache;
-
