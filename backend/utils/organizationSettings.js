@@ -1,5 +1,5 @@
-import { organizationService } from '../services/organizationService.js';
-import { logger } from './logger.js';
+import { organizationService } from "../services/organizationService.js";
+import { logger } from "./logger.js";
 
 /**
  * Get organization settings for API requests
@@ -11,14 +11,21 @@ export async function getOrganizationSettings(req) {
   if (req.organization) {
     // Get with decrypted credentials
     const org = await organizationService.getOrganizationWithCredentials(req.organization._id);
-    logger.info(`[GET-ORG-SETTINGS] Using middleware org: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`);
+    logger.info(
+      `[GET-ORG-SETTINGS] Using middleware org: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`
+    );
     return org;
   }
 
   // If organizationId specified but not loaded
   if (req.organizationId) {
-    const org = await organizationService.getOrganizationWithCredentials(req.organizationId, req.user._id);
-    logger.info(`[GET-ORG-SETTINGS] Using orgId: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`);
+    const org = await organizationService.getOrganizationWithCredentials(
+      req.organizationId,
+      req.user._id
+    );
+    logger.info(
+      `[GET-ORG-SETTINGS] Using orgId: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`
+    );
     return org;
   }
 
@@ -29,8 +36,13 @@ export async function getOrganizationSettings(req) {
     return null;
   }
 
-  const org = await organizationService.getOrganizationWithCredentials(defaultOrg._id, req.user._id);
-  logger.info(`[GET-ORG-SETTINGS] Using DEFAULT org: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`);
+  const org = await organizationService.getOrganizationWithCredentials(
+    defaultOrg._id,
+    req.user._id
+  );
+  logger.info(
+    `[GET-ORG-SETTINGS] Using DEFAULT org: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`
+  );
   return org;
 }
 
@@ -38,9 +50,7 @@ export async function getOrganizationSettings(req) {
  * Check if organization has required Azure DevOps configuration
  */
 export function hasAzureDevOpsConfig(org) {
-  return org?.azureDevOps?.organization && 
-         org?.azureDevOps?.project && 
-         org?.azureDevOps?.pat;
+  return org?.azureDevOps?.organization && org?.azureDevOps?.project && org?.azureDevOps?.pat;
 }
 
 /**
@@ -61,7 +71,7 @@ export function getAzureDevOpsConfig(org) {
     organization: org.azureDevOps.organization,
     project: org.azureDevOps.project,
     pat: org.azureDevOps.pat,
-    baseUrl: org.azureDevOps.baseUrl || 'https://dev.azure.com'
+    baseUrl: org.azureDevOps.baseUrl || "https://dev.azure.com",
   };
 }
 
@@ -73,7 +83,7 @@ export function getAIConfig(org) {
   return {
     provider: org.ai.provider,
     model: org.ai.model,
-    apiKeys: org.ai.apiKeys
+    apiKeys: org.ai.apiKeys,
   };
 }
 

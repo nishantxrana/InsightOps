@@ -1,4 +1,4 @@
-import React from 'react'
+import React from "react";
 
 export default function SkeletonCard() {
   return (
@@ -16,7 +16,7 @@ export default function SkeletonCard() {
         <div className="h-4 bg-muted-foreground/20 rounded w-16"></div>
       </div>
     </div>
-  )
+  );
 }
 
 export function SkeletonTable({ rows = 5 }) {
@@ -43,5 +43,5 @@ export function SkeletonTable({ rows = 5 }) {
         ))}
       </div>
     </div>
-  )
+  );
 }

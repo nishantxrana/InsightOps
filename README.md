@@ -40,6 +40,7 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 ## 🚀 Features
 
 ### 🤖 Autonomous Agent System
+
 - **Monitor Agents**: Continuously watch Azure DevOps for changes and anomalies
 - **Analyze Agents**: Process events and extract meaningful insights using AI
 - **Execute Agents**: Take automated actions based on rules and workflows
@@ -47,13 +48,15 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 - **Rule Engine**: Dynamic rule generation based on learned patterns
 
 ### 🧠 Multi-Provider AI Integration
+
 - **OpenAI Models**: GPT-3.5-turbo, GPT-4, GPT-4o-mini
-- **Groq Models**: Llama-3-8b-instant, Llama-3-70b-versatile, Mixtral-8x7b-32768  
+- **Groq Models**: Llama-3-8b-instant, Llama-3-70b-versatile, Mixtral-8x7b-32768
 - **Google Gemini**: Gemini-1.5-pro, Gemini-1.5-flash, Gemini-2.0-flash
 - **Smart Routing**: Automatic fallback to free models when quota is exhausted
 - **Runtime Switching**: Change AI providers from settings without restart
 
 ### 🔄 Azure DevOps Integration
+
 - **Work Items**: Real-time sprint tracking with AI-powered summaries
 - **Pipelines**: Build monitoring, failure analysis, and automated diagnostics
 - **Pull Requests**: Active PR tracking, idle detection, and review suggestions
@@ -62,18 +65,20 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 - **Polling**: Configurable backup monitoring for webhook reliability
 
 ### 📢 Smart Notifications
+
 - **Google Chat**: Formatted alerts with markdown compatibility
 - **Context-Aware**: AI-enhanced messages with actionable insights
 - **Configurable**: Customizable notification rules and schedules
 
 ### 🎯 Intelligent Workflows
+
 - **Build Failure Workflow**: Auto-analyze failed builds and notify teams
 - **PR Monitoring Workflow**: Track idle pull requests and send reminders
 - **Sprint Monitoring Workflow**: Generate daily sprint summaries
 - **Event-Driven**: Trigger workflows from webhooks or scheduled jobs
 
-
 ### 🎨 Modern React UI
+
 - **Dashboard**: Real-time overview of work items, builds, PRs, and releases
 - **Work Items View**: Interactive sprint board with filtering and search
 - **Pipelines**: Build history with AI-powered failure analysis
@@ -88,6 +93,7 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 ## 🏗️ Tech Stack
 
 ### Backend
+
 - **Runtime**: Node.js 22+ with ES Modules
 - **Framework**: Express.js with async middleware
 - **Database**: MongoDB with Mongoose ODM
@@ -97,6 +103,7 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 - **Logging**: Winston for structured logs
 
 ### Frontend
+
 - **Framework**: React 18 with React Router DOM
 - **Build Tool**: Vite for fast development and optimized builds
 - **Styling**: Tailwind CSS with custom configuration
@@ -106,6 +113,7 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 - **State Management**: React Context API
 
 ### DevOps & Deployment
+
 - **CI/CD**: GitHub Actions workflows
 - **Hosting**: Azure App Service
 - **Environment**: Production and Staging configurations
@@ -218,6 +226,7 @@ npm run dev
 ```
 
 The application will be available at:
+
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:3001
 
@@ -285,12 +294,14 @@ cd backend && npm start
 Create a `.env` file in the `backend/` directory with the following configuration:
 
 #### Database Configuration (Required)
+
 ```env
 # MongoDB connection string
 MONGODB_URI=mongodb+srv://username:password@cluster0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
 ```
 
 #### Security Configuration (Required)
+
 ```env
 # JWT secret for authentication (64 characters recommended)
 JWT_SECRET=your-jwt-secret-key-here-64-characters-long-random-string-example
@@ -359,6 +370,7 @@ GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/...
 ### Dashboard Overview
 
 The main dashboard provides:
+
 - **Work Items Summary**: Active, completed, and overdue items
 - **Build Status**: Recent builds with success/failure metrics
 - **Pull Requests**: Active and idle PR tracking
@@ -368,28 +380,33 @@ The main dashboard provides:
 ### Key Features in Action
 
 #### 1. Work Items Monitoring
+
 - View current sprint items with AI-generated summaries
 - Track progress, blockers, and team velocity
 - Get insights on work distribution and completion trends
 
 #### 2. Pipeline Analysis
+
 - Monitor build pipelines in real-time
 - AI-powered failure analysis with specific fix recommendations
 - View build logs and timeline data
 - Track build duration and success rates
 
 #### 3. Pull Request Management
+
 - Track active pull requests and their status
 - Detect idle PRs (>48 hours without updates)
 - Review PR details, reviewers, and changes
 - Get AI-suggested review priorities
 
 #### 4. Release Tracking
+
 - Monitor deployment pipelines and stages
 - Track success rates and deployment frequency
 - View release history and artifacts
 
 #### 5. Autonomous Workflows
+
 - Build failure detection → AI analysis → Team notification
 - Idle PR detection → Reminder notification
 - Sprint progress → Daily summary generation
@@ -439,17 +456,20 @@ The main dashboard provides:
 ### Setup AI Providers
 
 **OpenAI** (Recommended for best quality)
+
 1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
 2. Create new API key
 3. Add billing information (pay-as-you-go)
 4. Recommended models: `gpt-4o-mini`, `gpt-4`
 
 **Groq** (Recommended for speed and free tier)
+
 1. Visit [Groq Console](https://console.groq.com/keys)
 2. Create new API key (free tier available)
 3. Recommended models: `llama-3-8b-instant`, `mixtral-8x7b-32768`
 
 **Google Gemini** (Recommended for free tier)
+
 1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Create new API key (generous free tier)
 3. Recommended models: `gemini-2.0-flash`, `gemini-1.5-pro`
@@ -457,16 +477,19 @@ The main dashboard provides:
 ### Configure Webhooks (Optional)
 
 **Microsoft Teams**
+
 1. Open Teams channel → ⋯ → **Connectors**
 2. Search "Incoming Webhook" → Configure
 3. Copy webhook URL to InsightOps settings
 
 **Slack**
+
 1. Create Slack App → **Incoming Webhooks**
 2. Activate and add to workspace
 3. Copy webhook URL to InsightOps settings
 
 **Google Chat**
+
 1. Open Chat space → ⋮ → **Manage webhooks**
 2. Add new webhook
 3. Copy webhook URL to InsightOps settings
@@ -476,60 +499,70 @@ The main dashboard provides:
 ## 📊 API Reference
 
 ### Authentication
+
 All API endpoints (except health) require JWT authentication.
 
 **Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 ### Health & Status
+
 - `GET /api/health` - Application health check (no auth required)
 - `GET /api/status` - Detailed system status
 
 ### Work Items
+
 - `GET /api/work-items` - List current sprint work items
 - `GET /api/work-items/sprint-summary` - AI-generated sprint summary
 
 ### Builds
+
 - `GET /api/builds` - List recent builds
 - `GET /api/builds/:buildId` - Get specific build details
 - `POST /api/builds/:buildId/analyze` - AI analysis of build failures
 
 ### Pull Requests
+
 - `GET /api/pull-requests` - List active pull requests
 - `GET /api/pull-requests/idle` - Get idle pull requests (>48 hours)
 
 ### Releases
+
 - `GET /api/releases` - List recent releases
 - `GET /api/releases/:releaseId` - Get specific release details
 
 ### AI Configuration
+
 - `GET /api/ai/providers` - List available AI providers
 - `GET /api/ai/models/:provider` - Get models for specific provider
 - `GET /api/ai/config` - Get current AI configuration
 
 ### Settings Management
+
 - `GET /api/settings` - Get user settings
 - `PUT /api/settings` - Update user settings
 - `POST /api/settings/test-connection` - Test Azure DevOps connection
 
 ### Agent Dashboard
+
 - `GET /api/agent-dashboard` - Get autonomous agent status and metrics
 - `GET /api/cache-stats` - View cache performance statistics
 - `GET /api/queue-status` - Check background job queue status
 
 ### Notifications
+
 - `GET /api/notification-history` - Retrieve notification history
 - `POST /api/notifications/test` - Send test notification
 
 ### Logs
+
 - `GET /api/logs` - Recent application logs
 - `GET /api/logs/export` - Export logs (CSV/JSON)
 
 ---
-
-
 
 ## 🚀 Deployment
 
@@ -538,6 +571,7 @@ Authorization: Bearer <jwt_token>
 The project is configured for automated deployment to Azure App Service via GitHub Actions.
 
 **Deployment Workflow:**
+
 1. Push to `main` branch triggers production deployment
 2. Frontend is built with Vite
 3. Frontend build is copied to `backend/public/`
@@ -545,6 +579,7 @@ The project is configured for automated deployment to Azure App Service via GitH
 5. Environment variables are injected from Azure secrets
 
 **GitHub Secrets Required:**
+
 - `AZURE_WEBAPP_NAME` - Azure App Service name
 - `AZURE_WEBAPP_PUBLISH_PROFILE` - Publishing profile from Azure
 - `VITE_CLARITY_PROJECT_ID` - Microsoft Clarity tracking ID
@@ -631,35 +666,36 @@ npm run lint            # Lint code with ESLint
 
 ---
 
-
-
-
-
 ## 🆘 Troubleshooting
 
 ### Common Issues
 
 **❌ MongoDB Connection Failed**
+
 - Verify `MONGODB_URI` is correct in `.env`
 - Check MongoDB Atlas IP whitelist (allow 0.0.0.0/0 for development)
 - Ensure database user has read/write permissions
 
 **❌ Azure DevOps API Errors**
+
 - Verify PAT has correct scopes (Work Items, Build, Code, PR, Release)
 - Check organization and project names are correct
 - Ensure PAT hasn't expired (default: 90 days)
 
 **❌ AI Provider Errors**
+
 - Verify API key is valid and not expired
 - Check if you have remaining quota/credits
 - Try switching to a different provider (Groq/Gemini for free tiers)
 
 **❌ Frontend Not Loading**
+
 - Check if backend is running on port 3001
 - Verify CORS configuration in backend
 - Clear browser cache and reload
 
 **❌ Webhooks Not Working**
+
 - Verify webhook URL is publicly accessible
 - Check webhook secret matches configuration
 - Review Azure DevOps Service Hook logs
@@ -667,46 +703,47 @@ npm run lint            # Lint code with ESLint
 ### Debug Mode
 
 Enable detailed logging:
+
 ```env
 LOG_LEVEL=debug
 NODE_ENV=development
 ```
 
 Then check logs at:
+
 - `backend/logs/combined.log` - All logs
 - `backend/logs/error.log` - Errors only
-
-
-
-
-
 
 ## 🌟 Live Demo
 
 🚀 **Try InsightOps**: [https://stginsightops.azurewebsites.net/]
 
 **Demo Credentials:**
+
 ```
 Email: demo@insightops.dev
 Password: W6%Q5=?!;f4f
 ```
 
-*Note: Demo resets every 24 hours. Your data will not be persisted.*
+_Note: Demo resets every 24 hours. Your data will not be persisted._
 
 ---
 
 ## 📸 Screenshots
 
 ### Dashboard
+
 ![Dashboard](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Dashboard.png)
-*Real-time overview of work items, builds, PRs, and releases*
+_Real-time overview of work items, builds, PRs, and releases_
 
 ### Pipeline Analysis
+
 ![Pipeline Analysis](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Release.png)
-*AI-powered build failure analysis with actionable insights*
+_AI-powered build failure analysis with actionable insights_
 
 ### Settings
+
 ![Settings](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Settings.png)
-*Configure Azure DevOps, AI providers, and notifications*
+_Configure Azure DevOps, AI providers, and notifications_
 
 ---

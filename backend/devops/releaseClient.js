@@ -1,26 +1,26 @@
-import axios from 'axios';
-import { logger } from '../utils/logger.js';
+import axios from "axios";
+import { logger } from "../utils/logger.js";
 
 class AzureDevOpsReleaseClient {
-  constructor(organization, project, pat, baseUrl = 'https://dev.azure.com') {
+  constructor(organization, project, pat, baseUrl = "https://dev.azure.com") {
     this.organization = organization;
     this.project = project;
     this.pat = pat;
     this.baseUrl = baseUrl;
-    this.apiVersion = '6.0';
-    
+    this.apiVersion = "6.0";
+
     // Use Release Management API endpoint
-    const releaseApiUrl = baseUrl.includes('dev.azure.com') 
+    const releaseApiUrl = baseUrl.includes("dev.azure.com")
       ? `https://vsrm.dev.azure.com/${organization}/${project}/_apis`
       : `${baseUrl}/${organization}/${project}/_apis`;
-    
+
     this.client = axios.create({
       baseURL: releaseApiUrl,
       headers: {
-        'Authorization': `Basic ${Buffer.from(`:${pat}`).toString('base64')}`,
-        'Content-Type': 'application/json'
+        Authorization: `Basic ${Buffer.from(`:${pat}`).toString("base64")}`,
+        "Content-Type": "application/json",
       },
-      timeout: 30000
+      timeout: 30000,
     });
   }
 
@@ -33,13 +33,13 @@ class AzureDevOpsReleaseClient {
         statusFilter,
         minCreatedTime,
         maxCreatedTime,
-        continuationToken
+        continuationToken,
       } = options;
 
       const params = {
-        'api-version': this.apiVersion,
-        '$top': top,
-        '$expand': 'environments,artifacts,variables'
+        "api-version": this.apiVersion,
+        $top: top,
+        $expand: "environments,artifacts,variables",
       };
 
       if (definitionId) params.definitionId = definitionId;
@@ -49,17 +49,17 @@ class AzureDevOpsReleaseClient {
       if (maxCreatedTime) params.maxCreatedTime = maxCreatedTime;
       if (continuationToken) params.continuationToken = continuationToken;
 
-      const response = await this.client.get('/release/releases', { params });
-      
+      const response = await this.client.get("/release/releases", { params });
+
       // Azure DevOps returns continuation token in response header
-      const nextContinuationToken = response.headers['x-ms-continuationtoken'];
-      
+      const nextContinuationToken = response.headers["x-ms-continuationtoken"];
+
       return {
         ...response.data,
-        continuationToken: nextContinuationToken
+        continuationToken: nextContinuationToken,
       };
     } catch (error) {
-      logger.error('Error fetching releases from Azure DevOps:', error);
+      logger.error("Error fetching releases from Azure DevOps:", error);
       throw error;
     }
   }
@@ -67,14 +67,14 @@ class AzureDevOpsReleaseClient {
   async getReleaseDefinitions() {
     try {
       const params = {
-        'api-version': this.apiVersion,
-        '$expand': 'environments'
+        "api-version": this.apiVersion,
+        $expand: "environments",
       };
 
-      const response = await this.client.get('/release/definitions', { params });
+      const response = await this.client.get("/release/definitions", { params });
       return response.data;
     } catch (error) {
-      logger.error('Error fetching release definitions from Azure DevOps:', error);
+      logger.error("Error fetching release definitions from Azure DevOps:", error);
       throw error;
     }
   }
@@ -82,40 +82,35 @@ class AzureDevOpsReleaseClient {
   async getPendingApprovals() {
     try {
       const params = {
-        'api-version': this.apiVersion,
-        'statusFilter': 'pending'
+        "api-version": this.apiVersion,
+        statusFilter: "pending",
       };
 
-      const response = await this.client.get('/release/approvals', { params });
+      const response = await this.client.get("/release/approvals", { params });
       return response.data;
     } catch (error) {
-      logger.error('Error fetching pending approvals from Azure DevOps:', error);
+      logger.error("Error fetching pending approvals from Azure DevOps:", error);
       throw error;
     }
   }
 
   async getDeployments(options = {}) {
     try {
-      const {
-        top = 50,
-        definitionId,
-        definitionEnvironmentId,
-        deploymentStatus
-      } = options;
+      const { top = 50, definitionId, definitionEnvironmentId, deploymentStatus } = options;
 
       const params = {
-        'api-version': this.apiVersion,
-        '$top': top
+        "api-version": this.apiVersion,
+        $top: top,
       };
 
       if (definitionId) params.definitionId = definitionId;
       if (definitionEnvironmentId) params.definitionEnvironmentId = definitionEnvironmentId;
       if (deploymentStatus) params.deploymentStatus = deploymentStatus;
 
-      const response = await this.client.get('/release/deployments', { params });
+      const response = await this.client.get("/release/deployments", { params });
       return response.data;
     } catch (error) {
-      logger.error('Error fetching deployments from Azure DevOps:', error);
+      logger.error("Error fetching deployments from Azure DevOps:", error);
       throw error;
     }
   }

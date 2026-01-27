@@ -1,5 +1,5 @@
-import { PollingJob } from '../models/PollingJob.js';
-import { logger } from '../utils/logger.js';
+import { PollingJob } from "../models/PollingJob.js";
+import { logger } from "../utils/logger.js";
 
 class PollingService {
   /**
@@ -9,21 +9,21 @@ class PollingService {
     try {
       const job = await PollingJob.findOneAndUpdate(
         { organizationId, jobType },
-        { 
+        {
           userId,
-          organizationId, 
-          jobType, 
+          organizationId,
+          jobType,
           config: {
             enabled: config.enabled || false,
             interval: config.interval,
-            lastResult: 'pending'
+            lastResult: "pending",
           },
-          status: 'active',
-          updatedAt: new Date()
+          status: "active",
+          updatedAt: new Date(),
         },
         { upsert: true, new: true }
       );
-      
+
       return job;
     } catch (error) {
       logger.error(`Failed to create/update ${jobType} job for org ${organizationId}:`, error);
@@ -38,8 +38,8 @@ class PollingService {
     try {
       return await PollingJob.find({
         organizationId,
-        status: 'active',
-        'config.enabled': true
+        status: "active",
+        "config.enabled": true,
       });
     } catch (error) {
       logger.error(`Failed to get active jobs for org ${organizationId}:`, error);
@@ -66,7 +66,7 @@ class PollingService {
     try {
       const result = await PollingJob.updateMany(
         { organizationId },
-        { status: 'paused', updatedAt: new Date() }
+        { status: "paused", updatedAt: new Date() }
       );
       return result;
     } catch (error) {
@@ -82,7 +82,7 @@ class PollingService {
     try {
       const result = await PollingJob.updateMany(
         { userId },
-        { status: 'paused', updatedAt: new Date() }
+        { status: "paused", updatedAt: new Date() }
       );
       return result;
     } catch (error) {
@@ -98,7 +98,7 @@ class PollingService {
     try {
       await PollingJob.findOneAndUpdate(
         { organizationId, jobType },
-        { 'config.lastRun': new Date(), updatedAt: new Date() }
+        { "config.lastRun": new Date(), updatedAt: new Date() }
       );
     } catch (error) {
       logger.error(`Failed to update last run for org ${organizationId}/${jobType}:`, error);
@@ -111,18 +111,18 @@ class PollingService {
   async updateJobResult(organizationId, jobType, result, errorMessage = null) {
     try {
       const update = {
-        'config.lastResult': result,
-        updatedAt: new Date()
+        "config.lastResult": result,
+        updatedAt: new Date(),
       };
-      
+
       if (errorMessage) {
-        update['config.lastError'] = errorMessage;
-        update.status = 'error';
-      } else if (result === 'success') {
-        update['config.lastError'] = null;
-        update.status = 'active';
+        update["config.lastError"] = errorMessage;
+        update.status = "error";
+      } else if (result === "success") {
+        update["config.lastError"] = null;
+        update.status = "active";
       }
-      
+
       await PollingJob.findOneAndUpdate({ organizationId, jobType }, update);
     } catch (error) {
       logger.error(`Failed to update job result for org ${organizationId}/${jobType}:`, error);
@@ -135,9 +135,18 @@ class PollingService {
   async updateJobConfig(organizationId, jobType, pollingConfig) {
     try {
       const configMap = {
-        workItems: { enabled: pollingConfig.workItemsEnabled, interval: pollingConfig.workItemsInterval },
-        pullRequests: { enabled: pollingConfig.pullRequestEnabled, interval: pollingConfig.pullRequestInterval },
-        overdue: { enabled: pollingConfig.overdueCheckEnabled, interval: pollingConfig.overdueCheckInterval }
+        workItems: {
+          enabled: pollingConfig.workItemsEnabled,
+          interval: pollingConfig.workItemsInterval,
+        },
+        pullRequests: {
+          enabled: pollingConfig.pullRequestEnabled,
+          interval: pollingConfig.pullRequestInterval,
+        },
+        overdue: {
+          enabled: pollingConfig.overdueCheckEnabled,
+          interval: pollingConfig.overdueCheckInterval,
+        },
       };
 
       const config = configMap[jobType];
@@ -145,11 +154,11 @@ class PollingService {
 
       await PollingJob.findOneAndUpdate(
         { organizationId, jobType },
-        { 
-          'config.enabled': config.enabled || false,
-          'config.interval': config.interval,
-          status: 'active',
-          updatedAt: new Date()
+        {
+          "config.enabled": config.enabled || false,
+          "config.interval": config.interval,
+          status: "active",
+          updatedAt: new Date(),
         }
       );
     } catch (error) {
@@ -162,13 +171,13 @@ class PollingService {
    */
   async getActiveOrganizations() {
     try {
-      const result = await PollingJob.distinct('organizationId', {
-        status: 'active',
-        'config.enabled': true
+      const result = await PollingJob.distinct("organizationId", {
+        status: "active",
+        "config.enabled": true,
       });
-      return result.map(id => id.toString());
+      return result.map((id) => id.toString());
     } catch (error) {
-      logger.error('Failed to get active organizations:', error);
+      logger.error("Failed to get active organizations:", error);
       return [];
     }
   }
@@ -178,13 +187,13 @@ class PollingService {
    */
   async getActiveUsers() {
     try {
-      const result = await PollingJob.distinct('userId', {
-        status: 'active',
-        'config.enabled': true
+      const result = await PollingJob.distinct("userId", {
+        status: "active",
+        "config.enabled": true,
       });
-      return result.map(id => id.toString());
+      return result.map((id) => id.toString());
     } catch (error) {
-      logger.error('Failed to get active users:', error);
+      logger.error("Failed to get active users:", error);
       return [];
     }
   }

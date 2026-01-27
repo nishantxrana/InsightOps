@@ -1,22 +1,23 @@
-import { logger } from '../utils/logger.js';
-import { markdownFormatter } from '../utils/markdownFormatter.js';
-import axios from 'axios';
-import notificationHistoryService from '../services/notificationHistoryService.js';
-import BaseWebhook from './BaseWebhook.js';
+import { logger } from "../utils/logger.js";
+import { markdownFormatter } from "../utils/markdownFormatter.js";
+import axios from "axios";
+import notificationHistoryService from "../services/notificationHistoryService.js";
+import BaseWebhook from "./BaseWebhook.js";
 
 class ReleaseWebhook extends BaseWebhook {
   async handleDeploymentCompleted(req, res, userId = null, organizationId = null) {
     try {
       // STRICT: organizationId is REQUIRED
       if (!organizationId) {
-        logger.error('Release webhook called without organizationId', {
+        logger.error("Release webhook called without organizationId", {
           userId,
-          action: 'release-deployment',
-          status: 'rejected'
+          action: "release-deployment",
+          status: "rejected",
         });
         return res.status(400).json({
-          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/release/deployment',
-          code: 'MISSING_ORGANIZATION_ID'
+          error:
+            "organizationId is required. Use /api/webhooks/org/{organizationId}/release/deployment",
+          code: "MISSING_ORGANIZATION_ID",
         });
       }
 
@@ -27,124 +28,136 @@ class ReleaseWebhook extends BaseWebhook {
       }
 
       const { resource } = req.body;
-      
+
       if (!resource) {
-        return res.status(400).json({ error: 'Missing resource in webhook payload' });
+        return res.status(400).json({ error: "Missing resource in webhook payload" });
       }
 
       const releaseId = resource.environment?.releaseId;
       const environmentName = resource.environment?.name;
-      
+
       // For releases, use releaseId + environment as unique identifier
       const eventId = `${releaseId}-${environmentName}`;
-      
+
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(eventId, organizationId, 'release');
+      const dupeCheck = this.isDuplicate(eventId, organizationId, "release");
       if (dupeCheck.isDuplicate) {
-        return res.json(this.createDuplicateResponse(eventId, 'release', dupeCheck.timeSince));
+        return res.json(this.createDuplicateResponse(eventId, "release", dupeCheck.timeSince));
       }
 
-      const releaseName = resource.environment?.preDeployApprovals?.[0]?.release?.name || 
-                         resource.environment?.postDeployApprovals?.[0]?.release?.name ||
-                         `Release-${releaseId}`;
+      const releaseName =
+        resource.environment?.preDeployApprovals?.[0]?.release?.name ||
+        resource.environment?.postDeployApprovals?.[0]?.release?.name ||
+        `Release-${releaseId}`;
       const environmentStatus = resource.environment?.status;
       const deploymentStatus = resource.deployment?.deploymentStatus;
-      
-      logger.info('Release deployment completed webhook received', {
+
+      logger.info("Release deployment completed webhook received", {
         releaseId,
         releaseName,
         environmentName,
         environmentStatus,
         deploymentStatus,
-        organizationId
+        organizationId,
       });
 
       // Check if environment is production
-      const envNameLower = environmentName?.toLowerCase() || '';
-      const isProduction = envNameLower.includes('production') || 
-                          envNameLower.includes('prod') || 
-                          envNameLower.includes('prd');
-      
+      const envNameLower = environmentName?.toLowerCase() || "";
+      const isProduction =
+        envNameLower.includes("production") ||
+        envNameLower.includes("prod") ||
+        envNameLower.includes("prd");
+
       if (!isProduction) {
-        logger.info('Skipping notification - not a production environment', { environmentName });
+        logger.info("Skipping notification - not a production environment", { environmentName });
         return res.json({
-          message: 'Release deployment webhook received - non-production environment',
+          message: "Release deployment webhook received - non-production environment",
           releaseId,
           environmentName,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
 
       // Get organization settings with credentials
       let userSettings = null;
-      
+
       try {
-        const { organizationService } = await import('../services/organizationService.js');
+        const { organizationService } = await import("../services/organizationService.js");
         const org = await organizationService.getOrganizationWithCredentials(organizationId);
         if (org) {
           userId = org.userId;
-          userSettings = { azureDevOps: org.azureDevOps, ai: org.ai, notifications: org.notifications };
+          userSettings = {
+            azureDevOps: org.azureDevOps,
+            ai: org.ai,
+            notifications: org.notifications,
+          };
         }
       } catch (error) {
         logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
-        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+        return res.status(500).json({ error: "Failed to retrieve organization settings" });
       }
 
       if (!userSettings) {
-        return res.status(404).json({ error: 'Organization settings not found' });
+        return res.status(404).json({ error: "Organization settings not found" });
       }
 
-      const status = (environmentStatus || deploymentStatus || '').toLowerCase();
-      const isFailed = status === 'failed' || status === 'rejected';
-      
+      const status = (environmentStatus || deploymentStatus || "").toLowerCase();
+      const isFailed = status === "failed" || status === "rejected";
+
       let failedLogs = null;
-      
+
       // Fetch failed task logs if deployment failed
       if (isFailed && releaseId && userSettings?.azureDevOps) {
         try {
           failedLogs = await this.fetchFailedTaskLogs(releaseId, userSettings.azureDevOps);
         } catch (error) {
-          logger.error('Error fetching failed task logs:', error);
+          logger.error("Error fetching failed task logs:", error);
         }
       }
 
       // Send notification
       const notificationType = this.getNotificationType(status);
-      
+
       if (userId) {
-        await this.sendUserNotification(resource, userSettings, notificationType, failedLogs, userId, organizationId);
+        await this.sendUserNotification(
+          resource,
+          userSettings,
+          notificationType,
+          failedLogs,
+          userId,
+          organizationId
+        );
       }
-      
+
       res.json({
-        message: 'Release deployment webhook processed successfully',
+        message: "Release deployment webhook processed successfully",
         releaseId,
         environmentName,
         status: environmentStatus || deploymentStatus,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
     } catch (error) {
-      logger.error('Error processing release deployment webhook:', error);
+      logger.error("Error processing release deployment webhook:", error);
       res.status(500).json({
-        error: 'Failed to process release deployment webhook',
-        message: error.message
+        error: "Failed to process release deployment webhook",
+        message: error.message,
       });
     }
   }
 
   getNotificationType(status) {
     switch (status) {
-      case 'succeeded':
-        return 'release-succeeded';
-      case 'partiallysucceeded':
-        return 'release-partially-succeeded';
-      case 'failed':
-      case 'rejected':
-        return 'release-failed';
-      case 'canceled':
-        return 'release-canceled';
+      case "succeeded":
+        return "release-succeeded";
+      case "partiallysucceeded":
+        return "release-partially-succeeded";
+      case "failed":
+      case "rejected":
+        return "release-failed";
+      case "canceled":
+        return "release-canceled";
       default:
-        return 'release-unknown';
+        return "release-unknown";
     }
   }
 
@@ -152,16 +165,13 @@ class ReleaseWebhook extends BaseWebhook {
     try {
       const { organization, project, pat } = azureDevOpsConfig;
       const baseUrl = `https://vsrm.dev.azure.com/${organization}/${project}`;
-      const auth = Buffer.from(`:${pat}`).toString('base64');
+      const auth = Buffer.from(`:${pat}`).toString("base64");
 
       // Get release details
-      const releaseResponse = await axios.get(
-        `${baseUrl}/_apis/release/releases/${releaseId}`,
-        {
-          headers: { 'Authorization': `Basic ${auth}` },
-          params: { 'api-version': '6.0' }
-        }
-      );
+      const releaseResponse = await axios.get(`${baseUrl}/_apis/release/releases/${releaseId}`, {
+        headers: { Authorization: `Basic ${auth}` },
+        params: { "api-version": "6.0" },
+      });
 
       const release = releaseResponse.data;
       const failedTasks = [];
@@ -172,36 +182,37 @@ class ReleaseWebhook extends BaseWebhook {
           const tasksResponse = await axios.get(
             `${baseUrl}/_apis/release/releases/${releaseId}/environments/${env.id}/tasks`,
             {
-              headers: { 'Authorization': `Basic ${auth}` },
-              params: { 'api-version': '6.0' }
+              headers: { Authorization: `Basic ${auth}` },
+              params: { "api-version": "6.0" },
             }
           );
 
           const tasks = tasksResponse.data.value || [];
 
           for (const task of tasks) {
-            if ((task.status === 'failed' || task.status === 'error') && 
-                task.name && 
-                !task.name.toLowerCase().includes('agent job')) {
-              
-              let logContent = '';
+            if (
+              (task.status === "failed" || task.status === "error") &&
+              task.name &&
+              !task.name.toLowerCase().includes("agent job")
+            ) {
+              let logContent = "";
               if (task.logUrl) {
                 try {
                   const logResponse = await axios.get(task.logUrl, {
-                    headers: { 'Authorization': `Basic ${auth}` },
-                    timeout: 10000
+                    headers: { Authorization: `Basic ${auth}` },
+                    timeout: 10000,
                   });
                   // Get last 1000 characters of log
-                  logContent = (logResponse.data || '').slice(-1000);
+                  logContent = (logResponse.data || "").slice(-1000);
                 } catch (logError) {
-                  logContent = 'Log content unavailable';
+                  logContent = "Log content unavailable";
                 }
               }
 
               failedTasks.push({
                 taskName: task.name,
                 environmentName: env.name,
-                logContent: logContent
+                logContent: logContent,
               });
             }
           }
@@ -212,47 +223,71 @@ class ReleaseWebhook extends BaseWebhook {
 
       return failedTasks.length > 0 ? failedTasks : null;
     } catch (error) {
-      logger.error('Error in fetchFailedTaskLogs:', error);
+      logger.error("Error in fetchFailedTaskLogs:", error);
       return null;
     }
   }
 
-  async sendUserNotification(resource, userSettings, notificationType, failedLogs, userId, organizationId) {
+  async sendUserNotification(
+    resource,
+    userSettings,
+    notificationType,
+    failedLogs,
+    userId,
+    organizationId
+  ) {
     try {
       if (!userSettings?.notifications?.enabled) {
-        logger.info('Notifications disabled for user');
+        logger.info("Notifications disabled for user");
         return;
       }
 
       const channels = [];
       let card;
 
-      if (userSettings.notifications.googleChatEnabled && userSettings.notifications.webhooks?.googleChat) {
-        const isFailed = notificationType === 'release-failed';
-        
+      if (
+        userSettings.notifications.googleChatEnabled &&
+        userSettings.notifications.webhooks?.googleChat
+      ) {
+        const isFailed = notificationType === "release-failed";
+
         try {
-          const { sendGoogleChatNotification } = await import('../utils/notificationWrapper.js');
-          
+          const { sendGoogleChatNotification } = await import("../utils/notificationWrapper.js");
+
           if (isFailed && failedLogs) {
             card = this.formatReleaseCard(resource, userSettings.azureDevOps, failedLogs);
-            await sendGoogleChatNotification(userId, card, userSettings.notifications.webhooks.googleChat);
+            await sendGoogleChatNotification(
+              userId,
+              card,
+              userSettings.notifications.webhooks.googleChat
+            );
           } else {
             card = this.formatSuccessCard(resource, userSettings.azureDevOps, notificationType);
-            await sendGoogleChatNotification(userId, card, userSettings.notifications.webhooks.googleChat);
+            await sendGoogleChatNotification(
+              userId,
+              card,
+              userSettings.notifications.webhooks.googleChat
+            );
           }
-          
+
           const dividerCard = {
-            cardsV2: [{
-              cardId: `divider-release-${Date.now()}`,
-              card: { sections: [{ widgets: [{ divider: {} }] }] }
-            }]
+            cardsV2: [
+              {
+                cardId: `divider-release-${Date.now()}`,
+                card: { sections: [{ widgets: [{ divider: {} }] }] },
+              },
+            ],
           };
-          await sendGoogleChatNotification(userId, dividerCard, userSettings.notifications.webhooks.googleChat);
-          
-          channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          await sendGoogleChatNotification(
+            userId,
+            dividerCard,
+            userSettings.notifications.webhooks.googleChat
+          );
+
+          channels.push({ platform: "google-chat", status: "sent", sentAt: new Date() });
           logger.info(`Release notification queued for user ${userId} via Google Chat`);
         } catch (error) {
-          channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          channels.push({ platform: "google-chat", status: "failed", error: error.message });
           logger.error(`Failed to queue Google Chat notification:`, error);
         }
       }
@@ -261,29 +296,33 @@ class ReleaseWebhook extends BaseWebhook {
       const release = resource.release || {};
       const deployment = resource.deployment || {};
       const releaseId = environment.releaseId || release.id;
-      const releaseName = environment.preDeployApprovals?.[0]?.release?.name || 
-                         environment.postDeployApprovals?.[0]?.release?.name ||
-                         `Release-${releaseId}`;
-      const releaseDefinitionName = environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
-                                   environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
-                                   'Unknown Pipeline';
-      const requestedFor = environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
-                          release.createdBy?.displayName || 
-                          'Unknown';
-      
+      const releaseName =
+        environment.preDeployApprovals?.[0]?.release?.name ||
+        environment.postDeployApprovals?.[0]?.release?.name ||
+        `Release-${releaseId}`;
+      const releaseDefinitionName =
+        environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
+        environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
+        "Unknown Pipeline";
+      const requestedFor =
+        environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
+        release.createdBy?.displayName ||
+        "Unknown";
+
       // Construct web URL - prefer direct URL from payload, fallback to constructed URL using project from payload
       let webUrl = deployment.release?.webAccessUri || release.webAccessUri;
       if (!webUrl && userSettings.azureDevOps?.organization) {
-        const projectName = resource.project?.name || 
-                           resource.environment?.release?.project?.name ||
-                           resource.deployment?.release?.project?.name;
+        const projectName =
+          resource.project?.name ||
+          resource.environment?.release?.project?.name ||
+          resource.deployment?.release?.project?.name;
         if (projectName) {
           webUrl = `https://dev.azure.com/${userSettings.azureDevOps.organization}/${encodeURIComponent(projectName)}/_release?releaseId=${releaseId}&_a=release-summary`;
         }
       }
-      
+
       const timeToDeploy = environment.timeToDeploy || deployment.timeToDeploy;
-      let duration = '';
+      let duration = "";
       if (timeToDeploy) {
         const seconds = Math.round(timeToDeploy * 60);
         duration = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
@@ -292,13 +331,15 @@ class ReleaseWebhook extends BaseWebhook {
       // Save notification with organizationId if available
       if (organizationId) {
         try {
-          logger.info(`📝 [NOTIFICATION] Saving release notification to history for org ${organizationId}, userId: ${userId}`);
+          logger.info(
+            `📝 [NOTIFICATION] Saving release notification to history for org ${organizationId}, userId: ${userId}`
+          );
           await notificationHistoryService.saveNotification(userId, organizationId, {
-            type: 'release',
-            subType: notificationType.replace('release-', ''),
+            type: "release",
+            subType: notificationType.replace("release-", ""),
             title: `Release: ${releaseName} - ${environment.name}`,
-            message: `Release deployment ${notificationType.replace('release-', '')}`,
-            source: 'webhook',
+            message: `Release deployment ${notificationType.replace("release-", "")}`,
+            source: "webhook",
             metadata: {
               releaseId,
               releaseName,
@@ -308,24 +349,32 @@ class ReleaseWebhook extends BaseWebhook {
               deployedBy: requestedFor,
               duration,
               url: webUrl,
-              failedTasks: failedLogs ? failedLogs.map(task => ({
-                taskName: task.taskName,
-                environmentName: task.environmentName,
-                logContent: task.logContent
-              })) : null
+              failedTasks: failedLogs
+                ? failedLogs.map((task) => ({
+                    taskName: task.taskName,
+                    environmentName: task.environmentName,
+                    logContent: task.logContent,
+                  }))
+                : null,
             },
-            channels
+            channels,
           });
-          logger.info(`✅ [NOTIFICATION] Saved release notification to history for org ${organizationId}`);
+          logger.info(
+            `✅ [NOTIFICATION] Saved release notification to history for org ${organizationId}`
+          );
         } catch (historyError) {
-          logger.error(`❌ [NOTIFICATION] Failed to save release notification to history for org ${organizationId}:`, historyError);
+          logger.error(
+            `❌ [NOTIFICATION] Failed to save release notification to history for org ${organizationId}:`,
+            historyError
+          );
         }
       } else {
-        logger.warn(`⚠️ [NOTIFICATION] Skipping release notification history save - no organizationId provided`);
+        logger.warn(
+          `⚠️ [NOTIFICATION] Skipping release notification history save - no organizationId provided`
+        );
       }
-
     } catch (error) {
-      logger.error('Error sending user notification:', error);
+      logger.error("Error sending user notification:", error);
     }
   }
 
@@ -333,22 +382,25 @@ class ReleaseWebhook extends BaseWebhook {
     const release = resource.release || {};
     const environment = resource.environment || {};
     const deployment = resource.deployment || {};
-    
+
     const releaseId = environment.releaseId || release.id;
-    const releaseName = environment.preDeployApprovals?.[0]?.release?.name || 
-                       environment.postDeployApprovals?.[0]?.release?.name ||
-                       `Release-${releaseId}`;
-    const releaseDefinitionName = environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
-                                 environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
-                                 'Unknown Pipeline';
-    const environmentName = environment.name || 'Unknown Environment';
-    const requestedFor = environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
-                        release.createdBy?.displayName || 
-                        'Unknown';
+    const releaseName =
+      environment.preDeployApprovals?.[0]?.release?.name ||
+      environment.postDeployApprovals?.[0]?.release?.name ||
+      `Release-${releaseId}`;
+    const releaseDefinitionName =
+      environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
+      environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
+      "Unknown Pipeline";
+    const environmentName = environment.name || "Unknown Environment";
+    const requestedFor =
+      environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
+      release.createdBy?.displayName ||
+      "Unknown";
 
     // Get deployment duration
     const timeToDeploy = environment.timeToDeploy || deployment.timeToDeploy;
-    let durationText = '';
+    let durationText = "";
     if (timeToDeploy) {
       const seconds = Math.round(timeToDeploy * 60);
       durationText = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
@@ -360,97 +412,101 @@ class ReleaseWebhook extends BaseWebhook {
     // Determine card styling based on status
     let title, imageUrl, headerColor;
     switch (notificationType) {
-      case 'release-succeeded':
-        title = '✅ Production Deployment Succeeded';
-        imageUrl = 'https://img.icons8.com/fluency/96/ok.png';
+      case "release-succeeded":
+        title = "✅ Production Deployment Succeeded";
+        imageUrl = "https://img.icons8.com/fluency/96/ok.png";
         break;
-      case 'release-partially-succeeded':
-        title = '⚠️ Production Deployment Partially Succeeded';
-        imageUrl = 'https://img.icons8.com/fluency/96/warning-shield.png';
+      case "release-partially-succeeded":
+        title = "⚠️ Production Deployment Partially Succeeded";
+        imageUrl = "https://img.icons8.com/fluency/96/warning-shield.png";
         break;
-      case 'release-canceled':
-        title = '🚫 Production Deployment Canceled';
-        imageUrl = 'https://img.icons8.com/fluency/96/cancel.png';
+      case "release-canceled":
+        title = "🚫 Production Deployment Canceled";
+        imageUrl = "https://img.icons8.com/fluency/96/cancel.png";
         break;
       default:
-        title = '📦 Production Deployment Completed';
-        imageUrl = 'https://img.icons8.com/fluency/96/package.png';
+        title = "📦 Production Deployment Completed";
+        imageUrl = "https://img.icons8.com/fluency/96/package.png";
     }
 
     const detailWidgets = [
       {
         decoratedText: {
-          startIcon: { knownIcon: 'BOOKMARK' },
-          topLabel: 'Release',
-          text: `<b>${releaseName}</b>`
-        }
+          startIcon: { knownIcon: "BOOKMARK" },
+          topLabel: "Release",
+          text: `<b>${releaseName}</b>`,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'DESCRIPTION' },
-          topLabel: 'Environment',
-          text: `<b>${environmentName}</b>`
-        }
+          startIcon: { knownIcon: "DESCRIPTION" },
+          topLabel: "Environment",
+          text: `<b>${environmentName}</b>`,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'PERSON' },
-          topLabel: 'Deployed By',
-          text: requestedFor
-        }
-      }
+          startIcon: { knownIcon: "PERSON" },
+          topLabel: "Deployed By",
+          text: requestedFor,
+        },
+      },
     ];
 
     if (durationText) {
       detailWidgets.push({
         decoratedText: {
-          startIcon: { knownIcon: 'CLOCK' },
-          topLabel: 'Duration',
-          text: durationText
-        }
+          startIcon: { knownIcon: "CLOCK" },
+          topLabel: "Duration",
+          text: durationText,
+        },
       });
     }
 
     return {
-      cardsV2: [{
-        cardId: `release-${releaseId}`,
-        card: {
-          header: {
-            title: title,
-            subtitle: releaseDefinitionName,
-            imageUrl: imageUrl,
-            imageType: 'CIRCLE'
-          },
-          sections: [
-            {
-              header: '📋 Deployment Details',
-              widgets: detailWidgets
+      cardsV2: [
+        {
+          cardId: `release-${releaseId}`,
+          card: {
+            header: {
+              title: title,
+              subtitle: releaseDefinitionName,
+              imageUrl: imageUrl,
+              imageType: "CIRCLE",
             },
-            {
-              widgets: [
-                {
-                  decoratedText: {
-                    topLabel: 'Release URL',
-                    text: `<a href="${webUrl}">${webUrl}</a>`,
-                    wrapText: true
-                  }
-                },
-                {
-                  buttonList: {
-                    buttons: [{
-                      text: 'Open Release',
-                      icon: { knownIcon: 'OPEN_IN_NEW' },
-                      onClick: {
-                        openLink: { url: webUrl }
-                      }
-                    }]
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      }]
+            sections: [
+              {
+                header: "📋 Deployment Details",
+                widgets: detailWidgets,
+              },
+              {
+                widgets: [
+                  {
+                    decoratedText: {
+                      topLabel: "Release URL",
+                      text: `<a href="${webUrl}">${webUrl}</a>`,
+                      wrapText: true,
+                    },
+                  },
+                  {
+                    buttonList: {
+                      buttons: [
+                        {
+                          text: "Open Release",
+                          icon: { knownIcon: "OPEN_IN_NEW" },
+                          onClick: {
+                            openLink: { url: webUrl },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
     };
   }
 
@@ -458,22 +514,25 @@ class ReleaseWebhook extends BaseWebhook {
     const release = resource.release || {};
     const environment = resource.environment || {};
     const deployment = resource.deployment || {};
-    
+
     const releaseId = environment.releaseId || release.id;
-    const releaseName = environment.preDeployApprovals?.[0]?.release?.name || 
-                       environment.postDeployApprovals?.[0]?.release?.name ||
-                       `Release-${releaseId}`;
-    const releaseDefinitionName = environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
-                                 environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
-                                 'Unknown Pipeline';
-    const environmentName = environment.name || 'Unknown Environment';
-    const requestedFor = environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
-                        release.createdBy?.displayName || 
-                        'Unknown';
+    const releaseName =
+      environment.preDeployApprovals?.[0]?.release?.name ||
+      environment.postDeployApprovals?.[0]?.release?.name ||
+      `Release-${releaseId}`;
+    const releaseDefinitionName =
+      environment.preDeployApprovals?.[0]?.releaseDefinition?.name ||
+      environment.postDeployApprovals?.[0]?.releaseDefinition?.name ||
+      "Unknown Pipeline";
+    const environmentName = environment.name || "Unknown Environment";
+    const requestedFor =
+      environment.preDeployApprovals?.[0]?.approvedBy?.displayName ||
+      release.createdBy?.displayName ||
+      "Unknown";
 
     // Get deployment duration
     const timeToDeploy = environment.timeToDeploy || deployment.timeToDeploy;
-    let durationText = '';
+    let durationText = "";
     if (timeToDeploy) {
       const seconds = Math.round(timeToDeploy * 60);
       durationText = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
@@ -482,110 +541,119 @@ class ReleaseWebhook extends BaseWebhook {
     // Use direct web URL from webhook or construct fallback using project from payload
     let webUrl = deployment.release?.webAccessUri || release.webAccessUri;
     if (!webUrl && releaseId && userConfig?.organization) {
-      const projectName = resource.project?.name || 
-                         environment.release?.project?.name ||
-                         deployment.release?.project?.name;
+      const projectName =
+        resource.project?.name ||
+        environment.release?.project?.name ||
+        deployment.release?.project?.name;
       if (projectName) {
         const organization = userConfig.organization;
-        const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+        const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
         webUrl = `${baseUrl}/${organization}/${encodeURIComponent(projectName)}/_release?releaseId=${releaseId}&_a=release-summary`;
       }
     }
 
     // Build log sections - make entire line red and bold if it contains ##[error]
-    const logWidgets = failedLogs.map(task => {
+    const logWidgets = failedLogs.map((task) => {
       const formattedLog = task.logContent
-        .split('\n')
-        .map(line => {
-          if (line.includes('##[error]')) {
+        .split("\n")
+        .map((line) => {
+          if (line.includes("##[error]")) {
             return `<font color="#d32f2f"><b>${line}</b></font>`;
           }
           return line;
         })
-        .join('\n');
-      
+        .join("\n");
+
       return {
         textParagraph: {
-          text: `<b>${task.taskName}</b> (${task.environmentName})\n<pre>${formattedLog}</pre>`
-        }
+          text: `<b>${task.taskName}</b> (${task.environmentName})\n<pre>${formattedLog}</pre>`,
+        },
       };
     });
 
     return {
-      cardsV2: [{
-        cardId: `release-${releaseId}`,
-        card: {
-          header: {
-            title: '❌ Production Deployment Failed',
-            subtitle: releaseDefinitionName,
-            imageUrl: 'https://img.icons8.com/fluency/96/high-priority.png',
-            imageType: 'CIRCLE'
+      cardsV2: [
+        {
+          cardId: `release-${releaseId}`,
+          card: {
+            header: {
+              title: "❌ Production Deployment Failed",
+              subtitle: releaseDefinitionName,
+              imageUrl: "https://img.icons8.com/fluency/96/high-priority.png",
+              imageType: "CIRCLE",
+            },
+            sections: [
+              {
+                header: "📋 Deployment Details",
+                widgets: [
+                  {
+                    decoratedText: {
+                      startIcon: { knownIcon: "BOOKMARK" },
+                      topLabel: "Release",
+                      text: `<b>${releaseName}</b>`,
+                    },
+                  },
+                  {
+                    decoratedText: {
+                      startIcon: { knownIcon: "DESCRIPTION" },
+                      topLabel: "Environment",
+                      text: `<b>${environmentName}</b>`,
+                    },
+                  },
+                  {
+                    decoratedText: {
+                      startIcon: { knownIcon: "PERSON" },
+                      topLabel: "Deployed By",
+                      text: requestedFor,
+                    },
+                  },
+                  ...(durationText
+                    ? [
+                        {
+                          decoratedText: {
+                            startIcon: { knownIcon: "CLOCK" },
+                            topLabel: "Duration",
+                            text: durationText,
+                          },
+                        },
+                      ]
+                    : []),
+                ],
+              },
+              {
+                header: "🔍 Failed Task Logs",
+                collapsible: true,
+                uncollapsibleWidgetsCount: 0,
+                widgets: logWidgets,
+              },
+              {
+                widgets: [
+                  {
+                    decoratedText: {
+                      topLabel: "Release URL",
+                      text: `<a href="${webUrl}">${webUrl}</a>`,
+                      wrapText: true,
+                    },
+                  },
+                  {
+                    buttonList: {
+                      buttons: [
+                        {
+                          text: "Open Release",
+                          icon: { knownIcon: "OPEN_IN_NEW" },
+                          onClick: {
+                            openLink: { url: webUrl },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
           },
-          sections: [
-            {
-              header: '📋 Deployment Details',
-              widgets: [
-                {
-                  decoratedText: {
-                    startIcon: { knownIcon: 'BOOKMARK' },
-                    topLabel: 'Release',
-                    text: `<b>${releaseName}</b>`
-                  }
-                },
-                {
-                  decoratedText: {
-                    startIcon: { knownIcon: 'DESCRIPTION' },
-                    topLabel: 'Environment',
-                    text: `<b>${environmentName}</b>`
-                  }
-                },
-                {
-                  decoratedText: {
-                    startIcon: { knownIcon: 'PERSON' },
-                    topLabel: 'Deployed By',
-                    text: requestedFor
-                  }
-                },
-                ...(durationText ? [{
-                  decoratedText: {
-                    startIcon: { knownIcon: 'CLOCK' },
-                    topLabel: 'Duration',
-                    text: durationText
-                  }
-                }] : [])
-              ]
-            },
-            {
-              header: '🔍 Failed Task Logs',
-              collapsible: true,
-              uncollapsibleWidgetsCount: 0,
-              widgets: logWidgets
-            },
-            {
-              widgets: [
-                {
-                  decoratedText: {
-                    topLabel: 'Release URL',
-                    text: `<a href="${webUrl}">${webUrl}</a>`,
-                    wrapText: true
-                  }
-                },
-                {
-                  buttonList: {
-                    buttons: [{
-                      text: 'Open Release',
-                      icon: { knownIcon: 'OPEN_IN_NEW' },
-                      onClick: {
-                        openLink: { url: webUrl }
-                      }
-                    }]
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      }]
+        },
+      ],
     };
   }
 
@@ -593,7 +661,7 @@ class ReleaseWebhook extends BaseWebhook {
     try {
       await axios.post(webhookUrl, card);
     } catch (error) {
-      logger.error('Error sending Google Chat card:', error);
+      logger.error("Error sending Google Chat card:", error);
       throw error;
     }
   }
@@ -602,7 +670,7 @@ class ReleaseWebhook extends BaseWebhook {
     try {
       await axios.post(webhookUrl, { text: message });
     } catch (error) {
-      logger.error('Error sending Google Chat text:', error);
+      logger.error("Error sending Google Chat text:", error);
       throw error;
     }
   }
