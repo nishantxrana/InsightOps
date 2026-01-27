@@ -9,6 +9,7 @@ import {
 import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workItemStates.js";
 import { AzureDevOpsReleaseClient } from "../devops/releaseClient.js";
 import { azureDevOpsCache } from "../cache/AzureDevOpsCache.js";
+import { generateActivityReport } from "../services/activityReportService.js";
 
 const router = express.Router();
 
@@ -296,5 +297,116 @@ function getEmptyDashboardData() {
     releases: { total: 0, successRate: 0 },
   };
 }
+
+/**
+ * Activity Report Endpoint
+ *
+ * Generates comprehensive DevOps activity report for a date range.
+ * This is a MANUAL, ON-DEMAND endpoint - not called on dashboard load.
+ */
+router.post("/activity-report", async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { startDate, endDate } = req.body;
+
+    // Validate inputs
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate and endDate are required",
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Validate date range
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid date format",
+      });
+    }
+
+    if (start > end) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate must be before endDate",
+      });
+    }
+
+    if (end > new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: "endDate cannot be in the future",
+      });
+    }
+
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    if (daysDiff > 90) {
+      return res.status(400).json({
+        success: false,
+        error: "Date range cannot exceed 90 days",
+      });
+    }
+
+    // Get organization settings
+    const org = await getOrganizationSettings(req);
+
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({
+        success: false,
+        error: "Azure DevOps configuration required",
+      });
+    }
+
+    const orgId = org._id?.toString();
+    const azureConfig = getAzureDevOpsConfig(org);
+
+    // Check cache
+    const cacheKey = `activity-report:${startDate}:${endDate}`;
+    const cached = azureDevOpsCache.get(orgId, cacheKey);
+
+    if (cached) {
+      logger.info(`[ActivityReport] Returning cached report for org ${org.name}`);
+      return res.json({
+        success: true,
+        data: cached,
+        cached: true,
+      });
+    }
+
+    // Generate report
+    const client = azureDevOpsClient.createUserClient(azureConfig);
+    const releaseClient = new AzureDevOpsReleaseClient(
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat,
+      azureConfig.baseUrl
+    );
+
+    const report = await generateActivityReport(client, releaseClient, orgId, startDate, endDate);
+
+    // Cache result (5 minutes)
+    azureDevOpsCache.set(orgId, cacheKey, report, 300);
+
+    const duration = Date.now() - startTime;
+    logger.info(`[ActivityReport] Report generated in ${duration}ms for org ${org.name}`);
+
+    res.json({
+      success: true,
+      data: report,
+      cached: false,
+    });
+  } catch (error) {
+    logger.error("[ActivityReport] Error generating report:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to generate activity report",
+      message: error.message,
+    });
+  }
+});
 
 export default router;
