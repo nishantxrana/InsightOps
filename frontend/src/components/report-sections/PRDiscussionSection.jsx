@@ -104,9 +104,9 @@ export default function PRDiscussionSection({ data }) {
           </div>
         </div>
 
-        {data.prsSampled && (
+        {data.totalPRsAnalyzed && (
           <div className="text-xs text-muted-foreground italic pt-2">
-            * Analysis based on {data.prsSampled} PRs (limited for performance)
+            * Analysis based on {data.totalPRsAnalyzed} PRs in date range
           </div>
         )}
       </div>
