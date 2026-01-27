@@ -1,7 +1,7 @@
-import axios from 'axios';
-import { logger } from '../utils/logger.js';
-import { getWiqlExcludeCompletedCondition } from '../utils/workItemStates.js';
-import { metrics } from '../observability/metrics.js';
+import axios from "axios";
+import { logger } from "../utils/logger.js";
+import { getWiqlExcludeCompletedCondition } from "../utils/workItemStates.js";
+import { metrics } from "../observability/metrics.js";
 
 class AzureDevOpsClient {
   constructor() {
@@ -16,23 +16,23 @@ class AzureDevOpsClient {
   createUserClient(userConfig) {
     const orgBaseURL = `${userConfig.baseUrl}/${encodeURIComponent(userConfig.organization)}/_apis`;
     const baseURL = `${userConfig.baseUrl}/${encodeURIComponent(userConfig.organization)}/${encodeURIComponent(userConfig.project)}/_apis`;
-    
+
     const client = axios.create({
       baseURL: baseURL,
       headers: {
-        'Authorization': `Basic ${Buffer.from(`:${userConfig.pat}`).toString('base64')}`,
-        'Content-Type': 'application/json'
+        Authorization: `Basic ${Buffer.from(`:${userConfig.pat}`).toString("base64")}`,
+        "Content-Type": "application/json",
       },
-      timeout: 30000
+      timeout: 30000,
     });
 
     const orgClient = axios.create({
       baseURL: orgBaseURL,
       headers: {
-        'Authorization': `Basic ${Buffer.from(`:${userConfig.pat}`).toString('base64')}`,
-        'Content-Type': 'application/json'
+        Authorization: `Basic ${Buffer.from(`:${userConfig.pat}`).toString("base64")}`,
+        "Content-Type": "application/json",
       },
-      timeout: 30000
+      timeout: 30000,
     });
 
     // Add metrics interceptors
@@ -44,22 +44,22 @@ class AzureDevOpsClient {
         },
         (error) => {
           const status = error.response?.status || 0;
-          metrics.recordAzureDevOpsCall(error.config?.url || 'unknown', false, status);
-          
+          metrics.recordAzureDevOpsCall(error.config?.url || "unknown", false, status);
+
           // Log rate limiting
           if (status === 429) {
-            logger.warn('Azure DevOps rate limit hit', {
-              component: 'azure-devops-client',
+            logger.warn("Azure DevOps rate limit hit", {
+              component: "azure-devops-client",
               url: error.config?.url,
-              retryAfter: error.response?.headers?.['retry-after']
+              retryAfter: error.response?.headers?.["retry-after"],
             });
           }
-          
+
           return Promise.reject(error);
         }
       );
     };
-    
+
     addMetricsInterceptor(client);
     addMetricsInterceptor(orgClient);
 
@@ -68,35 +68,35 @@ class AzureDevOpsClient {
 
   initializeClient() {
     if (this.initialized) return;
-    
+
     // Legacy method for backward compatibility
     this.config = {
       organization: process.env.AZURE_DEVOPS_ORG,
       project: process.env.AZURE_DEVOPS_PROJECT,
       personalAccessToken: process.env.AZURE_DEVOPS_PAT,
-      baseUrl: process.env.AZURE_DEVOPS_BASE_URL || 'https://dev.azure.com'
+      baseUrl: process.env.AZURE_DEVOPS_BASE_URL || "https://dev.azure.com",
     };
-    
+
     this.orgBaseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/_apis`;
     this.baseURL = `${this.config.baseUrl}/${encodeURIComponent(this.config.organization)}/${encodeURIComponent(this.config.project)}/_apis`;
-    
+
     this.client = axios.create({
       baseURL: this.baseURL,
       headers: {
-        'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
-        'Content-Type': 'application/json'
+        Authorization: `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString("base64")}`,
+        "Content-Type": "application/json",
       },
-      timeout: 30000
+      timeout: 30000,
     });
 
     // Create axios instance for organization-level APIs
     this.orgClient = axios.create({
       baseURL: this.orgBaseURL,
       headers: {
-        'Authorization': `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString('base64')}`,
-        'Content-Type': 'application/json'
+        Authorization: `Basic ${Buffer.from(`:${this.config.personalAccessToken}`).toString("base64")}`,
+        "Content-Type": "application/json",
       },
-      timeout: 30000
+      timeout: 30000,
     });
 
     this.initialized = true;
@@ -112,18 +112,18 @@ class AzureDevOpsClient {
   // Add request interceptor for logging
   setupInterceptors() {
     if (!this.client) return;
-    
+
     this.client.interceptors.request.use(
       (config) => {
-        logger.debug('Azure DevOps API request', {
+        logger.debug("Azure DevOps API request", {
           method: config.method?.toUpperCase(),
           url: config.url,
-          params: config.params
+          params: config.params,
         });
         return config;
       },
       (error) => {
-        logger.error('Azure DevOps API request error:', error);
+        logger.error("Azure DevOps API request error:", error);
         return Promise.reject(error);
       }
     );
@@ -131,9 +131,9 @@ class AzureDevOpsClient {
     // Add response interceptor for logging and error handling
     this.client.interceptors.response.use(
       (response) => {
-        logger.debug('Azure DevOps API response', {
+        logger.debug("Azure DevOps API response", {
           status: response.status,
-          url: response.config.url
+          url: response.config.url,
         });
         return response;
       },
@@ -142,21 +142,25 @@ class AzureDevOpsClient {
           status: error.response?.status,
           statusText: error.response?.statusText,
           url: error.config?.url,
-          message: error.message
+          message: error.message,
         };
-        
+
         // Add specific error messages for common issues
         if (error.response?.status === 401) {
-          errorDetails.userMessage = 'Authentication failed. Please check your Personal Access Token.';
+          errorDetails.userMessage =
+            "Authentication failed. Please check your Personal Access Token.";
         } else if (error.response?.status === 404) {
-          errorDetails.userMessage = 'Resource not found. Please check your organization and project names.';
+          errorDetails.userMessage =
+            "Resource not found. Please check your organization and project names.";
         } else if (error.response?.status === 403) {
-          errorDetails.userMessage = 'Access denied. Please check your Personal Access Token permissions.';
-        } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-          errorDetails.userMessage = 'Cannot connect to Azure DevOps. Please check your internet connection.';
+          errorDetails.userMessage =
+            "Access denied. Please check your Personal Access Token permissions.";
+        } else if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED") {
+          errorDetails.userMessage =
+            "Cannot connect to Azure DevOps. Please check your internet connection.";
         }
-        
-        logger.error('Azure DevOps API response error:', errorDetails);
+
+        logger.error("Azure DevOps API response error:", errorDetails);
         return Promise.reject(error);
       }
     );
@@ -166,41 +170,43 @@ class AzureDevOpsClient {
   async testConnection() {
     this.ensureInitialized();
     try {
-      logger.info('Testing Azure DevOps connection...');
+      logger.info("Testing Azure DevOps connection...");
       // Test organization-level access first
-      const orgResponse = await this.orgClient.get('/projects', {
-        params: { 'api-version': '7.0' }
+      const orgResponse = await this.orgClient.get("/projects", {
+        params: { "api-version": "7.0" },
       });
-      
+
       // Check if our specific project exists
       const projects = orgResponse.data.value || [];
-      const targetProject = projects.find(p => p.name === this.config.project);
-      
+      const targetProject = projects.find((p) => p.name === this.config.project);
+
       if (!targetProject) {
-        throw new Error(`Project "${this.config.project}" not found in organization "${this.config.organization}"`);
+        throw new Error(
+          `Project "${this.config.project}" not found in organization "${this.config.organization}"`
+        );
       }
-      
-      logger.info('Azure DevOps connection test successful');
-      return { 
-        success: true, 
+
+      logger.info("Azure DevOps connection test successful");
+      return {
+        success: true,
         message: `Connection successful. Found project "${this.config.project}" in organization "${this.config.organization}"`,
-        projectCount: projects.length
+        projectCount: projects.length,
       };
     } catch (error) {
-      logger.error('Azure DevOps connection test failed:', error);
-      
+      logger.error("Azure DevOps connection test failed:", error);
+
       // Provide more specific error messages
       if (error.response?.status === 401) {
-        throw new Error('Authentication failed. Please check your Personal Access Token.');
+        throw new Error("Authentication failed. Please check your Personal Access Token.");
       } else if (error.response?.status === 404) {
         throw new Error(`Organization "${this.config.organization}" not found or not accessible.`);
       } else if (error.response?.status === 403) {
-        throw new Error('Access denied. Please check your Personal Access Token permissions.');
-      } else if (error.code === 'ENOTFOUND') {
-        throw new Error('Cannot connect to Azure DevOps. Please check your internet connection.');
+        throw new Error("Access denied. Please check your Personal Access Token permissions.");
+      } else if (error.code === "ENOTFOUND") {
+        throw new Error("Cannot connect to Azure DevOps. Please check your internet connection.");
       }
-      
-      throw new Error(error.message || 'Connection test failed');
+
+      throw new Error(error.message || "Connection test failed");
     }
   }
 
@@ -209,27 +215,27 @@ class AzureDevOpsClient {
     this.ensureInitialized();
     try {
       const params = {
-        ids: Array.isArray(ids) ? ids.join(',') : ids,
-        'api-version': '7.0'
+        ids: Array.isArray(ids) ? ids.join(",") : ids,
+        "api-version": "7.0",
       };
-      
+
       if (fields) {
-        params.fields = Array.isArray(fields) ? fields.join(',') : fields;
+        params.fields = Array.isArray(fields) ? fields.join(",") : fields;
       }
 
-      const response = await this.client.get('/wit/workitems', { params });
-      
+      const response = await this.client.get("/wit/workitems", { params });
+
       // Add web URL to each work item
       if (response.data && response.data.value) {
-        response.data.value = response.data.value.map(workItem => ({
+        response.data.value = response.data.value.map((workItem) => ({
           ...workItem,
-          webUrl: this.constructWorkItemWebUrl(workItem)
+          webUrl: this.constructWorkItemWebUrl(workItem),
         }));
       }
-      
+
       return response.data;
     } catch (error) {
-      logger.error('Error fetching work items:', error);
+      logger.error("Error fetching work items:", error);
       throw error;
     }
   }
@@ -237,14 +243,18 @@ class AzureDevOpsClient {
   async queryWorkItems(wiql) {
     this.ensureInitialized();
     try {
-      const response = await this.client.post('/wit/wiql', {
-        query: wiql
-      }, {
-        params: { 'api-version': '7.0' }
-      });
+      const response = await this.client.post(
+        "/wit/wiql",
+        {
+          query: wiql,
+        },
+        {
+          params: { "api-version": "7.0" },
+        }
+      );
       return response.data;
     } catch (error) {
-      logger.error('Error querying work items:', error);
+      logger.error("Error querying work items:", error);
       throw error;
     }
   }
@@ -260,31 +270,31 @@ class AzureDevOpsClient {
         AND [System.IterationPath] = @CurrentIteration
         ORDER BY [System.State] ASC, [System.CreatedDate] DESC
       `;
-      
+
       const queryResult = await this.queryWorkItems(wiql);
-      
+
       if (queryResult.workItems && queryResult.workItems.length > 0) {
-        const workItemIds = queryResult.workItems.map(wi => wi.id);
+        const workItemIds = queryResult.workItems.map((wi) => wi.id);
         return await this.getWorkItems(workItemIds);
       }
-      
+
       return { count: 0, value: [] };
     } catch (error) {
-      logger.error('Error fetching all current sprint work items:', error);
+      logger.error("Error fetching all current sprint work items:", error);
       throw error;
     }
   }
 
   async getCurrentSprintWorkItems(page = 1, limit = 50) {
     try {
-      logger.info('Fetching current sprint work items', { page, limit });
-      
+      logger.info("Fetching current sprint work items", { page, limit });
+
       // Use instance config instead of configLoader
       const config = this.config;
       if (!config || !config.project) {
-        throw new Error('Azure DevOps configuration not found or incomplete');
+        throw new Error("Azure DevOps configuration not found or incomplete");
       }
-      
+
       // First try to get work items from current iteration
       const wiql = `
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
@@ -293,22 +303,22 @@ class AzureDevOpsClient {
         AND [System.IterationPath] = @CurrentIteration
         ORDER BY [System.State] ASC, [System.CreatedDate] DESC
       `;
-      
+
       const queryResult = await this.queryWorkItems(wiql);
-      
+
       if (queryResult.workItems && queryResult.workItems.length > 0) {
-        const allWorkItemIds = queryResult.workItems.map(wi => wi.id);
-        
+        const allWorkItemIds = queryResult.workItems.map((wi) => wi.id);
+
         // Log total count for monitoring
         logger.info(`Found ${allWorkItemIds.length} work items in current sprint`);
-        
+
         // Apply pagination
         const startIndex = (page - 1) * limit;
         const endIndex = startIndex + limit;
         const paginatedIds = allWorkItemIds.slice(startIndex, endIndex);
-        
+
         const workItems = await this.getWorkItems(paginatedIds);
-        
+
         return {
           ...workItems,
           pagination: {
@@ -316,13 +326,13 @@ class AzureDevOpsClient {
             limit,
             total: allWorkItemIds.length,
             totalPages: Math.ceil(allWorkItemIds.length / limit),
-            hasMore: endIndex < allWorkItemIds.length
-          }
+            hasMore: endIndex < allWorkItemIds.length,
+          },
         };
       }
-      
+
       // If no items in current iteration, try to get recent work items
-      logger.warn('No work items found in current iteration, trying recent work items');
+      logger.warn("No work items found in current iteration, trying recent work items");
       const recentWiql = `
         SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType]
         FROM WorkItems
@@ -330,19 +340,19 @@ class AzureDevOpsClient {
         AND [System.CreatedDate] >= @Today - 30
         ORDER BY [System.CreatedDate] DESC
       `;
-      
+
       const recentQueryResult = await this.queryWorkItems(recentWiql);
-      
+
       if (recentQueryResult.workItems && recentQueryResult.workItems.length > 0) {
-        const allWorkItemIds = recentQueryResult.workItems.map(wi => wi.id);
-        
+        const allWorkItemIds = recentQueryResult.workItems.map((wi) => wi.id);
+
         // Apply pagination
         const startIndex = (page - 1) * limit;
         const endIndex = startIndex + limit;
         const paginatedIds = allWorkItemIds.slice(startIndex, endIndex);
-        
+
         const workItems = await this.getWorkItems(paginatedIds);
-        
+
         return {
           ...workItems,
           pagination: {
@@ -350,24 +360,24 @@ class AzureDevOpsClient {
             limit,
             total: allWorkItemIds.length,
             totalPages: Math.ceil(allWorkItemIds.length / limit),
-            hasMore: endIndex < allWorkItemIds.length
-          }
+            hasMore: endIndex < allWorkItemIds.length,
+          },
         };
       }
-      
-      return { 
-        count: 0, 
+
+      return {
+        count: 0,
         value: [],
         pagination: {
           page: 1,
           limit,
           total: 0,
           totalPages: 0,
-          hasMore: false
-        }
+          hasMore: false,
+        },
       };
     } catch (error) {
-      logger.error('Error fetching current sprint work items:', error);
+      logger.error("Error fetching current sprint work items:", error);
       throw error;
     }
   }
@@ -385,23 +395,23 @@ class AzureDevOpsClient {
         AND [Microsoft.VSTS.Scheduling.DueDate] <> ''
         ORDER BY [Microsoft.VSTS.Scheduling.DueDate] ASC
       `;
-      
-      logger.debug('Overdue work items query:', wiql);
-      
+
+      logger.debug("Overdue work items query:", wiql);
+
       const queryResult = await this.queryWorkItems(wiql);
-      
+
       logger.debug(`Overdue query returned ${queryResult.workItems?.length || 0} work items`);
-      
+
       if (queryResult.workItems && queryResult.workItems.length > 0) {
-        const workItemIds = queryResult.workItems.map(wi => wi.id);
+        const workItemIds = queryResult.workItems.map((wi) => wi.id);
         const detailedItems = await this.getWorkItems(workItemIds);
         logger.debug(`Retrieved details for ${detailedItems.count} overdue items`);
         return detailedItems;
       }
-      
+
       return { count: 0, value: [] };
     } catch (error) {
-      logger.error('Error fetching overdue work items:', error);
+      logger.error("Error fetching overdue work items:", error);
       throw error;
     }
   }
@@ -410,7 +420,7 @@ class AzureDevOpsClient {
   async getBuild(buildId) {
     try {
       const response = await this.client.get(`/build/builds/${buildId}`, {
-        params: { 'api-version': '7.0' }
+        params: { "api-version": "7.0" },
       });
       return response.data;
     } catch (error) {
@@ -422,7 +432,7 @@ class AzureDevOpsClient {
   async getBuildTimeline(buildId) {
     try {
       const response = await this.client.get(`/build/builds/${buildId}/timeline`, {
-        params: { 'api-version': '7.0' }
+        params: { "api-version": "7.0" },
       });
       return response.data;
     } catch (error) {
@@ -434,7 +444,7 @@ class AzureDevOpsClient {
   async getBuildLogs(buildId) {
     try {
       const response = await this.client.get(`/build/builds/${buildId}/logs`, {
-        params: { 'api-version': '7.0' }
+        params: { "api-version": "7.0" },
       });
       return response.data;
     } catch (error) {
@@ -446,10 +456,10 @@ class AzureDevOpsClient {
   async getBuildDefinition(definitionId) {
     try {
       if (!this.client) {
-        throw new Error('Azure DevOps client not initialized - this.client is null');
+        throw new Error("Azure DevOps client not initialized - this.client is null");
       }
       const response = await this.client.get(`/build/definitions/${definitionId}`, {
-        params: { 'api-version': '7.0' }
+        params: { "api-version": "7.0" },
       });
       return response.data;
     } catch (error) {
@@ -461,16 +471,16 @@ class AzureDevOpsClient {
   async getRepositoryFile(repositoryId, filePath, branch) {
     try {
       // Remove leading slash if present
-      const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
-      
+      const cleanPath = filePath.startsWith("/") ? filePath.substring(1) : filePath;
+
       const response = await this.client.get(`/git/repositories/${repositoryId}/items`, {
         params: {
-          'api-version': '7.0',
-          'path': `/${cleanPath}`,
-          'versionDescriptor.version': branch,
-          'versionDescriptor.versionType': 'branch',
-          'includeContent': true
-        }
+          "api-version": "7.0",
+          path: `/${cleanPath}`,
+          "versionDescriptor.version": branch,
+          "versionDescriptor.versionType": "branch",
+          includeContent: true,
+        },
       });
       return response.data;
     } catch (error) {
@@ -482,42 +492,42 @@ class AzureDevOpsClient {
   async getRecentBuilds(top = 10) {
     this.ensureInitialized();
     try {
-      const response = await this.client.get('/build/builds', {
+      const response = await this.client.get("/build/builds", {
         params: {
-          'api-version': '7.0',
-          '$top': top,
-          'statusFilter': 'completed'
-        }
+          "api-version": "7.0",
+          $top: top,
+          statusFilter: "completed",
+        },
       });
       return response.data;
     } catch (error) {
-      logger.error('Error fetching recent builds:', error);
+      logger.error("Error fetching recent builds:", error);
       throw error;
     }
   }
 
   // Pull Request API
-  async getPullRequests(status = 'active') {
+  async getPullRequests(status = "active") {
     this.ensureInitialized();
     try {
-      const response = await this.client.get('/git/pullrequests', {
+      const response = await this.client.get("/git/pullrequests", {
         params: {
-          'api-version': '7.0',
-          'searchCriteria.status': status
-        }
+          "api-version": "7.0",
+          "searchCriteria.status": status,
+        },
       });
-      
+
       // Add web URL to each pull request
       if (response.data && response.data.value) {
-        response.data.value = response.data.value.map(pr => ({
+        response.data.value = response.data.value.map((pr) => ({
           ...pr,
-          webUrl: this.constructPullRequestWebUrl(pr)
+          webUrl: this.constructPullRequestWebUrl(pr),
         }));
       }
-      
+
       return response.data;
     } catch (error) {
-      logger.error('Error fetching pull requests:', error);
+      logger.error("Error fetching pull requests:", error);
       throw error;
     }
   }
@@ -535,22 +545,22 @@ class AzureDevOpsClient {
       const pullRequestId = pullRequest.pullRequestId;
 
       if (!repository || !pullRequestId) {
-        logger.warn('Missing repository or pullRequestId for web URL construction', {
+        logger.warn("Missing repository or pullRequestId for web URL construction", {
           repository,
           pullRequestId,
-          prTitle: pullRequest.title
+          prTitle: pullRequest.title,
         });
-        return pullRequest.url || ''; // Fallback to API URL
+        return pullRequest.url || ""; // Fallback to API URL
       }
 
       // Encode components for URL safety
       const encodedProject = encodeURIComponent(project);
       const encodedRepository = encodeURIComponent(repository);
-      
+
       return `${this.config.baseUrl}/${organization}/${encodedProject}/_git/${encodedRepository}/pullrequest/${pullRequestId}`;
     } catch (error) {
-      logger.error('Error constructing pull request web URL:', error);
-      return pullRequest.url || ''; // Fallback to API URL
+      logger.error("Error constructing pull request web URL:", error);
+      return pullRequest.url || ""; // Fallback to API URL
     }
   }
 
@@ -562,43 +572,43 @@ class AzureDevOpsClient {
   constructWorkItemWebUrl(workItem) {
     try {
       const organization = this.config?.organization;
-      const project = workItem.fields?.['System.TeamProject'] || this.config?.project;
+      const project = workItem.fields?.["System.TeamProject"] || this.config?.project;
       const workItemId = workItem.id;
 
       if (!organization || !project || !workItemId) {
-        logger.warn('Missing required data for web URL construction', {
+        logger.warn("Missing required data for web URL construction", {
           hasOrganization: !!organization,
           hasProject: !!project,
-          hasWorkItemId: !!workItemId
+          hasWorkItemId: !!workItemId,
         });
         return null;
       }
 
       // Encode components for URL safety
       const encodedProject = encodeURIComponent(project);
-      
+
       return `${this.config.baseUrl}/${organization}/${encodedProject}/_workitems/edit/${workItemId}`;
     } catch (error) {
-      logger.error('Error constructing work item web URL:', error);
-      return workItem.url || ''; // Fallback to API URL
+      logger.error("Error constructing work item web URL:", error);
+      return workItem.url || ""; // Fallback to API URL
     }
   }
 
   async getPullRequestDetails(pullRequestId) {
     try {
       const response = await this.client.get(`/git/pullrequests/${pullRequestId}`, {
-        params: { 
-          'api-version': '7.0',
-          'includeCommits': true,
-          'includeWorkItemRefs': true
-        }
+        params: {
+          "api-version": "7.0",
+          includeCommits: true,
+          includeWorkItemRefs: true,
+        },
       });
-      
+
       // Add web URL to the pull request details
       if (response.data) {
         response.data.webUrl = this.constructPullRequestWebUrl(response.data);
       }
-      
+
       return response.data;
     } catch (error) {
       logger.error(`Error fetching pull request ${pullRequestId}:`, error);
@@ -628,59 +638,61 @@ class AzureDevOpsClient {
 
   /**
    * Get idle pull requests based on activity threshold
-   * 
+   *
    * BUG: This function uses the PR list API (/git/pullrequests) which has
    * limited commit information. The lastMergeCommit and lastMergeSourceCommit fields are
-   * often null/undefined in the list response, causing the function to fall back to 
+   * often null/undefined in the list response, causing the function to fall back to
    * creationDate only, which leads to incorrect idle detection.
-   * 
+   *
    * FIXME: Idle detection is inaccurate - uses creation date instead of actual last activity
-   * 
+   *
    * TODO: Implement proper activity date calculation:
    * 1. For each PR, make individual API calls to /git/pullrequests/{id} to get complete
    *    commit information including lastMergeCommit.committer.date
    * 2. Consider fetching recent commits via /git/repositories/{repositoryId}/pullRequests/{pullRequestId}/commits
    * 3. Include PR update activities like comments, reviews, and status changes
    * 4. Add caching mechanism to avoid excessive API calls
-   * 
+   *
    * TODO: Example of correct implementation:
    * - Get PR list first
    * - For each PR, fetch detailed info: await this.getPullRequest(pr.pullRequestId)
-   * - Use all available dates: creationDate, lastMergeCommit.committer.date, 
+   * - Use all available dates: creationDate, lastMergeCommit.committer.date,
    *   lastMergeSourceCommit.committer.date, recent comments, etc.
-   * 
+   *
    * @param {number} hoursThreshold - Hours of inactivity to consider PR as idle (default: 48)
    * @returns {Object} Object with count and array of idle PRs
    */
   async getIdlePullRequests(hoursThreshold = 48) {
-  try {
-    const allPRs = await this.getPullRequests('active');
-    const thresholdDate = new Date();
-    thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold);
+    try {
+      const allPRs = await this.getPullRequests("active");
+      const thresholdDate = new Date();
+      thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold);
 
-    const idlePRs = allPRs.value.filter(pr => {
-      const activityDates = [
-        pr.creationDate,
-        pr.lastMergeCommit?.committer?.date,
-        pr.lastMergeSourceCommit?.committer?.date,
-        pr.closedDate,
-      ].filter(date => date != null);
+      const idlePRs = allPRs.value.filter((pr) => {
+        const activityDates = [
+          pr.creationDate,
+          pr.lastMergeCommit?.committer?.date,
+          pr.lastMergeSourceCommit?.committer?.date,
+          pr.closedDate,
+        ].filter((date) => date != null);
 
-      const lastActivityDate = new Date(Math.max(...activityDates.map(date => new Date(date).getTime())));      
-      return lastActivityDate < thresholdDate;
-    });
+        const lastActivityDate = new Date(
+          Math.max(...activityDates.map((date) => new Date(date).getTime()))
+        );
+        return lastActivityDate < thresholdDate;
+      });
 
-    return { count: idlePRs.length, value: idlePRs };
-  } catch (error) {
-    logger.error('Error fetching idle pull requests:', error);
-    throw error;
+      return { count: idlePRs.length, value: idlePRs };
+    } catch (error) {
+      logger.error("Error fetching idle pull requests:", error);
+      throw error;
+    }
   }
-}
 
   async getPullRequestChanges(pullRequestId) {
     try {
       const response = await this.client.get(`/git/pullrequests/${pullRequestId}/changes`, {
-        params: { 'api-version': '7.0' }
+        params: { "api-version": "7.0" },
       });
       return response.data;
     } catch (error) {
@@ -694,16 +706,19 @@ class AzureDevOpsClient {
       // Try repository-specific endpoint
       const prDetails = await this.getPullRequestDetails(pullRequestId);
       const repositoryId = prDetails.repository?.id;
-      
+
       if (repositoryId) {
-        const response = await this.client.get(`/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/commits`, {
-          params: { 'api-version': '7.0' }
-        });
+        const response = await this.client.get(
+          `/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/commits`,
+          {
+            params: { "api-version": "7.0" },
+          }
+        );
         return response.data;
       } else {
         // Fallback to project-level endpoint
         const response = await this.client.get(`/git/pullrequests/${pullRequestId}/commits`, {
-          params: { 'api-version': '7.0' }
+          params: { "api-version": "7.0" },
         });
         return response.data;
       }
@@ -718,89 +733,122 @@ class AzureDevOpsClient {
     try {
       const prDetails = await this.getPullRequestDetails(pullRequestId);
       const repositoryId = prDetails.repository?.id;
-      
+
       if (!repositoryId) {
-        throw new Error('Repository ID not found');
+        throw new Error("Repository ID not found");
       }
 
       // Get the changes list - this gives us file paths and change types
-      const changesResponse = await this.client.get(`/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/iterations/${iterationId}/changes`, {
-        params: { 
-          'api-version': '7.0',
-          '$top': 1000, // Increase limit to get all changes
-          'includeContent': false // We don't need content, just the list
+      const changesResponse = await this.client.get(
+        `/git/repositories/${repositoryId}/pullrequests/${pullRequestId}/iterations/${iterationId}/changes`,
+        {
+          params: {
+            "api-version": "7.0",
+            $top: 1000, // Increase limit to get all changes
+            includeContent: false, // We don't need content, just the list
+          },
         }
-      });
-      
-      logger.info(`Fetched ${changesResponse.data.changeEntries?.length || 0} changes for PR ${pullRequestId}`);
-      
+      );
+
+      logger.info(
+        `Fetched ${changesResponse.data.changeEntries?.length || 0} changes for PR ${pullRequestId}`
+      );
+
       // Process ALL changes to extract useful information
-      const processedChanges = (changesResponse.data.changeEntries || []).map(change => {
-        const filePath = change.item?.path || 'unknown';
-        const changeType = change.changeType || 'edit';
+      const processedChanges = (changesResponse.data.changeEntries || []).map((change) => {
+        const filePath = change.item?.path || "unknown";
+        const changeType = change.changeType || "edit";
         const isFolder = change.item?.isFolder || false;
-        
+
         // Extract file extension and type
-        const fileExtension = filePath.split('.').pop()?.toLowerCase() || '';
+        const fileExtension = filePath.split(".").pop()?.toLowerCase() || "";
         const fileType = this.getFileType(fileExtension);
-        
+
         logger.debug(`Processing change: ${changeType} - ${filePath}`, {
           changeType,
           filePath,
           isFolder,
-          fileType
+          fileType,
         });
-        
+
         return {
           path: filePath,
           changeType: changeType,
           isFolder: isFolder,
           fileExtension: fileExtension,
           fileType: fileType,
-          url: change.item?.url
+          url: change.item?.url,
         };
       });
-      
+
       // Calculate summary statistics
       const summary = {
-        totalFiles: processedChanges.filter(c => !c.isFolder).length,
-        addedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'add').length,
-        modifiedFiles: processedChanges.filter(c => !c.isFolder && (c.changeType === 'edit' || c.changeType === 'rename')).length,
-        deletedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'delete').length,
-        renamedFiles: processedChanges.filter(c => !c.isFolder && c.changeType === 'rename').length,
-        fileTypes: this.groupFilesByType(processedChanges)
+        totalFiles: processedChanges.filter((c) => !c.isFolder).length,
+        addedFiles: processedChanges.filter((c) => !c.isFolder && c.changeType === "add").length,
+        modifiedFiles: processedChanges.filter(
+          (c) => !c.isFolder && (c.changeType === "edit" || c.changeType === "rename")
+        ).length,
+        deletedFiles: processedChanges.filter((c) => !c.isFolder && c.changeType === "delete")
+          .length,
+        renamedFiles: processedChanges.filter((c) => !c.isFolder && c.changeType === "rename")
+          .length,
+        fileTypes: this.groupFilesByType(processedChanges),
       };
-      
-      logger.info('PR changes summary', {
+
+      logger.info("PR changes summary", {
         pullRequestId,
-        ...summary
+        ...summary,
       });
-      
+
       return {
         ...changesResponse.data,
         changeEntries: processedChanges,
-        summary: summary
+        summary: summary,
       };
-      
     } catch (error) {
       logger.error(`Error fetching PR ${pullRequestId} iteration changes:`, error);
       return {
         changeEntries: [],
-        summary: { totalFiles: 0, addedFiles: 0, modifiedFiles: 0, deletedFiles: 0, renamedFiles: 0, fileTypes: {} }
+        summary: {
+          totalFiles: 0,
+          addedFiles: 0,
+          modifiedFiles: 0,
+          deletedFiles: 0,
+          renamedFiles: 0,
+          fileTypes: {},
+        },
       };
     }
   }
 
   getFileType(extension) {
     const typeMap = {
-      'js': 'JavaScript', 'jsx': 'React', 'ts': 'TypeScript', 'tsx': 'React TypeScript',
-      'py': 'Python', 'java': 'Java', 'cs': 'C#', 'cpp': 'C++', 'c': 'C',
-      'html': 'HTML', 'css': 'CSS', 'scss': 'SCSS', 'json': 'JSON',
-      'xml': 'XML', 'yml': 'YAML', 'yaml': 'YAML', 'md': 'Markdown',
-      'sql': 'SQL', 'txt': 'Text', 'sh': 'Shell', 'bat': 'Batch',
-      'dockerfile': 'Docker', 'gitignore': 'Git', 'env': 'Environment'
+      js: "JavaScript",
+      jsx: "React",
+      ts: "TypeScript",
+      tsx: "React TypeScript",
+      py: "Python",
+      java: "Java",
+      cs: "C#",
+      cpp: "C++",
+      c: "C",
+      html: "HTML",
+      css: "CSS",
+      scss: "SCSS",
+      json: "JSON",
+      xml: "XML",
+      yml: "YAML",
+      yaml: "YAML",
+      md: "Markdown",
+      sql: "SQL",
+      txt: "Text",
+      sh: "Shell",
+      bat: "Batch",
+      dockerfile: "Docker",
+      gitignore: "Git",
+      env: "Environment",
     };
-    return typeMap[extension] || 'Other';
+    return typeMap[extension] || "Other";
   }
 
   groupFilesByType(changes) {
@@ -818,22 +866,25 @@ class AzureDevOpsClient {
     try {
       const prDetails = await this.getPullRequestDetails(pullRequestId);
       const repositoryId = prDetails.repository?.id;
-      
+
       if (!repositoryId) {
-        throw new Error('Repository ID not found');
+        throw new Error("Repository ID not found");
       }
 
       // Get diffs using the diffs API
-      const diffsResponse = await this.client.get(`/git/repositories/${repositoryId}/diffs/commits`, {
-        params: {
-          'api-version': '7.0',
-          'baseVersionDescriptor.version': prDetails.targetRefName,
-          'baseVersionDescriptor.versionType': 'branch',
-          'targetVersionDescriptor.version': prDetails.sourceRefName,
-          'targetVersionDescriptor.versionType': 'branch',
-          '$top': 100
+      const diffsResponse = await this.client.get(
+        `/git/repositories/${repositoryId}/diffs/commits`,
+        {
+          params: {
+            "api-version": "7.0",
+            "baseVersionDescriptor.version": prDetails.targetRefName,
+            "baseVersionDescriptor.versionType": "branch",
+            "targetVersionDescriptor.version": prDetails.sourceRefName,
+            "targetVersionDescriptor.versionType": "branch",
+            $top: 100,
+          },
         }
-      });
+      );
 
       return diffsResponse.data;
     } catch (error) {
@@ -845,12 +896,12 @@ class AzureDevOpsClient {
   // Repository API
   async getRepositories() {
     try {
-      const response = await this.client.get('/git/repositories', {
-        params: { 'api-version': '7.0' }
+      const response = await this.client.get("/git/repositories", {
+        params: { "api-version": "7.0" },
       });
       return response.data;
     } catch (error) {
-      logger.error('Error fetching repositories:', error);
+      logger.error("Error fetching repositories:", error);
       throw error;
     }
   }
@@ -858,12 +909,12 @@ class AzureDevOpsClient {
   // Projects API
   async getAllProjects() {
     try {
-      const response = await this.orgClient.get('/projects', {
-        params: { 'api-version': '7.1' }
+      const response = await this.orgClient.get("/projects", {
+        params: { "api-version": "7.1" },
       });
       return response.data;
     } catch (error) {
-      logger.error('Error fetching projects:', error);
+      logger.error("Error fetching projects:", error);
       throw error;
     }
   }

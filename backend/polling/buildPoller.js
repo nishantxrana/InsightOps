@@ -1,5 +1,5 @@
-import { logger } from '../utils/logger.js';
-import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
+import { logger } from "../utils/logger.js";
+import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
 
 class BuildPoller {
   constructor() {
@@ -38,7 +38,7 @@ class BuildPoller {
   // Organization-based polling (STRICT: organizationId required)
   async pollBuildsForOrg(organizationId, org) {
     if (!organizationId) {
-      throw new Error('organizationId is required for pollBuildsForOrg');
+      throw new Error("organizationId is required for pollBuildsForOrg");
     }
 
     try {
@@ -57,7 +57,7 @@ class BuildPoller {
         organization: org.azureDevOps.organization,
         project: org.azureDevOps.project,
         pat: org.azureDevOps.pat,
-        baseUrl: org.azureDevOps.baseUrl || 'https://dev.azure.com'
+        baseUrl: org.azureDevOps.baseUrl || "https://dev.azure.com",
       });
 
       const processedBuilds = this.getProcessedBuildsForOrg(organizationId);
@@ -65,9 +65,9 @@ class BuildPoller {
 
       logger.info(`Starting builds polling for org ${organizationId}`);
       const recentBuilds = await client.getRecentBuilds(20);
-      
+
       if (recentBuilds.count > 0) {
-        const newBuilds = recentBuilds.value.filter(build => {
+        const newBuilds = recentBuilds.value.filter((build) => {
           const finishTime = new Date(build.finishTime);
           return finishTime > lastPollTime && !processedBuilds.has(build.id);
         });
@@ -92,20 +92,22 @@ class BuildPoller {
    * Legacy user-based polling is no longer supported.
    */
   async pollBuilds(userId) {
-    logger.error('DEPRECATED: pollBuilds(userId) called - this method is no longer supported', {
+    logger.error("DEPRECATED: pollBuilds(userId) called - this method is no longer supported", {
       userId,
-      action: 'poll-builds',
-      status: 'rejected'
+      action: "poll-builds",
+      status: "rejected",
     });
-    throw new Error('Legacy user-based polling is not supported. Use pollBuildsForOrg(organizationId, org) instead.');
+    throw new Error(
+      "Legacy user-based polling is not supported. Use pollBuildsForOrg(organizationId, org) instead."
+    );
   }
 
   cleanupProcessedBuilds(organizationId) {
     if (!organizationId) {
-      logger.warn('cleanupProcessedBuilds called without organizationId');
+      logger.warn("cleanupProcessedBuilds called without organizationId");
       return;
     }
-    
+
     const processedBuilds = this.getProcessedBuildsForOrg(organizationId);
     if (processedBuilds.size > 500) {
       const buildsArray = Array.from(processedBuilds);
@@ -120,7 +122,7 @@ class BuildPoller {
    */
   clearOrganizationState(organizationId) {
     if (!organizationId) return;
-    
+
     this.processedBuildsByOrg.delete(organizationId);
     this.lastPollTimeByOrg.delete(organizationId);
     logger.info(`Cleared build poller state for org ${organizationId}`);

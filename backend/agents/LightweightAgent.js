@@ -1,8 +1,8 @@
-import { v4 as uuid } from 'uuid';
-import { logger } from '../utils/logger.js';
-import { ruleEngine } from './RuleEngine.js';
-import { cacheManager } from '../cache/CacheManager.js';
-import { freeModelRouter } from '../ai/FreeModelRouter.js';
+import { v4 as uuid } from "uuid";
+import { logger } from "../utils/logger.js";
+import { ruleEngine } from "./RuleEngine.js";
+import { cacheManager } from "../cache/CacheManager.js";
+import { freeModelRouter } from "../ai/FreeModelRouter.js";
 
 /**
  * Base class for lightweight agents
@@ -11,16 +11,16 @@ import { freeModelRouter } from '../ai/FreeModelRouter.js';
 class LightweightAgent {
   constructor(config) {
     this.id = config.id || uuid();
-    this.type = config.type || 'generic';
-    this.name = config.name || 'Agent';
+    this.type = config.type || "generic";
+    this.name = config.name || "Agent";
     this.capabilities = config.capabilities || [];
-    
+
     this.stats = {
       tasksCompleted: 0,
       rulesUsed: 0,
       aiUsed: 0,
       cacheHits: 0,
-      errors: 0
+      errors: 0,
     };
   }
 
@@ -35,7 +35,7 @@ class LightweightAgent {
     logger.info(`Agent ${this.name} executing task`, {
       agentId: this.id,
       executionId,
-      taskType: task.type
+      taskType: task.type,
     });
 
     try {
@@ -58,27 +58,27 @@ class LightweightAgent {
         agentId: this.id,
         executionId,
         duration,
-        success: true
+        success: true,
       });
 
       return {
         success: true,
         result,
         duration,
-        stats: this.getStats()
+        stats: this.getStats(),
       };
     } catch (error) {
       this.stats.errors++;
       logger.error(`Agent ${this.name} failed`, {
         agentId: this.id,
         executionId,
-        error: error.message
+        error: error.message,
       });
 
       return {
         success: false,
         error: error.message,
-        duration: Date.now() - startTime
+        duration: Date.now() - startTime,
       };
     }
   }
@@ -89,15 +89,15 @@ class LightweightAgent {
    */
   async analyze(task) {
     // Check cache first
-    const cacheKey = cacheManager.generateKey('analysis', {
+    const cacheKey = cacheManager.generateKey("analysis", {
       type: task.type,
-      data: task.data
+      data: task.data,
     });
 
-    const cached = cacheManager.get('analysis', cacheKey);
+    const cached = cacheManager.get("analysis", cacheKey);
     if (cached) {
       this.stats.cacheHits++;
-      logger.debug('Analysis cache hit', { agentId: this.id });
+      logger.debug("Analysis cache hit", { agentId: this.id });
       return cached;
     }
 
@@ -105,34 +105,34 @@ class LightweightAgent {
     const ruleMatch = ruleEngine.match(task.description || task.data, task.category);
     if (ruleMatch.matched && ruleMatch.confidence > 0.7) {
       this.stats.rulesUsed++;
-      logger.debug('Rule-based analysis', {
+      logger.debug("Rule-based analysis", {
         agentId: this.id,
         ruleId: ruleMatch.rule.id,
-        confidence: ruleMatch.confidence
+        confidence: ruleMatch.confidence,
       });
 
       const analysis = {
-        method: 'rule',
+        method: "rule",
         ruleId: ruleMatch.rule.id,
         confidence: ruleMatch.confidence,
         action: ruleMatch.action,
         solution: ruleMatch.solution,
-        autoFix: ruleMatch.autoFix
+        autoFix: ruleMatch.autoFix,
       };
 
       // Cache the analysis
-      cacheManager.set('analysis', cacheKey, analysis, 86400); // 24 hours
+      cacheManager.set("analysis", cacheKey, analysis, 86400); // 24 hours
       return analysis;
     }
 
     // Fall back to AI analysis
     this.stats.aiUsed++;
-    logger.debug('AI-based analysis', { agentId: this.id });
+    logger.debug("AI-based analysis", { agentId: this.id });
 
     const aiAnalysis = await this.aiAnalyze(task);
-    
+
     // Cache the AI analysis
-    cacheManager.set('analysis', cacheKey, aiAnalysis, 3600); // 1 hour
+    cacheManager.set("analysis", cacheKey, aiAnalysis, 3600); // 1 hour
     return aiAnalysis;
   }
 
@@ -141,19 +141,19 @@ class LightweightAgent {
    */
   async aiAnalyze(task) {
     // Try to get context from memories
-    let contextStr = '';
+    let contextStr = "";
     try {
-      const { contextManager } = await import('../memory/ContextManager.js');
+      const { contextManager } = await import("../memory/ContextManager.js");
       const context = await contextManager.buildContext(task, {
         maxMemories: 3,
-        filterType: task.type
+        filterType: task.type,
       });
       contextStr = context.context;
     } catch (error) {
-      logger.debug('Context not available, proceeding without it');
+      logger.debug("Context not available, proceeding without it");
     }
 
-    const prompt = `${contextStr ? contextStr + '\n\n' : ''}Analyze this task and suggest an action:
+    const prompt = `${contextStr ? contextStr + "\n\n" : ""}Analyze this task and suggest an action:
 Task Type: ${task.type}
 Description: ${task.description || JSON.stringify(task.data)}
 
@@ -164,16 +164,16 @@ Provide:
 
     const response = await freeModelRouter.query({
       prompt,
-      complexity: 'simple',
-      maxTokens: 200
+      complexity: "simple",
+      maxTokens: 200,
     });
 
     return {
-      method: 'ai',
+      method: "ai",
       analysis: response,
       confidence: 0.7,
-      action: 'ai_suggested',
-      autoFix: false
+      action: "ai_suggested",
+      autoFix: false,
     };
   }
 
@@ -181,29 +181,29 @@ Provide:
    * Step 2: Plan actions based on analysis
    */
   async plan(analysis) {
-    if (analysis.method === 'rule' && analysis.autoFix) {
+    if (analysis.method === "rule" && analysis.autoFix) {
       return {
-        type: 'auto',
+        type: "auto",
         action: analysis.action,
         solution: analysis.solution,
-        requiresApproval: false
+        requiresApproval: false,
       };
     }
 
     if (analysis.confidence > 0.8) {
       return {
-        type: 'confident',
+        type: "confident",
         action: analysis.action,
         solution: analysis.solution,
-        requiresApproval: false
+        requiresApproval: false,
       };
     }
 
     return {
-      type: 'manual',
-      action: 'notify_human',
+      type: "manual",
+      action: "notify_human",
       solution: analysis.solution || analysis.analysis,
-      requiresApproval: true
+      requiresApproval: true,
     };
   }
 
@@ -214,14 +214,14 @@ Provide:
     logger.info(`Agent ${this.name} executing plan`, {
       agentId: this.id,
       planType: plan.type,
-      action: plan.action
+      action: plan.action,
     });
 
     if (plan.requiresApproval) {
       return {
-        status: 'pending_approval',
+        status: "pending_approval",
         action: plan.action,
-        solution: plan.solution
+        solution: plan.solution,
       };
     }
 
@@ -235,9 +235,9 @@ Provide:
   async executeAction(action, solution) {
     // Base implementation - subclasses should override
     return {
-      status: 'completed',
+      status: "completed",
       action,
-      solution
+      solution,
     };
   }
 
@@ -251,31 +251,36 @@ Provide:
     const organizationId = task.organizationId || task.data?.organizationId || null;
 
     // Store successful patterns for future use
-    if (result.status === 'completed' || result.status === 'action_suggested') {
+    if (result.status === "completed" || result.status === "action_suggested") {
       try {
         // Store in memory system (with organizationId)
-        const { contextManager } = await import('../memory/ContextManager.js');
+        const { contextManager } = await import("../memory/ContextManager.js");
         await contextManager.storeTaskOutcome(task, { success: true, result }, organizationId);
-        
+
         // Track pattern for rule generation (with organizationId)
-        const { patternTracker } = await import('../learning/PatternTracker.js');
-        await patternTracker.trackSuccess(task, result.solution || result.action, {}, organizationId);
-        
+        const { patternTracker } = await import("../learning/PatternTracker.js");
+        await patternTracker.trackSuccess(
+          task,
+          result.solution || result.action,
+          {},
+          organizationId
+        );
+
         logger.debug(`Agent ${this.name} learned from success`, {
           agentId: this.id,
           taskType: task.type,
-          organizationId
+          organizationId,
         });
       } catch (error) {
-        logger.debug('Learning systems not available:', error.message);
+        logger.debug("Learning systems not available:", error.message);
       }
-    } else if (result.status === 'failed') {
+    } else if (result.status === "failed") {
       try {
         // Track failure (with organizationId)
-        const { patternTracker } = await import('../learning/PatternTracker.js');
+        const { patternTracker } = await import("../learning/PatternTracker.js");
         await patternTracker.trackFailure(task, result.error, {}, organizationId);
       } catch (error) {
-        logger.debug('Pattern tracking not available:', error.message);
+        logger.debug("Pattern tracking not available:", error.message);
       }
     }
   }
@@ -287,11 +292,12 @@ Provide:
     const total = this.stats.rulesUsed + this.stats.aiUsed;
     return {
       ...this.stats,
-      ruleUsageRate: total > 0 ? `${(this.stats.rulesUsed / total * 100).toFixed(1)}%` : '0%',
-      aiUsageRate: total > 0 ? `${(this.stats.aiUsed / total * 100).toFixed(1)}%` : '0%',
-      cacheHitRate: this.stats.tasksCompleted > 0 
-        ? `${(this.stats.cacheHits / this.stats.tasksCompleted * 100).toFixed(1)}%` 
-        : '0%'
+      ruleUsageRate: total > 0 ? `${((this.stats.rulesUsed / total) * 100).toFixed(1)}%` : "0%",
+      aiUsageRate: total > 0 ? `${((this.stats.aiUsed / total) * 100).toFixed(1)}%` : "0%",
+      cacheHitRate:
+        this.stats.tasksCompleted > 0
+          ? `${((this.stats.cacheHits / this.stats.tasksCompleted) * 100).toFixed(1)}%`
+          : "0%",
     };
   }
 
@@ -304,7 +310,7 @@ Provide:
       rulesUsed: 0,
       aiUsed: 0,
       cacheHits: 0,
-      errors: 0
+      errors: 0,
     };
   }
 }

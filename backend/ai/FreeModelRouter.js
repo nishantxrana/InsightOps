@@ -1,10 +1,10 @@
-import OpenAI from 'openai';
-import Groq from 'groq-sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { logger } from '../utils/logger.js';
-import { cacheManager } from '../cache/CacheManager.js';
-import { rateLimiter } from '../utils/RateLimiter.js';
-import { configLoader } from '../config/settings.js';
+import OpenAI from "openai";
+import Groq from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { logger } from "../utils/logger.js";
+import { cacheManager } from "../cache/CacheManager.js";
+import { rateLimiter } from "../utils/RateLimiter.js";
+import { configLoader } from "../config/settings.js";
 
 /**
  * Smart AI model router with caching and rate limiting
@@ -18,7 +18,7 @@ class FreeModelRouter {
       totalRequests: 0,
       cacheHits: 0,
       cacheMisses: 0,
-      apiCalls: 0
+      apiCalls: 0,
     };
   }
 
@@ -36,7 +36,7 @@ class FreeModelRouter {
       this.clients.gemini = new GoogleGenerativeAI(config.geminiApiKey);
     }
     this.initialized = true;
-    logger.info('FreeModelRouter initialized');
+    logger.info("FreeModelRouter initialized");
   }
 
   /**
@@ -45,14 +45,14 @@ class FreeModelRouter {
   async query(request) {
     this.stats.totalRequests++;
 
-    const { prompt, model, complexity = 'simple', maxTokens = 500, temperature = 0.3 } = request;
+    const { prompt, model, complexity = "simple", maxTokens = 500, temperature = 0.3 } = request;
 
     // Step 1: Check cache first
-    const cached = cacheManager.getAIResponse(prompt, model || 'auto');
+    const cached = cacheManager.getAIResponse(prompt, model || "auto");
     if (cached) {
       this.stats.cacheHits++;
-      logger.debug('Cache hit - no API call needed', { 
-        hitRate: `${(this.stats.cacheHits / this.stats.totalRequests * 100).toFixed(1)}%` 
+      logger.debug("Cache hit - no API call needed", {
+        hitRate: `${((this.stats.cacheHits / this.stats.totalRequests) * 100).toFixed(1)}%`,
       });
       return cached;
     }
@@ -68,22 +68,22 @@ class FreeModelRouter {
     // Step 4: Execute with fallback
     try {
       const response = await this.execute(selectedModel, prompt, { maxTokens, temperature });
-      
+
       // Step 5: Cache the response
       const cacheTTL = this.getCacheTTL(complexity);
-      cacheManager.setAIResponse(prompt, model || 'auto', response, cacheTTL);
+      cacheManager.setAIResponse(prompt, model || "auto", response, cacheTTL);
 
       this.stats.apiCalls++;
-      logger.info('AI API call', {
+      logger.info("AI API call", {
         provider: selectedModel.provider,
         model: selectedModel.name,
         cached: false,
-        cacheHitRate: `${(this.stats.cacheHits / this.stats.totalRequests * 100).toFixed(1)}%`
+        cacheHitRate: `${((this.stats.cacheHits / this.stats.totalRequests) * 100).toFixed(1)}%`,
       });
 
       return response;
     } catch (error) {
-      logger.error('AI query failed, trying fallback', error);
+      logger.error("AI query failed, trying fallback", error);
       return await this.fallback(prompt, selectedModel, { maxTokens, temperature });
     }
   }
@@ -93,7 +93,7 @@ class FreeModelRouter {
    */
   async selectModel(requestedModel, complexity) {
     // If specific model requested, use it
-    if (requestedModel && requestedModel !== 'auto') {
+    if (requestedModel && requestedModel !== "auto") {
       return this.getModelConfig(requestedModel);
     }
 
@@ -101,16 +101,16 @@ class FreeModelRouter {
     const available = await this.getAvailableModels();
 
     if (available.length === 0) {
-      throw new Error('No AI models available');
+      throw new Error("No AI models available");
     }
 
     // Smart selection based on complexity
-    if (complexity === 'simple' && available.includes('gemini-2.0-flash')) {
-      return this.getModelConfig('gemini-2.0-flash');
+    if (complexity === "simple" && available.includes("gemini-2.0-flash")) {
+      return this.getModelConfig("gemini-2.0-flash");
     }
 
-    if (complexity === 'complex' && available.includes('gpt-4o-mini')) {
-      return this.getModelConfig('gpt-4o-mini');
+    if (complexity === "complex" && available.includes("gpt-4o-mini")) {
+      return this.getModelConfig("gpt-4o-mini");
     }
 
     // Default to first available
@@ -124,18 +124,18 @@ class FreeModelRouter {
     const available = [];
 
     // Check Gemini
-    if (this.clients.gemini && rateLimiter.canProceed('gemini')) {
-      available.push('gemini-2.0-flash');
+    if (this.clients.gemini && rateLimiter.canProceed("gemini")) {
+      available.push("gemini-2.0-flash");
     }
 
     // Check OpenAI
-    if (this.clients.openai && rateLimiter.canProceed('openai')) {
-      available.push('gpt-4o-mini');
+    if (this.clients.openai && rateLimiter.canProceed("openai")) {
+      available.push("gpt-4o-mini");
     }
 
     // Check Groq
-    if (this.clients.groq && rateLimiter.canProceed('groq')) {
-      available.push('llama-3-8b-instant');
+    if (this.clients.groq && rateLimiter.canProceed("groq")) {
+      available.push("llama-3-8b-instant");
     }
 
     return available;
@@ -146,12 +146,12 @@ class FreeModelRouter {
    */
   getModelConfig(modelName) {
     const configs = {
-      'gemini-2.0-flash': { provider: 'gemini', name: 'gemini-2.0-flash-exp', speed: 'fast' },
-      'gpt-4o-mini': { provider: 'openai', name: 'gpt-4o-mini', speed: 'medium' },
-      'llama-3-8b-instant': { provider: 'groq', name: 'llama-3.1-8b-instant', speed: 'fast' }
+      "gemini-2.0-flash": { provider: "gemini", name: "gemini-2.0-flash-exp", speed: "fast" },
+      "gpt-4o-mini": { provider: "openai", name: "gpt-4o-mini", speed: "medium" },
+      "llama-3-8b-instant": { provider: "groq", name: "llama-3.1-8b-instant", speed: "fast" },
     };
 
-    return configs[modelName] || configs['gemini-2.0-flash'];
+    return configs[modelName] || configs["gemini-2.0-flash"];
   }
 
   /**
@@ -161,44 +161,44 @@ class FreeModelRouter {
     const { provider, name } = modelConfig;
     const { maxTokens, temperature } = options;
 
-    if (provider === 'openai') {
+    if (provider === "openai") {
       const response = await this.clients.openai.chat.completions.create({
         model: name,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: "user", content: prompt }],
         max_tokens: maxTokens,
-        temperature
+        temperature,
       });
-      rateLimiter.recordRequest('openai', response.usage?.total_tokens || 0);
+      rateLimiter.recordRequest("openai", response.usage?.total_tokens || 0);
       const content = response?.choices?.[0]?.message?.content;
-      if (!content || content.trim() === '') {
-        throw new Error('OpenAI returned empty response');
+      if (!content || content.trim() === "") {
+        throw new Error("OpenAI returned empty response");
       }
       return content;
     }
 
-    if (provider === 'groq') {
+    if (provider === "groq") {
       const response = await this.clients.groq.chat.completions.create({
         model: name,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: "user", content: prompt }],
         max_tokens: maxTokens,
-        temperature
+        temperature,
       });
-      rateLimiter.recordRequest('groq', response.usage?.total_tokens || 0);
+      rateLimiter.recordRequest("groq", response.usage?.total_tokens || 0);
       const content = response?.choices?.[0]?.message?.content;
-      if (!content || content.trim() === '') {
-        throw new Error('Groq returned empty response');
+      if (!content || content.trim() === "") {
+        throw new Error("Groq returned empty response");
       }
       return content;
     }
 
-    if (provider === 'gemini') {
+    if (provider === "gemini") {
       const model = this.clients.gemini.getGenerativeModel({ model: name });
       const result = await model.generateContent(prompt);
       const content = result?.response?.text();
-      if (!content || content.trim() === '') {
-        throw new Error('Gemini returned empty response');
+      if (!content || content.trim() === "") {
+        throw new Error("Gemini returned empty response");
       }
-      rateLimiter.recordRequest('gemini', content.length / 4);
+      rateLimiter.recordRequest("gemini", content.length / 4);
       return content;
     }
 
@@ -212,10 +212,10 @@ class FreeModelRouter {
     logger.warn(`Trying fallback after ${failedModel.provider} failed`);
 
     const available = await this.getAvailableModels();
-    const alternatives = available.filter(m => m !== failedModel.name);
+    const alternatives = available.filter((m) => m !== failedModel.name);
 
     if (alternatives.length === 0) {
-      throw new Error('No fallback models available');
+      throw new Error("No fallback models available");
     }
 
     const fallbackModel = this.getModelConfig(alternatives[0]);
@@ -227,9 +227,9 @@ class FreeModelRouter {
    */
   getCacheTTL(complexity) {
     const ttls = {
-      simple: 3600,    // 1 hour
-      medium: 1800,    // 30 minutes
-      complex: 900     // 15 minutes
+      simple: 3600, // 1 hour
+      medium: 1800, // 30 minutes
+      complex: 900, // 15 minutes
     };
     return ttls[complexity] || 1800;
   }
@@ -240,14 +240,16 @@ class FreeModelRouter {
   getStats() {
     return {
       ...this.stats,
-      cacheHitRate: this.stats.totalRequests > 0 
-        ? `${(this.stats.cacheHits / this.stats.totalRequests * 100).toFixed(1)}%`
-        : '0%',
-      apiCallRate: this.stats.totalRequests > 0
-        ? `${(this.stats.apiCalls / this.stats.totalRequests * 100).toFixed(1)}%`
-        : '0%',
+      cacheHitRate:
+        this.stats.totalRequests > 0
+          ? `${((this.stats.cacheHits / this.stats.totalRequests) * 100).toFixed(1)}%`
+          : "0%",
+      apiCallRate:
+        this.stats.totalRequests > 0
+          ? `${((this.stats.apiCalls / this.stats.totalRequests) * 100).toFixed(1)}%`
+          : "0%",
       rateLimits: rateLimiter.getAllStats(),
-      cacheStats: cacheManager.getAllStats()
+      cacheStats: cacheManager.getAllStats(),
     };
   }
 
@@ -258,7 +260,7 @@ class FreeModelRouter {
     const config = {
       openaiApiKey: userSettings.ai?.apiKeys?.openai,
       groqApiKey: userSettings.ai?.apiKeys?.groq,
-      geminiApiKey: userSettings.ai?.apiKeys?.gemini
+      geminiApiKey: userSettings.ai?.apiKeys?.gemini,
     };
     this.initialize(config);
   }

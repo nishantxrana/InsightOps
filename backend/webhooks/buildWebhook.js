@@ -1,24 +1,25 @@
-import { logger } from '../utils/logger.js';
-import { aiService } from '../ai/aiService.js';
-import { notificationService } from '../notifications/notificationService.js';
-import { markdownFormatter } from '../utils/markdownFormatter.js';
-import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
-import notificationHistoryService from '../services/notificationHistoryService.js';
-import BaseWebhook from './BaseWebhook.js';
+import { logger } from "../utils/logger.js";
+import { aiService } from "../ai/aiService.js";
+import { notificationService } from "../notifications/notificationService.js";
+import { markdownFormatter } from "../utils/markdownFormatter.js";
+import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
+import notificationHistoryService from "../services/notificationHistoryService.js";
+import BaseWebhook from "./BaseWebhook.js";
 
 class BuildWebhook extends BaseWebhook {
   async handleCompleted(req, res, userId = null, organizationId = null) {
     try {
       // STRICT: organizationId is REQUIRED
       if (!organizationId) {
-        logger.error('Build webhook called without organizationId', {
+        logger.error("Build webhook called without organizationId", {
           userId,
-          action: 'build-completed',
-          status: 'rejected'
+          action: "build-completed",
+          status: "rejected",
         });
         return res.status(400).json({
-          error: 'organizationId is required. Use /api/webhooks/org/{organizationId}/build/completed',
-          code: 'MISSING_ORGANIZATION_ID'
+          error:
+            "organizationId is required. Use /api/webhooks/org/{organizationId}/build/completed",
+          code: "MISSING_ORGANIZATION_ID",
         });
       }
 
@@ -29,17 +30,17 @@ class BuildWebhook extends BaseWebhook {
       }
 
       const { resource } = req.body;
-      
+
       if (!resource) {
-        return res.status(400).json({ error: 'Missing resource in webhook payload' });
+        return res.status(400).json({ error: "Missing resource in webhook payload" });
       }
 
       const buildId = resource.id;
-      
+
       // Check for duplicate webhook
-      const dupeCheck = this.isDuplicate(buildId, organizationId, 'build');
+      const dupeCheck = this.isDuplicate(buildId, organizationId, "build");
       if (dupeCheck.isDuplicate) {
-        return res.json(this.createDuplicateResponse(buildId, 'build', dupeCheck.timeSince));
+        return res.json(this.createDuplicateResponse(buildId, "build", dupeCheck.timeSince));
       }
 
       const buildNumber = resource.buildNumber;
@@ -48,29 +49,29 @@ class BuildWebhook extends BaseWebhook {
       const definition = resource.definition?.name;
       const requestedBy = resource.requestedBy?.displayName;
 
-      logger.info('Build completed webhook received', {
+      logger.info("Build completed webhook received", {
         buildId,
         buildNumber,
         status,
         result,
         definition,
         requestedBy,
-        organizationId
+        organizationId,
       });
 
       // Get organization settings with credentials
       let userSettings = null;
       let userClient = null;
-      
+
       try {
-        const { organizationService } = await import('../services/organizationService.js');
+        const { organizationService } = await import("../services/organizationService.js");
         const org = await organizationService.getOrganizationWithCredentials(organizationId);
         if (org) {
           userId = org.userId;
           userSettings = {
             azureDevOps: org.azureDevOps,
             ai: org.ai,
-            notifications: org.notifications
+            notifications: org.notifications,
           };
           if (org.azureDevOps?.pat) {
             userClient = azureDevOpsClient.createUserClient(org.azureDevOps);
@@ -78,28 +79,28 @@ class BuildWebhook extends BaseWebhook {
         }
       } catch (error) {
         logger.error(`Failed to get org settings for ${organizationId}:`, { error: error.message });
-        return res.status(500).json({ error: 'Failed to retrieve organization settings' });
+        return res.status(500).json({ error: "Failed to retrieve organization settings" });
       }
 
       if (!userSettings) {
-        return res.status(404).json({ error: 'Organization settings not found' });
+        return res.status(404).json({ error: "Organization settings not found" });
       }
 
       logger.info(`Retrieved organization settings for ${organizationId}`, {
         hasAzureDevOpsConfig: !!userSettings.azureDevOps,
-        hasAIConfig: !!userSettings.ai
+        hasAIConfig: !!userSettings.ai,
       });
 
       let message;
       let aiSummary = null;
 
-      if (result === 'failed') {
+      if (result === "failed") {
         // Fetch build logs and timeline for failed builds
         try {
           const client = userClient || azureDevOpsClient;
           const [timeline, logs] = await Promise.all([
             client.getBuildTimeline(buildId),
-            client.getBuildLogs(buildId)
+            client.getBuildLogs(buildId),
           ]);
 
           // Generate AI summary if user has AI configured
@@ -108,53 +109,72 @@ class BuildWebhook extends BaseWebhook {
               aiService.initializeWithUserSettings(userSettings);
               aiSummary = await aiService.summarizeBuildFailure(resource, timeline, logs, client);
             } catch (error) {
-              logger.warn('Failed to generate AI summary:', error);
+              logger.warn("Failed to generate AI summary:", error);
             }
           }
-          
-          message = markdownFormatter.formatBuildFailed(resource, aiSummary, userSettings?.azureDevOps);
+
+          message = markdownFormatter.formatBuildFailed(
+            resource,
+            aiSummary,
+            userSettings?.azureDevOps
+          );
         } catch (error) {
-          logger.error('Error fetching build details for failed build:', error);
+          logger.error("Error fetching build details for failed build:", error);
           message = markdownFormatter.formatBuildFailed(resource, null, userSettings?.azureDevOps);
         }
       } else {
         message = markdownFormatter.formatBuildCompleted(resource, userSettings?.azureDevOps);
       }
-      
+
       // Send notification
-      const notificationType = result === 'failed' ? 'build-failed' : 'build-succeeded';
-      
+      const notificationType = result === "failed" ? "build-failed" : "build-succeeded";
+
       if (userId) {
         // User-specific notification with card format
-        await this.sendUserNotification(message, userId, organizationId, notificationType, resource, aiSummary, userSettings?.azureDevOps);
+        await this.sendUserNotification(
+          message,
+          userId,
+          organizationId,
+          notificationType,
+          resource,
+          aiSummary,
+          userSettings?.azureDevOps
+        );
       } else {
         // Legacy global notification
         await notificationService.sendNotification(message, notificationType);
       }
-      
+
       res.json({
-        message: 'Build completed webhook processed successfully',
+        message: "Build completed webhook processed successfully",
         buildId,
         result,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
     } catch (error) {
-      logger.error('Error processing build completed webhook:', error);
+      logger.error("Error processing build completed webhook:", error);
       res.status(500).json({
-        error: 'Failed to process build completed webhook',
-        message: error.message
+        error: "Failed to process build completed webhook",
+        message: error.message,
       });
     }
   }
 
-  async sendUserNotification(message, userId, organizationId, notificationType, build, aiSummary, userConfig) {
+  async sendUserNotification(
+    message,
+    userId,
+    organizationId,
+    notificationType,
+    build,
+    aiSummary,
+    userConfig
+  ) {
     try {
       // Get notification settings - prefer org settings over user settings
       let settings;
       if (organizationId) {
         try {
-          const { organizationService } = await import('../services/organizationService.js');
+          const { organizationService } = await import("../services/organizationService.js");
           const org = await organizationService.getOrganizationWithCredentials(organizationId);
           if (org) {
             settings = { notifications: org.notifications };
@@ -163,15 +183,17 @@ class BuildWebhook extends BaseWebhook {
           logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
         }
       }
-      
+
       // Fall back to user settings if org settings not available
       if (!settings) {
-        const { getUserSettings } = await import('../utils/userSettings.js');
+        const { getUserSettings } = await import("../utils/userSettings.js");
         settings = await getUserSettings(userId);
       }
-      
+
       if (!settings.notifications?.enabled) {
-        logger.info(`Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`);
+        logger.info(
+          `Notifications disabled for ${organizationId ? `org ${organizationId}` : `user ${userId}`}`
+        );
         return;
       }
 
@@ -180,32 +202,45 @@ class BuildWebhook extends BaseWebhook {
 
       if (settings.notifications.googleChatEnabled && settings.notifications.webhooks?.googleChat) {
         try {
-          const { sendGoogleChatNotification } = await import('../utils/notificationWrapper.js');
-          
-          await sendGoogleChatNotification(userId, card, settings.notifications.webhooks.googleChat);
-          
+          const { sendGoogleChatNotification } = await import("../utils/notificationWrapper.js");
+
+          await sendGoogleChatNotification(
+            userId,
+            card,
+            settings.notifications.webhooks.googleChat
+          );
+
           const dividerCard = {
-            cardsV2: [{
-              cardId: `divider-build-${Date.now()}`,
-              card: { sections: [{ widgets: [{ divider: {} }] }] }
-            }]
+            cardsV2: [
+              {
+                cardId: `divider-build-${Date.now()}`,
+                card: { sections: [{ widgets: [{ divider: {} }] }] },
+              },
+            ],
           };
-          await sendGoogleChatNotification(userId, dividerCard, settings.notifications.webhooks.googleChat);
-          
-          channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+          await sendGoogleChatNotification(
+            userId,
+            dividerCard,
+            settings.notifications.webhooks.googleChat
+          );
+
+          channels.push({ platform: "google-chat", status: "sent", sentAt: new Date() });
           logger.info(`Build notification queued for user ${userId} via Google Chat`);
         } catch (error) {
-          channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+          channels.push({ platform: "google-chat", status: "failed", error: error.message });
           logger.error(`Failed to queue Google Chat notification:`, error);
         }
       }
 
       // Calculate duration
-      let duration = '';
+      let duration = "";
       if (build.startTime && build.finishTime) {
         const durationMs = new Date(build.finishTime) - new Date(build.startTime);
         const durationSec = Math.round(durationMs / 1000);
-        duration = durationSec < 60 ? `${durationSec}s` : `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
+        duration =
+          durationSec < 60
+            ? `${durationSec}s`
+            : `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
       }
 
       // Construct build URL
@@ -213,29 +248,31 @@ class BuildWebhook extends BaseWebhook {
       if (!buildUrl && userConfig?.organization && build.project?.name) {
         const organization = userConfig.organization;
         const project = build.project.name;
-        const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+        const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
         buildUrl = `${baseUrl}/${organization}/${encodeURIComponent(project)}/_build/results?buildId=${build.id}`;
       }
 
       // Save notification with organizationId if available
       if (organizationId) {
         try {
-          logger.info(`📝 [NOTIFICATION] Saving build notification to history for org ${organizationId}, userId: ${userId}`);
+          logger.info(
+            `📝 [NOTIFICATION] Saving build notification to history for org ${organizationId}, userId: ${userId}`
+          );
           await notificationHistoryService.saveNotification(userId, organizationId, {
-            type: 'build',
+            type: "build",
             subType: build.result?.toLowerCase(),
-            title: `Build ${build.result}: ${build.definition?.name || 'Unknown'}`,
+            title: `Build ${build.result}: ${build.definition?.name || "Unknown"}`,
             message,
-            source: 'webhook',
+            source: "webhook",
             metadata: {
               buildId: build.id,
               buildNumber: build.buildNumber,
               result: build.result,
               status: build.status,
               repository: build.repository?.name,
-              branch: build.sourceBranch?.replace('refs/heads/', ''),
+              branch: build.sourceBranch?.replace("refs/heads/", ""),
               commit: build.sourceVersion?.substring(0, 8),
-              commitMessage: build.triggerInfo?.['ci.message'],
+              commitMessage: build.triggerInfo?.["ci.message"],
               requestedBy: build.requestedBy?.displayName,
               requestedFor: build.requestedFor?.displayName,
               reason: build.reason,
@@ -243,38 +280,44 @@ class BuildWebhook extends BaseWebhook {
               startTime: build.startTime,
               finishTime: build.finishTime,
               duration,
-              url: buildUrl
+              url: buildUrl,
             },
-            channels
+            channels,
           });
-          logger.info(`✅ [NOTIFICATION] Saved build notification to history for org ${organizationId}`);
+          logger.info(
+            `✅ [NOTIFICATION] Saved build notification to history for org ${organizationId}`
+          );
         } catch (historyError) {
-          logger.error(`❌ [NOTIFICATION] Failed to save build notification to history for org ${organizationId}:`, historyError);
+          logger.error(
+            `❌ [NOTIFICATION] Failed to save build notification to history for org ${organizationId}:`,
+            historyError
+          );
         }
       } else {
-        logger.warn(`⚠️ [NOTIFICATION] Skipping build notification history save - no organizationId provided`);
+        logger.warn(
+          `⚠️ [NOTIFICATION] Skipping build notification history save - no organizationId provided`
+        );
       }
-
     } catch (error) {
       logger.error(`Error sending user notification for ${userId}:`, error);
     }
   }
 
   formatBuildCard(build, aiSummary, userConfig) {
-    const buildName = build.definition?.name || 'Unknown Build';
-    const buildNumber = build.buildNumber || 'Unknown';
-    const result = build.result || 'unknown';
-    const requestedBy = build.requestedBy?.displayName || 'Unknown';
-    const sourceBranch = build.sourceBranch?.replace('refs/heads/', '') || 'Unknown';
-    const projectName = build.project?.name || 'Unknown Project';
-    const repositoryName = build.repository?.name || 'Unknown Repository';
-    const sourceVersion = build.sourceVersion ? build.sourceVersion.substring(0, 8) : 'Unknown';
-    
+    const buildName = build.definition?.name || "Unknown Build";
+    const buildNumber = build.buildNumber || "Unknown";
+    const result = build.result || "unknown";
+    const requestedBy = build.requestedBy?.displayName || "Unknown";
+    const sourceBranch = build.sourceBranch?.replace("refs/heads/", "") || "Unknown";
+    const projectName = build.project?.name || "Unknown Project";
+    const repositoryName = build.repository?.name || "Unknown Repository";
+    const sourceVersion = build.sourceVersion ? build.sourceVersion.substring(0, 8) : "Unknown";
+
     // Extract PR information
     let commitInfo = sourceVersion;
-    if (build.triggerInfo && build.triggerInfo['pr.number']) {
-      commitInfo += ` (PR #${build.triggerInfo['pr.number']})`;
-    } else if (build.reason === 'pullRequest' && build.parameters) {
+    if (build.triggerInfo && build.triggerInfo["pr.number"]) {
+      commitInfo += ` (PR #${build.triggerInfo["pr.number"]})`;
+    } else if (build.reason === "pullRequest" && build.parameters) {
       const prMatch = JSON.stringify(build.parameters).match(/pr[.\s]*(\d+)/i);
       if (prMatch) {
         commitInfo += ` (PR #${prMatch[1]})`;
@@ -282,11 +325,14 @@ class BuildWebhook extends BaseWebhook {
     }
 
     // Calculate duration
-    let duration = '';
+    let duration = "";
     if (build.startTime && build.finishTime) {
       const durationMs = new Date(build.finishTime) - new Date(build.startTime);
       const durationSec = Math.round(durationMs / 1000);
-      duration = durationSec < 60 ? `${durationSec}s` : `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
+      duration =
+        durationSec < 60
+          ? `${durationSec}s`
+          : `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
     }
 
     // Construct build URL
@@ -294,105 +340,107 @@ class BuildWebhook extends BaseWebhook {
     if (!buildUrl && userConfig?.organization && build.project?.name) {
       const organization = userConfig.organization;
       const project = build.project.name;
-      const baseUrl = userConfig.baseUrl || 'https://dev.azure.com';
+      const baseUrl = userConfig.baseUrl || "https://dev.azure.com";
       buildUrl = `${baseUrl}/${organization}/${encodeURIComponent(project)}/_build/results?buildId=${build.id}`;
     }
 
     // Determine card styling based on result
     let title, imageUrl, isFailed;
     switch (result.toLowerCase()) {
-      case 'succeeded':
-        title = '✅ Build Succeeded';
-        imageUrl = 'https://img.icons8.com/color/96/ok.png';
+      case "succeeded":
+        title = "✅ Build Succeeded";
+        imageUrl = "https://img.icons8.com/color/96/ok.png";
         isFailed = false;
         break;
-      case 'failed':
-        title = '❌ Build Failed';
-        imageUrl = 'https://img.icons8.com/color/96/high-priority.png';
+      case "failed":
+        title = "❌ Build Failed";
+        imageUrl = "https://img.icons8.com/color/96/high-priority.png";
         isFailed = true;
         break;
-      case 'partiallysucceeded':
-        title = '⚠️ Build Partially Succeeded';
-        imageUrl = 'https://img.icons8.com/color/96/warning-shield.png';
+      case "partiallysucceeded":
+        title = "⚠️ Build Partially Succeeded";
+        imageUrl = "https://img.icons8.com/color/96/warning-shield.png";
         isFailed = false;
         break;
-      case 'canceled':
-        title = '🚫 Build Canceled';
-        imageUrl = 'https://img.icons8.com/color/96/cancel.png';
+      case "canceled":
+        title = "🚫 Build Canceled";
+        imageUrl = "https://img.icons8.com/color/96/cancel.png";
         isFailed = false;
         break;
       default:
-        title = '📦 Build Completed';
-        imageUrl = 'https://img.icons8.com/color/96/package.png';
+        title = "📦 Build Completed";
+        imageUrl = "https://img.icons8.com/color/96/package.png";
         isFailed = false;
     }
 
     const detailWidgets = [
       {
         decoratedText: {
-          startIcon: { knownIcon: 'BOOKMARK' },
-          topLabel: 'Build Number',
-          text: `<b>#${buildNumber}</b>`
-        }
+          startIcon: { knownIcon: "BOOKMARK" },
+          topLabel: "Build Number",
+          text: `<b>#${buildNumber}</b>`,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'DESCRIPTION' },
-          topLabel: 'Repository',
-          text: `${repositoryName}`
-        }
+          startIcon: { knownIcon: "DESCRIPTION" },
+          topLabel: "Repository",
+          text: `${repositoryName}`,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'STAR' },
-          topLabel: 'Branch',
-          text: sourceBranch
-        }
+          startIcon: { knownIcon: "STAR" },
+          topLabel: "Branch",
+          text: sourceBranch,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'BOOKMARK' },
-          topLabel: 'Commit',
-          text: commitInfo
-        }
+          startIcon: { knownIcon: "BOOKMARK" },
+          topLabel: "Commit",
+          text: commitInfo,
+        },
       },
       {
         decoratedText: {
-          startIcon: { knownIcon: 'PERSON' },
-          topLabel: 'Requested By',
-          text: requestedBy
-        }
-      }
+          startIcon: { knownIcon: "PERSON" },
+          topLabel: "Requested By",
+          text: requestedBy,
+        },
+      },
     ];
 
     if (duration) {
       detailWidgets.push({
         decoratedText: {
-          startIcon: { knownIcon: 'CLOCK' },
-          topLabel: 'Duration',
-          text: duration
-        }
+          startIcon: { knownIcon: "CLOCK" },
+          topLabel: "Duration",
+          text: duration,
+        },
       });
     }
 
     const sections = [
       {
-        header: '📋 Build Details',
-        widgets: detailWidgets
-      }
+        header: "📋 Build Details",
+        widgets: detailWidgets,
+      },
     ];
 
     // Add AI analysis section for failures
     if (isFailed && aiSummary) {
       sections.push({
-        header: '🤖 AI Analysis',
+        header: "🤖 AI Analysis",
         collapsible: true,
         uncollapsibleWidgetsCount: 0,
-        widgets: [{
-          textParagraph: {
-            text: `<pre>${aiSummary}</pre>`
-          }
-        }]
+        widgets: [
+          {
+            textParagraph: {
+              text: `<pre>${aiSummary}</pre>`,
+            },
+          },
+        ],
       });
     }
 
@@ -401,57 +449,61 @@ class BuildWebhook extends BaseWebhook {
       widgets: [
         {
           decoratedText: {
-            topLabel: 'Build URL',
+            topLabel: "Build URL",
             text: `<a href="${buildUrl}">${buildUrl}</a>`,
-            wrapText: true
-          }
+            wrapText: true,
+          },
         },
         {
           buttonList: {
-            buttons: [{
-              text: 'View Build',
-              icon: { knownIcon: 'OPEN_IN_NEW' },
-              onClick: {
-                openLink: { url: buildUrl }
-              }
-            }]
-          }
-        }
-      ]
+            buttons: [
+              {
+                text: "View Build",
+                icon: { knownIcon: "OPEN_IN_NEW" },
+                onClick: {
+                  openLink: { url: buildUrl },
+                },
+              },
+            ],
+          },
+        },
+      ],
     });
 
     return {
-      cardsV2: [{
-        cardId: `build-${build.id}`,
-        card: {
-          header: {
-            title: title,
-            subtitle: buildName,
-            imageUrl: imageUrl,
-            imageType: 'CIRCLE'
+      cardsV2: [
+        {
+          cardId: `build-${build.id}`,
+          card: {
+            header: {
+              title: title,
+              subtitle: buildName,
+              imageUrl: imageUrl,
+              imageType: "CIRCLE",
+            },
+            sections: sections,
           },
-          sections: sections
-        }
-      }]
+        },
+      ],
     };
   }
 
   async sendGoogleChatCard(card, webhookUrl) {
     try {
-      const axios = (await import('axios')).default;
+      const axios = (await import("axios")).default;
       await axios.post(webhookUrl, card);
     } catch (error) {
-      logger.error('Error sending Google Chat card:', error);
+      logger.error("Error sending Google Chat card:", error);
       throw error;
     }
   }
 
   async sendGoogleChatNotification(message, webhookUrl) {
     try {
-      const axios = (await import('axios')).default;
+      const axios = (await import("axios")).default;
       await axios.post(webhookUrl, { text: message });
     } catch (error) {
-      logger.error('Error sending Google Chat notification:', error);
+      logger.error("Error sending Google Chat notification:", error);
       throw error;
     }
   }

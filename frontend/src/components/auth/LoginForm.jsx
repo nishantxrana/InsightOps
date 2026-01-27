@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Eye, EyeOff, AlertCircle } from 'lucide-react';
+import React, { useState } from "react";
+import { useAuth } from "../../contexts/AuthContext";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Eye, EyeOff, AlertCircle } from "lucide-react";
 
 export const LoginForm = ({ onToggleMode }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -19,12 +19,12 @@ export const LoginForm = ({ onToggleMode }) => {
     setErrors({});
 
     const result = await login(email, password);
-    
+
     if (!result.success) {
       // Handle validation errors from backend
-      if (result.error === 'Validation failed' && result.details) {
+      if (result.error === "Validation failed" && result.details) {
         const fieldErrors = {};
-        result.details.forEach(detail => {
+        result.details.forEach((detail) => {
           fieldErrors[detail.field] = detail.message;
         });
         setErrors(fieldErrors);
@@ -32,7 +32,7 @@ export const LoginForm = ({ onToggleMode }) => {
         setErrors({ general: result.error });
       }
     }
-    
+
     setLoading(false);
   };
 
@@ -51,7 +51,7 @@ export const LoginForm = ({ onToggleMode }) => {
               onChange={(e) => setEmail(e.target.value)}
               required
               className={`bg-background border-border text-foreground placeholder:text-muted-foreground ${
-                errors.email ? 'border-red-500' : ''
+                errors.email ? "border-red-500" : ""
               }`}
             />
             {errors.email && (
@@ -61,7 +61,7 @@ export const LoginForm = ({ onToggleMode }) => {
               </div>
             )}
           </div>
-          
+
           <div className="relative">
             <Input
               type={showPassword ? "text" : "password"}
@@ -70,7 +70,7 @@ export const LoginForm = ({ onToggleMode }) => {
               onChange={(e) => setPassword(e.target.value)}
               required
               className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${
-                errors.password ? 'border-red-500' : ''
+                errors.password ? "border-red-500" : ""
               }`}
             />
             <button
@@ -87,7 +87,7 @@ export const LoginForm = ({ onToggleMode }) => {
               </div>
             )}
           </div>
-          
+
           {errors.general && (
             <div className="flex items-center gap-1 text-red-500 text-sm bg-red-50 dark:bg-red-950/20 p-3 rounded-md">
               <AlertCircle className="h-4 w-4" />
@@ -95,7 +95,7 @@ export const LoginForm = ({ onToggleMode }) => {
             </div>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
       </CardContent>

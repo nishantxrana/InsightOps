@@ -1,6 +1,6 @@
-import { logger } from '../utils/logger.js';
-import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
-import notificationHistoryService from '../services/notificationHistoryService.js';
+import { logger } from "../utils/logger.js";
+import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
+import notificationHistoryService from "../services/notificationHistoryService.js";
 
 class PullRequestPoller {
   constructor() {
@@ -39,7 +39,7 @@ class PullRequestPoller {
   // Organization-based polling (STRICT: organizationId required)
   async pollPullRequestsForOrg(organizationId, org) {
     if (!organizationId) {
-      throw new Error('organizationId is required for pollPullRequestsForOrg');
+      throw new Error("organizationId is required for pollPullRequestsForOrg");
     }
 
     try {
@@ -58,7 +58,7 @@ class PullRequestPoller {
         organization: org.azureDevOps.organization,
         project: org.azureDevOps.project,
         pat: org.azureDevOps.pat,
-        baseUrl: org.azureDevOps.baseUrl || 'https://dev.azure.com'
+        baseUrl: org.azureDevOps.baseUrl || "https://dev.azure.com",
       });
 
       logger.info(`Starting pull requests polling for org ${organizationId}`);
@@ -72,10 +72,10 @@ class PullRequestPoller {
   async checkIdlePullRequestsForOrg(organizationId, org, client) {
     try {
       const idlePRs = await client.getIdlePullRequests(48);
-      
+
       if (idlePRs.count > 0) {
         logger.warn(`Found ${idlePRs.count} idle pull requests for org ${organizationId}`);
-        
+
         if (org.notifications?.enabled) {
           await this.sendIdlePRNotificationForOrg(idlePRs.value, org, organizationId);
         }
@@ -93,71 +93,87 @@ class PullRequestPoller {
       const delayBetweenBatches = 5000;
       const totalBatches = Math.ceil(idlePRs.length / batchSize);
       const channels = [];
-      
+
       for (let i = 0; i < idlePRs.length; i += batchSize) {
         const batch = idlePRs.slice(i, i + batchSize);
         const batchNumber = Math.floor(i / batchSize) + 1;
-        const card = this.formatIdlePRCard(batch, batchNumber, totalBatches, idlePRs.length, org.azureDevOps);
-        
+        const card = this.formatIdlePRCard(
+          batch,
+          batchNumber,
+          totalBatches,
+          idlePRs.length,
+          org.azureDevOps
+        );
+
         if (org.notifications?.googleChatEnabled && org.notifications?.webhooks?.googleChat) {
           try {
             await this.sendGoogleChatCard(card, org.notifications.webhooks.googleChat);
-            if (i === 0) channels.push({ platform: 'google-chat', status: 'sent', sentAt: new Date() });
+            if (i === 0)
+              channels.push({ platform: "google-chat", status: "sent", sentAt: new Date() });
           } catch (error) {
-            if (i === 0) channels.push({ platform: 'google-chat', status: 'failed', error: error.message });
+            if (i === 0)
+              channels.push({ platform: "google-chat", status: "failed", error: error.message });
           }
         }
-        
+
         if (i + batchSize < idlePRs.length) {
-          await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+          await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
         }
       }
-      
+
       // Extract PR details for notification history (matching original format)
-      const baseUrl = org.azureDevOps?.baseUrl || 'https://dev.azure.com';
+      const baseUrl = org.azureDevOps?.baseUrl || "https://dev.azure.com";
       const organization = org.azureDevOps?.organization;
       const project = org.azureDevOps?.project;
-      
-      const pullRequests = idlePRs.map(pr => {
+
+      const pullRequests = idlePRs.map((pr) => {
         const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
         const idleDays = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
         const repository = pr.repository?.name;
-        
+
         return {
           id: pr.pullRequestId,
-          title: pr.title || 'No title',
-          repository: repository || 'Unknown',
-          sourceBranch: pr.sourceRefName?.replace('refs/heads/', '') || 'unknown',
-          targetBranch: pr.targetRefName?.replace('refs/heads/', '') || 'unknown',
-          createdBy: pr.createdBy?.displayName || 'Unknown',
+          title: pr.title || "No title",
+          repository: repository || "Unknown",
+          sourceBranch: pr.sourceRefName?.replace("refs/heads/", "") || "unknown",
+          targetBranch: pr.targetRefName?.replace("refs/heads/", "") || "unknown",
+          createdBy: pr.createdBy?.displayName || "Unknown",
           createdDate: pr.creationDate,
           idleDays,
-          url: pr._links?.web?.href || 
-               (organization && project && repository ? 
-                `${baseUrl}/${organization}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pr.pullRequestId}` : 
-                null)
+          url:
+            pr._links?.web?.href ||
+            (organization && project && repository
+              ? `${baseUrl}/${organization}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pr.pullRequestId}`
+              : null),
         };
       });
-      
+
       // Save to notification history with organizationId
       try {
-        logger.info(`📝 [NOTIFICATION] Saving idle PR notification to history for org ${organizationId}, userId: ${org.userId}`);
+        logger.info(
+          `📝 [NOTIFICATION] Saving idle PR notification to history for org ${organizationId}, userId: ${org.userId}`
+        );
         await notificationHistoryService.saveNotification(org.userId, organizationId, {
-          type: 'idle-pr',
+          type: "idle-pr",
           title: `${idlePRs.length} Idle Pull Requests`,
           message: `Found ${idlePRs.length} pull requests idle for >48 hours`,
-          source: 'poller',
-          metadata: { 
+          source: "poller",
+          metadata: {
             count: idlePRs.length,
-            pullRequests
+            pullRequests,
           },
-          channels
+          channels,
         });
-        logger.info(`✅ [NOTIFICATION] Saved idle PR notification to history for org ${organizationId}`);
+        logger.info(
+          `✅ [NOTIFICATION] Saved idle PR notification to history for org ${organizationId}`
+        );
       } catch (historyError) {
-        logger.error(`❌ [NOTIFICATION] Failed to save idle PR notification to history for org ${organizationId}:`, historyError);
+        logger.error(
+          `❌ [NOTIFICATION] Failed to save idle PR notification to history for org ${organizationId}:`,
+          historyError
+        );
       }
-      
+
       logger.info(`Idle PR notifications sent for org ${organizationId}`);
     } catch (error) {
       logger.error(`Error sending idle PR notification for org ${organizationId}:`, error);
@@ -168,32 +184,42 @@ class PullRequestPoller {
    * @deprecated REMOVED - Use pollPullRequestsForOrg() with organizationId
    */
   async pollPullRequests(userId) {
-    logger.error('DEPRECATED: pollPullRequests(userId) called - this method is no longer supported', {
-      userId,
-      action: 'poll-pull-requests',
-      status: 'rejected'
-    });
-    throw new Error('Legacy user-based polling is not supported. Use pollPullRequestsForOrg(organizationId, org) instead.');
+    logger.error(
+      "DEPRECATED: pollPullRequests(userId) called - this method is no longer supported",
+      {
+        userId,
+        action: "poll-pull-requests",
+        status: "rejected",
+      }
+    );
+    throw new Error(
+      "Legacy user-based polling is not supported. Use pollPullRequestsForOrg(organizationId, org) instead."
+    );
   }
 
   /**
    * @deprecated REMOVED - Use checkIdlePullRequestsForOrg() with organizationId
    */
   async checkIdlePullRequests(userId, client) {
-    logger.error('DEPRECATED: checkIdlePullRequests(userId) called - this method is no longer supported', {
-      userId,
-      action: 'check-idle-prs',
-      status: 'rejected'
-    });
-    throw new Error('Legacy user-based idle PR check is not supported. Use checkIdlePullRequestsForOrg(organizationId, org, client) instead.');
+    logger.error(
+      "DEPRECATED: checkIdlePullRequests(userId) called - this method is no longer supported",
+      {
+        userId,
+        action: "check-idle-prs",
+        status: "rejected",
+      }
+    );
+    throw new Error(
+      "Legacy user-based idle PR check is not supported. Use checkIdlePullRequestsForOrg(organizationId, org, client) instead."
+    );
   }
 
   cleanupProcessedPRs(organizationId) {
     if (!organizationId) {
-      logger.warn('cleanupProcessedPRs called without organizationId');
+      logger.warn("cleanupProcessedPRs called without organizationId");
       return;
     }
-    
+
     const processedPRs = this.getProcessedPRsForOrg(organizationId);
     if (processedPRs.size > 500) {
       const prsArray = Array.from(processedPRs);
@@ -208,7 +234,7 @@ class PullRequestPoller {
    */
   clearOrganizationState(organizationId) {
     if (!organizationId) return;
-    
+
     this.processedPRsByOrg.delete(organizationId);
     this.lastPollTimeByOrg.delete(organizationId);
     logger.info(`Cleared PR poller state for org ${organizationId}`);
@@ -216,26 +242,36 @@ class PullRequestPoller {
 }
 
 // Add notification formatting methods to the class (used by org-based methods)
-PullRequestPoller.prototype.formatIdlePRCard = function(pullRequests, batchNumber, totalBatches, totalCount, userConfig) {
-  const prSections = pullRequests.map(pr => {
-    const title = pr.title || 'No title';
-    const createdBy = pr.createdBy?.displayName || 'Unknown';
+PullRequestPoller.prototype.formatIdlePRCard = function (
+  pullRequests,
+  batchNumber,
+  totalBatches,
+  totalCount,
+  userConfig
+) {
+  const prSections = pullRequests.map((pr) => {
+    const title = pr.title || "No title";
+    const createdBy = pr.createdBy?.displayName || "Unknown";
     const lastActivity = pr.lastMergeCommit?.committer?.date || pr.creationDate;
-    const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
-    const repository = pr.repository?.name || 'Unknown';
-    const sourceBranch = pr.sourceRefName?.replace('refs/heads/', '') || 'unknown';
-    const targetBranch = pr.targetRefName?.replace('refs/heads/', '') || 'unknown';
-    const description = ((pr.description || 'No description').slice(0, 150)) +
-                       ((pr.description?.length ?? 0) > 150 ? '...' : '');
-    
+    const daysSinceActivity = Math.floor(
+      (Date.now() - new Date(lastActivity)) / (1000 * 60 * 60 * 24)
+    );
+    const repository = pr.repository?.name || "Unknown";
+    const sourceBranch = pr.sourceRefName?.replace("refs/heads/", "") || "unknown";
+    const targetBranch = pr.targetRefName?.replace("refs/heads/", "") || "unknown";
+    const description =
+      (pr.description || "No description").slice(0, 150) +
+      ((pr.description?.length ?? 0) > 150 ? "..." : "");
+
     // Use web URL from _links, or construct proper web UI URL
-    const baseUrl = userConfig?.baseUrl || 'https://dev.azure.com';
+    const baseUrl = userConfig?.baseUrl || "https://dev.azure.com";
     const org = userConfig?.organization;
     const project = userConfig?.project;
-    const prUrl = pr._links?.web?.href || 
-                 (org && project && repository ? 
-                  `${baseUrl}/${org}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pr.pullRequestId}` : 
-                  null);
+    const prUrl =
+      pr._links?.web?.href ||
+      (org && project && repository
+        ? `${baseUrl}/${org}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}/pullrequest/${pr.pullRequestId}`
+        : null);
 
     return {
       header: `🔀 PR #${pr.pullRequestId} - ${title}`,
@@ -244,83 +280,93 @@ PullRequestPoller.prototype.formatIdlePRCard = function(pullRequests, batchNumbe
       widgets: [
         {
           decoratedText: {
-            startIcon: { knownIcon: 'CLOCK' },
-            topLabel: 'Idle Duration',
-            text: `<b>${daysSinceActivity} days</b>`
-          }
+            startIcon: { knownIcon: "CLOCK" },
+            topLabel: "Idle Duration",
+            text: `<b>${daysSinceActivity} days</b>`,
+          },
         },
         {
           decoratedText: {
-            startIcon: { knownIcon: 'PERSON' },
-            topLabel: 'Created By',
-            text: createdBy
-          }
+            startIcon: { knownIcon: "PERSON" },
+            topLabel: "Created By",
+            text: createdBy,
+          },
         },
         {
           decoratedText: {
-            startIcon: { knownIcon: 'DESCRIPTION' },
-            topLabel: 'Repository',
-            text: repository
-          }
+            startIcon: { knownIcon: "DESCRIPTION" },
+            topLabel: "Repository",
+            text: repository,
+          },
         },
         {
           decoratedText: {
-            startIcon: { knownIcon: 'BOOKMARK' },
-            topLabel: 'Branches',
-            text: `${sourceBranch} → ${targetBranch}`
-          }
+            startIcon: { knownIcon: "BOOKMARK" },
+            topLabel: "Branches",
+            text: `${sourceBranch} → ${targetBranch}`,
+          },
         },
         {
           textParagraph: {
-            text: `<b>Description:</b> ${description}`
-          }
+            text: `<b>Description:</b> ${description}`,
+          },
         },
         {
           buttonList: {
-            buttons: [{
-              text: 'Review Pull Request',
-              icon: { knownIcon: 'OPEN_IN_NEW' },
-              onClick: { openLink: { url: prUrl } }
-            }]
-          }
-        }
-      ]
+            buttons: [
+              {
+                text: "Review Pull Request",
+                icon: { knownIcon: "OPEN_IN_NEW" },
+                onClick: { openLink: { url: prUrl } },
+              },
+            ],
+          },
+        },
+      ],
     };
   });
 
   const allSections = [
     ...prSections,
-    ...(batchNumber === totalBatches ? [{
-      widgets: [{
-        textParagraph: {
-          text: '⚠️ <b>Action Required:</b> Please review these pull requests to keep the development process moving.'
-        }
-      }]
-    }] : [])
+    ...(batchNumber === totalBatches
+      ? [
+          {
+            widgets: [
+              {
+                textParagraph: {
+                  text: "⚠️ <b>Action Required:</b> Please review these pull requests to keep the development process moving.",
+                },
+              },
+            ],
+          },
+        ]
+      : []),
   ];
 
   return {
-    cardsV2: [{
-      cardId: `idle-prs-batch-${batchNumber}`,
-      card: {
-        header: {
-          title: `⏰ Idle Pull Requests - Batch ${batchNumber}/${totalBatches}`,
-          subtitle: `${pullRequests.length} of ${totalCount} PRs inactive for more than 48 hours`,
-          imageUrl: 'https://img.icons8.com/color/96/pull-request.png',
-          imageType: 'CIRCLE'
+    cardsV2: [
+      {
+        cardId: `idle-prs-batch-${batchNumber}`,
+        card: {
+          header: {
+            title: `⏰ Idle Pull Requests - Batch ${batchNumber}/${totalBatches}`,
+            subtitle: `${pullRequests.length} of ${totalCount} PRs inactive for more than 48 hours`,
+            imageUrl: "https://img.icons8.com/color/96/pull-request.png",
+            imageType: "CIRCLE",
+          },
+          sections: allSections,
         },
-        sections: allSections
-      }
-    }]
+      },
+    ],
   };
 };
 
-PullRequestPoller.prototype.sendGoogleChatCard = async function(card, webhookUrl) {
+PullRequestPoller.prototype.sendGoogleChatCard = async function (card, webhookUrl) {
   try {
-    const axios = (await import('axios')).default;
+    const axios = (await import("axios")).default;
     await axios.post(webhookUrl, card);
   } catch (error) {
-    logger.error('Error sending Google Chat card:', error);
+    logger.error("Error sending Google Chat card:", error);
     throw error;
   }
 };

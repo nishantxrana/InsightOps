@@ -1,83 +1,85 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const notificationHistorySchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: "User",
     required: true,
-    index: true
+    index: true,
   },
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Organization',
+    ref: "Organization",
     required: true,
-    index: true
+    index: true,
   },
   type: {
     type: String,
     required: true,
-    enum: ['build', 'release', 'work-item', 'pull-request', 'overdue', 'idle-pr'],
-    index: true
+    enum: ["build", "release", "work-item", "pull-request", "overdue", "idle-pr"],
+    index: true,
   },
   subType: {
-    type: String
+    type: String,
   },
   title: {
     type: String,
-    required: true
+    required: true,
   },
   message: {
     type: String,
-    required: true
+    required: true,
   },
   source: {
     type: String,
-    enum: ['webhook', 'poller'],
-    required: true
+    enum: ["webhook", "poller"],
+    required: true,
   },
   card: {
-    type: mongoose.Schema.Types.Mixed
+    type: mongoose.Schema.Types.Mixed,
   },
   aiSummary: {
-    type: String
+    type: String,
   },
   metadata: {
-    type: mongoose.Schema.Types.Mixed
+    type: mongoose.Schema.Types.Mixed,
   },
-  channels: [{
-    platform: {
-      type: String,
-      enum: ['teams', 'slack', 'google-chat']
+  channels: [
+    {
+      platform: {
+        type: String,
+        enum: ["teams", "slack", "google-chat"],
+      },
+      status: {
+        type: String,
+        enum: ["sent", "failed"],
+      },
+      sentAt: Date,
+      error: String,
     },
-    status: {
-      type: String,
-      enum: ['sent', 'failed']
-    },
-    sentAt: Date,
-    error: String
-  }],
+  ],
   read: {
     type: Boolean,
     default: false,
-    index: true
+    index: true,
   },
   starred: {
     type: Boolean,
-    default: false
+    default: false,
   },
   archived: {
     type: Boolean,
-    default: false
+    default: false,
   },
   createdAt: {
     type: Date,
     default: Date.now,
-    index: true
+    index: true,
   },
   expiresAt: {
     type: Date,
-    default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  }
+    default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  },
 });
 
 // Compound indexes for multi-tenant queries
@@ -89,6 +91,6 @@ notificationHistorySchema.index({ userId: 1, createdAt: -1 });
 // TTL index for automatic cleanup after 7 days
 notificationHistorySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-const NotificationHistory = mongoose.model('NotificationHistory', notificationHistorySchema);
+const NotificationHistory = mongoose.model("NotificationHistory", notificationHistorySchema);
 
 export default NotificationHistory;

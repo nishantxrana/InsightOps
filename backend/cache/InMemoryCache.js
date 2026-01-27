@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger.js';
+import { logger } from "../utils/logger.js";
 
 /**
  * In-memory LRU cache with TTL support
@@ -49,10 +49,10 @@ class InMemoryCache {
 
     this.cache.set(key, {
       value,
-      expiresAt: ttl ? Date.now() + (ttl * 1000) : null,
+      expiresAt: ttl ? Date.now() + ttl * 1000 : null,
       lastAccess: Date.now(),
       accessCount: 0,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     });
   }
 
@@ -109,8 +109,8 @@ class InMemoryCache {
       maxSize: this.maxSize,
       hits: this.hits,
       misses: this.misses,
-      hitRate: total > 0 ? (this.hits / total * 100).toFixed(2) + '%' : '0%',
-      memoryUsage: this.estimateMemoryUsage()
+      hitRate: total > 0 ? ((this.hits / total) * 100).toFixed(2) + "%" : "0%",
+      memoryUsage: this.estimateMemoryUsage(),
     };
   }
 
@@ -123,7 +123,7 @@ class InMemoryCache {
       bytes += key.length * 2; // UTF-16
       bytes += JSON.stringify(item.value).length * 2;
     }
-    return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    return (bytes / 1024 / 1024).toFixed(2) + " MB";
   }
 
   /**

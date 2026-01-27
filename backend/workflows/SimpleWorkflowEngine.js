@@ -1,7 +1,7 @@
-import { v4 as uuid } from 'uuid';
-import mongoose from 'mongoose';
-import { logger } from '../utils/logger.js';
-import { agentRegistry } from '../agents/AgentRegistry.js';
+import { v4 as uuid } from "uuid";
+import mongoose from "mongoose";
+import { logger } from "../utils/logger.js";
+import { agentRegistry } from "../agents/AgentRegistry.js";
 
 /**
  * Simple workflow engine for autonomous multi-step tasks
@@ -18,16 +18,16 @@ class SimpleWorkflowEngine {
    */
   register(workflow) {
     if (!workflow.id || !workflow.steps) {
-      throw new Error('Workflow must have id and steps');
+      throw new Error("Workflow must have id and steps");
     }
 
     this.workflows.set(workflow.id, {
       ...workflow,
-      registeredAt: new Date()
+      registeredAt: new Date(),
     });
 
     logger.info(`Workflow registered: ${workflow.id}`, {
-      steps: workflow.steps.length
+      steps: workflow.steps.length,
     });
   }
 
@@ -44,11 +44,11 @@ class SimpleWorkflowEngine {
     const execution = {
       id: executionId,
       workflowId,
-      status: 'running',
+      status: "running",
       startTime: new Date(),
       steps: [],
       context: { ...context },
-      outputs: {}
+      outputs: {},
     };
 
     this.activeExecutions.set(executionId, execution);
@@ -56,7 +56,7 @@ class SimpleWorkflowEngine {
     try {
       logger.info(`Workflow execution started`, {
         executionId,
-        workflowId
+        workflowId,
       });
 
       // Save initial state
@@ -75,10 +75,10 @@ class SimpleWorkflowEngine {
 
         execution.steps.push({
           id: step.id,
-          status: stepResult.success ? 'completed' : 'failed',
+          status: stepResult.success ? "completed" : "failed",
           result: stepResult.result,
           error: stepResult.error,
-          timestamp: new Date()
+          timestamp: new Date(),
         });
 
         // Store output
@@ -95,25 +95,24 @@ class SimpleWorkflowEngine {
         }
       }
 
-      execution.status = 'completed';
+      execution.status = "completed";
       execution.endTime = new Date();
       execution.duration = execution.endTime - execution.startTime;
 
       logger.info(`Workflow execution completed`, {
         executionId,
         workflowId,
-        duration: execution.duration
+        duration: execution.duration,
       });
-
     } catch (error) {
-      execution.status = 'failed';
+      execution.status = "failed";
       execution.error = error.message;
       execution.endTime = new Date();
 
       logger.error(`Workflow execution failed`, {
         executionId,
         workflowId,
-        error: error.message
+        error: error.message,
       });
     } finally {
       await this.saveExecution(execution);
@@ -129,7 +128,7 @@ class SimpleWorkflowEngine {
   async executeStep(step, execution) {
     logger.debug(`Executing step: ${step.id}`, {
       agent: step.agent,
-      action: step.action
+      action: step.action,
     });
 
     try {
@@ -147,14 +146,13 @@ class SimpleWorkflowEngine {
 
       return {
         success: true,
-        result
+        result,
       };
-
     } catch (error) {
       logger.error(`Step ${step.id} failed:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -164,14 +162,14 @@ class SimpleWorkflowEngine {
    */
   resolveInput(input, outputs, context) {
     if (!input) return {};
-    if (typeof input !== 'string') return input;
+    if (typeof input !== "string") return input;
 
     // Replace ${variable} with actual values
     let resolved = input;
     const matches = input.match(/\$\{([^}]+)\}/g);
 
     if (matches) {
-      matches.forEach(match => {
+      matches.forEach((match) => {
         const varName = match.slice(2, -1); // Remove ${ and }
         const value = outputs[varName] || context[varName] || match;
         resolved = resolved.replace(match, JSON.stringify(value));
@@ -195,9 +193,9 @@ class SimpleWorkflowEngine {
       // Simple condition evaluation
       // Format: ${variable} == "value" or ${variable} > 5
       const resolved = this.resolveInput(condition, outputs, {});
-      
+
       // For now, just check if resolved value is truthy
-      return !!resolved && resolved !== 'false';
+      return !!resolved && resolved !== "false";
     } catch {
       return false;
     }
@@ -208,14 +206,10 @@ class SimpleWorkflowEngine {
    */
   async saveExecution(execution) {
     try {
-      const WorkflowExecution = mongoose.model('WorkflowExecution');
-      await WorkflowExecution.findOneAndUpdate(
-        { id: execution.id },
-        execution,
-        { upsert: true }
-      );
+      const WorkflowExecution = mongoose.model("WorkflowExecution");
+      await WorkflowExecution.findOneAndUpdate({ id: execution.id }, execution, { upsert: true });
     } catch (error) {
-      logger.error('Failed to save execution:', error);
+      logger.error("Failed to save execution:", error);
     }
   }
 
@@ -224,14 +218,14 @@ class SimpleWorkflowEngine {
    */
   async resume(executionId) {
     try {
-      const WorkflowExecution = mongoose.model('WorkflowExecution');
+      const WorkflowExecution = mongoose.model("WorkflowExecution");
       const execution = await WorkflowExecution.findOne({ id: executionId });
 
       if (!execution) {
         throw new Error(`Execution ${executionId} not found`);
       }
 
-      if (execution.status !== 'running') {
+      if (execution.status !== "running") {
         throw new Error(`Execution ${executionId} is not running`);
       }
 
@@ -246,7 +240,7 @@ class SimpleWorkflowEngine {
 
       logger.info(`Resuming execution from step ${lastStepIndex}`, {
         executionId,
-        remainingSteps: remainingSteps.length
+        remainingSteps: remainingSteps.length,
       });
 
       // Continue execution
@@ -254,12 +248,12 @@ class SimpleWorkflowEngine {
 
       for (const step of remainingSteps) {
         const stepResult = await this.executeStep(step, execution);
-        
+
         execution.steps.push({
           id: step.id,
-          status: stepResult.success ? 'completed' : 'failed',
+          status: stepResult.success ? "completed" : "failed",
           result: stepResult.result,
-          timestamp: new Date()
+          timestamp: new Date(),
         });
 
         if (step.output) {
@@ -273,16 +267,15 @@ class SimpleWorkflowEngine {
         }
       }
 
-      execution.status = 'completed';
+      execution.status = "completed";
       execution.endTime = new Date();
       await this.saveExecution(execution);
 
       this.activeExecutions.delete(executionId);
 
       return execution;
-
     } catch (error) {
-      logger.error('Failed to resume execution:', error);
+      logger.error("Failed to resume execution:", error);
       throw error;
     }
   }
@@ -292,10 +285,10 @@ class SimpleWorkflowEngine {
    */
   async getExecution(executionId) {
     try {
-      const WorkflowExecution = mongoose.model('WorkflowExecution');
+      const WorkflowExecution = mongoose.model("WorkflowExecution");
       return await WorkflowExecution.findOne({ id: executionId });
     } catch (error) {
-      logger.error('Failed to get execution:', error);
+      logger.error("Failed to get execution:", error);
       return null;
     }
   }
@@ -305,15 +298,12 @@ class SimpleWorkflowEngine {
    */
   async listExecutions(workflowId = null, limit = 10) {
     try {
-      const WorkflowExecution = mongoose.model('WorkflowExecution');
+      const WorkflowExecution = mongoose.model("WorkflowExecution");
       const query = workflowId ? { workflowId } : {};
-      
-      return await WorkflowExecution
-        .find(query)
-        .sort({ startTime: -1 })
-        .limit(limit);
+
+      return await WorkflowExecution.find(query).sort({ startTime: -1 }).limit(limit);
     } catch (error) {
-      logger.error('Failed to list executions:', error);
+      logger.error("Failed to list executions:", error);
       return [];
     }
   }
@@ -325,7 +315,7 @@ class SimpleWorkflowEngine {
     return {
       registeredWorkflows: this.workflows.size,
       activeExecutions: this.activeExecutions.size,
-      workflows: Array.from(this.workflows.keys())
+      workflows: Array.from(this.workflows.keys()),
     };
   }
 }

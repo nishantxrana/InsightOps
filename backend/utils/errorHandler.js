@@ -1,8 +1,11 @@
-import { logger, getRequestContext, logConfig } from './logger.js';
+import { logger, getRequestContext, logConfig } from "./logger.js";
 
 export const errorHandler = (err, req, res, next) => {
   // Skip error handling for static assets - let Express handle them
-  if (req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+  if (
+    req.path.startsWith("/assets/") ||
+    req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)
+  ) {
     return next(err);
   }
 
@@ -10,45 +13,45 @@ export const errorHandler = (err, req, res, next) => {
 
   // Log the error with full context
   // Stack traces included in dev/staging (verbose mode)
-  logger.error('Unhandled error', {
-    component: 'error-handler',
+  logger.error("Unhandled error", {
+    component: "error-handler",
     ...context,
     error: err.message,
     errorName: err.name,
     stack: logConfig.verboseMode ? err.stack : undefined,
-    status: 'failure',
+    status: "failure",
     ip: req.ip,
-    userAgent: req.get('User-Agent')
+    userAgent: req.get("User-Agent"),
   });
 
   // Show error details in dev/staging, hide in production
   const showDetails = logConfig.verboseMode;
-  
+
   // Default error response
   let statusCode = 500;
-  let message = 'Internal Server Error';
+  let message = "Internal Server Error";
   let details = null;
 
   // Handle specific error types
-  if (err.name === 'ValidationError') {
+  if (err.name === "ValidationError") {
     statusCode = 400;
-    message = 'Validation Error';
+    message = "Validation Error";
     details = showDetails ? err.details : null;
-  } else if (err.name === 'UnauthorizedError') {
+  } else if (err.name === "UnauthorizedError") {
     statusCode = 401;
-    message = 'Unauthorized';
-  } else if (err.name === 'ForbiddenError') {
+    message = "Unauthorized";
+  } else if (err.name === "ForbiddenError") {
     statusCode = 403;
-    message = 'Forbidden';
-  } else if (err.name === 'NotFoundError') {
+    message = "Forbidden";
+  } else if (err.name === "NotFoundError") {
     statusCode = 404;
-    message = 'Not Found';
-  } else if (err.name === 'ConflictError') {
+    message = "Not Found";
+  } else if (err.name === "ConflictError") {
     statusCode = 409;
-    message = 'Conflict';
-  } else if (err.name === 'TooManyRequestsError') {
+    message = "Conflict";
+  } else if (err.name === "TooManyRequestsError") {
     statusCode = 429;
-    message = 'Too Many Requests';
+    message = "Too Many Requests";
   }
 
   // Send error response
@@ -58,8 +61,8 @@ export const errorHandler = (err, req, res, next) => {
       ...(details && { details }),
       ...(showDetails && { stack: err.stack }),
       timestamp: new Date().toISOString(),
-      requestId: req.id || 'unknown'
-    }
+      requestId: req.id || "unknown",
+    },
   });
 };
 
@@ -67,42 +70,42 @@ export const errorHandler = (err, req, res, next) => {
 export class ValidationError extends Error {
   constructor(message, details = null) {
     super(message);
-    this.name = 'ValidationError';
+    this.name = "ValidationError";
     this.details = details;
   }
 }
 
 export class UnauthorizedError extends Error {
-  constructor(message = 'Unauthorized') {
+  constructor(message = "Unauthorized") {
     super(message);
-    this.name = 'UnauthorizedError';
+    this.name = "UnauthorizedError";
   }
 }
 
 export class ForbiddenError extends Error {
-  constructor(message = 'Forbidden') {
+  constructor(message = "Forbidden") {
     super(message);
-    this.name = 'ForbiddenError';
+    this.name = "ForbiddenError";
   }
 }
 
 export class NotFoundError extends Error {
-  constructor(message = 'Not Found') {
+  constructor(message = "Not Found") {
     super(message);
-    this.name = 'NotFoundError';
+    this.name = "NotFoundError";
   }
 }
 
 export class ConflictError extends Error {
-  constructor(message = 'Conflict') {
+  constructor(message = "Conflict") {
     super(message);
-    this.name = 'ConflictError';
+    this.name = "ConflictError";
   }
 }
 
 export class TooManyRequestsError extends Error {
-  constructor(message = 'Too Many Requests') {
+  constructor(message = "Too Many Requests") {
     super(message);
-    this.name = 'TooManyRequestsError';
+    this.name = "TooManyRequestsError";
   }
 }

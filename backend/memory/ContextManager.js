@@ -1,5 +1,5 @@
-import { logger } from '../utils/logger.js';
-import { mongoVectorStore } from './MongoVectorStore.js';
+import { logger } from "../utils/logger.js";
+import { mongoVectorStore } from "./MongoVectorStore.js";
 
 /**
  * Context Manager - Builds context for AI queries from memories
@@ -20,7 +20,7 @@ class ContextManager {
       maxMemories = 5,
       includeMetadata = true,
       filterType = null,
-      organizationId = null
+      organizationId = null,
     } = options;
 
     // Get organizationId from options, task, or task.data
@@ -28,34 +28,38 @@ class ContextManager {
 
     try {
       // Get relevant memories (scoped to organization)
-      const memories = await this.retrieveRelevant(task.description || task.data, maxMemories, orgId);
+      const memories = await this.retrieveRelevant(
+        task.description || task.data,
+        maxMemories,
+        orgId
+      );
 
       // Filter by type if specified
       const filtered = filterType
-        ? memories.filter(m => m.metadata?.type === filterType)
+        ? memories.filter((m) => m.metadata?.type === filterType)
         : memories;
 
       // Build context string
       const context = this.formatContext(filtered, includeMetadata);
 
-      logger.debug('Context built', {
+      logger.debug("Context built", {
         taskType: task.type,
         organizationId: orgId,
         memoriesFound: filtered.length,
-        contextLength: context.length
+        contextLength: context.length,
       });
 
       return {
         context,
         memories: filtered,
-        count: filtered.length
+        count: filtered.length,
       };
     } catch (error) {
-      logger.error('Failed to build context:', error);
+      logger.error("Failed to build context:", error);
       return {
-        context: '',
+        context: "",
         memories: [],
-        count: 0
+        count: 0,
       };
     }
   }
@@ -71,7 +75,7 @@ class ContextManager {
       const results = await mongoVectorStore.searchSimilar(query, organizationId, limit);
       return results;
     } catch (error) {
-      logger.error('Failed to retrieve memories:', error);
+      logger.error("Failed to retrieve memories:", error);
       return [];
     }
   }
@@ -81,29 +85,32 @@ class ContextManager {
    */
   formatContext(memories, includeMetadata = true) {
     if (memories.length === 0) {
-      return '';
+      return "";
     }
 
-    const formatted = memories.map((memory, index) => {
-      let text = `[Memory ${index + 1}]`;
-      
-      if (includeMetadata && memory.metadata) {
-        const meta = [];
-        if (memory.metadata.type) meta.push(`Type: ${memory.metadata.type}`);
-        if (memory.metadata.timestamp) meta.push(`Date: ${new Date(memory.metadata.timestamp).toLocaleDateString()}`);
-        if (meta.length > 0) {
-          text += ` (${meta.join(', ')})`;
+    const formatted = memories
+      .map((memory, index) => {
+        let text = `[Memory ${index + 1}]`;
+
+        if (includeMetadata && memory.metadata) {
+          const meta = [];
+          if (memory.metadata.type) meta.push(`Type: ${memory.metadata.type}`);
+          if (memory.metadata.timestamp)
+            meta.push(`Date: ${new Date(memory.metadata.timestamp).toLocaleDateString()}`);
+          if (meta.length > 0) {
+            text += ` (${meta.join(", ")})`;
+          }
         }
-      }
 
-      text += `\n${memory.content}`;
-      
-      if (memory.score) {
-        text += `\n(Relevance: ${(memory.score * 100).toFixed(0)}%)`;
-      }
+        text += `\n${memory.content}`;
 
-      return text;
-    }).join('\n\n');
+        if (memory.score) {
+          text += `\n(Relevance: ${(memory.score * 100).toFixed(0)}%)`;
+        }
+
+        return text;
+      })
+      .join("\n\n");
 
     return `Previous relevant experiences:\n\n${formatted}`;
   }
@@ -118,11 +125,11 @@ class ContextManager {
     try {
       const memory = await mongoVectorStore.store(content, metadata, organizationId);
       if (memory) {
-        logger.debug('Memory stored', { id: memory._id, organizationId });
+        logger.debug("Memory stored", { id: memory._id, organizationId });
       }
       return memory;
     } catch (error) {
-      logger.error('Failed to store memory:', error);
+      logger.error("Failed to store memory:", error);
       return null;
     }
   }
@@ -136,13 +143,13 @@ class ContextManager {
   async storeTaskOutcome(task, result, organizationId = null) {
     // Get organizationId from parameter, task, or task.data
     const orgId = organizationId || task.organizationId || task.data?.organizationId || null;
-    
+
     const content = this.formatTaskOutcome(task, result);
     const metadata = {
       type: task.type,
       category: task.category,
       success: result.success,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     return await this.storeMemory(content, metadata, orgId);
@@ -153,8 +160,8 @@ class ContextManager {
    */
   formatTaskOutcome(task, result) {
     let content = `Task: ${task.type}\n`;
-    content += `Description: ${task.description || 'N/A'}\n`;
-    
+    content += `Description: ${task.description || "N/A"}\n`;
+
     if (result.success) {
       content += `Outcome: Success\n`;
       if (result.result?.solution) {

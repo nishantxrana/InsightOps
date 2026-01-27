@@ -1,6 +1,6 @@
-import { config } from 'dotenv';
-import { z } from 'zod';
-import { logger } from '../utils/logger.js';
+import { config } from "dotenv";
+import { z } from "zod";
+import { logger } from "../utils/logger.js";
 
 // Load environment variables first
 config();
@@ -8,15 +8,15 @@ config();
 // Comprehensive environment validation schema
 const envSchema = z.object({
   // Application Environment
-  NODE_ENV: z.enum(['development', 'staging', 'production', 'test']).default('development'),
-  PORT: z.string().regex(/^\d+$/).transform(Number).default('3001'),
-  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  NODE_ENV: z.enum(["development", "staging", "production", "test"]).default("development"),
+  PORT: z.string().regex(/^\d+$/).transform(Number).default("3001"),
+  LOG_LEVEL: z.enum(["error", "warn", "info", "debug"]).default("info"),
 
   // Database Configuration (Required)
-  MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
+  MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
 
   // Security Configuration (Required)
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
+  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters long"),
   ENCRYPTION_KEY: z.string().optional(), // Used for encrypting user settings
 
   // Frontend Configuration
@@ -27,31 +27,34 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   GROQ_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
-  AI_MODEL: z.string().default('gemini-2.0-flash'),
-  AI_PROVIDER: z.enum(['openai', 'groq', 'gemini']).default('gemini'),
+  AI_MODEL: z.string().default("gemini-2.0-flash"),
+  AI_PROVIDER: z.enum(["openai", "groq", "gemini"]).default("gemini"),
 
   // Azure DevOps (Optional - can be configured per user)
   AZURE_DEVOPS_ORG: z.string().optional(),
   AZURE_DEVOPS_PROJECT: z.string().optional(),
   AZURE_DEVOPS_PAT: z.string().optional(),
-  AZURE_DEVOPS_BASE_URL: z.string().url().default('https://dev.azure.com'),
+  AZURE_DEVOPS_BASE_URL: z.string().url().default("https://dev.azure.com"),
 
   // Notification Services (Optional)
   TEAMS_WEBHOOK_URL: z.string().url().optional(),
   SLACK_WEBHOOK_URL: z.string().url().optional(),
   GOOGLE_CHAT_WEBHOOK_URL: z.string().url().optional(),
-  NOTIFICATIONS_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  NOTIFICATIONS_ENABLED: z
+    .string()
+    .transform((val) => val === "true")
+    .default("false"),
 
   // Rate Limiting Configuration
-  RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).transform(Number).default('300000'), // 5 minutes
-  RATE_LIMIT_MAX: z.string().regex(/^\d+$/).transform(Number).default('500'), // 500 requests per 5 min
-  RATE_LIMIT_AUTH_MAX: z.string().regex(/^\d+$/).transform(Number).default('10'), // 10 auth attempts per 5 min
-  RATE_LIMIT_AI_MAX: z.string().regex(/^\d+$/).transform(Number).default('100'), // 100 AI requests per 5 min
+  RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).transform(Number).default("300000"), // 5 minutes
+  RATE_LIMIT_MAX: z.string().regex(/^\d+$/).transform(Number).default("500"), // 500 requests per 5 min
+  RATE_LIMIT_AUTH_MAX: z.string().regex(/^\d+$/).transform(Number).default("10"), // 10 auth attempts per 5 min
+  RATE_LIMIT_AI_MAX: z.string().regex(/^\d+$/).transform(Number).default("100"), // 100 AI requests per 5 min
 
   // Database Connection Pool
-  DB_MIN_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default('5'),
-  DB_MAX_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default('20'),
-  DB_CONNECTION_TIMEOUT: z.string().regex(/^\d+$/).transform(Number).default('30000'),
+  DB_MIN_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default("5"),
+  DB_MAX_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default("20"),
+  DB_CONNECTION_TIMEOUT: z.string().regex(/^\d+$/).transform(Number).default("30000"),
 
   // Webhook Configuration (Optional)
   WEBHOOK_SECRET: z.string().optional(),
@@ -107,46 +110,46 @@ let validatedEnv;
 try {
   // Parse and validate environment variables
   validatedEnv = envSchema.parse(process.env);
-  
+
   // Additional validation logic
-  const hasAIProvider = validatedEnv.OPENAI_API_KEY || 
-                        validatedEnv.GROQ_API_KEY || 
-                        validatedEnv.GEMINI_API_KEY;
-  
+  const hasAIProvider =
+    validatedEnv.OPENAI_API_KEY || validatedEnv.GROQ_API_KEY || validatedEnv.GEMINI_API_KEY;
+
   if (!hasAIProvider) {
-    logger.warn('⚠️  No AI provider configured. Users must configure AI settings in the application.');
+    logger.warn(
+      "⚠️  No AI provider configured. Users must configure AI settings in the application."
+    );
   }
 
   // Validate production-specific requirements (warnings only, no crashes)
-  if (validatedEnv.NODE_ENV === 'production') {
+  if (validatedEnv.NODE_ENV === "production") {
     if (!validatedEnv.FRONTEND_URL && !validatedEnv.ALLOWED_ORIGINS) {
-      logger.warn('⚠️  FRONTEND_URL or ALLOWED_ORIGINS not set. CORS may not work properly.');
+      logger.warn("⚠️  FRONTEND_URL or ALLOWED_ORIGINS not set. CORS may not work properly.");
     }
-    
+
     if (validatedEnv.JWT_SECRET.length < 64) {
-      logger.warn('⚠️  JWT_SECRET should be at least 64 characters in production');
+      logger.warn("⚠️  JWT_SECRET should be at least 64 characters in production");
     }
-    
-    logger.info('🚀 Production environment detected');
+
+    logger.info("🚀 Production environment detected");
   }
 
   // Log successful validation
-  logger.info('✅ Environment validation successful', {
+  logger.info("✅ Environment validation successful", {
     nodeEnv: validatedEnv.NODE_ENV,
     port: validatedEnv.PORT,
     logLevel: validatedEnv.LOG_LEVEL,
     hasAI: hasAIProvider,
-    aiProvider: validatedEnv.AI_PROVIDER
+    aiProvider: validatedEnv.AI_PROVIDER,
   });
-  
 } catch (error) {
   if (error instanceof z.ZodError) {
-    logger.error('❌ Environment validation failed:');
-    error.errors.forEach(err => {
-      logger.error(`  - ${err.path.join('.')}: ${err.message}`);
+    logger.error("❌ Environment validation failed:");
+    error.errors.forEach((err) => {
+      logger.error(`  - ${err.path.join(".")}: ${err.message}`);
     });
   } else {
-    logger.error('❌ Environment validation error:', error.message);
+    logger.error("❌ Environment validation error:", error.message);
   }
   process.exit(1);
 }
@@ -155,31 +158,31 @@ try {
 export const env = validatedEnv;
 
 // Export helper functions
-export const isProduction = () => env.NODE_ENV === 'production';
-export const isDevelopment = () => env.NODE_ENV === 'development';
-export const isTest = () => env.NODE_ENV === 'test';
-export const isStaging = () => env.NODE_ENV === 'staging';
+export const isProduction = () => env.NODE_ENV === "production";
+export const isDevelopment = () => env.NODE_ENV === "development";
+export const isTest = () => env.NODE_ENV === "test";
+export const isStaging = () => env.NODE_ENV === "staging";
 
 // Export configuration objects (only used ones)
 export const database = {
   uri: env.MONGODB_URI,
   minPoolSize: env.DB_MIN_POOL_SIZE,
   maxPoolSize: env.DB_MAX_POOL_SIZE,
-  connectionTimeout: env.DB_CONNECTION_TIMEOUT
+  connectionTimeout: env.DB_CONNECTION_TIMEOUT,
 };
 
 export const security = {
   jwtSecret: env.JWT_SECRET,
   encryptionKey: env.ENCRYPTION_KEY,
   webhookSecret: env.WEBHOOK_SECRET,
-  apiToken: env.API_TOKEN
+  apiToken: env.API_TOKEN,
 };
 
 export const rateLimits = {
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX,
   authMax: env.RATE_LIMIT_AUTH_MAX,
-  aiMax: env.RATE_LIMIT_AI_MAX
+  aiMax: env.RATE_LIMIT_AI_MAX,
 };
 
 export const ai = {
@@ -188,13 +191,13 @@ export const ai = {
   apiKeys: {
     openai: env.OPENAI_API_KEY,
     groq: env.GROQ_API_KEY,
-    gemini: env.GEMINI_API_KEY
-  }
+    gemini: env.GEMINI_API_KEY,
+  },
 };
 
 export const notifications = {
   enabled: env.NOTIFICATIONS_ENABLED,
   teams: env.TEAMS_WEBHOOK_URL,
   slack: env.SLACK_WEBHOOK_URL,
-  googleChat: env.GOOGLE_CHAT_WEBHOOK_URL
+  googleChat: env.GOOGLE_CHAT_WEBHOOK_URL,
 };

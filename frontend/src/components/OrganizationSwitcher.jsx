@@ -13,8 +13,7 @@ import {
 import { Button } from "./ui/button";
 
 export default function OrganizationSwitcher() {
-  const { organizations, currentOrganization, switchOrganization, loading } =
-    useOrganization();
+  const { organizations, currentOrganization, switchOrganization, loading } = useOrganization();
   const navigate = useNavigate();
 
   if (loading) {
@@ -28,12 +27,7 @@ export default function OrganizationSwitcher() {
 
   if (!currentOrganization) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-2"
-        onClick={() => navigate("/settings")}
-      >
+      <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate("/settings")}>
         <Plus className="h-4 w-4" />
         <span className="hidden sm:inline">Add Organization</span>
       </Button>
@@ -45,9 +39,7 @@ export default function OrganizationSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-2 max-w-[200px]">
           <Building2 className="h-4 w-4 shrink-0" />
-          <span className="truncate hidden sm:inline">
-            {currentOrganization.name}
-          </span>
+          <span className="truncate hidden sm:inline">{currentOrganization.name}</span>
           <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
@@ -70,18 +62,13 @@ export default function OrganizationSwitcher() {
                 {org.azureDevOps?.organization}/{org.azureDevOps?.project}
               </div>
             </div>
-            {currentOrganization._id === org._id && (
-              <Check className="h-4 w-4 text-primary" />
-            )}
+            {currentOrganization._id === org._id && <Check className="h-4 w-4 text-primary" />}
           </DropdownMenuItem>
         ))}
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem
-          onClick={() => navigate("/settings")}
-          className="gap-2 cursor-pointer"
-        >
+        <DropdownMenuItem onClick={() => navigate("/settings")} className="gap-2 cursor-pointer">
           <Settings className="h-4 w-4" />
           <span>Manage Organizations</span>
         </DropdownMenuItem>

@@ -37,11 +37,11 @@ export default function Pipelines() {
     failed: 0,
     inProgress: 0,
   });
-  
+
   // Filter states
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState("all");
   const [buildLimit, setBuildLimit] = useState(20);
-  const [repositoryFilter, setRepositoryFilter] = useState('all');
+  const [repositoryFilter, setRepositoryFilter] = useState("all");
   const [repositories, setRepositories] = useState([]);
   const { checkConnection } = useHealth();
 
@@ -49,12 +49,12 @@ export default function Pipelines() {
   useEffect(() => {
     let filtered = builds;
 
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(build => {
-        if (statusFilter === 'succeeded') return build.result === 'succeeded';
-        if (statusFilter === 'failed') return build.result === 'failed';
-        if (statusFilter === 'inProgress') return build.status === 'inProgress';
-        if (statusFilter === 'canceled') return build.result === 'canceled';
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((build) => {
+        if (statusFilter === "succeeded") return build.result === "succeeded";
+        if (statusFilter === "failed") return build.result === "failed";
+        if (statusFilter === "inProgress") return build.status === "inProgress";
+        if (statusFilter === "canceled") return build.result === "canceled";
         return true;
       });
     }
@@ -62,16 +62,16 @@ export default function Pipelines() {
     // Sort by operational priority: in-progress first, then failures, then others
     const sorted = [...filtered].sort((a, b) => {
       const getPriority = (build) => {
-        if (build.status === 'inProgress') return 0; // In-progress first
-        if (build.result === 'failed') return 1; // Failures second
-        if (build.result === 'partiallySucceeded') return 2;
-        if (build.result === 'canceled') return 3;
+        if (build.status === "inProgress") return 0; // In-progress first
+        if (build.result === "failed") return 1; // Failures second
+        if (build.result === "partiallySucceeded") return 2;
+        if (build.result === "canceled") return 3;
         return 4; // Succeeded last
       };
-      
+
       const priorityDiff = getPriority(a) - getPriority(b);
       if (priorityDiff !== 0) return priorityDiff;
-      
+
       // Within same priority, sort by time (most recent first)
       return new Date(b.startTime || 0) - new Date(a.startTime || 0);
     });
@@ -98,9 +98,13 @@ export default function Pipelines() {
       setBuilds(buildsList);
 
       // Extract unique repositories for filter dropdown
-      const uniqueRepos = [...new Set(buildsList.map(build => 
-        build.repository?.name || build.definition?.name || 'Unknown'
-      ))].filter(Boolean).sort();
+      const uniqueRepos = [
+        ...new Set(
+          buildsList.map((build) => build.repository?.name || build.definition?.name || "Unknown")
+        ),
+      ]
+        .filter(Boolean)
+        .sort();
       setRepositories(uniqueRepos);
 
       // Calculate stats
@@ -114,7 +118,9 @@ export default function Pipelines() {
       setLoading(false);
       setInitialLoad(false);
     } catch (err) {
-      setError(err.userMessage || "Failed to load pipelines. Please check your Azure DevOps configuration.");
+      setError(
+        err.userMessage || "Failed to load pipelines. Please check your Azure DevOps configuration."
+      );
       setLoading(false);
       // Don't set initialLoad to false on error so error page shows
     }
@@ -264,12 +270,10 @@ export default function Pipelines() {
         <div className="flex justify-between items-start">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-                Pipelines
-              </h1>
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">Pipelines</h1>
               {/* Quick health indicator - neutral bg, colored text/icon */}
-              {!loading && (
-                stats.failed > 0 ? (
+              {!loading &&
+                (stats.failed > 0 ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
                     <XCircle className="h-3 w-3 text-red-500" />
                     <span className="text-red-600 dark:text-red-400">{stats.failed} failed</span>
@@ -277,19 +281,20 @@ export default function Pipelines() {
                 ) : stats.inProgress > 0 ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
                     <Building className="h-3 w-3 text-blue-500" />
-                    <span className="text-blue-600 dark:text-blue-400">{stats.inProgress} running</span>
+                    <span className="text-blue-600 dark:text-blue-400">
+                      {stats.inProgress} running
+                    </span>
                   </span>
                 ) : stats.total > 0 ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
                     All passing
                   </span>
-                ) : null
-              )}
+                ) : null)}
             </div>
             <p className="text-muted-foreground text-sm mt-0.5">
-              {!loading && stats.failed > 0 
-                ? `${stats.failed} build${stats.failed > 1 ? 's' : ''} need attention`
-                : 'Recent build and deployment status'}
+              {!loading && stats.failed > 0
+                ? `${stats.failed} build${stats.failed > 1 ? "s" : ""} need attention`
+                : "Recent build and deployment status"}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -342,55 +347,71 @@ export default function Pipelines() {
               </span>
             </div>
             <div className="mb-3">
-              <div className="text-2xl font-bold text-foreground mb-0.5">
-                {stats.succeeded}
-              </div>
+              <div className="text-2xl font-bold text-foreground mb-0.5">{stats.succeeded}</div>
               <div className="text-sm text-muted-foreground">Succeeded</div>
             </div>
             <div className="text-xs text-muted-foreground">
-              {stats.total > 0 ? `${Math.round((stats.succeeded / stats.total) * 100)}% of ${stats.total} builds` : 'No builds'}
+              {stats.total > 0
+                ? `${Math.round((stats.succeeded / stats.total) * 100)}% of ${stats.total} builds`
+                : "No builds"}
             </div>
           </div>
 
           {/* Failed Card - neutral with colored icon/text only */}
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <XCircle className={`h-5 w-5 ${stats.failed > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                stats.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
-              }`}>
-                {stats.failed > 0 ? `${stats.failed} failed` : 'Healthy'}
+              <XCircle
+                className={`h-5 w-5 ${stats.failed > 0 ? "text-red-500" : "text-muted-foreground"}`}
+              />
+              <span
+                className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                  stats.failed > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+                }`}
+              >
+                {stats.failed > 0 ? `${stats.failed} failed` : "Healthy"}
               </span>
             </div>
             <div className="mb-3">
-              <div className={`text-2xl font-bold mb-0.5 ${stats.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+              <div
+                className={`text-2xl font-bold mb-0.5 ${stats.failed > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}
+              >
                 {stats.failed}
               </div>
               <div className="text-sm text-muted-foreground">Failed Builds</div>
             </div>
-            <div className={`text-xs ${stats.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
-              {stats.failed > 0 ? 'Check logs for failures' : 'All builds passing'}
+            <div
+              className={`text-xs ${stats.failed > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
+            >
+              {stats.failed > 0 ? "Check logs for failures" : "All builds passing"}
             </div>
           </div>
 
           {/* In Progress Card - neutral */}
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <Building className={`h-5 w-5 ${stats.inProgress > 0 ? 'text-blue-500' : 'text-muted-foreground'}`} />
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
-              }`}>
-                {stats.inProgress > 0 ? 'Running' : 'Idle'}
+              <Building
+                className={`h-5 w-5 ${stats.inProgress > 0 ? "text-blue-500" : "text-muted-foreground"}`}
+              />
+              <span
+                className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                  stats.inProgress > 0
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {stats.inProgress > 0 ? "Running" : "Idle"}
               </span>
             </div>
             <div className="mb-3">
-              <div className={`text-2xl font-bold mb-0.5 ${stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>
+              <div
+                className={`text-2xl font-bold mb-0.5 ${stats.inProgress > 0 ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}
+              >
                 {stats.inProgress}
               </div>
               <div className="text-sm text-muted-foreground">In Progress</div>
             </div>
             <div className="text-xs text-muted-foreground">
-              {stats.inProgress > 0 ? 'Builds running now' : 'No active builds'}
+              {stats.inProgress > 0 ? "Builds running now" : "No active builds"}
             </div>
           </div>
         </div>
@@ -441,163 +462,174 @@ export default function Pipelines() {
           className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
           style={{ animationDelay: "0.2s" }}
         >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Building className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            <h3 className="text-xl font-semibold text-foreground">
-              Recent Builds
-            </h3>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterDropdown
-              options={[
-                { value: 10, label: '10 builds' },
-                { value: 20, label: '20 builds' },
-                { value: 30, label: '30 builds' },
-                { value: 40, label: '40 builds' },
-                { value: 50, label: '50 builds' }
-              ]}
-              value={buildLimit}
-              onChange={setBuildLimit}
-              icon={Building}
-              placeholder="20 builds"
-              minWidth="100px"
-            />
-            <FilterDropdown
-              options={[
-                { value: 'all', label: 'All Repositories' },
-                ...repositories.map(repo => ({ value: repo, label: repo }))
-              ]}
-              value={repositoryFilter}
-              onChange={setRepositoryFilter}
-              icon={GitBranch}
-              placeholder="All Repositories"
-              minWidth="150px"
-            />
-            <FilterDropdown
-              options={[
-                { value: 'all', label: 'All Status' },
-                { value: 'succeeded', label: 'Succeeded' },
-                { value: 'failed', label: 'Failed' },
-                { value: 'inProgress', label: 'In Progress' },
-                { value: 'canceled', label: 'Canceled' }
-              ]}
-              value={statusFilter}
-              onChange={setStatusFilter}
-              icon={Filter}
-              placeholder="All Status"
-              minWidth="120px"
-            />
-
-            {/* Quick filter for failures */}
-            {stats.failed > 0 && statusFilter !== 'failed' && (
-              <button
-                onClick={() => setStatusFilter('failed')}
-                className="text-xs text-red-600 dark:text-red-400 hover:bg-muted px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 bg-muted"
-                title="Show only failed builds"
-              >
-                <XCircle className="w-3 h-3" />
-                Show failures
-              </button>
-            )}
-            
-            <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-              {filteredBuilds.length} builds
-            </span>
-          </div>
-        </div>
-
-        <ScrollArea className="h-[45vh] border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
-          {filteredBuilds.length > 0 ? (
-            <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-              {filteredBuilds.map((build) => {
-                const isFailed = build.result === 'failed';
-                const isInProgress = build.status === 'inProgress';
-                
-                return (
-                <div
-                  key={build.id}
-                  className={`px-6 py-4 hover:bg-muted/50 transition-colors group cursor-pointer ${
-                    isFailed 
-                      ? 'border-l-2 border-l-red-500' 
-                      : isInProgress 
-                        ? 'border-l-2 border-l-blue-500' 
-                        : ''
-                  }`}
-                  onClick={() => {
-                    setSelectedBuild(build);
-                    setIsModalOpen(true);
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-5">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {getBuildStatusIcon(build.result, build.status)}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-medium text-foreground truncate">
-                            {build.definition?.name || "Unknown"}
-                          </h4>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            #{build.buildNumber}
-                          </span>
-                          {build._links?.web?.href && (
-                            <a
-                              href={build._links.web.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
-                              title="Open in Azure DevOps"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground whitespace-nowrap">
-                          <span className="flex items-center gap-1 shrink-0">
-                            <GitBranch className="h-3 w-3 shrink-0" />
-                            <span className="truncate max-w-[120px]">{build.sourceBranch?.replace("refs/heads/", "") || "N/A"}</span>
-                          </span>
-                          <span className="flex items-center gap-1 shrink-0">
-                            <User className="h-3 w-3 shrink-0" />
-                            <span className="truncate max-w-[100px]">{build.requestedBy?.displayName || "Unknown"}</span>
-                          </span>
-                          <span className="flex items-center gap-1 shrink-0">
-                            <Timer className="h-3 w-3 shrink-0" />
-                            {formatDuration(build.startTime, build.finishTime)}
-                          </span>
-                          <span className="flex items-center gap-1 shrink-0" title={build.startTime ? format(new Date(build.startTime), "MMM d, yyyy HH:mm") : "N/A"}>
-                            <Clock className="h-3 w-3 shrink-0" />
-                            {build.startTime
-                              ? formatDistanceToNow(new Date(build.startTime), { addSuffix: true })
-                              : "N/A"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    {getBuildStatusBadge(build.result, build.status)}
-                  </div>
-                </div>
-                );
-              })}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <Building className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <h3 className="text-xl font-semibold text-foreground">Recent Builds</h3>
             </div>
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <Building className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-              <p>{statusFilter !== 'all' ? 'No builds match your filter' : 'No builds found'}</p>
-              {statusFilter !== 'all' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterDropdown
+                options={[
+                  { value: 10, label: "10 builds" },
+                  { value: 20, label: "20 builds" },
+                  { value: 30, label: "30 builds" },
+                  { value: 40, label: "40 builds" },
+                  { value: 50, label: "50 builds" },
+                ]}
+                value={buildLimit}
+                onChange={setBuildLimit}
+                icon={Building}
+                placeholder="20 builds"
+                minWidth="100px"
+              />
+              <FilterDropdown
+                options={[
+                  { value: "all", label: "All Repositories" },
+                  ...repositories.map((repo) => ({ value: repo, label: repo })),
+                ]}
+                value={repositoryFilter}
+                onChange={setRepositoryFilter}
+                icon={GitBranch}
+                placeholder="All Repositories"
+                minWidth="150px"
+              />
+              <FilterDropdown
+                options={[
+                  { value: "all", label: "All Status" },
+                  { value: "succeeded", label: "Succeeded" },
+                  { value: "failed", label: "Failed" },
+                  { value: "inProgress", label: "In Progress" },
+                  { value: "canceled", label: "Canceled" },
+                ]}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                icon={Filter}
+                placeholder="All Status"
+                minWidth="120px"
+              />
+
+              {/* Quick filter for failures */}
+              {stats.failed > 0 && statusFilter !== "failed" && (
                 <button
-                  onClick={() => setStatusFilter('all')}
-                  className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
+                  onClick={() => setStatusFilter("failed")}
+                  className="text-xs text-red-600 dark:text-red-400 hover:bg-muted px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 bg-muted"
+                  title="Show only failed builds"
                 >
-                  Clear filter to see all builds
+                  <XCircle className="w-3 h-3" />
+                  Show failures
                 </button>
               )}
+
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                {filteredBuilds.length} builds
+              </span>
             </div>
-          )}
-        </ScrollArea>
-      </div>
+          </div>
+
+          <ScrollArea className="h-[45vh] border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
+            {filteredBuilds.length > 0 ? (
+              <div className="divide-y divide-border dark:divide-[#1a1a1a]">
+                {filteredBuilds.map((build) => {
+                  const isFailed = build.result === "failed";
+                  const isInProgress = build.status === "inProgress";
+
+                  return (
+                    <div
+                      key={build.id}
+                      className={`px-6 py-4 hover:bg-muted/50 transition-colors group cursor-pointer ${
+                        isFailed
+                          ? "border-l-2 border-l-red-500"
+                          : isInProgress
+                            ? "border-l-2 border-l-blue-500"
+                            : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedBuild(build);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-5">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {getBuildStatusIcon(build.result, build.status)}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-medium text-foreground truncate">
+                                {build.definition?.name || "Unknown"}
+                              </h4>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                #{build.buildNumber}
+                              </span>
+                              {build._links?.web?.href && (
+                                <a
+                                  href={build._links.web.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                                  title="Open in Azure DevOps"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground whitespace-nowrap">
+                              <span className="flex items-center gap-1 shrink-0">
+                                <GitBranch className="h-3 w-3 shrink-0" />
+                                <span className="truncate max-w-[120px]">
+                                  {build.sourceBranch?.replace("refs/heads/", "") || "N/A"}
+                                </span>
+                              </span>
+                              <span className="flex items-center gap-1 shrink-0">
+                                <User className="h-3 w-3 shrink-0" />
+                                <span className="truncate max-w-[100px]">
+                                  {build.requestedBy?.displayName || "Unknown"}
+                                </span>
+                              </span>
+                              <span className="flex items-center gap-1 shrink-0">
+                                <Timer className="h-3 w-3 shrink-0" />
+                                {formatDuration(build.startTime, build.finishTime)}
+                              </span>
+                              <span
+                                className="flex items-center gap-1 shrink-0"
+                                title={
+                                  build.startTime
+                                    ? format(new Date(build.startTime), "MMM d, yyyy HH:mm")
+                                    : "N/A"
+                                }
+                              >
+                                <Clock className="h-3 w-3 shrink-0" />
+                                {build.startTime
+                                  ? formatDistanceToNow(new Date(build.startTime), {
+                                      addSuffix: true,
+                                    })
+                                  : "N/A"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {getBuildStatusBadge(build.result, build.status)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <Building className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                <p>{statusFilter !== "all" ? "No builds match your filter" : "No builds found"}</p>
+                {statusFilter !== "all" && (
+                  <button
+                    onClick={() => setStatusFilter("all")}
+                    className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
+                  >
+                    Clear filter to see all builds
+                  </button>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
       )}
 
       {/* Build Success Rate - Show skeleton while loading */}
@@ -626,87 +658,93 @@ export default function Pipelines() {
           </div>
         </div>
       ) : (
-        builds.length > 0 && (() => {
-          const successRate = stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 100) : 0;
+        builds.length > 0 &&
+        (() => {
+          const successRate =
+            stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 100) : 0;
           // Health-based color: red < 70%, yellow 70-90%, green > 90%
           const isHealthy = successRate >= 90;
           const isWarning = successRate >= 70 && successRate < 90;
           const isCritical = successRate < 70;
-          
-          const rateColor = isCritical 
-            ? 'text-red-600 dark:text-red-400' 
-            : isWarning 
-              ? 'text-amber-600 dark:text-amber-400' 
-              : 'text-emerald-600 dark:text-emerald-400';
-          
-          const barColor = isCritical 
-            ? 'from-red-500 to-red-600' 
-            : isWarning 
-              ? 'from-amber-500 to-amber-600' 
-              : 'from-emerald-500 to-emerald-600';
-          
-          const iconColor = isCritical 
-            ? 'text-red-600 dark:text-red-400' 
-            : isWarning 
-              ? 'text-amber-600 dark:text-amber-400' 
-              : 'text-emerald-600 dark:text-emerald-400';
-          
+
+          const rateColor = isCritical
+            ? "text-red-600 dark:text-red-400"
+            : isWarning
+              ? "text-amber-600 dark:text-amber-400"
+              : "text-emerald-600 dark:text-emerald-400";
+
+          const barColor = isCritical
+            ? "from-red-500 to-red-600"
+            : isWarning
+              ? "from-amber-500 to-amber-600"
+              : "from-emerald-500 to-emerald-600";
+
+          const iconColor = isCritical
+            ? "text-red-600 dark:text-red-400"
+            : isWarning
+              ? "text-amber-600 dark:text-amber-400"
+              : "text-emerald-600 dark:text-emerald-400";
+
           return (
-        <div
-          className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
-          style={{ animationDelay: "0.3s" }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <TrendingUp className={`h-5 w-5 ${iconColor}`} />
-              <h3 className="text-lg font-semibold text-foreground">
-                Build Health
-              </h3>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                isCritical ? 'text-red-600 dark:text-red-400' :
-                isWarning ? 'text-amber-600 dark:text-amber-400' :
-                'text-muted-foreground'
-              }`}>
-                {isCritical ? 'Needs attention' : isWarning ? 'Fair' : 'Healthy'}
-              </span>
-            </div>
-            <div className={`text-2xl font-bold ${rateColor}`}>
-              {successRate}%
-            </div>
-          </div>
+            <div
+              className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
+              style={{ animationDelay: "0.3s" }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className={`h-5 w-5 ${iconColor}`} />
+                  <h3 className="text-lg font-semibold text-foreground">Build Health</h3>
+                  <span
+                    className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
+                      isCritical
+                        ? "text-red-600 dark:text-red-400"
+                        : isWarning
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {isCritical ? "Needs attention" : isWarning ? "Fair" : "Healthy"}
+                  </span>
+                </div>
+                <div className={`text-2xl font-bold ${rateColor}`}>{successRate}%</div>
+              </div>
 
-          <div className="mb-4">
-            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-              <div
-                className={`bg-gradient-to-r ${barColor} h-2 rounded-full transition-all duration-1000 ease-out`}
-                style={{
-                  width: `${successRate}%`,
-                }}
-              />
-            </div>
-          </div>
+              <div className="mb-4">
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div
+                    className={`bg-gradient-to-r ${barColor} h-2 rounded-full transition-all duration-1000 ease-out`}
+                    style={{
+                      width: `${successRate}%`,
+                    }}
+                  />
+                </div>
+              </div>
 
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="text-center">
-              <div className="text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                {stats.succeeded}
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="text-center">
+                  <div className="text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                    {stats.succeeded}
+                  </div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">Succeeded</div>
+                </div>
+                <div className="text-center">
+                  <div
+                    className={`text-base sm:text-lg font-bold ${stats.failed > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
+                  >
+                    {stats.failed}
+                  </div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">Failed</div>
+                </div>
+                <div className="text-center">
+                  <div
+                    className={`text-base sm:text-lg font-bold ${stats.inProgress > 0 ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}`}
+                  >
+                    {stats.inProgress}
+                  </div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">Running</div>
+                </div>
               </div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">Succeeded</div>
             </div>
-            <div className="text-center">
-              <div className={`text-base sm:text-lg font-bold ${stats.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
-                {stats.failed}
-              </div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">Failed</div>
-            </div>
-            <div className="text-center">
-              <div className={`text-base sm:text-lg font-bold ${stats.inProgress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>
-                {stats.inProgress}
-              </div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">Running</div>
-            </div>
-          </div>
-        </div>
           );
         })()
       )}
@@ -714,12 +752,9 @@ export default function Pipelines() {
       {builds.length === 0 && !loading && (
         <div className="card text-center py-12">
           <GitBranch className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            No Builds Found
-          </h3>
+          <h3 className="text-lg font-medium text-foreground mb-2">No Builds Found</h3>
           <p className="text-muted-foreground">
-            No recent builds found. Check your Azure DevOps configuration or
-            trigger a build.
+            No recent builds found. Check your Azure DevOps configuration or trigger a build.
           </p>
         </div>
       )}
