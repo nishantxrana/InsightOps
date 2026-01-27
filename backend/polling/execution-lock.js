@@ -5,11 +5,11 @@ class ExecutionLock {
 
   acquire(userId, jobType) {
     const key = `${userId}-${jobType}`;
-    
+
     if (this.locks.has(key)) {
       return null; // Lock already held
     }
-    
+
     const executionId = Math.random().toString(36).substr(2, 9);
     this.locks.set(key, executionId);
     return executionId;
@@ -18,12 +18,12 @@ class ExecutionLock {
   release(userId, jobType, executionId) {
     const key = `${userId}-${jobType}`;
     const currentLock = this.locks.get(key);
-    
+
     if (currentLock === executionId) {
       this.locks.delete(key);
       return true;
     }
-    
+
     return false;
   }
 

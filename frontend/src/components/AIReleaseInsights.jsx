@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
+import React, { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import {
   Brain,
   TrendingUp,
@@ -8,8 +8,8 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-} from 'lucide-react';
-import { releaseService } from '../api/releaseService';
+} from "lucide-react";
+import { releaseService } from "../api/releaseService";
 
 const AIReleaseInsights = ({ enabled = false, onToggle }) => {
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ const AIReleaseInsights = ({ enabled = false, onToggle }) => {
         setAnalysis(response.data);
       }
     } catch (err) {
-      setError(err.userMessage || 'AI insights temporarily unavailable. Please try again.');
+      setError(err.userMessage || "AI insights temporarily unavailable. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ const AIReleaseInsights = ({ enabled = false, onToggle }) => {
               disabled={loading}
               className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </button>
           )}
@@ -64,11 +64,11 @@ const AIReleaseInsights = ({ enabled = false, onToggle }) => {
             onClick={onToggle}
             className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
               enabled
-                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
-            {enabled ? 'Enabled' : 'Enable AI Insights'}
+            {enabled ? "Enabled" : "Enable AI Insights"}
           </button>
         </div>
       </div>
@@ -78,7 +78,8 @@ const AIReleaseInsights = ({ enabled = false, onToggle }) => {
           <Brain className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
           <h4 className="text-lg font-medium text-foreground mb-2">AI Insights Disabled</h4>
           <p className="text-muted-foreground mb-4">
-            Enable AI insights to get intelligent analysis of your release patterns and recommendations for improvement.
+            Enable AI insights to get intelligent analysis of your release patterns and
+            recommendations for improvement.
           </p>
           <button
             onClick={onToggle}
@@ -116,10 +117,24 @@ const AIReleaseInsights = ({ enabled = false, onToggle }) => {
           <div className="prose prose-sm max-w-none dark:prose-invert">
             <ReactMarkdown
               components={{
-                h1: ({ children }) => <h4 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2"><TrendingUp className="w-5 h-5" />{children}</h4>,
-                h2: ({ children }) => <h5 className="text-base font-medium text-foreground mb-2 flex items-center gap-2"><Lightbulb className="w-4 h-4" />{children}</h5>,
-                h3: ({ children }) => <h6 className="text-sm font-medium text-foreground mb-2">{children}</h6>,
-                p: ({ children }) => <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{children}</p>,
+                h1: ({ children }) => (
+                  <h4 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5" />
+                    {children}
+                  </h4>
+                ),
+                h2: ({ children }) => (
+                  <h5 className="text-base font-medium text-foreground mb-2 flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4" />
+                    {children}
+                  </h5>
+                ),
+                h3: ({ children }) => (
+                  <h6 className="text-sm font-medium text-foreground mb-2">{children}</h6>
+                ),
+                p: ({ children }) => (
+                  <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{children}</p>
+                ),
                 ul: ({ children }) => <ul className="space-y-1 mb-4">{children}</ul>,
                 li: ({ children }) => (
                   <li className="text-sm text-muted-foreground flex items-start gap-2">
@@ -127,7 +142,9 @@ const AIReleaseInsights = ({ enabled = false, onToggle }) => {
                     <span>{children}</span>
                   </li>
                 ),
-                strong: ({ children }) => <strong className="text-foreground font-medium">{children}</strong>,
+                strong: ({ children }) => (
+                  <strong className="text-foreground font-medium">{children}</strong>
+                ),
               }}
             >
               {analysis.summary}

@@ -1,9 +1,9 @@
 /**
  * Work Item State Categorization Utility
- * 
+ *
  * Provides consistent state categorization logic across the application
  * based on the defined business rules:
- * 
+ *
  * Non-active states: Defined, New, Closed, Blocked, Paused, Removed, Released to Production
  * Active states: All other states (In Progress, Active, Resolved, etc.)
  * Completed states: Closed, Removed, Released to Production
@@ -11,24 +11,19 @@
 
 // Define state categories
 export const NON_ACTIVE_STATES = [
-  'Defined',
-  'New', 
-  'Closed',
-  'Blocked',
-  'Paused',
-  'Removed',
-  'Released to Production',
-  'Ready for UAT',
-  'Ready to Release',
-  'Resolved'
+  "Defined",
+  "New",
+  "Closed",
+  "Blocked",
+  "Paused",
+  "Removed",
+  "Released to Production",
+  "Ready for UAT",
+  "Ready to Release",
+  "Resolved",
 ];
 
-export const COMPLETED_STATES = [
-  'Closed',
-  'Removed',
-  'Released to Production',
-  'Resolved'
-];
+export const COMPLETED_STATES = ["Closed", "Removed", "Released to Production", "Resolved"];
 
 /**
  * Check if a work item state is active
@@ -66,8 +61,8 @@ export function isNonActiveState(state) {
  * @returns {Array} Array of active work items
  */
 export function filterActiveWorkItems(workItems) {
-  return workItems.filter(wi => {
-    const state = wi.fields?.['System.State'];
+  return workItems.filter((wi) => {
+    const state = wi.fields?.["System.State"];
     return isActiveState(state);
   });
 }
@@ -78,8 +73,8 @@ export function filterActiveWorkItems(workItems) {
  * @returns {Array} Array of completed work items
  */
 export function filterCompletedWorkItems(workItems) {
-  return workItems.filter(wi => {
-    const state = wi.fields?.['System.State'];
+  return workItems.filter((wi) => {
+    const state = wi.fields?.["System.State"];
     return isCompletedState(state);
   });
 }
@@ -90,8 +85,8 @@ export function filterCompletedWorkItems(workItems) {
  * @returns {Array} Array of non-active work items
  */
 export function filterNonActiveWorkItems(workItems) {
-  return workItems.filter(wi => {
-    const state = wi.fields?.['System.State'];
+  return workItems.filter((wi) => {
+    const state = wi.fields?.["System.State"];
     return isNonActiveState(state);
   });
 }
@@ -102,13 +97,13 @@ export function filterNonActiveWorkItems(workItems) {
  * @returns {string} The category: 'active', 'completed', 'non-active', or 'unknown'
  */
 export function getStateCategory(state) {
-  if (!state) return 'unknown';
-  
-  if (isCompletedState(state)) return 'completed';
-  if (isActiveState(state)) return 'active';
-  if (isNonActiveState(state)) return 'non-active';
-  
-  return 'unknown';
+  if (!state) return "unknown";
+
+  if (isCompletedState(state)) return "completed";
+  if (isActiveState(state)) return "active";
+  if (isNonActiveState(state)) return "non-active";
+
+  return "unknown";
 }
 
 /**
@@ -116,7 +111,7 @@ export function getStateCategory(state) {
  * @returns {string} WIQL condition string
  */
 export function getWiqlExcludeCompletedCondition() {
-  const stateList = COMPLETED_STATES.map(state => `'${state}'`).join(', ');
+  const stateList = COMPLETED_STATES.map((state) => `'${state}'`).join(", ");
   return `[System.State] NOT IN (${stateList})`;
 }
 
@@ -125,7 +120,7 @@ export function getWiqlExcludeCompletedCondition() {
  * @returns {string} WIQL condition string (excludes non-active states)
  */
 export function getWiqlActiveStatesCondition() {
-  const stateList = NON_ACTIVE_STATES.map(state => `'${state}'`).join(', ');
+  const stateList = NON_ACTIVE_STATES.map((state) => `'${state}'`).join(", ");
   return `[System.State] NOT IN (${stateList})`;
 }
 
@@ -134,6 +129,6 @@ export function getWiqlActiveStatesCondition() {
  * @returns {string} WIQL condition string
  */
 export function getWiqlCompletedStatesCondition() {
-  const stateList = COMPLETED_STATES.map(state => `'${state}'`).join(', ');
+  const stateList = COMPLETED_STATES.map((state) => `'${state}'`).join(", ");
   return `[System.State] IN (${stateList})`;
 }

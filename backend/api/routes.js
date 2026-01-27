@@ -1,385 +1,403 @@
-import express from 'express';
-import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
-import axios from 'axios';
-import { logger, sanitizeForLogging } from '../utils/logger.js';
-import { azureDevOpsClient } from '../devops/azureDevOpsClient.js';
-import { aiService } from '../ai/aiService.js';
-import { authenticate } from '../middleware/auth.js';
-import { updateUserSettings } from '../utils/userSettings.js'; // Legacy - only used for backward compatibility
-import { getOrganizationSettings, hasAzureDevOpsConfig, hasAIConfig, getAzureDevOpsConfig, getAIConfig } from '../utils/organizationSettings.js';
-import { organizationService } from '../services/organizationService.js';
-import { AI_MODELS, getModelsForProvider, getDefaultModel } from '../config/aiModels.js';
-import { filterActiveWorkItems, filterCompletedWorkItems } from '../utils/workItemStates.js';
-import { userPollingManager } from '../polling/userPollingManager.js';
-import { validateRequest } from '../middleware/validation.js';
-import { settingsSchema, testConnectionSchema } from '../validators/schemas.js';
-import { AzureDevOpsReleaseClient } from '../devops/releaseClient.js';
-import { azureDevOpsCache } from '../cache/AzureDevOpsCache.js';
-import emergencyRoutes from './emergency.js';
+import express from "express";
+import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+import axios from "axios";
+import { logger, sanitizeForLogging } from "../utils/logger.js";
+import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
+import { aiService } from "../ai/aiService.js";
+import { authenticate } from "../middleware/auth.js";
+import { updateUserSettings } from "../utils/userSettings.js"; // Legacy - only used for backward compatibility
+import {
+  getOrganizationSettings,
+  hasAzureDevOpsConfig,
+  hasAIConfig,
+  getAzureDevOpsConfig,
+  getAIConfig,
+} from "../utils/organizationSettings.js";
+import { organizationService } from "../services/organizationService.js";
+import { AI_MODELS, getModelsForProvider, getDefaultModel } from "../config/aiModels.js";
+import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workItemStates.js";
+import { userPollingManager } from "../polling/userPollingManager.js";
+import { validateRequest } from "../middleware/validation.js";
+import { settingsSchema, testConnectionSchema } from "../validators/schemas.js";
+import { AzureDevOpsReleaseClient } from "../devops/releaseClient.js";
+import { azureDevOpsCache } from "../cache/AzureDevOpsCache.js";
+import emergencyRoutes from "./emergency.js";
 
 const router = express.Router();
 
 // Health check endpoint (public - no auth required)
-router.get('/health', async (req, res) => {
-  const serverStartTime = Date.now() - (process.uptime() * 1000);
-  
+router.get("/health", async (req, res) => {
+  const serverStartTime = Date.now() - process.uptime() * 1000;
+
   const health = {
-    status: 'healthy',
+    status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     serverStartTime: serverStartTime,
-    service: 'Azure DevOps Monitoring InsightOps',
+    service: "Azure DevOps Monitoring InsightOps",
     environment: process.env.NODE_ENV,
-    version: process.env.npm_package_version || '1.0.0'
+    version: process.env.npm_package_version || "1.0.0",
   };
 
   // Check database connection
   try {
     await mongoose.connection.db.admin().ping();
-    health.database = 'connected';
+    health.database = "connected";
   } catch (error) {
-    health.status = 'unhealthy';
-    health.database = 'disconnected';
-    logger.error('Health check: Database connection failed', error);
+    health.status = "unhealthy";
+    health.database = "disconnected";
+    logger.error("Health check: Database connection failed", error);
   }
 
-  const statusCode = health.status === 'healthy' ? 200 : 503;
+  const statusCode = health.status === "healthy" ? 200 : 503;
   res.status(statusCode).json(health);
 });
 
 // Authentication is now applied in main.js before this router
 
 // User settings endpoints - Now returns current organization settings
-router.get('/settings', async (req, res) => {
+router.get("/settings", async (req, res) => {
   try {
     // STRICT: Organization context is REQUIRED
     if (!req.organizationId) {
-      logger.warn('GET /settings called without organization context', {
+      logger.warn("GET /settings called without organization context", {
         userId: req.user._id,
-        action: 'get-settings'
+        action: "get-settings",
       });
-      return res.status(400).json({ 
-        error: 'Organization context required',
-        message: 'Please select an organization to view settings',
-        code: 'MISSING_ORGANIZATION_ID'
+      return res.status(400).json({
+        error: "Organization context required",
+        message: "Please select an organization to view settings",
+        code: "MISSING_ORGANIZATION_ID",
       });
     }
 
     const org = await getOrganizationSettings(req);
-    
+
     if (!org) {
       // Organization ID provided but not found
       return res.status(404).json({
-        error: 'Organization not found',
-        message: 'The selected organization does not exist or you do not have access'
+        error: "Organization not found",
+        message: "The selected organization does not exist or you do not have access",
       });
     }
-    
+
     // Return settings with sensitive fields masked for display
     const maskedSettings = {
       azureDevOps: {
-        organization: org.azureDevOps?.organization || '',
-        project: org.azureDevOps?.project || '',
-        pat: org.azureDevOps?.pat ? '***' : '',
-        baseUrl: org.azureDevOps?.baseUrl || 'https://dev.azure.com'
+        organization: org.azureDevOps?.organization || "",
+        project: org.azureDevOps?.project || "",
+        pat: org.azureDevOps?.pat ? "***" : "",
+        baseUrl: org.azureDevOps?.baseUrl || "https://dev.azure.com",
       },
       ai: {
-        provider: org.ai?.provider || 'gemini',
-        model: org.ai?.model || 'gemini-2.0-flash',
+        provider: org.ai?.provider || "gemini",
+        model: org.ai?.model || "gemini-2.0-flash",
         apiKeys: {
-          openai: org.ai?.apiKeys?.openai ? '***' : '',
-          groq: org.ai?.apiKeys?.groq ? '***' : '',
-          gemini: org.ai?.apiKeys?.gemini ? '***' : ''
-        }
+          openai: org.ai?.apiKeys?.openai ? "***" : "",
+          groq: org.ai?.apiKeys?.groq ? "***" : "",
+          gemini: org.ai?.apiKeys?.gemini ? "***" : "",
+        },
       },
       notifications: org.notifications || { enabled: true },
       polling: org.polling || {
-        workItems: '*/10 * * * *',
-        pipelines: '0 */10 * * *',
-        pullRequests: '0 */10 * * *',
-        overdueCheck: '0 */10 * * *'
-      }
+        workItems: "*/10 * * * *",
+        pipelines: "0 */10 * * *",
+        pullRequests: "0 */10 * * *",
+        overdueCheck: "0 */10 * * *",
+      },
     };
-    
+
     res.json(maskedSettings);
   } catch (error) {
-    logger.error('Error fetching user settings:', error);
-    res.status(500).json({ error: 'Failed to fetch settings' });
+    logger.error("Error fetching user settings:", error);
+    res.status(500).json({ error: "Failed to fetch settings" });
   }
 });
 
-router.put('/settings', validateRequest(settingsSchema), async (req, res) => {
+router.put("/settings", validateRequest(settingsSchema), async (req, res) => {
   try {
     // STRICT: Organization context is REQUIRED
     if (!req.organizationId) {
-      logger.error('PUT /settings called without organization context', {
+      logger.error("PUT /settings called without organization context", {
         userId: req.user._id,
-        action: 'update-settings',
-        status: 'rejected'
+        action: "update-settings",
+        status: "rejected",
       });
-      return res.status(400).json({ 
-        error: 'Organization context required',
-        message: 'Please select an organization before updating settings. Use PUT /api/organizations/:id instead.',
-        code: 'MISSING_ORGANIZATION_ID'
+      return res.status(400).json({
+        error: "Organization context required",
+        message:
+          "Please select an organization before updating settings. Use PUT /api/organizations/:id instead.",
+        code: "MISSING_ORGANIZATION_ID",
       });
     }
 
     const updates = { ...req.validatedData };
-    
+
     // Handle masked values - don't update if value is '***'
-    if (updates.azureDevOps?.pat === '***') {
+    if (updates.azureDevOps?.pat === "***") {
       delete updates.azureDevOps.pat;
     }
-    
+
     if (updates.ai?.apiKeys) {
-      Object.keys(updates.ai.apiKeys).forEach(key => {
-        if (updates.ai.apiKeys[key] === '***') {
+      Object.keys(updates.ai.apiKeys).forEach((key) => {
+        if (updates.ai.apiKeys[key] === "***") {
           delete updates.ai.apiKeys[key];
         }
       });
     }
-    
+
     // DEPRECATED: Use PUT /api/organizations/:id instead
-    logger.warn('⚠️ DEPRECATED: PUT /settings called. Use PUT /api/organizations/:id instead.', {
+    logger.warn("⚠️ DEPRECATED: PUT /settings called. Use PUT /api/organizations/:id instead.", {
       organizationId: req.organizationId,
-      userId: req.user._id
+      userId: req.user._id,
     });
-    
+
     // Update organization settings
     const updatedOrg = await organizationService.updateOrganization(
       req.organizationId,
       req.user._id,
       updates
     );
-    
+
     if (!updatedOrg) {
-      return res.status(404).json({ error: 'Organization not found' });
+      return res.status(404).json({ error: "Organization not found" });
     }
-    
-    res.json({ message: 'Settings updated successfully (via organization)' });
+
+    res.json({ message: "Settings updated successfully (via organization)" });
   } catch (error) {
-    logger.error('Error updating settings:', error);
-    res.status(500).json({ error: 'Failed to update settings' });
+    logger.error("Error updating settings:", error);
+    res.status(500).json({ error: "Failed to update settings" });
   }
 });
 
-router.post('/settings/test-connection', async (req, res) => {
+router.post("/settings/test-connection", async (req, res) => {
   try {
     const { organization, project, baseUrl } = req.body;
     // Accept both 'pat' and 'personalAccessToken' for compatibility
     const pat = req.body.pat || req.body.personalAccessToken;
-    
+
     // Validate required fields
     if (!organization?.trim()) {
-      return res.status(400).json({ success: false, message: 'Organization is required' });
+      return res.status(400).json({ success: false, message: "Organization is required" });
     }
     if (!project?.trim()) {
-      return res.status(400).json({ success: false, message: 'Project is required' });
+      return res.status(400).json({ success: false, message: "Project is required" });
     }
-    if (!pat || pat === '********' || pat.length < 20) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Valid Personal Access Token is required (PAT must be at least 20 characters)' 
+    if (!pat || pat === "********" || pat.length < 20) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid Personal Access Token is required (PAT must be at least 20 characters)",
       });
     }
-    
-    logger.info('Testing Azure DevOps connection', { 
-      component: 'api',
-      action: 'test-connection',
+
+    logger.info("Testing Azure DevOps connection", {
+      component: "api",
+      action: "test-connection",
       organization: organization.trim(),
       project: project.trim(),
-      hasPat: !!pat
+      hasPat: !!pat,
     });
-    
+
     // Test the connection with provided credentials
     const testResult = await testAzureDevOpsConnection({
       organization: organization.trim(),
-      project: project.trim(), 
+      project: project.trim(),
       personalAccessToken: pat,
-      baseUrl: baseUrl || 'https://dev.azure.com'
+      baseUrl: baseUrl || "https://dev.azure.com",
     });
-    
-    res.json({ 
-      success: true, 
-      message: 'Connection test successful',
-      details: testResult.message
+
+    res.json({
+      success: true,
+      message: "Connection test successful",
+      details: testResult.message,
     });
   } catch (error) {
-    logger.error('Connection test failed', { 
-      component: 'api',
-      action: 'test-connection',
-      error: error.message
+    logger.error("Connection test failed", {
+      component: "api",
+      action: "test-connection",
+      error: error.message,
     });
-    res.status(500).json({ 
-      success: false, 
-      message: 'Connection test failed: ' + error.message 
+    res.status(500).json({
+      success: false,
+      message: "Connection test failed: " + error.message,
     });
   }
 });
 
 // Fetch projects with temporary credentials (for new users)
-router.post('/settings/fetch-projects', async (req, res) => {
+router.post("/settings/fetch-projects", async (req, res) => {
   try {
     const { organization, pat, baseUrl } = req.body;
-    
+
     if (!organization || !pat) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Organization and PAT are required' 
+      return res.status(400).json({
+        success: false,
+        error: "Organization and PAT are required",
       });
     }
-    
-    logger.info('Fetching projects with temporary credentials...', sanitizeForLogging({ organization }));
-    
+
+    logger.info(
+      "Fetching projects with temporary credentials...",
+      sanitizeForLogging({ organization })
+    );
+
     let actualPat = pat;
-    
+
     // If frontend sends 'USE_SAVED_PAT', get the saved PAT from current organization
-    if (pat === 'USE_SAVED_PAT') {
+    if (pat === "USE_SAVED_PAT") {
       const org = await getOrganizationSettings(req);
       if (!org?.azureDevOps?.pat) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'No saved PAT found. Please enter your Personal Access Token.' 
+        return res.status(400).json({
+          success: false,
+          error: "No saved PAT found. Please enter your Personal Access Token.",
         });
       }
       actualPat = org.azureDevOps.pat;
     } else {
       // Validate PAT format (should start with specific patterns)
       if (!pat.match(/^[A-Za-z0-9+/=]{52,}$/)) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Invalid PAT format. Please check your Personal Access Token.' 
+        return res.status(400).json({
+          success: false,
+          error: "Invalid PAT format. Please check your Personal Access Token.",
         });
       }
     }
-    
+
     // Create temporary Azure DevOps client
     const tempClient = azureDevOpsClient.createUserClient({
       organization,
-      project: 'temp', // temporary project name
+      project: "temp", // temporary project name
       pat: actualPat,
-      baseUrl: baseUrl || 'https://dev.azure.com'
+      baseUrl: baseUrl || "https://dev.azure.com",
     });
-    
+
     const projects = await tempClient.getAllProjects();
-    
-    res.json({ 
-      success: true, 
-      projects: projects.value || []
+
+    res.json({
+      success: true,
+      projects: projects.value || [],
     });
   } catch (error) {
-    logger.error('Failed to fetch projects:', error);
-    
+    logger.error("Failed to fetch projects:", error);
+
     // Provide more specific error messages
     if (error.response?.status === 401) {
-      res.status(401).json({ 
-        success: false, 
-        error: 'Invalid PAT token or insufficient permissions. Please check your Personal Access Token and ensure it has "Project and Team (read)" permissions.' 
+      res.status(401).json({
+        success: false,
+        error:
+          'Invalid PAT token or insufficient permissions. Please check your Personal Access Token and ensure it has "Project and Team (read)" permissions.',
       });
     } else if (error.response?.status === 404) {
-      res.status(404).json({ 
-        success: false, 
-        error: `Organization "${req.body.organization}" not found. Please check the organization name.` 
+      res.status(404).json({
+        success: false,
+        error: `Organization "${req.body.organization}" not found. Please check the organization name.`,
       });
     } else {
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch projects: ' + error.message 
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch projects: " + error.message,
       });
     }
   }
 });
 
 // Work Items endpoints
-router.get('/projects', async (req, res) => {
+router.get("/projects", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const projects = await client.getAllProjects();
     res.json(projects);
   } catch (error) {
-    logger.error('Error fetching projects:', error);
-    res.status(500).json({ error: 'Failed to fetch projects' });
+    logger.error("Error fetching projects:", error);
+    res.status(500).json({ error: "Failed to fetch projects" });
   }
 });
 
-router.get('/work-items', async (req, res) => {
+router.get("/work-items", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required. Please configure an organization in settings.' });
+      return res.status(400).json({
+        error: "Azure DevOps configuration required. Please configure an organization in settings.",
+      });
     }
 
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-    
+
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const workItems = await client.getCurrentSprintWorkItems(page, limit);
     res.json(workItems);
   } catch (error) {
-    logger.error('Error fetching work items:', error);
+    logger.error("Error fetching work items:", error);
     const statusCode = error.response?.status || 500;
-    const message = error.response?.data?.message || error.message || 'Failed to fetch work items';
-    res.status(statusCode).json({ 
-      error: 'Failed to fetch work items',
+    const message = error.response?.data?.message || error.message || "Failed to fetch work items";
+    res.status(statusCode).json({
+      error: "Failed to fetch work items",
       details: message,
-      suggestion: statusCode === 401 ? 'Please check your Azure DevOps credentials' : 
-                 statusCode === 404 ? 'Please check your organization and project names' :
-                 'Please check your Azure DevOps configuration'
+      suggestion:
+        statusCode === 401
+          ? "Please check your Azure DevOps credentials"
+          : statusCode === 404
+            ? "Please check your organization and project names"
+            : "Please check your Azure DevOps configuration",
     });
   }
 });
 
-router.get('/work-items/sprint-summary', async (req, res) => {
+router.get("/work-items/sprint-summary", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required. Please configure an organization in settings.' });
+      return res.status(400).json({
+        error: "Azure DevOps configuration required. Please configure an organization in settings.",
+      });
     }
-    
+
     const orgId = org._id?.toString();
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    
+
     // Use cache-first pattern (same cache as dashboard)
     let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
-    
+
     if (!allWorkItems) {
       allWorkItems = await client.getAllCurrentSprintWorkItems();
       azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
     } else {
-      logger.debug('[Performance] Sprint summary using cached work items');
+      logger.debug("[Performance] Sprint summary using cached work items");
     }
-    
+
     // Use utility functions for consistent state categorization
     const activeItems = filterActiveWorkItems(allWorkItems.value || []);
     const completedItems = filterCompletedWorkItems(allWorkItems.value || []);
-    
+
     // Get overdue items count (with caching)
     let overdueCount = 0;
     try {
-      const overdueCacheKey = 'workItems:overdue';
+      const overdueCacheKey = "workItems:overdue";
       let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
-      
+
       if (!overdueItems) {
         overdueItems = await client.getOverdueWorkItems();
         azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
       } else {
-        logger.debug('[Performance] Sprint summary using cached overdue items');
+        logger.debug("[Performance] Sprint summary using cached overdue items");
       }
-      
+
       overdueCount = overdueItems.count || 0;
     } catch (error) {
-      logger.warn('Failed to fetch overdue items for summary:', error.message);
+      logger.warn("Failed to fetch overdue items for summary:", error.message);
     }
-    
+
     // Prepare immediate response
     const immediateResponse = {
       total: allWorkItems.count || 0,
@@ -389,514 +407,527 @@ router.get('/work-items/sprint-summary', async (req, res) => {
       workItemsByState: groupWorkItemsByState(allWorkItems.value || []),
       workItemsByAssignee: groupWorkItemsByAssignee(allWorkItems.value || []),
       summary: null,
-      summaryStatus: 'available'
+      summaryStatus: "available",
     };
-    
+
     // Send immediate response
     res.json(immediateResponse);
-    
   } catch (error) {
-    logger.error('Error fetching sprint summary:', error);
+    logger.error("Error fetching sprint summary:", error);
     const statusCode = error.response?.status || 500;
-    const message = error.response?.data?.message || error.message || 'Failed to fetch sprint summary';
-    res.status(statusCode).json({ 
-      error: 'Failed to fetch sprint summary',
+    const message =
+      error.response?.data?.message || error.message || "Failed to fetch sprint summary";
+    res.status(statusCode).json({
+      error: "Failed to fetch sprint summary",
       details: message,
-      suggestion: statusCode === 401 ? 'Please check your Azure DevOps credentials' : 
-                 statusCode === 404 ? 'Please check your organization and project names' :
-                 'Please check your Azure DevOps configuration'
+      suggestion:
+        statusCode === 401
+          ? "Please check your Azure DevOps credentials"
+          : statusCode === 404
+            ? "Please check your organization and project names"
+            : "Please check your Azure DevOps configuration",
     });
   }
 });
 
 // New endpoint for AI summary
-router.get('/work-items/ai-summary', async (req, res) => {
+router.get("/work-items/ai-summary", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     // Check AI configuration
     if (!hasAIConfig(org)) {
-      return res.json({ 
-        summary: 'AI analysis not available - please configure AI provider in organization settings.',
-        status: 'not_configured'
+      return res.json({
+        summary:
+          "AI analysis not available - please configure AI provider in organization settings.",
+        status: "not_configured",
       });
     }
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const orgId = org._id?.toString();
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    
+
     // Use cache-first pattern (same cache as dashboard/sprint-summary)
     let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
-    
+
     if (!allWorkItems) {
       allWorkItems = await client.getAllCurrentSprintWorkItems();
       azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
     } else {
-      logger.debug('[Performance] AI summary using cached work items');
+      logger.debug("[Performance] AI summary using cached work items");
     }
-    
+
     if (!allWorkItems.value || allWorkItems.value.length === 0) {
-      return res.json({ summary: 'No work items found in current sprint.' });
+      return res.json({ summary: "No work items found in current sprint." });
     }
-    
+
     // Check if dataset is too large for real-time processing
     if (allWorkItems.value.length > 100) {
-      return res.json({ 
+      return res.json({
         summary: `Sprint contains ${allWorkItems.value.length} items. AI analysis is disabled for large datasets to maintain performance. Consider breaking into smaller sprints.`,
-        status: 'disabled_large_dataset'
+        status: "disabled_large_dataset",
       });
     }
-    
+
     // Initialize AI service with organization settings
     aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
-    
+
     // Check cache first (cache by sprint + item count + last update)
-    const { cacheManager } = await import('../cache/CacheManager.js');
-    const itemIds = allWorkItems.value.map(i => i.id).sort().join(',');
+    const { cacheManager } = await import("../cache/CacheManager.js");
+    const itemIds = allWorkItems.value
+      .map((i) => i.id)
+      .sort()
+      .join(",");
     const cacheKey = `sprint_summary_${org._id}_${itemIds.substring(0, 50)}_${allWorkItems.value.length}`;
-    const cached = cacheManager.get('ai', cacheKey);
-    
+    const cached = cacheManager.get("ai", cacheKey);
+
     if (cached) {
-      logger.info('Sprint summary cache hit', { itemCount: allWorkItems.value.length });
-      return res.json({ summary: cached, status: 'completed', cached: true });
+      logger.info("Sprint summary cache hit", { itemCount: allWorkItems.value.length });
+      return res.json({ summary: cached, status: "completed", cached: true });
     }
-    
+
     const summary = await aiService.summarizeSprintWorkItems(allWorkItems.value);
-    
+
     // Cache for 30 minutes
-    cacheManager.set('ai', cacheKey, summary, 1800);
-    
-    res.json({ summary, status: 'completed', cached: false });
-    
+    cacheManager.set("ai", cacheKey, summary, 1800);
+
+    res.json({ summary, status: "completed", cached: false });
   } catch (error) {
-    logger.error('Error generating AI summary:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate AI summary',
+    logger.error("Error generating AI summary:", error);
+    res.status(500).json({
+      error: "Failed to generate AI summary",
       details: error.message,
-      status: 'error'
+      status: "error",
     });
   }
 });
 
-// Work item AI explanation endpoint 
-router.get('/work-items/:id/explain', async (req, res) => {
+// Work item AI explanation endpoint
+router.get("/work-items/:id/explain", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const workItemId = req.params.id;
-    
+
     // Get work item details
     const workItem = await client.getWorkItems([workItemId]);
-    
+
     if (!workItem.value || workItem.value.length === 0) {
-      return res.status(404).json({ 
-        error: 'Work item not found',
-        details: `Work item ${workItemId} not found`
+      return res.status(404).json({
+        error: "Work item not found",
+        details: `Work item ${workItemId} not found`,
       });
     }
-    
+
     const item = workItem.value[0];
-    
+
     // Check cache first
-    const { cacheManager } = await import('../cache/CacheManager.js');
+    const { cacheManager } = await import("../cache/CacheManager.js");
     const cacheKey = `workitem_explain_${org._id}_${workItemId}_${item.rev}`;
-    const cached = cacheManager.get('ai', cacheKey);
-    
+    const cached = cacheManager.get("ai", cacheKey);
+
     if (cached) {
-      logger.info('Work item explanation cache hit', { workItemId });
+      logger.info("Work item explanation cache hit", { workItemId });
       return res.json({
         workItemId: workItemId,
         explanation: cached,
-        status: 'completed',
-        cached: true
+        status: "completed",
+        cached: true,
       });
     }
-    
+
     // Use dedicated AI method for detailed work item explanation
     const explanation = await aiService.explainWorkItem(item, { ai: getAIConfig(org) });
-    
+
     // Cache for 1 hour
-    cacheManager.set('ai', cacheKey, explanation, 3600);
-    
+    cacheManager.set("ai", cacheKey, explanation, 3600);
+
     res.json({
       workItemId: workItemId,
       explanation: explanation,
-      status: 'completed',
-      cached: false
+      status: "completed",
+      cached: false,
     });
-    
   } catch (error) {
-    logger.error('Error generating work item explanation:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate work item explanation',
+    logger.error("Error generating work item explanation:", error);
+    res.status(500).json({
+      error: "Failed to generate work item explanation",
       details: error.message,
-      status: 'error'
+      status: "error",
     });
   }
 });
 async function processAISummaryAsync(workItems) {
   try {
     if (workItems.length > 100) {
-      logger.info('Skipping AI summary for large dataset', { count: workItems.length });
+      logger.info("Skipping AI summary for large dataset", { count: workItems.length });
       return `Sprint contains ${workItems.length} items. AI analysis is disabled for large datasets.`;
     }
-    
+
     const summary = await aiService.summarizeSprintWorkItems(workItems);
     return summary;
   } catch (error) {
-    logger.error('Error in async AI processing:', error);
+    logger.error("Error in async AI processing:", error);
     throw error;
   }
 }
 
-router.get('/work-items/overdue', async (req, res) => {
+router.get("/work-items/overdue", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const orgId = org._id?.toString();
-    const overdueCacheKey = 'workItems:overdue';
-    
+    const overdueCacheKey = "workItems:overdue";
+
     // Check cache first
     let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
-    
+
     if (!overdueItems) {
       const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
       overdueItems = await client.getOverdueWorkItems();
       azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
     } else {
-      logger.debug('[Performance] Overdue items using cache');
+      logger.debug("[Performance] Overdue items using cache");
     }
-    
+
     res.json(overdueItems);
   } catch (error) {
-    logger.error('Error fetching overdue items:', error);
+    logger.error("Error fetching overdue items:", error);
     const statusCode = error.response?.status || 500;
-    const message = error.response?.data?.message || error.message || 'Failed to fetch overdue items';
-    res.status(statusCode).json({ 
-      error: 'Failed to fetch overdue items',
+    const message =
+      error.response?.data?.message || error.message || "Failed to fetch overdue items";
+    res.status(statusCode).json({
+      error: "Failed to fetch overdue items",
       details: message,
-      suggestion: statusCode === 401 ? 'Please check your Azure DevOps credentials' : 
-                 statusCode === 404 ? 'Please check your organization and project names' :
-                 'Please check your Azure DevOps configuration'
+      suggestion:
+        statusCode === 401
+          ? "Please check your Azure DevOps credentials"
+          : statusCode === 404
+            ? "Please check your organization and project names"
+            : "Please check your Azure DevOps configuration",
     });
   }
 });
 
 // Emergency cleanup endpoint (for development/debugging)
-router.post('/polling/emergency-cleanup', async (req, res) => {
+router.post("/polling/emergency-cleanup", async (req, res) => {
   try {
     await userPollingManager.emergencyCleanup();
-    res.json({ message: 'Emergency cleanup completed' });
+    res.json({ message: "Emergency cleanup completed" });
   } catch (error) {
-    logger.error('Emergency cleanup failed:', error);
-    res.status(500).json({ error: 'Emergency cleanup failed' });
+    logger.error("Emergency cleanup failed:", error);
+    res.status(500).json({ error: "Emergency cleanup failed" });
   }
 });
 
 // Builds endpoints
-router.get('/builds/recent', async (req, res) => {
+router.get("/builds/recent", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     // Get limit from query parameter, default to 20, min 10, max 50
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 10), 50);
     const repositoryFilter = req.query.repository;
-    
+
     // Check cache first (60s TTL)
-    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
-    const cacheKey = repositoryFilter && repositoryFilter !== 'all' 
-      ? `builds:recent:${limit}:${repositoryFilter}`
-      : `builds:recent:${limit}`;
-    
+    const { azureDevOpsCache } = await import("../cache/AzureDevOpsCache.js");
+    const cacheKey =
+      repositoryFilter && repositoryFilter !== "all"
+        ? `builds:recent:${limit}:${repositoryFilter}`
+        : `builds:recent:${limit}`;
+
     let builds = azureDevOpsCache.get(org._id?.toString(), cacheKey);
-    
+
     if (!builds) {
       const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
       builds = await client.getRecentBuilds(limit);
-      
+
       // Filter by repository if specified
-      if (repositoryFilter && repositoryFilter !== 'all') {
-        builds.value = builds.value?.filter(build => 
-          build.repository?.name === repositoryFilter ||
-          build.definition?.name?.includes(repositoryFilter)
+      if (repositoryFilter && repositoryFilter !== "all") {
+        builds.value = builds.value?.filter(
+          (build) =>
+            build.repository?.name === repositoryFilter ||
+            build.definition?.name?.includes(repositoryFilter)
         );
       }
-      
+
       // Cache for 60 seconds
       azureDevOpsCache.set(org._id?.toString(), cacheKey, builds, 60);
     } else {
-      logger.debug('[Performance] Builds cache hit');
+      logger.debug("[Performance] Builds cache hit");
     }
-    
+
     res.json(builds);
   } catch (error) {
-    logger.error('Error fetching recent builds:', error);
-    res.status(500).json({ error: 'Failed to fetch recent builds' });
+    logger.error("Error fetching recent builds:", error);
+    res.status(500).json({ error: "Failed to fetch recent builds" });
   }
 });
 
-router.get('/builds/:buildId', async (req, res) => {
+router.get("/builds/:buildId", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const build = await client.getBuild(req.params.buildId);
     res.json(build);
   } catch (error) {
-    logger.error('Error fetching build details:', error);
-    res.status(500).json({ error: 'Failed to fetch build details' });
+    logger.error("Error fetching build details:", error);
+    res.status(500).json({ error: "Failed to fetch build details" });
   }
 });
 
 // Build analysis endpoint
-router.post('/builds/:buildId/analyze', async (req, res) => {
+router.post("/builds/:buildId/analyze", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const buildId = req.params.buildId;
-    
+
     // Get build details
     const build = await client.getBuild(buildId);
-    
+
     if (!build) {
-      return res.status(404).json({ 
-        error: 'Build not found',
-        details: `Build ${buildId} not found`
+      return res.status(404).json({
+        error: "Build not found",
+        details: `Build ${buildId} not found`,
       });
     }
-    
+
     // Get timeline and logs for analysis
     const [timeline, logs] = await Promise.all([
       client.getBuildTimeline(buildId),
-      client.getBuildLogs(buildId)
+      client.getBuildLogs(buildId),
     ]);
-    
+
     // Initialize AI service with organization settings
     aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
-    
+
     // Initialize FreeModelRouter with org AI config
-    const { freeModelRouter } = await import('../ai/FreeModelRouter.js');
+    const { freeModelRouter } = await import("../ai/FreeModelRouter.js");
     const aiConfig = getAIConfig(org);
     freeModelRouter.initialize(aiConfig || {});
-    
+
     // Route through agentic system (cache → rules → AI)
-    const { monitorAgent } = await import('../agents/MonitorAgent.js');
+    const { monitorAgent } = await import("../agents/MonitorAgent.js");
     const agentResult = await monitorAgent.monitorBuildFailure(build, timeline, logs, client);
-    
+
     // Extract analysis from agent result
-    const analysis = agentResult.success 
-      ? (agentResult.result?.solution || agentResult.result?.action || 'Analysis completed')
-      : 'Analysis failed';
-    
+    const analysis = agentResult.success
+      ? agentResult.result?.solution || agentResult.result?.action || "Analysis completed"
+      : "Analysis failed";
+
     res.json({
       buildId: buildId,
       analysis: analysis,
-      status: 'completed',
+      status: "completed",
       agentic: {
         success: agentResult.success,
-        method: agentResult.result?.method || 'unknown',
+        method: agentResult.result?.method || "unknown",
         cacheHit: agentResult.stats?.cacheHits > 0,
         ruleUsed: agentResult.stats?.rulesUsed > 0,
-        duration: agentResult.duration
-      }
+        duration: agentResult.duration,
+      },
     });
-    
   } catch (error) {
-    logger.error('Error analyzing build:', error);
-    res.status(500).json({ 
-      error: 'Failed to analyze build',
+    logger.error("Error analyzing build:", error);
+    res.status(500).json({
+      error: "Failed to analyze build",
       details: error.message,
-      status: 'error'
+      status: "error",
     });
   }
 });
 
 // Pull Requests endpoints
-router.get('/pull-requests', async (req, res) => {
+router.get("/pull-requests", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const orgId = org._id?.toString();
-    
+
     // Check cache first (60s TTL)
     const cached = azureDevOpsCache.getPullRequests(orgId);
     if (cached) {
-      logger.debug('[Performance] PR cache hit');
+      logger.debug("[Performance] PR cache hit");
       return res.json(cached);
     }
-    
+
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-    const pullRequests = await client.getPullRequests('active');
-    
+    const pullRequests = await client.getPullRequests("active");
+
     // Cache for 60 seconds
     azureDevOpsCache.setPullRequests(orgId, pullRequests, 60);
-    
+
     res.json(pullRequests);
   } catch (error) {
-    logger.error('Error fetching pull requests:', error);
-    res.status(500).json({ error: 'Failed to fetch pull requests' });
+    logger.error("Error fetching pull requests:", error);
+    res.status(500).json({ error: "Failed to fetch pull requests" });
   }
 });
 
-router.get('/pull-requests/idle', async (req, res) => {
+router.get("/pull-requests/idle", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const orgId = org._id?.toString();
-    
+
     // Check cache for base PR data (shared with /pull-requests endpoint)
     let allPRs = azureDevOpsCache.getPullRequests(orgId);
-    
+
     if (!allPRs) {
       // Fetch and cache if not available
       const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
-      allPRs = await client.getPullRequests('active');
+      allPRs = await client.getPullRequests("active");
       azureDevOpsCache.setPullRequests(orgId, allPRs, 60);
     } else {
-      logger.debug('[Performance] Idle PRs using cached PR data');
+      logger.debug("[Performance] Idle PRs using cached PR data");
     }
-    
+
     // Calculate idle PRs from cached data (same logic as azureDevOpsClient.getIdlePullRequests)
     const hoursThreshold = 48;
     const thresholdDate = new Date();
     thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold);
 
-    const idlePRs = (allPRs.value || []).filter(pr => {
+    const idlePRs = (allPRs.value || []).filter((pr) => {
       const activityDates = [
         pr.creationDate,
         pr.lastMergeCommit?.committer?.date,
         pr.lastMergeSourceCommit?.committer?.date,
         pr.closedDate,
-      ].filter(date => date != null);
+      ].filter((date) => date != null);
 
-      const lastActivityDate = new Date(Math.max(...activityDates.map(date => new Date(date).getTime())));      
+      const lastActivityDate = new Date(
+        Math.max(...activityDates.map((date) => new Date(date).getTime()))
+      );
       return lastActivityDate < thresholdDate;
     });
 
     res.json({ count: idlePRs.length, value: idlePRs });
   } catch (error) {
-    logger.error('Error fetching idle pull requests:', error);
-    res.status(500).json({ error: 'Failed to fetch idle pull requests' });
+    logger.error("Error fetching idle pull requests:", error);
+    res.status(500).json({ error: "Failed to fetch idle pull requests" });
   }
 });
 
 // Pull Request AI explanation endpoint
-router.get('/pull-requests/:id/explain', async (req, res) => {
+router.get("/pull-requests/:id/explain", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
-      return res.status(400).json({ error: 'Azure DevOps configuration required' });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
     }
-    
+
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const pullRequestId = req.params.id;
-    
+
     // Get PR details
     const pullRequest = await client.getPullRequestDetails(pullRequestId);
-    
+
     if (!pullRequest) {
-      return res.status(404).json({ 
-        error: 'Pull request not found',
-        details: `Pull request ${pullRequestId} not found`
+      return res.status(404).json({
+        error: "Pull request not found",
+        details: `Pull request ${pullRequestId} not found`,
       });
     }
 
     // Get PR changes and commits for better analysis (don't fail if unavailable)
     let changes = null;
     let commits = null;
-    
+
     try {
       changes = await client.getPullRequestIterationChanges(pullRequestId);
     } catch (error) {
-      logger.warn('Failed to fetch PR changes:', error.message);
+      logger.warn("Failed to fetch PR changes:", error.message);
     }
 
     try {
       commits = await client.getPullRequestCommits(pullRequestId);
     } catch (error) {
-      logger.warn('Failed to fetch PR commits:', error.message);
+      logger.warn("Failed to fetch PR commits:", error.message);
     }
 
     // Check cache first
-    const { cacheManager } = await import('../cache/CacheManager.js');
-    const cacheKey = `pr_explain_${org._id}_${pullRequestId}_${pullRequest.lastMergeSourceCommit?.commitId || 'initial'}`;
-    const cached = cacheManager.get('ai', cacheKey);
-    
+    const { cacheManager } = await import("../cache/CacheManager.js");
+    const cacheKey = `pr_explain_${org._id}_${pullRequestId}_${pullRequest.lastMergeSourceCommit?.commitId || "initial"}`;
+    const cached = cacheManager.get("ai", cacheKey);
+
     if (cached) {
-      logger.info('PR explanation cache hit', { pullRequestId });
+      logger.info("PR explanation cache hit", { pullRequestId });
       return res.json({
         pullRequestId: pullRequestId,
         explanation: cached,
         changes: changes,
         commits: commits,
-        status: 'completed',
-        cached: true
+        status: "completed",
+        cached: true,
       });
     }
 
     // Generate AI explanation
-    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits, { ai: getAIConfig(org) });
-    
+    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits, {
+      ai: getAIConfig(org),
+    });
+
     // Cache for 1 hour
-    cacheManager.set('ai', cacheKey, explanation, 3600);
-    
+    cacheManager.set("ai", cacheKey, explanation, 3600);
+
     res.json({
       pullRequestId: pullRequestId,
       explanation: explanation,
       changes: changes,
       commits: commits,
-      status: 'completed',
-      cached: false
+      status: "completed",
+      cached: false,
     });
-    
   } catch (error) {
-    logger.error('Error generating pull request explanation:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate pull request explanation',
+    logger.error("Error generating pull request explanation:", error);
+    res.status(500).json({
+      error: "Failed to generate pull request explanation",
       details: error.message,
-      status: 'error'
+      status: "error",
     });
   }
 });
 
 // Get PR changes with diffs
 // Logs endpoint
-router.get('/logs', async (req, res) => {
+router.get("/logs", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     // This is a mock implementation - in a real app, you'd read from log files
@@ -904,129 +935,137 @@ router.get('/logs', async (req, res) => {
       logs: [
         {
           timestamp: new Date().toISOString(),
-          level: 'info',
-          service: 'system',
-          message: 'Application started successfully'
-        }
-      ]
+          level: "info",
+          service: "system",
+          message: "Application started successfully",
+        },
+      ],
     });
   } catch (error) {
-    logger.error('Error fetching logs:', error);
-    res.status(500).json({ error: 'Failed to fetch logs' });
+    logger.error("Error fetching logs:", error);
+    res.status(500).json({ error: "Failed to fetch logs" });
   }
 });
-
-
 
 // NOTE: /settings/test-connection route is defined earlier in this file (around line 167)
 // Do not duplicate it here
 
 // Fetch projects from Azure DevOps organization
-router.post('/settings/projects', async (req, res) => {
+router.post("/settings/projects", async (req, res) => {
   try {
     const { organization, personalAccessToken, baseUrl } = req.body;
-    
+
     if (!organization || !personalAccessToken) {
-      return res.status(400).json({ error: 'Organization and PAT are required' });
+      return res.status(400).json({ error: "Organization and PAT are required" });
     }
-    
-    const base = baseUrl || 'https://dev.azure.com';
+
+    const base = baseUrl || "https://dev.azure.com";
     const url = `${base}/${organization}/_apis/projects?api-version=7.0`;
-    
+
     const response = await axios.get(url, {
       headers: {
-        'Authorization': `Basic ${Buffer.from(':' + personalAccessToken).toString('base64')}`,
-        'Content-Type': 'application/json'
-      }
+        Authorization: `Basic ${Buffer.from(":" + personalAccessToken).toString("base64")}`,
+        "Content-Type": "application/json",
+      },
     });
-    
-    const projects = response.data.value?.map(p => ({
-      id: p.id,
-      name: p.name,
-      description: p.description
-    })) || [];
-    
+
+    const projects =
+      response.data.value?.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+      })) || [];
+
     res.json({ projects });
   } catch (error) {
-    logger.error('Failed to fetch projects:', error);
-    res.status(500).json({ error: 'Failed to fetch projects: ' + error.message });
+    logger.error("Failed to fetch projects:", error);
+    res.status(500).json({ error: "Failed to fetch projects: " + error.message });
   }
 });
 
 // Helper functions
 async function testAzureDevOpsConnection(config) {
   try {
-    const axios = (await import('axios')).default;
-    
+    const axios = (await import("axios")).default;
+
     const org = config.organization.trim();
     const baseURL = `${config.baseUrl}/${encodeURIComponent(org)}/_apis`;
-    const authHeader = `Basic ${Buffer.from(`:${config.personalAccessToken}`).toString('base64')}`;
-    
-    logger.info('Testing connection to:', { org, baseURL: `${baseURL}/projects` });
-    
+    const authHeader = `Basic ${Buffer.from(`:${config.personalAccessToken}`).toString("base64")}`;
+
+    logger.info("Testing connection to:", { org, baseURL: `${baseURL}/projects` });
+
     const response = await axios.get(`${baseURL}/projects`, {
       headers: {
-        'Authorization': authHeader
+        Authorization: authHeader,
       },
       params: {
-        'api-version': '7.0'
+        "api-version": "7.0",
       },
-      timeout: 10000
+      timeout: 10000,
     });
-    
-    logger.info('API Response:', {
+
+    logger.info("API Response:", {
       status: response.status,
       dataKeys: Object.keys(response.data || {}),
       hasValue: !!response.data?.value,
       valueLength: response.data?.value?.length || 0,
-      rawData: response.data
+      rawData: response.data,
     });
-    
+
     const projects = response.data.value || [];
     logger.info(`Found ${projects.length} projects`);
-    
+
     if (projects.length === 0) {
-      throw new Error(`No projects found in organization "${org}". Check: 1) Organization name is correct, 2) PAT token has 'Project and Team (read)' permissions, 3) You have access to this organization`);
+      throw new Error(
+        `No projects found in organization "${org}". Check: 1) Organization name is correct, 2) PAT token has 'Project and Team (read)' permissions, 3) You have access to this organization`
+      );
     }
-    
+
     // Check if project exists (case-insensitive)
     const projectName = config.project.trim();
-    const projectExists = projects.some(p => 
-      p.name.toLowerCase() === projectName.toLowerCase()
-    );
-    
+    const projectExists = projects.some((p) => p.name.toLowerCase() === projectName.toLowerCase());
+
     if (!projectExists) {
-      const availableProjects = projects.map(p => p.name).join(', ');
-      throw new Error(`Project "${projectName}" not found. Available projects: ${availableProjects}`);
+      const availableProjects = projects.map((p) => p.name).join(", ");
+      throw new Error(
+        `Project "${projectName}" not found. Available projects: ${availableProjects}`
+      );
     }
-    
+
     return {
       success: true,
-      message: `Connected successfully! Found project "${projectName}" in organization "${org}"`
+      message: `Connected successfully! Found project "${projectName}" in organization "${org}"`,
     };
-    
   } catch (error) {
-    logger.error('Connection test error:', error.message);
-    
+    logger.error("Connection test error:", error.message);
+
     if (error.response?.status === 400) {
-      throw new Error(`Invalid organization "${config.organization}". Check the organization name.`);
+      throw new Error(
+        `Invalid organization "${config.organization}". Check the organization name.`
+      );
     } else if (error.response?.status === 401) {
-      throw new Error('Invalid PAT token or insufficient permissions. Make sure your PAT has "Project and Team (read)" permissions.');
+      throw new Error(
+        'Invalid PAT token or insufficient permissions. Make sure your PAT has "Project and Team (read)" permissions.'
+      );
     } else if (error.response?.status === 403) {
-      throw new Error(`Access denied to organization "${config.organization}". Check PAT permissions and organization access.`);
+      throw new Error(
+        `Access denied to organization "${config.organization}". Check PAT permissions and organization access.`
+      );
     } else if (error.response?.status === 404) {
-      throw new Error(`Organization "${config.organization}" not found. Verify the organization name.`);
-    } else if (error.code === 'ENOTFOUND') {
-      throw new Error('Unable to connect to Azure DevOps. Check your internet connection.');
+      throw new Error(
+        `Organization "${config.organization}" not found. Verify the organization name.`
+      );
+    } else if (error.code === "ENOTFOUND") {
+      throw new Error("Unable to connect to Azure DevOps. Check your internet connection.");
     } else {
-      throw new Error(error.message || 'Connection test failed');
+      throw new Error(error.message || "Connection test failed");
     }
   }
 }
 
 function groupWorkItemsByState(workItems) {
   return workItems.reduce((acc, item) => {
-    const state = item.fields?.['System.State'] || 'Unknown';
+    const state = item.fields?.["System.State"] || "Unknown";
     if (!acc[state]) acc[state] = [];
     // Include full work item data for modal
     acc[state].push(item);
@@ -1036,7 +1075,7 @@ function groupWorkItemsByState(workItems) {
 
 function groupWorkItemsByAssignee(workItems) {
   return workItems.reduce((acc, item) => {
-    const assignee = item.fields?.['System.AssignedTo']?.displayName || 'Unassigned';
+    const assignee = item.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
     if (!acc[assignee]) acc[assignee] = [];
     // Include full work item data for modal
     acc[assignee].push(item);
@@ -1045,107 +1084,111 @@ function groupWorkItemsByAssignee(workItems) {
 }
 
 // AI Configuration endpoints
-router.get('/ai/providers', (req, res) => {
+router.get("/ai/providers", (req, res) => {
   try {
     const providers = [
-      { value: 'openai', label: 'OpenAI', description: 'GPT models from OpenAI' },
-      { value: 'groq', label: 'Groq', description: 'Fast inference with open models' },
-      { value: 'gemini', label: 'Google Gemini', description: 'Google\'s latest AI models' }
+      { value: "openai", label: "OpenAI", description: "GPT models from OpenAI" },
+      { value: "groq", label: "Groq", description: "Fast inference with open models" },
+      { value: "gemini", label: "Google Gemini", description: "Google's latest AI models" },
     ];
-    
+
     res.json({
       success: true,
-      providers
+      providers,
     });
   } catch (error) {
-    logger.error('Error fetching AI providers:', error);
+    logger.error("Error fetching AI providers:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch AI providers'
+      error: "Failed to fetch AI providers",
     });
   }
 });
 
-router.get('/ai/models/:provider', async (req, res) => {
+router.get("/ai/models/:provider", async (req, res) => {
   try {
     const { provider } = req.params;
     const org = await getOrganizationSettings(req);
-    
+
     let models = [];
     let apiKey = null;
-    
+
     // Get API key from organization settings
     if (org?.ai?.apiKeys) {
-      if (provider === 'openai') {
+      if (provider === "openai") {
         apiKey = org.ai.apiKeys.openai;
-      } else if (provider === 'groq') {
+      } else if (provider === "groq") {
         apiKey = org.ai.apiKeys.groq;
-      } else if (provider === 'gemini') {
+      } else if (provider === "gemini") {
         apiKey = org.ai.apiKeys.gemini;
       }
     }
-    
-    if (provider === 'openai' && apiKey) {
-      const { default: OpenAI } = await import('openai');
+
+    if (provider === "openai" && apiKey) {
+      const { default: OpenAI } = await import("openai");
       const openai = new OpenAI({ apiKey });
       const response = await openai.models.list();
       models = response.data
-        .filter(model => model.id.includes('gpt'))
-        .map(model => ({
+        .filter((model) => model.id.includes("gpt"))
+        .map((model) => ({
           value: model.id,
           label: model.id.toUpperCase(),
-          description: `OpenAI ${model.id}`
+          description: `OpenAI ${model.id}`,
         }));
-    } else if (provider === 'groq' && apiKey) {
-      const { default: Groq } = await import('groq-sdk');
+    } else if (provider === "groq" && apiKey) {
+      const { default: Groq } = await import("groq-sdk");
       const groq = new Groq({ apiKey });
       const response = await groq.models.list();
-      models = response.data.map(model => ({
+      models = response.data.map((model) => ({
         value: model.id,
         label: model.id,
-        description: `Groq ${model.id}`
+        description: `Groq ${model.id}`,
       }));
-    } else if (provider === 'gemini' && apiKey) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    } else if (provider === "gemini" && apiKey) {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+      );
       if (response.ok) {
         const data = await response.json();
         models = data.models
-          .filter(model => {
+          .filter((model) => {
             const supportedMethods = model.supportedGenerationMethods || [];
-            const modelId = model.name.replace('models/', '');
-            return supportedMethods.includes('generateContent') && 
-                   !modelId.toLowerCase().includes('embedding') &&
-                   !modelId.toLowerCase().includes('aqa');
+            const modelId = model.name.replace("models/", "");
+            return (
+              supportedMethods.includes("generateContent") &&
+              !modelId.toLowerCase().includes("embedding") &&
+              !modelId.toLowerCase().includes("aqa")
+            );
           })
-          .map(model => ({
-            value: model.name.replace('models/', ''),
-            label: model.displayName || model.name.replace('models/', ''),
-            description: model.description || `Google ${model.name.replace('models/', '')}`
+          .map((model) => ({
+            value: model.name.replace("models/", ""),
+            label: model.displayName || model.name.replace("models/", ""),
+            description: model.description || `Google ${model.name.replace("models/", "")}`,
           }));
       }
     } else {
       // Fallback to static models
       models = getModelsForProvider(provider);
     }
-    
+
     const defaultModel = getDefaultModel(provider);
-    
+
     if (models.length === 0) {
       return res.status(400).json({
         success: false,
-        error: `No models available for provider: ${provider}`
+        error: `No models available for provider: ${provider}`,
       });
     }
-    
+
     res.json({
       success: true,
       provider,
       models,
       defaultModel,
-      source: apiKey ? 'live' : 'static'
+      source: apiKey ? "live" : "static",
     });
   } catch (error) {
-    logger.error('Error fetching AI models:', error);
+    logger.error("Error fetching AI models:", error);
     // Fallback to static models on error
     const models = getModelsForProvider(req.params.provider);
     res.json({
@@ -1153,102 +1196,102 @@ router.get('/ai/models/:provider', async (req, res) => {
       provider: req.params.provider,
       models,
       defaultModel: getDefaultModel(req.params.provider),
-      source: 'static'
+      source: "static",
     });
   }
 });
 
-router.get('/ai/config', async (req, res) => {
+router.get("/ai/config", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     // Don't expose API keys in the response
     const safeConfig = {
-      provider: org?.ai?.provider || 'gemini',
-      model: org?.ai?.model || 'gemini-2.0-flash',
-      hasOpenAIKey: !!(org?.ai?.apiKeys?.openai),
-      hasGroqKey: !!(org?.ai?.apiKeys?.groq),
-      hasGeminiKey: !!(org?.ai?.apiKeys?.gemini)
+      provider: org?.ai?.provider || "gemini",
+      model: org?.ai?.model || "gemini-2.0-flash",
+      hasOpenAIKey: !!org?.ai?.apiKeys?.openai,
+      hasGroqKey: !!org?.ai?.apiKeys?.groq,
+      hasGeminiKey: !!org?.ai?.apiKeys?.gemini,
     };
-    
+
     res.json({
       success: true,
-      config: safeConfig
+      config: safeConfig,
     });
   } catch (error) {
-    logger.error('Error fetching AI config:', error);
+    logger.error("Error fetching AI config:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch AI configuration'
+      error: "Failed to fetch AI configuration",
     });
   }
 });
 
 // Get organization-specific webhook URLs (multi-tenant)
-router.get('/webhooks/urls', async (req, res) => {
+router.get("/webhooks/urls", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
     if (!org) {
-      return res.status(400).json({ success: false, error: 'Organization context required' });
+      return res.status(400).json({ success: false, error: "Organization context required" });
     }
-    
+
     const organizationId = org._id;
     // Check for X-Forwarded-Proto header for proper HTTPS detection behind reverse proxy
-    const protocol = req.get('X-Forwarded-Proto') || req.protocol;
-    const baseUrl = `${protocol}://${req.get('host')}`;
-    
+    const protocol = req.get("X-Forwarded-Proto") || req.protocol;
+    const baseUrl = `${protocol}://${req.get("host")}`;
+
     const webhookUrls = {
       buildCompleted: `${baseUrl}/api/webhooks/org/${organizationId}/build/completed`,
       pullRequestCreated: `${baseUrl}/api/webhooks/org/${organizationId}/pullrequest/created`,
       workItemCreated: `${baseUrl}/api/webhooks/org/${organizationId}/workitem/created`,
       workItemUpdated: `${baseUrl}/api/webhooks/org/${organizationId}/workitem/updated`,
-      releaseDeployment: `${baseUrl}/api/webhooks/org/${organizationId}/release/deployment`
+      releaseDeployment: `${baseUrl}/api/webhooks/org/${organizationId}/release/deployment`,
     };
-    
+
     res.json({
       success: true,
       webhookUrls,
       organizationId: organizationId.toString(),
-      organizationName: org.name
+      organizationName: org.name,
     });
   } catch (error) {
-    logger.error('Error generating webhook URLs:', error);
+    logger.error("Error generating webhook URLs:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to generate webhook URLs'
+      error: "Failed to generate webhook URLs",
     });
   }
 });
 
 // Emergency routes
-router.use('/emergency', emergencyRoutes);
+router.use("/emergency", emergencyRoutes);
 
 // Cache and performance stats routes
-import cacheStatsRoutes from './cacheStats.js';
-router.use('/performance', cacheStatsRoutes);
+import cacheStatsRoutes from "./cacheStats.js";
+router.use("/performance", cacheStatsRoutes);
 
 // Agent dashboard routes
-import agentDashboardRoutes from './agentDashboard.js';
-router.use('/agent-dashboard', agentDashboardRoutes);
+import agentDashboardRoutes from "./agentDashboard.js";
+router.use("/agent-dashboard", agentDashboardRoutes);
 
 // Aggregated dashboard routes (performance optimized)
-import dashboardRoutes from './dashboard.js';
-router.use('/dashboard', dashboardRoutes);
+import dashboardRoutes from "./dashboard.js";
+router.use("/dashboard", dashboardRoutes);
 
 // Notification history routes
-import notificationHistoryRoutes from './notificationHistory.js';
-router.use('/notifications', notificationHistoryRoutes);
+import notificationHistoryRoutes from "./notificationHistory.js";
+router.use("/notifications", notificationHistoryRoutes);
 
 // Releases endpoints
-router.get('/releases', async (req, res) => {
+router.get("/releases", async (req, res) => {
   try {
     const { limit = 50, skip = 0, status, definitionId, fromDate, toDate } = req.query;
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
-        error: 'Azure DevOps configuration is incomplete'
+        error: "Azure DevOps configuration is incomplete",
       });
     }
 
@@ -1265,223 +1308,237 @@ router.get('/releases', async (req, res) => {
       definitionId: definitionId ? parseInt(definitionId) : undefined,
       statusFilter: status,
       minCreatedTime: fromDate,
-      maxCreatedTime: toDate
+      maxCreatedTime: toDate,
     };
 
     try {
       let releases = [];
       const targetSkip = parseInt(skip);
       const targetLimit = parseInt(limit);
-      
+
       if (targetSkip === 0) {
         // First page - fetch directly
         const azureResponse = await releaseClient.getReleases({
           ...options,
-          top: targetLimit
+          top: targetLimit,
         });
         releases = azureResponse.value || [];
       } else {
         // Skip pages efficiently then fetch target page
         let continuationToken = null;
         let fetchedCount = 0;
-        
+
         // Skip through pages
         while (fetchedCount < targetSkip) {
           const skipBatchSize = Math.min(100, targetSkip - fetchedCount);
           const azureResponse = await releaseClient.getReleases({
             ...options,
             top: skipBatchSize,
-            continuationToken
+            continuationToken,
           });
-          
+
           const batchReleases = azureResponse.value || [];
           if (batchReleases.length === 0) break;
-          
+
           fetchedCount += batchReleases.length;
           continuationToken = azureResponse.continuationToken;
           if (!continuationToken) break;
         }
-        
+
         // Fetch the actual page
         if (continuationToken) {
           const azureResponse = await releaseClient.getReleases({
             ...options,
             top: targetLimit,
-            continuationToken
+            continuationToken,
           });
           releases = azureResponse.value || [];
         }
       }
 
       // Transform Azure DevOps data to our format
-      const transformedReleases = releases.map(release => {
+      const transformedReleases = releases.map((release) => {
         // Determine overall status from environment statuses
-        let mappedStatus = 'unknown';
-        
+        let mappedStatus = "unknown";
+
         // Check release-level status first for abandoned/canceled
-        const releaseStatus = release.status?.toLowerCase() || '';
-        if (releaseStatus === 'abandoned') {
-          mappedStatus = 'abandoned';
-        } else if (['canceled', 'cancelled'].includes(releaseStatus)) {
-          mappedStatus = 'canceled';
+        const releaseStatus = release.status?.toLowerCase() || "";
+        if (releaseStatus === "abandoned") {
+          mappedStatus = "abandoned";
+        } else if (["canceled", "cancelled"].includes(releaseStatus)) {
+          mappedStatus = "canceled";
         } else if (release.environments && release.environments.length > 0) {
-          const envStatuses = release.environments.map(env => env.status?.toLowerCase());
-          
+          const envStatuses = release.environments.map((env) => env.status?.toLowerCase());
+
           // Debug logging to see actual status values
           // console.log(`Release ${release.id} environment statuses:`, envStatuses);
-          
+
           // If any environment is canceled, overall status is canceled
-          if (envStatuses.some(status => ['canceled', 'cancelled'].includes(status))) {
-            mappedStatus = 'canceled';
+          if (envStatuses.some((status) => ["canceled", "cancelled"].includes(status))) {
+            mappedStatus = "canceled";
           }
           // If any environment is abandoned, overall status is abandoned
-          else if (envStatuses.some(status => ['abandoned'].includes(status))) {
-            mappedStatus = 'abandoned';
+          else if (envStatuses.some((status) => ["abandoned"].includes(status))) {
+            mappedStatus = "abandoned";
           }
           // If any environment is rejected, overall status is failed
-          else if (envStatuses.some(status => ['rejected'].includes(status))) {
-            mappedStatus = 'failed';
+          else if (envStatuses.some((status) => ["rejected"].includes(status))) {
+            mappedStatus = "failed";
           }
           // If any environment failed, overall status is failed
-          else if (envStatuses.some(status => ['failed'].includes(status))) {
-            mappedStatus = 'failed';
+          else if (envStatuses.some((status) => ["failed"].includes(status))) {
+            mappedStatus = "failed";
           }
           // If all environments succeeded or partially succeeded, overall status is succeeded
-          else if (envStatuses.every(status => status === 'succeeded' || status === 'partiallysucceeded')) {
-            mappedStatus = 'succeeded';
+          else if (
+            envStatuses.every((status) => status === "succeeded" || status === "partiallysucceeded")
+          ) {
+            mappedStatus = "succeeded";
           }
           // If any environment is in progress, overall status is in progress
-          else if (envStatuses.some(status => ['inprogress', 'queued'].includes(status))) {
-            mappedStatus = 'inprogress';
+          else if (envStatuses.some((status) => ["inprogress", "queued"].includes(status))) {
+            mappedStatus = "inprogress";
           }
           // Check for pending approvals
-          else if (envStatuses.some(status => ['waitingforapproval', 'pendingapproval'].includes(status))) {
-            mappedStatus = 'waitingforapproval';
+          else if (
+            envStatuses.some((status) => ["waitingforapproval", "pendingapproval"].includes(status))
+          ) {
+            mappedStatus = "waitingforapproval";
           }
           // If any environment is not started, overall status is notDeployed
-          else if (envStatuses.some(status => ['notstarted', 'undefined'].includes(status))) {
-            mappedStatus = 'notDeployed';
+          else if (envStatuses.some((status) => ["notstarted", "undefined"].includes(status))) {
+            mappedStatus = "notDeployed";
           }
           // Default to succeeded if all environments are succeeded
           else {
-            mappedStatus = 'succeeded';
+            mappedStatus = "succeeded";
           }
         } else {
           // Fallback to release status if no environments
-          const azureStatus = release.status?.toLowerCase() || 'unknown';
-          
+          const azureStatus = release.status?.toLowerCase() || "unknown";
+
           switch (azureStatus) {
-            case 'active':
-              mappedStatus = 'inprogress';
+            case "active":
+              mappedStatus = "inprogress";
               break;
-            case 'succeeded':
-              mappedStatus = 'succeeded';
+            case "succeeded":
+              mappedStatus = "succeeded";
               break;
-            case 'canceled':
-            case 'cancelled':
-              mappedStatus = 'canceled';
+            case "canceled":
+            case "cancelled":
+              mappedStatus = "canceled";
               break;
-            case 'partiallysucceeded':
-            case 'partiallydeployed':
-            case 'waitingforapproval':
-            case 'pendingapproval':
-              mappedStatus = 'waitingforapproval';
+            case "partiallysucceeded":
+            case "partiallydeployed":
+            case "waitingforapproval":
+            case "pendingapproval":
+              mappedStatus = "waitingforapproval";
               break;
             default:
-              mappedStatus = 'pending';
+              mappedStatus = "pending";
           }
         }
-        
+
         return {
           id: release.id,
           name: release.name,
-          definitionName: release.releaseDefinition?.name || 'Unknown',
+          definitionName: release.releaseDefinition?.name || "Unknown",
           status: mappedStatus,
           _hasRejectedEnvironments: release._hasRejectedEnvironments,
           createdOn: release.createdOn,
           organization: azureConfig.organization,
           project: azureConfig.project,
           createdBy: {
-            displayName: release.createdBy?.displayName || 'Unknown',
-            uniqueName: release.createdBy?.uniqueName || ''
+            displayName: release.createdBy?.displayName || "Unknown",
+            uniqueName: release.createdBy?.uniqueName || "",
           },
-          environments: (release.environments || []).map(env => {
-            // Map environment status using same logic
-            let envMappedStatus = 'unknown';
-            if (env.status) {
-              const azureEnvStatus = env.status.toLowerCase();
-              switch (azureEnvStatus) {
-                case 'inprogress':
-                case 'queued':
-                  envMappedStatus = 'inprogress';
-                  break;
-                case 'succeeded':
-                case 'partiallysucceeded':
-                  envMappedStatus = 'succeeded';
-                  break;
-                case 'failed':
-                case 'rejected':
-                  envMappedStatus = 'failed';
-                  break;
-                case 'canceled':
-                case 'cancelled':
-                  envMappedStatus = 'canceled';
-                  break;
-                case 'abandoned':
-                  envMappedStatus = 'abandoned';
-                  break;
-                case 'waitingforapproval':
-                case 'pendingapproval':
-                  envMappedStatus = 'waitingforapproval';
-                  break;
-                case 'notstarted':
-                case 'undefined':
-                  envMappedStatus = 'notDeployed';
-                  break;
-                default:
-                  envMappedStatus = azureEnvStatus;
+          environments: (release.environments || [])
+            .map((env) => {
+              // Map environment status using same logic
+              let envMappedStatus = "unknown";
+              if (env.status) {
+                const azureEnvStatus = env.status.toLowerCase();
+                switch (azureEnvStatus) {
+                  case "inprogress":
+                  case "queued":
+                    envMappedStatus = "inprogress";
+                    break;
+                  case "succeeded":
+                  case "partiallysucceeded":
+                    envMappedStatus = "succeeded";
+                    break;
+                  case "failed":
+                  case "rejected":
+                    envMappedStatus = "failed";
+                    break;
+                  case "canceled":
+                  case "cancelled":
+                    envMappedStatus = "canceled";
+                    break;
+                  case "abandoned":
+                    envMappedStatus = "abandoned";
+                    break;
+                  case "waitingforapproval":
+                  case "pendingapproval":
+                    envMappedStatus = "waitingforapproval";
+                    break;
+                  case "notstarted":
+                  case "undefined":
+                    envMappedStatus = "notDeployed";
+                    break;
+                  default:
+                    envMappedStatus = azureEnvStatus;
+                }
               }
-            }
-            
-            return {
-              id: env.id,
-              name: env.name,
-              status: envMappedStatus,
-              deployedOn: env.preDeployApprovals?.[0]?.createdOn || env.createdOn,
-              rank: env.rank
-            };
-          }).sort((a, b) => a.rank - b.rank),
-          artifacts: (release.artifacts || []).map(artifact => ({
+
+              return {
+                id: env.id,
+                name: env.name,
+                status: envMappedStatus,
+                deployedOn: env.preDeployApprovals?.[0]?.createdOn || env.createdOn,
+                rank: env.rank,
+              };
+            })
+            .sort((a, b) => a.rank - b.rank),
+          artifacts: (release.artifacts || []).map((artifact) => ({
             alias: artifact.alias,
             type: artifact.type,
-            definitionReference: artifact.definitionReference
-          }))
+            definitionReference: artifact.definitionReference,
+          })),
         };
       });
 
       // Check for pending approvals on inprogress, failed, and rejected releases
       const releasesWithApprovalCheck = await Promise.all(
         transformedReleases.map(async (release) => {
-          if (release.status === 'inprogress' || release.status === 'failed' || release.status === 'rejected') {
+          if (
+            release.status === "inprogress" ||
+            release.status === "failed" ||
+            release.status === "rejected"
+          ) {
             try {
-              const approvalsResponse = await releaseClient.client.get('/release/approvals', {
-                params: { 
-                  'api-version': '6.0',
-                  'releaseIdsFilter': release.id,
-                  'statusFilter': 'all'
-                }
+              const approvalsResponse = await releaseClient.client.get("/release/approvals", {
+                params: {
+                  "api-version": "6.0",
+                  releaseIdsFilter: release.id,
+                  statusFilter: "all",
+                },
               });
               const approvals = approvalsResponse.data.value || [];
-              // console.log(`Release ${release.id} approvals:`, approvals.map(a => ({ 
-              //   id: a.id, 
-              //   status: a.status, 
+              // console.log(`Release ${release.id} approvals:`, approvals.map(a => ({
+              //   id: a.id,
+              //   status: a.status,
               //   approver: a.approver?.displayName,
-              //   approvedBy: a.approvedBy?.displayName 
+              //   approvedBy: a.approvedBy?.displayName
               // })));
-              
+
               // If no approvals from API but release has rejected environments, check environment data
               let hasApprovalData = approvals.length > 0;
-              if (!hasApprovalData && (release.status === 'failed' || release.environments?.some(env => env.status === 'rejected'))) {
+              if (
+                !hasApprovalData &&
+                (release.status === "failed" ||
+                  release.environments?.some((env) => env.status === "rejected"))
+              ) {
                 // Check if any environment has approval data
                 for (const env of release.environments || []) {
                   // console.log(`Release ${release.id} environment ${env.name} data:`, {
@@ -1490,7 +1547,7 @@ router.get('/releases', async (req, res) => {
                   //   postDeployApprovals: env.postDeployApprovals?.length || 0,
                   //   deploySteps: env.deploySteps?.length || 0
                   // });
-                  
+
                   const preApprovals = env.preDeployApprovals || [];
                   const postApprovals = env.postDeployApprovals || [];
                   if (preApprovals.length > 0 || postApprovals.length > 0) {
@@ -1499,19 +1556,23 @@ router.get('/releases', async (req, res) => {
                   }
                 }
               }
-              
-              const hasPendingApprovals = approvals.some(approval => approval.status === 'pending');
-              const hasRejectedApprovals = approvals.some(approval => approval.status === 'rejected');
-              
-              if (hasRejectedApprovals && release.status === 'failed') {
+
+              const hasPendingApprovals = approvals.some(
+                (approval) => approval.status === "pending"
+              );
+              const hasRejectedApprovals = approvals.some(
+                (approval) => approval.status === "rejected"
+              );
+
+              if (hasRejectedApprovals && release.status === "failed") {
                 // console.log(`Release ${release.id} has rejected approvals, marking as approval_rejected failure`);
-                return { ...release, status: 'failed', failureReason: 'approval_rejected' };
+                return { ...release, status: "failed", failureReason: "approval_rejected" };
               } else if (hasRejectedApprovals) {
                 // console.log(`Release ${release.id} has rejected approvals, changing status to failed`);
-                return { ...release, status: 'failed', failureReason: 'approval_rejected' };
+                return { ...release, status: "failed", failureReason: "approval_rejected" };
               } else if (hasPendingApprovals) {
                 // console.log(`Release ${release.id} has pending approvals, changing status to waitingforapproval`);
-                return { ...release, status: 'waitingforapproval' };
+                return { ...release, status: "waitingforapproval" };
               }
             } catch (approvalError) {
               // Silently ignore approval check failures - non-critical
@@ -1520,61 +1581,61 @@ router.get('/releases', async (req, res) => {
           return release;
         })
       );
-      
+
       res.json({
         success: true,
         data: {
           releases: releasesWithApprovalCheck,
           total: releases.length,
           hasMore: releases.length === targetLimit, // Has more if we got a full page
-          continuationToken: null
-        }
+          continuationToken: null,
+        },
       });
     } catch (apiError) {
       // If 404, likely no release pipelines exist
       if (apiError.response?.status === 404) {
-        logger.info('No release pipelines found for project');
+        logger.info("No release pipelines found for project");
         res.json({
           success: true,
           data: {
             releases: [],
             total: 0,
             hasMore: false,
-            continuationToken: null
-          }
+            continuationToken: null,
+          },
         });
       } else {
         throw apiError;
       }
     }
   } catch (error) {
-    logger.error('Error fetching releases:', error);
+    logger.error("Error fetching releases:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch releases'
+      error: "Failed to fetch releases",
     });
   }
 });
 
-router.get('/releases/stats', async (req, res) => {
+router.get("/releases/stats", async (req, res) => {
   try {
     const { fromDate, toDate } = req.query;
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
-        error: 'Azure DevOps configuration is incomplete'
+        error: "Azure DevOps configuration is incomplete",
       });
     }
 
     // Check cache first (5 min TTL - release stats are expensive and don't change frequently)
-    const { azureDevOpsCache } = await import('../cache/AzureDevOpsCache.js');
-    const dateRange = `${fromDate || '90d'}_${toDate || 'now'}`;
+    const { azureDevOpsCache } = await import("../cache/AzureDevOpsCache.js");
+    const dateRange = `${fromDate || "90d"}_${toDate || "now"}`;
     const cached = azureDevOpsCache.getReleaseStats(org._id?.toString(), dateRange);
-    
+
     if (cached) {
-      logger.debug('[Performance] Release stats cache hit');
+      logger.debug("[Performance] Release stats cache hit");
       return res.json(cached);
     }
 
@@ -1587,7 +1648,8 @@ router.get('/releases/stats', async (req, res) => {
     );
 
     // Use provided date range or default to last 90 days
-    const minCreatedTime = fromDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const minCreatedTime =
+      fromDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
     const maxCreatedTime = toDate || new Date().toISOString();
 
     try {
@@ -1596,99 +1658,111 @@ router.get('/releases/stats', async (req, res) => {
         let allReleases = [];
         let continuationToken = null;
         let hasMore = true;
-        
-        while (hasMore && allReleases.length < 1000) { // Safety limit of 1000
-          const response = await releaseClient.getReleases({ 
+
+        while (hasMore && allReleases.length < 1000) {
+          // Safety limit of 1000
+          const response = await releaseClient.getReleases({
             top: 100, // Max per request
             minCreatedTime,
             maxCreatedTime,
-            continuationToken
+            continuationToken,
           });
-          
+
           const releases = response.value || [];
           allReleases = [...allReleases, ...releases];
-          
+
           continuationToken = response.continuationToken;
           hasMore = !!continuationToken && releases.length > 0;
         }
-        
+
         return allReleases;
       };
 
       const [releases, approvalsResponse] = await Promise.all([
         fetchAllReleasesForStats(),
-        releaseClient.getPendingApprovals().catch(() => ({ value: [] })) // Fallback for approvals
+        releaseClient.getPendingApprovals().catch(() => ({ value: [] })), // Fallback for approvals
       ]);
 
       const approvals = approvalsResponse.value || [];
 
       // Transform releases to use mapped statuses (same logic as /api/releases)
-      const transformedReleases = releases.map(release => {
-        let mappedStatus = 'unknown';
-        
-        const releaseStatus = release.status?.toLowerCase() || '';
-        if (releaseStatus === 'abandoned') {
-          mappedStatus = 'abandoned';
-        } else if (['canceled', 'cancelled'].includes(releaseStatus)) {
-          mappedStatus = 'canceled';
+      const transformedReleases = releases.map((release) => {
+        let mappedStatus = "unknown";
+
+        const releaseStatus = release.status?.toLowerCase() || "";
+        if (releaseStatus === "abandoned") {
+          mappedStatus = "abandoned";
+        } else if (["canceled", "cancelled"].includes(releaseStatus)) {
+          mappedStatus = "canceled";
         } else if (release.environments && release.environments.length > 0) {
-          const envStatuses = release.environments.map(env => env.status?.toLowerCase());
-          
-          if (envStatuses.some(status => ['canceled', 'cancelled'].includes(status))) {
-            mappedStatus = 'canceled';
-          } else if (envStatuses.some(status => ['abandoned'].includes(status))) {
-            mappedStatus = 'abandoned';
-          } else if (envStatuses.some(status => ['rejected'].includes(status))) {
-            mappedStatus = 'failed';
-          } else if (envStatuses.some(status => ['failed'].includes(status))) {
-            mappedStatus = 'failed';
-          } else if (envStatuses.every(status => status === 'succeeded' || status === 'partiallysucceeded')) {
-            mappedStatus = 'succeeded';
-          } else if (envStatuses.some(status => ['inprogress', 'queued'].includes(status))) {
-            mappedStatus = 'inprogress';
-          } else if (envStatuses.some(status => ['waitingforapproval', 'pendingapproval'].includes(status))) {
-            mappedStatus = 'waitingforapproval';
-          } else if (envStatuses.some(status => ['notstarted', 'undefined'].includes(status))) {
-            mappedStatus = 'notDeployed';
+          const envStatuses = release.environments.map((env) => env.status?.toLowerCase());
+
+          if (envStatuses.some((status) => ["canceled", "cancelled"].includes(status))) {
+            mappedStatus = "canceled";
+          } else if (envStatuses.some((status) => ["abandoned"].includes(status))) {
+            mappedStatus = "abandoned";
+          } else if (envStatuses.some((status) => ["rejected"].includes(status))) {
+            mappedStatus = "failed";
+          } else if (envStatuses.some((status) => ["failed"].includes(status))) {
+            mappedStatus = "failed";
+          } else if (
+            envStatuses.every((status) => status === "succeeded" || status === "partiallysucceeded")
+          ) {
+            mappedStatus = "succeeded";
+          } else if (envStatuses.some((status) => ["inprogress", "queued"].includes(status))) {
+            mappedStatus = "inprogress";
+          } else if (
+            envStatuses.some((status) => ["waitingforapproval", "pendingapproval"].includes(status))
+          ) {
+            mappedStatus = "waitingforapproval";
+          } else if (envStatuses.some((status) => ["notstarted", "undefined"].includes(status))) {
+            mappedStatus = "notDeployed";
           } else {
-            mappedStatus = 'succeeded';
+            mappedStatus = "succeeded";
           }
         } else {
-          const azureStatus = release.status?.toLowerCase() || 'unknown';
+          const azureStatus = release.status?.toLowerCase() || "unknown";
           switch (azureStatus) {
-            case 'active':
-              mappedStatus = 'inprogress';
+            case "active":
+              mappedStatus = "inprogress";
               break;
-            case 'succeeded':
-              mappedStatus = 'succeeded';
+            case "succeeded":
+              mappedStatus = "succeeded";
               break;
             default:
-              mappedStatus = 'pending';
+              mappedStatus = "pending";
           }
         }
-        
+
         return { ...release, mappedStatus };
       });
 
       // Calculate statistics with transformed statuses
       const totalReleases = transformedReleases.length;
-      const succeededReleases = transformedReleases.filter(r => r.mappedStatus === 'succeeded').length;
-      const successRate = totalReleases > 0 ? Math.round((succeededReleases / totalReleases) * 100 * 10) / 10 : 0;
-      const pendingApprovals = approvals.filter(a => a.status?.toLowerCase() === 'pending').length;
-      const activeDeployments = transformedReleases.filter(r => r.mappedStatus === 'inprogress').length;
+      const succeededReleases = transformedReleases.filter(
+        (r) => r.mappedStatus === "succeeded"
+      ).length;
+      const successRate =
+        totalReleases > 0 ? Math.round((succeededReleases / totalReleases) * 100 * 10) / 10 : 0;
+      const pendingApprovals = approvals.filter(
+        (a) => a.status?.toLowerCase() === "pending"
+      ).length;
+      const activeDeployments = transformedReleases.filter(
+        (r) => r.mappedStatus === "inprogress"
+      ).length;
 
       // Environment statistics
       const environmentStats = {};
-      transformedReleases.forEach(release => {
-        (release.environments || []).forEach(env => {
+      transformedReleases.forEach((release) => {
+        (release.environments || []).forEach((env) => {
           if (!environmentStats[env.name]) {
             environmentStats[env.name] = { total: 0, success: 0, failed: 0 };
           }
           environmentStats[env.name].total++;
           const envStatus = env.status?.toLowerCase();
-          if (envStatus === 'succeeded') {
+          if (envStatus === "succeeded") {
             environmentStats[env.name].success++;
-          } else if (envStatus === 'failed' || envStatus === 'rejected') {
+          } else if (envStatus === "failed" || envStatus === "rejected") {
             environmentStats[env.name].failed++;
           }
         });
@@ -1699,22 +1773,22 @@ router.get('/releases/stats', async (req, res) => {
         successRate,
         pendingApprovals,
         activeDeployments,
-        environmentStats
+        environmentStats,
       };
-      
+
       const response = {
         success: true,
-        data: stats
+        data: stats,
       };
-      
+
       // Cache for 5 minutes (300s) - release stats are expensive
       azureDevOpsCache.setReleaseStats(org._id?.toString(), dateRange, response, 300);
-      
+
       res.json(response);
     } catch (apiError) {
       // If 404, likely no release pipelines exist
       if (apiError.response?.status === 404) {
-        logger.info('No release pipelines found for project stats');
+        logger.info("No release pipelines found for project stats");
         const emptyResponse = {
           success: true,
           data: {
@@ -1722,8 +1796,8 @@ router.get('/releases/stats', async (req, res) => {
             successRate: 0,
             pendingApprovals: 0,
             activeDeployments: 0,
-            environmentStats: {}
-          }
+            environmentStats: {},
+          },
         };
         // Cache empty response too (but shorter TTL)
         azureDevOpsCache.setReleaseStats(org._id?.toString(), dateRange, emptyResponse, 60);
@@ -1733,60 +1807,60 @@ router.get('/releases/stats', async (req, res) => {
       }
     }
   } catch (error) {
-    logger.error('Error fetching release stats:', error);
+    logger.error("Error fetching release stats:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch release statistics'
+      error: "Failed to fetch release statistics",
     });
   }
 });
 
-router.get('/releases/definitions', async (req, res) => {
+router.get("/releases/definitions", async (req, res) => {
   try {
     // TODO: Fetch release definitions from Azure DevOps
     const definitions = [];
-    
+
     res.json({
       success: true,
-      data: definitions
+      data: definitions,
     });
   } catch (error) {
-    logger.error('Error fetching release definitions:', error);
+    logger.error("Error fetching release definitions:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch release definitions'
+      error: "Failed to fetch release definitions",
     });
   }
 });
 
-router.get('/releases/approvals', async (req, res) => {
+router.get("/releases/approvals", async (req, res) => {
   try {
     // TODO: Fetch pending approvals from Azure DevOps
     const approvals = [];
-    
+
     res.json({
       success: true,
-      data: approvals
+      data: approvals,
     });
   } catch (error) {
-    logger.error('Error fetching release approvals:', error);
+    logger.error("Error fetching release approvals:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch release approvals'
+      error: "Failed to fetch release approvals",
     });
   }
 });
 
 // Get detailed approval information for a release
-router.get('/releases/:releaseId/approvals', async (req, res) => {
+router.get("/releases/:releaseId/approvals", async (req, res) => {
   try {
     const { releaseId } = req.params;
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
-        error: 'Azure DevOps configuration not found'
+        error: "Azure DevOps configuration not found",
       });
     }
 
@@ -1799,112 +1873,121 @@ router.get('/releases/:releaseId/approvals', async (req, res) => {
 
     try {
       // Get release approvals - get all approvals for this release
-      const approvalsResponse = await releaseClient.client.get('/release/approvals', {
-        params: { 
-          'api-version': '6.0',
-          'releaseIdsFilter': releaseId,
-          'statusFilter': 'all'
-        }
+      const approvalsResponse = await releaseClient.client.get("/release/approvals", {
+        params: {
+          "api-version": "6.0",
+          releaseIdsFilter: releaseId,
+          statusFilter: "all",
+        },
       });
-      
+
       const approvals = approvalsResponse.data.value || [];
-      
+
       // Get release details for environment info
       const releaseResponse = await releaseClient.client.get(`/release/releases/${releaseId}`, {
-        params: { 'api-version': '6.0' }
+        params: { "api-version": "6.0" },
       });
-      
+
       const release = releaseResponse.data;
-      
+
       // Process approvals by environment
       const environmentApprovals = {};
-      
+
       for (const env of release.environments || []) {
-        const envApprovals = approvals.filter(approval => 
-          approval.releaseEnvironment?.id === env.id
+        const envApprovals = approvals.filter(
+          (approval) => approval.releaseEnvironment?.id === env.id
         );
-        
+
         // Always check environment preDeployApprovals and postDeployApprovals
         // These contain the approval history even after release completes
         const preApprovals = env.preDeployApprovals || [];
         const postApprovals = env.postDeployApprovals || [];
         const allEnvApprovals = [...preApprovals, ...postApprovals];
-        
+
         // Filter out system-generated approvals (those without real approvers)
-        const realApprovals = allEnvApprovals.filter(approval => 
-          approval.approver?.displayName && 
-          approval.approver.displayName !== 'Unknown' &&
-          approval.approver.displayName.trim() !== ''
+        const realApprovals = allEnvApprovals.filter(
+          (approval) =>
+            approval.approver?.displayName &&
+            approval.approver.displayName !== "Unknown" &&
+            approval.approver.displayName.trim() !== ""
         );
-        
+
         // Merge API approvals with environment approvals
         const mergedApprovals = [...envApprovals];
-        
+
         for (const approval of realApprovals) {
           // Only add if not already in the list from API
-          const exists = mergedApprovals.some(a => a.id === approval.id);
+          const exists = mergedApprovals.some((a) => a.id === approval.id);
           if (!exists) {
             mergedApprovals.push({
               id: approval.id,
               status: approval.status,
               approver: {
-                displayName: approval.approver?.displayName || 'Unknown',
-                uniqueName: approval.approver?.uniqueName || '',
-                imageUrl: approval.approver?.imageUrl
+                displayName: approval.approver?.displayName || "Unknown",
+                uniqueName: approval.approver?.uniqueName || "",
+                imageUrl: approval.approver?.imageUrl,
               },
-              approvedBy: approval.approvedBy ? {
-                displayName: approval.approvedBy.displayName,
-                uniqueName: approval.approvedBy.uniqueName,
-                imageUrl: approval.approvedBy.imageUrl
-              } : null,
+              approvedBy: approval.approvedBy
+                ? {
+                    displayName: approval.approvedBy.displayName,
+                    uniqueName: approval.approvedBy.uniqueName,
+                    imageUrl: approval.approvedBy.imageUrl,
+                  }
+                : null,
               createdOn: approval.createdOn,
               modifiedOn: approval.modifiedOn,
               comments: approval.comments,
               instructions: approval.instructions,
               isAutomated: approval.isAutomated,
               attempt: approval.attempt,
-              rank: approval.rank
+              rank: approval.rank,
             });
           }
         }
-        
+
         // Deduplicate approvals - keep only the latest approval per approver
         const latestApprovals = {};
         for (const approval of mergedApprovals) {
           const approverKey = approval.approver.uniqueName || approval.approver.displayName;
           const currentTime = new Date(approval.modifiedOn || approval.createdOn).getTime();
-          
-          if (!latestApprovals[approverKey] || 
-              new Date(latestApprovals[approverKey].modifiedOn || latestApprovals[approverKey].createdOn).getTime() < currentTime) {
+
+          if (
+            !latestApprovals[approverKey] ||
+            new Date(
+              latestApprovals[approverKey].modifiedOn || latestApprovals[approverKey].createdOn
+            ).getTime() < currentTime
+          ) {
             latestApprovals[approverKey] = approval;
           }
         }
-        
+
         environmentApprovals[env.id] = {
           environmentName: env.name,
           environmentId: env.id,
           environmentStatus: env.status,
-          approvals: Object.values(latestApprovals).map(approval => ({
+          approvals: Object.values(latestApprovals).map((approval) => ({
             id: approval.id,
             status: approval.status,
             approver: {
-              displayName: approval.approver?.displayName || 'Unknown',
-              uniqueName: approval.approver?.uniqueName || '',
-              imageUrl: approval.approver?.imageUrl
+              displayName: approval.approver?.displayName || "Unknown",
+              uniqueName: approval.approver?.uniqueName || "",
+              imageUrl: approval.approver?.imageUrl,
             },
-            approvedBy: approval.approvedBy ? {
-              displayName: approval.approvedBy.displayName,
-              uniqueName: approval.approvedBy.uniqueName,
-              imageUrl: approval.approvedBy.imageUrl
-            } : null,
+            approvedBy: approval.approvedBy
+              ? {
+                  displayName: approval.approvedBy.displayName,
+                  uniqueName: approval.approvedBy.uniqueName,
+                  imageUrl: approval.approvedBy.imageUrl,
+                }
+              : null,
             createdOn: approval.createdOn,
             modifiedOn: approval.modifiedOn,
             comments: approval.comments,
             instructions: approval.instructions,
             isAutomated: approval.isAutomated,
             attempt: approval.attempt,
-            rank: approval.rank
-          }))
+            rank: approval.rank,
+          })),
         };
       }
 
@@ -1913,13 +1996,13 @@ router.get('/releases/:releaseId/approvals', async (req, res) => {
       let pendingApprovals = 0;
       let approvedCount = 0;
       let rejectedCount = 0;
-      
+
       for (const envApproval of Object.values(environmentApprovals)) {
         totalApprovals += envApproval.approvals.length;
         for (const approval of envApproval.approvals) {
-          if (approval.status === 'pending') pendingApprovals++;
-          else if (approval.status === 'approved') approvedCount++;
-          else if (approval.status === 'rejected') rejectedCount++;
+          if (approval.status === "pending") pendingApprovals++;
+          else if (approval.status === "approved") approvedCount++;
+          else if (approval.status === "rejected") rejectedCount++;
         }
       }
 
@@ -1932,10 +2015,9 @@ router.get('/releases/:releaseId/approvals', async (req, res) => {
           totalApprovals: totalApprovals,
           pendingApprovals: pendingApprovals,
           approvedCount: approvedCount,
-          rejectedCount: rejectedCount
-        }
+          rejectedCount: rejectedCount,
+        },
       });
-
     } catch (apiError) {
       if (apiError.response?.status === 404) {
         return res.json({
@@ -1946,32 +2028,31 @@ router.get('/releases/:releaseId/approvals', async (req, res) => {
             totalApprovals: 0,
             pendingApprovals: 0,
             approvedCount: 0,
-            rejectedCount: 0
-          }
+            rejectedCount: 0,
+          },
         });
       }
       throw apiError;
     }
-    
   } catch (error) {
-    logger.error('Error fetching release approvals:', error);
+    logger.error("Error fetching release approvals:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch release approvals'
+      error: "Failed to fetch release approvals",
     });
   }
 });
 
 // Get release task logs for failed releases
-router.get('/releases/:releaseId/logs', async (req, res) => {
+router.get("/releases/:releaseId/logs", async (req, res) => {
   try {
     const { releaseId } = req.params;
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
-        error: 'Azure DevOps configuration not found'
+        error: "Azure DevOps configuration not found",
       });
     }
 
@@ -1985,9 +2066,9 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
     try {
       // Get release details with environments
       const releaseResponse = await releaseClient.client.get(`/release/releases/${releaseId}`, {
-        params: { 'api-version': '6.0' }
+        params: { "api-version": "6.0" },
       });
-      
+
       const release = releaseResponse.data;
       const failedTasks = [];
 
@@ -1997,39 +2078,41 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
           // Get tasks for this environment
           const tasksResponse = await releaseClient.client.get(
             `/release/releases/${releaseId}/environments/${env.id}/tasks`,
-            { params: { 'api-version': '6.0' } }
+            { params: { "api-version": "6.0" } }
           );
-          
+
           const tasks = tasksResponse.data.value || [];
-          
+
           // Find failed tasks (exclude agent jobs)
           for (const task of tasks) {
-            if ((task.status === 'failed' || task.status === 'error') && 
-                task.name && 
-                !task.name.toLowerCase().includes('agent job')) {
-              let logContent = '';
-              
+            if (
+              (task.status === "failed" || task.status === "error") &&
+              task.name &&
+              !task.name.toLowerCase().includes("agent job")
+            ) {
+              let logContent = "";
+
               // Get task logs if available
               if (task.logUrl) {
                 try {
                   // Create a new axios instance for log fetching with proper auth
                   const logResponse = await axios.get(task.logUrl, {
                     headers: {
-                      'Authorization': `Basic ${Buffer.from(`:${azureConfig.pat}`).toString('base64')}`,
-                      'Content-Type': 'application/json'
+                      Authorization: `Basic ${Buffer.from(`:${azureConfig.pat}`).toString("base64")}`,
+                      "Content-Type": "application/json",
                     },
-                    timeout: 30000
+                    timeout: 30000,
                   });
-                  logContent = logResponse.data || '';
+                  logContent = logResponse.data || "";
                 } catch (logError) {
                   logger.warn(`Failed to fetch logs for task ${task.id}:`, logError.message);
-                  logContent = 'Log content unavailable';
+                  logContent = "Log content unavailable";
                 }
               }
-              
+
               failedTasks.push({
                 taskId: task.id,
-                taskName: task.name || 'Unknown Task',
+                taskName: task.name || "Unknown Task",
                 environmentName: env.name,
                 environmentId: env.id,
                 status: task.status,
@@ -2037,7 +2120,7 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
                 finishTime: task.finishTime,
                 rank: task.rank,
                 logContent: logContent,
-                issues: task.issues || []
+                issues: task.issues || [],
               });
             }
           }
@@ -2052,39 +2135,37 @@ router.get('/releases/:releaseId/logs', async (req, res) => {
           releaseId: release.id,
           releaseName: release.name,
           failedTasks: failedTasks,
-          totalFailedTasks: failedTasks.length
-        }
+          totalFailedTasks: failedTasks.length,
+        },
       });
-
     } catch (apiError) {
       if (apiError.response?.status === 404) {
         return res.status(404).json({
           success: false,
-          error: 'Release not found'
+          error: "Release not found",
         });
       }
       throw apiError;
     }
-    
   } catch (error) {
-    logger.error('Error fetching release logs:', error);
+    logger.error("Error fetching release logs:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch release logs'
+      error: "Failed to fetch release logs",
     });
   }
 });
 
 // Analyze failed release task logs with AI
-router.get('/releases/:releaseId/analyze', async (req, res) => {
+router.get("/releases/:releaseId/analyze", async (req, res) => {
   try {
     const { releaseId } = req.params;
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
-        error: 'Azure DevOps configuration not found'
+        error: "Azure DevOps configuration not found",
       });
     }
 
@@ -2097,9 +2178,9 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
 
     // Get release with failed task logs
     const releaseResponse = await releaseClient.client.get(`/release/releases/${releaseId}`, {
-      params: { 'api-version': '6.0' }
+      params: { "api-version": "6.0" },
     });
-    
+
     const release = releaseResponse.data;
     const failedTasks = [];
 
@@ -2108,43 +2189,45 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
       try {
         const tasksResponse = await releaseClient.client.get(
           `/release/releases/${releaseId}/environments/${env.id}/tasks`,
-          { params: { 'api-version': '6.0' } }
+          { params: { "api-version": "6.0" } }
         );
-        
+
         const tasks = tasksResponse.data.value || [];
         const envFailedTasks = [];
-        
+
         for (const task of tasks) {
-          if ((task.status === 'failed' || task.status === 'error') && 
-              task.name && 
-              !task.name.toLowerCase().includes('agent job')) {
-            let logContent = '';
-            
+          if (
+            (task.status === "failed" || task.status === "error") &&
+            task.name &&
+            !task.name.toLowerCase().includes("agent job")
+          ) {
+            let logContent = "";
+
             if (task.logUrl) {
               try {
                 const logResponse = await axios.get(task.logUrl, {
                   headers: {
-                    'Authorization': `Basic ${Buffer.from(`:${azureConfig.pat}`).toString('base64')}`,
-                    'Content-Type': 'application/json'
+                    Authorization: `Basic ${Buffer.from(`:${azureConfig.pat}`).toString("base64")}`,
+                    "Content-Type": "application/json",
                   },
-                  timeout: 30000
+                  timeout: 30000,
                 });
-                logContent = logResponse.data || '';
+                logContent = logResponse.data || "";
               } catch (logError) {
-                logContent = 'Log content unavailable';
+                logContent = "Log content unavailable";
               }
             }
-            
+
             envFailedTasks.push({
-              taskName: task.name || 'Unknown Task',
+              taskName: task.name || "Unknown Task",
               environmentName: env.name,
               status: task.status,
               logContent: logContent,
-              issues: task.issues || []
+              issues: task.issues || [],
             });
           }
         }
-        
+
         return envFailedTasks;
       } catch (taskError) {
         logger.warn(`Failed to fetch tasks for environment ${env.id}:`, taskError.message);
@@ -2158,7 +2241,7 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
     if (failedTasks.length === 0) {
       return res.json({
         success: true,
-        analysis: 'No failed tasks found in this release.'
+        analysis: "No failed tasks found in this release.",
       });
     }
 
@@ -2168,26 +2251,25 @@ router.get('/releases/:releaseId/analyze', async (req, res) => {
 
     res.json({
       success: true,
-      analysis: analysis
+      analysis: analysis,
     });
-
   } catch (error) {
-    logger.error('Error analyzing release:', error);
+    logger.error("Error analyzing release:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to analyze release'
+      error: "Failed to analyze release",
     });
   }
 });
 
-router.get('/releases/ai-analysis', async (req, res) => {
+router.get("/releases/ai-analysis", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-    
+
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
         success: false,
-        error: 'Azure DevOps configuration is incomplete'
+        error: "Azure DevOps configuration is incomplete",
       });
     }
 
@@ -2204,9 +2286,9 @@ router.get('/releases/ai-analysis', async (req, res) => {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const releasesResponse = await releaseClient.getReleases({ 
-        top: 50, 
-        minCreatedTime: thirtyDaysAgo.toISOString() 
+      const releasesResponse = await releaseClient.getReleases({
+        top: 50,
+        minCreatedTime: thirtyDaysAgo.toISOString(),
       });
 
       const releases = releasesResponse.value || [];
@@ -2217,8 +2299,8 @@ router.get('/releases/ai-analysis', async (req, res) => {
           data: {
             summary: "No recent releases found for analysis.",
             insights: [],
-            recommendations: []
-          }
+            recommendations: [],
+          },
         });
       }
 
@@ -2226,16 +2308,16 @@ router.get('/releases/ai-analysis', async (req, res) => {
       const analysisData = {
         totalReleases: releases.length,
         timeframe: "last 30 days",
-        releases: releases.map(release => ({
+        releases: releases.map((release) => ({
           name: release.name,
           status: release.status,
           createdOn: release.createdOn,
-          environments: (release.environments || []).map(env => ({
+          environments: (release.environments || []).map((env) => ({
             name: env.name,
             status: env.status,
-            rank: env.rank
-          }))
-        }))
+            rank: env.rank,
+          })),
+        })),
       };
 
       // Generate AI analysis
@@ -2252,9 +2334,9 @@ Keep the response concise and actionable. Focus on practical insights that would
 
       const messages = [
         {
-          role: 'user',
-          content: aiPrompt
-        }
+          role: "user",
+          content: aiPrompt,
+        },
       ];
 
       // Initialize AI service with organization settings
@@ -2266,10 +2348,9 @@ Keep the response concise and actionable. Focus on practical insights that would
         data: {
           summary: aiAnalysis,
           generatedAt: new Date().toISOString(),
-          dataPoints: releases.length
-        }
+          dataPoints: releases.length,
+        },
       });
-
     } catch (apiError) {
       if (apiError.response?.status === 404) {
         res.json({
@@ -2277,18 +2358,18 @@ Keep the response concise and actionable. Focus on practical insights that would
           data: {
             summary: "No release pipelines found for analysis.",
             insights: [],
-            recommendations: []
-          }
+            recommendations: [],
+          },
         });
       } else {
         throw apiError;
       }
     }
   } catch (error) {
-    logger.error('Error generating AI release analysis:', error);
+    logger.error("Error generating AI release analysis:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to generate AI analysis'
+      error: "Failed to generate AI analysis",
     });
   }
 });

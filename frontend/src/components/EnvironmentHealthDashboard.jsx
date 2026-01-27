@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Server,
   CheckCircle,
@@ -8,7 +8,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   Carousel,
   CarouselContent,
@@ -18,9 +18,11 @@ import {
 } from "@/components/ui/carousel";
 
 const getEnvironmentHealthColor = (successRate) => {
-  if (successRate >= 90) return 'text-green-600 bg-card dark:bg-[#111111] border-green-200 dark:border-green-800';
-  if (successRate >= 70) return 'text-yellow-600 bg-card dark:bg-[#111111] border-yellow-200 dark:border-yellow-800';
-  return 'text-red-600 bg-card dark:bg-[#111111] border-red-200 dark:border-red-800';
+  if (successRate >= 90)
+    return "text-green-600 bg-card dark:bg-[#111111] border-green-200 dark:border-green-800";
+  if (successRate >= 70)
+    return "text-yellow-600 bg-card dark:bg-[#111111] border-yellow-200 dark:border-yellow-800";
+  return "text-red-600 bg-card dark:bg-[#111111] border-red-200 dark:border-red-800";
 };
 
 const getEnvironmentHealthIcon = (successRate) => {
@@ -31,7 +33,7 @@ const getEnvironmentHealthIcon = (successRate) => {
 
 export default function EnvironmentHealthDashboard({ environmentStats }) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  
+
   if (!environmentStats || Object.keys(environmentStats).length === 0) {
     return (
       <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
@@ -47,7 +49,7 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
     );
   }
 
-  const environments = Object.entries(environmentStats).sort(([,a], [,b]) => b.total - a.total);
+  const environments = Object.entries(environmentStats).sort(([, a], [, b]) => b.total - a.total);
   const totalEnvironments = environments.length;
 
   const cardsPerPage = 3; // Show max 3 cards per row
@@ -113,18 +115,23 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
           >
             <CarouselContent className="">
               {environments.map(([envName, stats]) => {
-                const successRate = stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
-                
+                const successRate =
+                  stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
+
                 return (
                   <CarouselItem key={envName} className="basis-full">
                     <div className="mx-4 group relative overflow-hidden bg-gradient-to-br from-card to-card/50 dark:from-[#111111] dark:to-[#0a0a0a] p-6 rounded-xl border border-border dark:border-[#1a1a1a] shadow-sm">
                       {/* Success Rate Badge */}
                       <div className="absolute top-4 right-4">
-                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-muted ${
-                          successRate >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
-                          successRate >= 70 ? 'text-amber-600 dark:text-amber-400' :
-                          'text-red-600 dark:text-red-400'
-                        }`}>
+                        <div
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-muted ${
+                            successRate >= 90
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : successRate >= 70
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-red-600 dark:text-red-400"
+                          }`}
+                        >
                           {getEnvironmentHealthIcon(successRate)}
                           {successRate}%
                         </div>
@@ -132,7 +139,9 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
 
                       {/* Environment Name */}
                       <div className="mb-4">
-                        <h4 className="text-lg font-semibold text-foreground truncate pr-16">{envName}</h4>
+                        <h4 className="text-lg font-semibold text-foreground truncate pr-16">
+                          {envName}
+                        </h4>
                         <p className="text-sm text-muted-foreground">Environment</p>
                       </div>
 
@@ -143,15 +152,18 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
                           <div className="text-xs text-muted-foreground">Total</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-xl font-bold text-green-600 dark:text-green-400">{stats.success}</div>
+                          <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                            {stats.success}
+                          </div>
                           <div className="text-xs text-muted-foreground">Success</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-xl font-bold text-red-600 dark:text-red-400">{stats.failed}</div>
+                          <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                            {stats.failed}
+                          </div>
                           <div className="text-xs text-muted-foreground">Failed</div>
                         </div>
                       </div>
-
                     </div>
                   </CarouselItem>
                 );
@@ -168,17 +180,25 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
             {environments
               .slice(currentIndex, currentIndex + cardsPerPage)
               .map(([envName, stats]) => {
-                const successRate = stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
-                
+                const successRate =
+                  stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
+
                 return (
-                  <div key={envName} className="min-w-[280px] max-w-[400px] mx-auto w-full group relative overflow-hidden bg-gradient-to-br from-card to-card/50 dark:from-[#111111] dark:to-[#0a0a0a] p-6 rounded-xl border border-border dark:border-[#1a1a1a] shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.02]">
+                  <div
+                    key={envName}
+                    className="min-w-[280px] max-w-[400px] mx-auto w-full group relative overflow-hidden bg-gradient-to-br from-card to-card/50 dark:from-[#111111] dark:to-[#0a0a0a] p-6 rounded-xl border border-border dark:border-[#1a1a1a] shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.02]"
+                  >
                     {/* Success Rate Badge */}
                     <div className="absolute top-4 right-4">
-                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-muted ${
-                        successRate >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
-                        successRate >= 70 ? 'text-amber-600 dark:text-amber-400' :
-                        'text-red-600 dark:text-red-400'
-                      }`}>
+                      <div
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-muted ${
+                          successRate >= 90
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : successRate >= 70
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
                         {getEnvironmentHealthIcon(successRate)}
                         {successRate}%
                       </div>
@@ -186,7 +206,9 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
 
                     {/* Environment Name */}
                     <div className="mb-4">
-                      <h4 className="text-lg font-semibold text-foreground truncate pr-16">{envName}</h4>
+                      <h4 className="text-lg font-semibold text-foreground truncate pr-16">
+                        {envName}
+                      </h4>
                       <p className="text-sm text-muted-foreground">Environment</p>
                     </div>
 
@@ -197,15 +219,18 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
                         <div className="text-xs text-muted-foreground">Total</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-xl font-bold text-green-600 dark:text-green-400">{stats.success}</div>
+                        <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                          {stats.success}
+                        </div>
                         <div className="text-xs text-muted-foreground">Success</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-xl font-bold text-red-600 dark:text-red-400">{stats.failed}</div>
+                        <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                          {stats.failed}
+                        </div>
                         <div className="text-xs text-muted-foreground">Failed</div>
                       </div>
                     </div>
-
                   </div>
                 );
               })}
@@ -220,10 +245,13 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-blue-600" />
             <span className="font-medium">
-              {(Object.values(environmentStats).reduce((acc, stats) => {
-                const rate = stats.total > 0 ? (stats.success / stats.total) * 100 : 0;
-                return acc + rate;
-              }, 0) / Object.keys(environmentStats).length || 0).toFixed(1)}% Average Success Rate
+              {(
+                Object.values(environmentStats).reduce((acc, stats) => {
+                  const rate = stats.total > 0 ? (stats.success / stats.total) * 100 : 0;
+                  return acc + rate;
+                }, 0) / Object.keys(environmentStats).length || 0
+              ).toFixed(1)}
+              % Average Success Rate
             </span>
           </div>
         </div>
