@@ -363,16 +363,26 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
       client.getOverdueWorkItems(),
     ]);
 
-    // Process created work items
+    // Process created work items with batching (Azure DevOps limit: 200 items per request)
     let created = 0;
     let stateDistribution = {};
     if (createdRes.status === "fulfilled" && createdRes.value?.workItems) {
       const ids = createdRes.value.workItems.map((wi) => wi.id);
       if (ids.length > 0) {
-        const items = await client.getWorkItems(ids, ["System.State"]);
-        created = items.value?.length || 0;
+        // Batch fetch in chunks of 200
+        const batchSize = 200;
+        const allItems = [];
 
-        items.value?.forEach((item) => {
+        for (let i = 0; i < ids.length; i += batchSize) {
+          const batchIds = ids.slice(i, i + batchSize);
+          const items = await client.getWorkItems(batchIds, ["System.State"]);
+          if (items.value) {
+            allItems.push(...items.value);
+          }
+        }
+
+        created = allItems.length;
+        allItems.forEach((item) => {
           const state = item.fields?.["System.State"] || "Unknown";
           stateDistribution[state] = (stateDistribution[state] || 0) + 1;
         });
