@@ -63,18 +63,53 @@ export async function generateActivityReport(client, releaseClient, orgId, start
  */
 async function fetchPRMetrics(client, startDate, endDate) {
   try {
-    // Fetch all PRs (Azure DevOps doesn't support date filtering in list API)
-    const [activeRes, completedRes, abandonedRes] = await Promise.all([
-      client.getPullRequests("active"),
-      client.getPullRequests("completed"),
-      client.getPullRequests("abandoned"),
+    // Fetch ALL PRs using pagination with $skip (no limits)
+    const fetchAllPRsByStatus = async (status) => {
+      let allPRs = [];
+      let skip = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await client.client.get("/git/pullrequests", {
+          params: {
+            "api-version": "7.0",
+            "searchCriteria.status": status,
+            $top: batchSize,
+            $skip: skip,
+          },
+        });
+
+        const prs = response.data.value || [];
+        allPRs = [...allPRs, ...prs];
+
+        // If we got less than batchSize, we've reached the end
+        hasMore = prs.length === batchSize;
+        skip += batchSize;
+
+        // Safety limit to prevent infinite loops
+        if (allPRs.length >= 10000) {
+          logger.warn(`[ActivityReport] Reached safety limit of 10000 PRs for status: ${status}`);
+          break;
+        }
+      }
+
+      return allPRs;
+    };
+
+    // Fetch all PRs for each status in parallel
+    const [activePRs, completedPRs, abandonedPRs] = await Promise.all([
+      fetchAllPRsByStatus("active"),
+      fetchAllPRsByStatus("completed"),
+      fetchAllPRsByStatus("abandoned"),
     ]);
 
-    const allPRs = [
-      ...(activeRes.value || []),
-      ...(completedRes.value || []),
-      ...(abandonedRes.value || []),
-    ];
+    const allPRs = [...activePRs, ...completedPRs, ...abandonedPRs];
+
+    // Log fetched counts for debugging
+    logger.info(
+      `[ActivityReport] Fetched ALL PRs - Active: ${activePRs.length}, Completed: ${completedPRs.length}, Abandoned: ${abandonedPRs.length}, Total: ${allPRs.length}`
+    );
 
     // Filter by creation date
     const start = new Date(startDate);
@@ -92,20 +127,23 @@ async function fetchPRMetrics(client, startDate, endDate) {
     };
 
     // Calculate avg time to complete (for completed PRs only)
-    const completedPRs = prsInRange.filter((pr) => pr.status === "completed" && pr.closedDate);
+    const completedPRsWithDates = prsInRange.filter(
+      (pr) => pr.status === "completed" && pr.closedDate
+    );
     const avgTimeToComplete =
-      completedPRs.length > 0
-        ? completedPRs.reduce((sum, pr) => {
+      completedPRsWithDates.length > 0
+        ? completedPRsWithDates.reduce((sum, pr) => {
             const created = new Date(pr.creationDate);
             const closed = new Date(pr.closedDate);
             return sum + (closed - created) / (1000 * 60 * 60); // hours
-          }, 0) / completedPRs.length
+          }, 0) / completedPRsWithDates.length
         : 0;
 
     return {
       totalPRs: prsInRange.length,
       byStatus,
       avgTimeToComplete: Math.round(avgTimeToComplete * 10) / 10, // 1 decimal
+      totalFetched: allPRs.length, // Show total fetched for transparency
     };
   } catch (error) {
     logger.error("[ActivityReport] Error fetching PR metrics:", error);
@@ -239,15 +277,37 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
  */
 async function fetchBuildMetrics(client, startDate, endDate) {
   try {
-    const builds = await client.getBuildsInDateRange(startDate, endDate, 200);
-    const buildList = builds.value || [];
+    // Fetch ALL builds using continuation tokens (like releases)
+    let allBuilds = [];
+    let continuationToken = null;
+    let hasMore = true;
 
-    const succeeded = buildList.filter((b) => b.result === "succeeded").length;
-    const failed = buildList.filter((b) => b.result === "failed").length;
-    const failureRate = buildList.length > 0 ? (failed / buildList.length) * 100 : 0;
+    while (hasMore && allBuilds.length < 5000) {
+      const params = {
+        "api-version": "7.0",
+        minTime: startDate,
+        maxTime: endDate,
+        $top: 200,
+      };
+
+      if (continuationToken) {
+        params.continuationToken = continuationToken;
+      }
+
+      const response = await client.client.get("/build/builds", { params });
+      const builds = response.data.value || [];
+      allBuilds = [...allBuilds, ...builds];
+
+      continuationToken = response.headers["x-ms-continuationtoken"];
+      hasMore = !!continuationToken && builds.length > 0;
+    }
+
+    const succeeded = allBuilds.filter((b) => b.result === "succeeded").length;
+    const failed = allBuilds.filter((b) => b.result === "failed").length;
+    const failureRate = allBuilds.length > 0 ? (failed / allBuilds.length) * 100 : 0;
 
     // Calculate avg duration (in minutes) for completed builds
-    const completedBuilds = buildList.filter((b) => b.finishTime && b.startTime);
+    const completedBuilds = allBuilds.filter((b) => b.finishTime && b.startTime);
     const avgDuration =
       completedBuilds.length > 0
         ? completedBuilds.reduce((sum, b) => {
@@ -258,7 +318,7 @@ async function fetchBuildMetrics(client, startDate, endDate) {
         : 0;
 
     return {
-      totalBuilds: buildList.length,
+      totalBuilds: allBuilds.length,
       succeeded,
       failed,
       failureRate: Math.round(failureRate * 10) / 10,

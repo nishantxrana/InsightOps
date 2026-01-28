@@ -364,18 +364,8 @@ router.post("/activity-report", async (req, res) => {
     const orgId = org._id?.toString();
     const azureConfig = getAzureDevOpsConfig(org);
 
-    // Check cache
-    const cacheKey = `activity-report:${startDate}:${endDate}`;
-    const cached = azureDevOpsCache.get(orgId, cacheKey);
-
-    if (cached) {
-      logger.info(`[ActivityReport] Returning cached report for org ${org.name}`);
-      return res.json({
-        success: true,
-        data: cached,
-        cached: true,
-      });
-    }
+    // NO CACHING - Always generate fresh report for accurate real-time data
+    logger.info(`[ActivityReport] Generating fresh report for org ${org.name}`);
 
     // Generate report
     const client = azureDevOpsClient.createUserClient(azureConfig);
@@ -387,9 +377,6 @@ router.post("/activity-report", async (req, res) => {
     );
 
     const report = await generateActivityReport(client, releaseClient, orgId, startDate, endDate);
-
-    // Cache result (5 minutes)
-    azureDevOpsCache.set(orgId, cacheKey, report, 300);
 
     const duration = Date.now() - startTime;
     logger.info(`[ActivityReport] Report generated in ${duration}ms for org ${org.name}`);
