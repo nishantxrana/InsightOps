@@ -339,8 +339,17 @@ export default function Releases() {
     ? "w-3.5 h-3.5 animate-spin transition-transform duration-300"
     : "w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-300";
 
+  const handleRetry = () => {
+    // Reset to default 1-day range and clear error
+    const to = new Date();
+    const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+    setTimeRange({ from, to, label: "1 Day", value: "1d" });
+    setError(null);
+    // loadReleasesData will be called automatically by useEffect when timeRange changes
+  };
+
   if (error) {
-    return <ErrorMessage message={error} onRetry={loadReleasesData} />;
+    return <ErrorMessage message={error} onRetry={handleRetry} />;
   }
 
   return (
