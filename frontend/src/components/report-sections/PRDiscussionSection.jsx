@@ -69,17 +69,21 @@ export default function PRDiscussionSection({ data }) {
           </div>
 
           <div>
-            <p className="text-xl font-semibold text-foreground">{data.avgCommentsPerPR}</p>
+            <p className="text-xl font-semibold text-muted-foreground">{data.avgCommentsPerPR}</p>
             <p className="text-xs text-muted-foreground">Avg per PR</p>
           </div>
 
           <div>
-            <p className="text-xl font-semibold text-foreground">{data.resolvedThreads}</p>
+            <p className="text-xl font-semibold text-green-600 dark:text-green-400">
+              {data.resolvedThreads}
+            </p>
             <p className="text-xs text-muted-foreground">Resolved Threads</p>
           </div>
 
           <div>
-            <p className="text-xl font-semibold text-foreground">{data.prsWithUnresolvedThreads}</p>
+            <p className="text-xl font-semibold text-orange-600 dark:text-orange-400">
+              {data.prsWithUnresolvedThreads}
+            </p>
             <p className="text-xs text-muted-foreground">PRs Need Review</p>
           </div>
         </div>
