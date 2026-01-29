@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { FileText, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { FileText, ChevronDown, ChevronUp, Loader2, Info } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import TimeRangeSelector from "./TimeRangeSelector";
-import { apiService } from "../api/apiService";
 import ErrorMessage from "./ErrorMessage";
 import PullRequestsSection from "./report-sections/PullRequestsSection";
 import PRDiscussionSection from "./report-sections/PRDiscussionSection";
@@ -58,7 +58,7 @@ export default function DevOpsActivityReport() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n\n");
-        buffer = lines.pop(); // Keep incomplete message in buffer
+        buffer = lines.pop();
 
         for (const message of lines) {
           if (!message.trim()) continue;
@@ -101,13 +101,22 @@ export default function DevOpsActivityReport() {
   };
 
   return (
-    <div className="bg-card rounded-lg border border-border shadow-sm">
+    <div
+      className={`bg-card rounded-lg border transition-colors ${
+        reportData ? "border-border" : "border-border/50 bg-muted/30"
+      }`}
+    >
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-4 hover:bg-accent/50 transition-colors">
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold text-foreground">DevOps Activity Report</h2>
+              <div className="text-left">
+                <h2 className="text-base font-semibold text-foreground">DevOps Activity Report</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Comprehensive analytics across PRs, builds, releases, and work items
+                </p>
+              </div>
             </div>
             {isOpen ? (
               <ChevronUp className="h-5 w-5 text-muted-foreground" />
@@ -118,36 +127,82 @@ export default function DevOpsActivityReport() {
         </CollapsibleTrigger>
 
         <CollapsibleContent>
-          <div className="p-4 pt-0 space-y-4">
-            {/* Date Range Selector */}
-            <div className="flex items-center gap-4 flex-wrap">
+          <div className="px-4 pb-4 space-y-4">
+            {/* Info Alert - Why manual generation */}
+            {!reportData && !loading && (
+              <Alert className="bg-muted/50 border-muted">
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-xs text-muted-foreground">
+                  This report aggregates data from multiple sources and may take 10-30 seconds to
+                  generate. Select a date range and click "Generate Report" to begin.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Controls */}
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Date Range:</span>
-                <TimeRangeSelector value={dateRange} onChange={setDateRange} />
+                <TimeRangeSelector value={dateRange} onChange={setDateRange} disabled={loading} />
               </div>
-              <Button onClick={handleGenerateReport} disabled={loading} className="gap-2">
+              <Button onClick={handleGenerateReport} disabled={loading} className="gap-2" size="sm">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {loading ? "Generating..." : "Generate Report"}
+                {loading ? "Generating report…" : "Generate Report"}
               </Button>
             </div>
 
             {/* Error Display */}
-            {error && <ErrorMessage error={error} onRetry={handleGenerateReport} />}
+            {error && <ErrorMessage message={error} onRetry={handleGenerateReport} />}
+
+            {/* Preview Outline (dormant state) */}
+            {!reportData && !loading && !error && (
+              <div className="space-y-3 mt-6">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Report will include:
+                </p>
+                <div className="grid gap-3">
+                  {[
+                    {
+                      title: "Pull Requests",
+                      desc: "Total PRs, status breakdown, completion time",
+                    },
+                    {
+                      title: "PR Discussion Health",
+                      desc: "Threads, comments, resolution metrics",
+                    },
+                    { title: "Builds", desc: "Total builds, success rate, average duration" },
+                    { title: "Releases", desc: "Deployments, success rate, environment status" },
+                    { title: "Work Items", desc: "Created, completed, overdue items" },
+                  ].map((section) => (
+                    <div
+                      key={section.title}
+                      className="p-3 rounded-md border border-dashed border-muted-foreground/20 bg-muted/20"
+                    >
+                      <p className="text-sm font-medium text-muted-foreground">{section.title}</p>
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">{section.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Report Results */}
-            {reportData && (
-              <div className="space-y-4 mt-6">
-                <PullRequestsSection data={reportData.pullRequests} />
-                <PRDiscussionSection data={reportData.prDiscussion} />
-                <BuildsSection data={reportData.builds} />
-                <ReleasesSection data={reportData.releases} />
-                <WorkItemsSection data={reportData.workItems} />
+            {(reportData || loading) && (
+              <div className="space-y-3 mt-6">
+                <PullRequestsSection data={reportData?.pullRequests} />
+                <PRDiscussionSection data={reportData?.prDiscussion} />
+                <BuildsSection data={reportData?.builds} />
+                <ReleasesSection data={reportData?.releases} />
+                <WorkItemsSection data={reportData?.workItems} />
 
                 {/* Report Metadata */}
-                <div className="text-xs text-muted-foreground text-right pt-2 border-t">
-                  Generated at {new Date(reportData.meta?.generatedAt).toLocaleString()}
-                  {reportData.meta?.durationMs && ` • ${reportData.meta.durationMs}ms`}
-                </div>
+                {reportData?.meta && (
+                  <div className="text-xs text-muted-foreground text-right pt-2 border-t">
+                    Generated {new Date(reportData.meta.generatedAt).toLocaleString()}
+                    {reportData.meta.durationMs &&
+                      ` • ${(reportData.meta.durationMs / 1000).toFixed(1)}s`}
+                  </div>
+                )}
               </div>
             )}
           </div>
