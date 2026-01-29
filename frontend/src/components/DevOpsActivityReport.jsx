@@ -194,11 +194,11 @@ export default function DevOpsActivityReport() {
             {/* Report Results */}
             {(reportData || loading) && (
               <div className="space-y-3 mt-6">
-                <PullRequestsSection data={reportData?.pullRequests} />
-                <PRDiscussionSection data={reportData?.prDiscussion} />
+                <WorkItemsSection data={reportData?.workItems} />
                 <BuildsSection data={reportData?.builds} />
                 <ReleasesSection data={reportData?.releases} />
-                <WorkItemsSection data={reportData?.workItems} />
+                <PullRequestsSection data={reportData?.pullRequests} />
+                <PRDiscussionSection data={reportData?.prDiscussion} />
 
                 {/* Report Metadata */}
                 {reportData?.meta && (

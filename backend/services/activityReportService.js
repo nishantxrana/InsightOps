@@ -19,13 +19,13 @@ export async function generateActivityReport(client, releaseClient, orgId, start
     endDate,
   });
 
-  const [prResult, discussionResult, buildsResult, releasesResult, workItemsResult] =
+  const [workItemsResult, buildsResult, releasesResult, prResult, discussionResult] =
     await Promise.allSettled([
-      fetchPRMetrics(client, startDate, endDate),
-      fetchPRDiscussionMetrics(client, startDate, endDate),
+      fetchWorkItemMetrics(client, startDate, endDate),
       fetchBuildMetrics(client, startDate, endDate),
       fetchReleaseMetrics(releaseClient, startDate, endDate),
-      fetchWorkItemMetrics(client, startDate, endDate),
+      fetchPRMetrics(client, startDate, endDate),
+      fetchPRDiscussionMetrics(client, startDate, endDate),
     ]);
 
   const duration = Date.now() - start;
