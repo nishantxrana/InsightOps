@@ -83,7 +83,7 @@ export default function WorkItemsSection({ data }) {
     : [];
 
   const chartConfig = {
-    value: { label: "Count" },
+    value: { label: "Work Items" },
   };
 
   // Data loaded state
