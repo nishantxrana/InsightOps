@@ -83,26 +83,26 @@ export default function PullRequestsSection({ data }) {
         </h3>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="min-w-0">
+          <div className="min-w-0 text-center sm:text-left">
             <p className="text-2xl font-bold text-foreground">{data.totalPRs}</p>
             <p className="text-xs text-muted-foreground">Total PRs</p>
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 text-center sm:text-left">
             <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">
               {data.byStatus?.active || 0}
             </p>
             <p className="text-xs text-muted-foreground">Active</p>
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 text-center sm:text-left">
             <p className="text-xl font-semibold text-green-600 dark:text-green-400">
               {data.byStatus?.completed || 0}
             </p>
             <p className="text-xs text-muted-foreground">Completed</p>
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 text-center sm:text-left">
             <p className="text-xl font-semibold text-muted-foreground">
               {data.byStatus?.abandoned || 0}
             </p>
