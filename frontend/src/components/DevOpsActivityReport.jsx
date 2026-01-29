@@ -18,8 +18,8 @@ export default function DevOpsActivityReport() {
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState(() => {
     const to = new Date();
-    const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
-    return { from, to, label: "30 Days", value: "30d" };
+    const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return { from, to, label: "7 Days", value: "7d" };
   });
 
   const handleGenerateReport = async () => {

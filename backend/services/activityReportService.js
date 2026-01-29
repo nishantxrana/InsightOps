@@ -395,6 +395,7 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
 
     let succeeded = 0;
     let failed = 0;
+    let others = 0;
     let failedEnvironments = 0;
 
     allReleases.forEach((release) => {
@@ -410,6 +411,9 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
           failedEnvironments += envStatuses.filter(
             (s) => s === "rejected" || s === "failed"
           ).length;
+        } else {
+          // Pending, in-progress, canceled, or other states
+          others++;
         }
       }
     });
@@ -420,6 +424,7 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
       totalReleases: allReleases.length,
       succeeded,
       failed,
+      others,
       failedEnvironments,
       successRate: Math.round(successRate * 10) / 10,
     };
