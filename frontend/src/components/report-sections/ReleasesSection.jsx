@@ -36,37 +36,37 @@ export default function ReleasesSection({ data }) {
         Releases
       </h3>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div>
-          <p className="text-2xl font-bold text-foreground">{data.totalReleases}</p>
-          <p className="text-xs text-muted-foreground">Total Releases</p>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-2xl font-bold text-foreground">{data.totalReleases}</p>
+            <p className="text-xs text-muted-foreground">Total Releases</p>
+          </div>
+
+          <div>
+            <p className="text-2xl font-bold text-green-500 dark:text-green-400">
+              {data.succeeded}
+            </p>
+            <p className="text-xs text-muted-foreground">Succeeded</p>
+          </div>
+
+          <div>
+            <p className="text-2xl font-bold text-red-500 dark:text-red-400">{data.failed}</p>
+            <p className="text-xs text-muted-foreground">Failed</p>
+          </div>
+
+          <div>
+            <p className="text-2xl font-bold text-orange-500 dark:text-orange-400">
+              {data.others || 0}
+            </p>
+            <p className="text-xs text-muted-foreground">Others</p>
+          </div>
         </div>
 
-        <div>
-          <p className="text-2xl font-bold text-green-500 dark:text-green-400">{data.succeeded}</p>
-          <p className="text-xs text-muted-foreground">Succeeded</p>
-        </div>
-
-        <div>
-          <p className="text-2xl font-bold text-red-500 dark:text-red-400">{data.failed}</p>
-          <p className="text-xs text-muted-foreground">Failed</p>
-        </div>
-
-        <div>
-          <p className="text-2xl font-bold text-blue-500 dark:text-blue-400">{data.successRate}%</p>
-          <p className="text-xs text-muted-foreground">Success Rate</p>
+        <div className="pt-3 border-t border-border text-xs text-muted-foreground">
+          Success Rate: {data.successRate}% • Failed Environments: {data.failedEnvironments}
         </div>
       </div>
-
-      {data.failedEnvironments > 0 && (
-        <div className="mt-3 pt-3 border-t border-border">
-          <p className="text-sm text-muted-foreground">
-            <AlertTriangle className="h-3 w-3 inline mr-1" />
-            Failed Environments:{" "}
-            <span className="font-semibold text-foreground">{data.failedEnvironments}</span>
-          </p>
-        </div>
-      )}
     </div>
   );
 }
