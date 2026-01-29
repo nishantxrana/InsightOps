@@ -66,14 +66,15 @@ export default function WorkItemsSection({ data }) {
     ? Object.entries(data.stateDistribution)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 5)
-        .map(([name, value]) => ({ name, value }))
+        .map(([name, value]) => ({
+          name,
+          value,
+          fill: "hsl(var(--muted-foreground))",
+        }))
     : [];
 
   const chartConfig = {
-    value: {
-      label: "Count",
-      color: "hsl(var(--muted-foreground))",
-    },
+    value: { label: "Count" },
   };
 
   // Data loaded state
@@ -121,7 +122,7 @@ export default function WorkItemsSection({ data }) {
                 }
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+              <Bar dataKey="value" radius={4} />
             </BarChart>
           </ChartContainer>
         </div>
