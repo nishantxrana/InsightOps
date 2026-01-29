@@ -248,18 +248,25 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
             const commentCount = thread.comments?.length || 0;
             totalComments += commentCount;
 
-            // Resolved: fixed, closed, wontFix, byDesign
-            // Unresolved: active, pending, unknown, or any other status
+            // Skip system threads (no status field) - they're not user discussions
+            // System threads include: merge attempts, reviewer updates, vote updates, etc.
+            if (!thread.status) {
+              return; // Don't count as resolved or unresolved
+            }
+
+            // Resolved: fixed, closed, wontFix, byDesign, resolved
+            // Unresolved: active, pending, unknown
             if (
               status === "fixed" ||
               status === "closed" ||
               status === "wontfix" ||
-              status === "bydesign"
+              status === "bydesign" ||
+              status === "resolved"
             ) {
               resolvedThreads++;
               prResolvedCount++;
             } else {
-              // Everything else is unresolved (active, pending, unknown, etc.)
+              // active, pending, unknown, or any other status
               unresolvedThreads++;
               prUnresolvedCount++;
             }
