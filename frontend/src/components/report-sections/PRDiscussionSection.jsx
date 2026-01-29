@@ -38,7 +38,7 @@ export default function PRDiscussionSection({ data }) {
       </h3>
 
       <div className="space-y-4">
-        {/* Thread Metrics */}
+        {/* Key Metrics - Thread-focused */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-2xl font-bold text-foreground">{data.totalThreads}</p>
@@ -60,71 +60,18 @@ export default function PRDiscussionSection({ data }) {
           </div>
 
           <div>
-            <p className="text-2xl font-bold text-blue-500 dark:text-blue-400">
-              {data.resolutionRate}%
+            <p className="text-2xl font-bold text-red-500 dark:text-red-400">
+              {data.prsWithUnresolvedThreads}
             </p>
-            <p className="text-xs text-muted-foreground">Resolution Rate</p>
+            <p className="text-xs text-muted-foreground">PRs Need Review</p>
           </div>
         </div>
 
-        {/* Comment Metrics */}
-        <div className="pt-3 border-t border-border">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <p className="text-xl font-semibold text-foreground">{data.totalComments}</p>
-              <p className="text-xs text-muted-foreground">Total Comments</p>
-            </div>
-
-            <div>
-              <p className="text-xl font-semibold text-foreground">{data.avgCommentsPerPR}</p>
-              <p className="text-xs text-muted-foreground">Avg per PR</p>
-            </div>
-
-            <div>
-              <p className="text-xl font-semibold text-foreground">{data.avgCommentsPerThread}</p>
-              <p className="text-xs text-muted-foreground">Avg per Thread</p>
-            </div>
-          </div>
+        {/* Secondary Info */}
+        <div className="pt-3 border-t border-border text-xs text-muted-foreground">
+          {data.totalComments} total comments • {data.avgCommentsPerPR} avg per PR •{" "}
+          {data.prsWithComments} PRs with discussions
         </div>
-
-        {/* Engagement Metrics */}
-        <div className="pt-3 border-t border-border">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-blue-500" />
-              <span className="text-muted-foreground">
-                PRs with Comments:{" "}
-                <span className="font-semibold text-foreground">{data.prsWithComments}</span>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-orange-500" />
-              <span className="text-muted-foreground">
-                With Unresolved:{" "}
-                <span className="font-semibold text-foreground">
-                  {data.prsWithUnresolvedThreads}
-                </span>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="text-muted-foreground">
-                All Resolved:{" "}
-                <span className="font-semibold text-foreground">
-                  {data.prsWithAllThreadsResolved}
-                </span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {data.totalPRsAnalyzed && (
-          <div className="text-xs text-muted-foreground italic pt-2">
-            * Analysis based on {data.totalPRsAnalyzed} PRs in date range
-          </div>
-        )}
       </div>
     </div>
   );
