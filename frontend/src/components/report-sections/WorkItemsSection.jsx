@@ -5,26 +5,11 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 
 // Color palette for work item states
 const CHART_COLORS = [
-  "hsl(142 76% 60%)", // green
   "hsl(221 83% 65%)", // blue
-  "hsl(0 84% 70%)", // red
-  "hsl(25 95% 65%)", // orange
   "hsl(280 65% 60%)", // purple
+  "hsl(25 95% 65%)", // orange
   "hsl(340 75% 65%)", // pink
   "hsl(190 70% 60%)", // cyan
-  "hsl(45 93% 60%)", // yellow
-  "hsl(160 60% 55%)", // teal
-  "hsl(15 80% 65%)", // coral
-  "hsl(260 60% 65%)", // indigo
-  "hsl(120 40% 60%)", // lime
-  "hsl(300 50% 65%)", // magenta
-  "hsl(200 70% 60%)", // sky
-  "hsl(30 85% 60%)", // amber
-  "hsl(330 65% 65%)", // rose
-  "hsl(180 55% 55%)", // aqua
-  "hsl(270 55% 60%)", // violet
-  "hsl(150 50% 55%)", // emerald
-  "hsl(10 75% 65%)", // crimson
 ];
 
 export default function WorkItemsSection({ data }) {
@@ -85,10 +70,11 @@ export default function WorkItemsSection({ data }) {
     );
   }
 
-  // Prepare chart data (all states with random colors)
+  // Prepare chart data (top 5 states only)
   const chartData = data.stateDistribution
     ? Object.entries(data.stateDistribution)
         .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
         .map(([name, value], index) => ({
           name,
           value,
@@ -133,7 +119,7 @@ export default function WorkItemsSection({ data }) {
       {/* Right: Pie Chart - 1/3 width */}
       {chartData.length > 0 && (
         <div className="flex-[1] hidden sm:flex items-center justify-center">
-          <ChartContainer config={chartConfig} className="h-[160px] w-[160px]">
+          <ChartContainer config={chartConfig} className="h-[180px] w-[180px]">
             <PieChart>
               <ChartTooltip content={<ChartTooltipContent />} />
               <Pie
@@ -142,8 +128,7 @@ export default function WorkItemsSection({ data }) {
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                innerRadius={45}
-                outerRadius={70}
+                outerRadius={80}
               >
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.fill} />

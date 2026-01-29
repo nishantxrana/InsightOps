@@ -1,6 +1,6 @@
 import React from "react";
 import { Rocket } from "lucide-react";
-import { Pie, PieChart, Cell } from "recharts";
+import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 export default function ReleasesSection({ data }) {
@@ -109,26 +109,28 @@ export default function ReleasesSection({ data }) {
         </div>
       </div>
 
-      {/* Right: Pie Chart - 1/3 width */}
+      {/* Right: Horizontal Bar Chart - 1/3 width */}
       {chartData.length > 0 && (
         <div className="flex-[1] hidden sm:flex items-center justify-center">
-          <ChartContainer config={chartConfig} className="h-[160px] w-[160px]">
-            <PieChart>
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={45}
-                outerRadius={70}
-              >
+          <ChartContainer config={chartConfig} className="h-[160px] w-full">
+            <BarChart accessibilityLayer data={chartData} layout="vertical" margin={{ left: 10 }}>
+              <XAxis type="number" dataKey="value" hide />
+              <YAxis
+                dataKey="name"
+                type="category"
+                tickLine={false}
+                tickMargin={10}
+                axisLine={false}
+                tick={{ fontSize: 11 }}
+                width={80}
+              />
+              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+              <Bar dataKey="value" fill="hsl(var(--chart-1))" radius={5}>
                 {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                  <Bar key={`bar-${index}`} dataKey="value" fill={entry.fill} />
                 ))}
-              </Pie>
-            </PieChart>
+              </Bar>
+            </BarChart>
           </ChartContainer>
         </div>
       )}

@@ -113,7 +113,7 @@ export default function PRDiscussionSection({ data }) {
       {/* Right: Pie Chart - 1/3 width */}
       {chartData.length > 0 && (
         <div className="flex-[1] hidden sm:flex items-center justify-center">
-          <ChartContainer config={chartConfig} className="h-[160px] w-[160px]">
+          <ChartContainer config={chartConfig} className="h-[180px] w-[180px]">
             <PieChart>
               <ChartTooltip content={<ChartTooltipContent />} />
               <Pie
@@ -122,8 +122,7 @@ export default function PRDiscussionSection({ data }) {
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                innerRadius={45}
-                outerRadius={70}
+                outerRadius={80}
               >
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.fill} />
