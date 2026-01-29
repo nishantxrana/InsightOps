@@ -1,6 +1,6 @@
 import React from "react";
 import { Rocket } from "lucide-react";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { Pie, PieChart, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 export default function ReleasesSection({ data }) {
@@ -70,32 +70,33 @@ export default function ReleasesSection({ data }) {
 
   // Data loaded state
   return (
-    <div className="bg-card rounded-lg border border-border p-4">
-      <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-        <Rocket className="h-4 w-4" />
-        Releases
-      </h3>
+    <div className="bg-card rounded-lg border border-border p-4 flex flex-col sm:flex-row gap-6">
+      {/* Left: Content - 2/3 width */}
+      <div className="flex-[2] space-y-3">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Rocket className="h-4 w-4" />
+          Releases
+        </h3>
 
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="min-w-0">
             <p className="text-2xl font-bold text-foreground">{data.totalReleases}</p>
             <p className="text-xs text-muted-foreground">Total Releases</p>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <p className="text-xl font-semibold text-green-600 dark:text-green-400">
               {data.succeeded}
             </p>
             <p className="text-xs text-muted-foreground">Succeeded</p>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.failed}</p>
             <p className="text-xs text-muted-foreground">Failed</p>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <p className="text-xl font-semibold text-orange-600 dark:text-orange-400">
               {data.others || 0}
             </p>
@@ -103,24 +104,34 @@ export default function ReleasesSection({ data }) {
           </div>
         </div>
 
-        {chartData.length > 0 && (
-          <ChartContainer
-            config={chartConfig}
-            className="h-[100px] w-full hidden sm:block mt-3 pt-3 border-t border-border"
-          >
-            <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 0 }}>
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="value" radius={4} />
-            </BarChart>
-          </ChartContainer>
-        )}
-
         <div className="pt-3 border-t border-border text-xs text-muted-foreground">
           Success Rate: {data.successRate}% • Failed Environments: {data.failedEnvironments}
         </div>
       </div>
+
+      {/* Right: Pie Chart - 1/3 width */}
+      {chartData.length > 0 && (
+        <div className="flex-[1] hidden sm:flex items-center justify-center">
+          <ChartContainer config={chartConfig} className="h-[160px] w-[160px]">
+            <PieChart>
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={45}
+                outerRadius={70}
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+        </div>
+      )}
     </div>
   );
 }
