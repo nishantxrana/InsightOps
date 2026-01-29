@@ -127,20 +127,20 @@ export default function DevOpsActivityReport() {
         </CollapsibleTrigger>
 
         <CollapsibleContent>
-          <div className="px-4 pb-4 space-y-4">
+          <div className="px-4 pb-4 space-y-4 pt-4">
             {/* Info Alert - Why manual generation */}
             {!reportData && !loading && (
-              <Alert className="bg-muted/50 border-muted">
-                <Info className="h-4 w-4" />
-                <AlertDescription className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-3 rounded-lg border border-muted bg-muted/50 p-3">
+                <Info className="h-4 w-4 text-muted-foreground shrink-0" />
+                <p className="text-xs text-muted-foreground">
                   This report aggregates data from multiple sources and may take 10-30 seconds to
                   generate. Select a date range and click "Generate Report" to begin.
-                </AlertDescription>
-              </Alert>
+                </p>
+              </div>
             )}
 
             {/* Controls */}
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap pt-2">
               <div className="flex items-center gap-2 flex-1 min-w-[200px]">
                 <span className="text-sm text-muted-foreground whitespace-nowrap">Date Range:</span>
                 <TimeRangeSelector value={dateRange} onChange={setDateRange} disabled={loading} />
