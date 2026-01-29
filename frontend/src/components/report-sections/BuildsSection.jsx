@@ -68,17 +68,19 @@ export default function BuildsSection({ data }) {
         </div>
 
         <div>
-          <p className="text-xl font-semibold text-foreground">{data.succeeded}</p>
+          <p className="text-xl font-semibold text-green-600 dark:text-green-400">
+            {data.succeeded}
+          </p>
           <p className="text-xs text-muted-foreground">Succeeded</p>
         </div>
 
         <div>
-          <p className="text-xl font-semibold text-foreground">{data.failed}</p>
+          <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.failed}</p>
           <p className="text-xs text-muted-foreground">Failed</p>
         </div>
 
         <div>
-          <p className="text-xl font-semibold text-foreground">{data.failureRate}%</p>
+          <p className="text-xl font-semibold text-muted-foreground">{data.failureRate}%</p>
           <p className="text-xs text-muted-foreground">Failure Rate</p>
         </div>
       </div>
@@ -91,7 +93,7 @@ export default function BuildsSection({ data }) {
         </div>
         <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
           <div
-            className="h-full bg-foreground/80 transition-all duration-500"
+            className="h-full bg-green-600 dark:bg-green-400 transition-all duration-500"
             style={{ width: `${successRate}%` }}
           />
         </div>

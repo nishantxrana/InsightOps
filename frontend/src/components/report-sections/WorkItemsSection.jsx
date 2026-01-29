@@ -91,22 +91,24 @@ export default function WorkItemsSection({ data }) {
         </div>
 
         <div>
-          <p className="text-xl font-semibold text-foreground">{data.completed}</p>
+          <p className="text-xl font-semibold text-green-600 dark:text-green-400">
+            {data.completed}
+          </p>
           <p className="text-xs text-muted-foreground">Completed</p>
         </div>
 
         <div>
-          <p className="text-xl font-semibold text-foreground">{data.overdue}</p>
+          <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.overdue}</p>
           <p className="text-xs text-muted-foreground">Overdue</p>
         </div>
       </div>
 
       {chartData.length > 0 && (
-        <div className="pt-3 border-t border-border">
+        <div className="pt-3 border-t border-border hidden sm:block">
           <p className="text-xs font-medium text-muted-foreground mb-3">
             State Distribution (Top 5):
           </p>
-          <ChartContainer config={chartConfig} className="h-[140px] w-full hidden sm:block">
+          <ChartContainer config={chartConfig} className="h-[140px] w-full">
             <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 0 }}>
               <XAxis type="number" hide />
               <YAxis
@@ -122,15 +124,6 @@ export default function WorkItemsSection({ data }) {
               <Bar dataKey="value" fill="var(--color-value)" radius={4} />
             </BarChart>
           </ChartContainer>
-          {/* Mobile: Show simple list instead of chart */}
-          <div className="sm:hidden space-y-1">
-            {chartData.map((item) => (
-              <div key={item.name} className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground truncate mr-2">{item.name}</span>
-                <span className="font-medium text-foreground">{item.value}</span>
-              </div>
-            ))}
-          </div>
         </div>
       )}
     </div>

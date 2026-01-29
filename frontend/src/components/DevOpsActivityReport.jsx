@@ -141,11 +141,16 @@ export default function DevOpsActivityReport() {
 
             {/* Controls */}
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Date Range:</span>
+              <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Date Range:</span>
                 <TimeRangeSelector value={dateRange} onChange={setDateRange} disabled={loading} />
               </div>
-              <Button onClick={handleGenerateReport} disabled={loading} className="gap-2" size="sm">
+              <Button
+                onClick={handleGenerateReport}
+                disabled={loading}
+                className="gap-2 whitespace-nowrap"
+                size="sm"
+              >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {loading ? "Generating report…" : "Generate Report"}
               </Button>

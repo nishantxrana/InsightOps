@@ -87,41 +87,37 @@ export default function ReleasesSection({ data }) {
           </div>
 
           <div>
-            <p className="text-xl font-semibold text-foreground">{data.succeeded}</p>
+            <p className="text-xl font-semibold text-green-600 dark:text-green-400">
+              {data.succeeded}
+            </p>
             <p className="text-xs text-muted-foreground">Succeeded</p>
           </div>
 
           <div>
-            <p className="text-xl font-semibold text-foreground">{data.failed}</p>
+            <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.failed}</p>
             <p className="text-xs text-muted-foreground">Failed</p>
           </div>
 
           <div>
-            <p className="text-xl font-semibold text-foreground">{data.others || 0}</p>
+            <p className="text-xl font-semibold text-orange-600 dark:text-orange-400">
+              {data.others || 0}
+            </p>
             <p className="text-xs text-muted-foreground">Others</p>
           </div>
         </div>
 
         {chartData.length > 0 && (
-          <div className="pt-3 border-t border-border">
-            <ChartContainer config={chartConfig} className="h-[100px] w-full hidden sm:block">
-              <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 0 }}>
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" fill="var(--color-value)" radius={4} />
-              </BarChart>
-            </ChartContainer>
-            {/* Mobile: Show simple list instead of chart */}
-            <div className="sm:hidden space-y-1">
-              {chartData.map((item) => (
-                <div key={item.name} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{item.name}</span>
-                  <span className="font-medium text-foreground">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ChartContainer
+            config={chartConfig}
+            className="h-[100px] w-full hidden sm:block mt-3 pt-3 border-t border-border"
+          >
+            <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 0 }}>
+              <XAxis type="number" hide />
+              <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+            </BarChart>
+          </ChartContainer>
         )}
 
         <div className="pt-3 border-t border-border text-xs text-muted-foreground">

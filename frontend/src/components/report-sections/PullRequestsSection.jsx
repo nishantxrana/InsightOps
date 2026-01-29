@@ -80,47 +80,45 @@ export default function PullRequestsSection({ data }) {
       </h3>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-2xl font-bold text-foreground">{data.totalPRs}</p>
           <p className="text-xs text-muted-foreground">Total PRs</p>
         </div>
 
-        <div>
-          <p className="text-xl font-semibold text-foreground">{data.byStatus?.active || 0}</p>
+        <div className="min-w-0">
+          <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">
+            {data.byStatus?.active || 0}
+          </p>
           <p className="text-xs text-muted-foreground">Active</p>
         </div>
 
-        <div>
-          <p className="text-xl font-semibold text-foreground">{data.byStatus?.completed || 0}</p>
+        <div className="min-w-0">
+          <p className="text-xl font-semibold text-green-600 dark:text-green-400">
+            {data.byStatus?.completed || 0}
+          </p>
           <p className="text-xs text-muted-foreground">Completed</p>
         </div>
 
-        <div>
-          <p className="text-xl font-semibold text-foreground">{data.byStatus?.abandoned || 0}</p>
+        <div className="min-w-0">
+          <p className="text-xl font-semibold text-muted-foreground">
+            {data.byStatus?.abandoned || 0}
+          </p>
           <p className="text-xs text-muted-foreground">Abandoned</p>
         </div>
       </div>
 
       {chartData.length > 0 && (
-        <div className="pt-3 border-t border-border">
-          <ChartContainer config={chartConfig} className="h-[100px] w-full hidden sm:block">
-            <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 0 }}>
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="value" fill="var(--color-value)" radius={4} />
-            </BarChart>
-          </ChartContainer>
-          {/* Mobile: Show simple list instead of chart */}
-          <div className="sm:hidden space-y-1">
-            {chartData.map((item) => (
-              <div key={item.name} className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">{item.name}</span>
-                <span className="font-medium text-foreground">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ChartContainer
+          config={chartConfig}
+          className="h-[100px] w-full hidden sm:block mt-3 pt-3 border-t border-border"
+        >
+          <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 0 }}>
+            <XAxis type="number" hide />
+            <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+          </BarChart>
+        </ChartContainer>
       )}
 
       {data.avgTimeToComplete > 0 && (
