@@ -10,6 +10,7 @@ import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workIt
 import { AzureDevOpsReleaseClient } from "../devops/releaseClient.js";
 import { azureDevOpsCache } from "../cache/AzureDevOpsCache.js";
 import { generateActivityReport } from "../services/activityReportService.js";
+import pdfService from "../services/pdfService.js";
 
 const router = express.Router();
 
@@ -537,6 +538,100 @@ router.get("/activity-report/stream", async (req, res) => {
     res.write(`event: error\n`);
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
     res.end();
+  }
+});
+
+/**
+ * Generate PDF Report
+ * POST /api/dashboard/activity-report/pdf
+ */
+router.post("/activity-report/pdf", async (req, res) => {
+  try {
+    const { startDate, endDate, reportData: existingData } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "startDate and endDate are required" });
+    }
+
+    logger.info(`[PDF] Generating report, range: ${startDate} to ${endDate}`, {
+      environment: "development",
+    });
+
+    // Get organization settings from request
+    const org = await getOrganizationSettings(req);
+
+    if (!hasAzureDevOpsConfig(org)) {
+      logger.error("[PDF] Azure DevOps configuration not found", { environment: "development" });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
+    }
+
+    const azureConfig = getAzureDevOpsConfig(org);
+    logger.info("[PDF] Config retrieved", { environment: "development", org: org.name });
+
+    let reportData;
+
+    // Use existing data if provided, otherwise fetch fresh
+    if (existingData) {
+      logger.info("[PDF] Using existing report data (no refetch)", { environment: "development" });
+      reportData = { startDate, endDate, ...existingData };
+    } else {
+      logger.info("[PDF] Fetching fresh report data...", { environment: "development" });
+
+      // Import fetch functions
+      const {
+        fetchPRMetrics,
+        fetchPRDiscussionMetrics,
+        fetchBuildMetrics,
+        fetchReleaseMetrics,
+        fetchWorkItemMetrics,
+      } = await import("../services/activityReportService.js");
+
+      // Fetch all report data
+      const client = azureDevOpsClient.createUserClient(azureConfig);
+      const releaseClient = new AzureDevOpsReleaseClient(
+        azureConfig.organization,
+        azureConfig.project,
+        azureConfig.pat,
+        azureConfig.baseUrl
+      );
+
+      reportData = {
+        startDate,
+        endDate,
+        workItems: await fetchWorkItemMetrics(client, startDate, endDate),
+        builds: await fetchBuildMetrics(client, startDate, endDate),
+        releases: await fetchReleaseMetrics(releaseClient, startDate, endDate),
+        pullRequests: await fetchPRMetrics(client, startDate, endDate),
+        prDiscussion: await fetchPRDiscussionMetrics(client, startDate, endDate),
+      };
+      logger.info("[PDF] Report data fetched", { environment: "development" });
+    }
+
+    // Generate PDF
+    logger.info("[PDF] Calling PDF service...", { environment: "development" });
+    const pdfBuffer = await pdfService.generateActivityReportPDF(reportData, org);
+    logger.info("[PDF] PDF buffer received", {
+      environment: "development",
+      size: pdfBuffer.length,
+    });
+
+    // Set response headers
+    const filename = `devops-report-${startDate.split("T")[0]}-to-${endDate.split("T")[0]}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+
+    // Send as Buffer, not JSON
+    res.end(pdfBuffer, "binary");
+
+    logger.info(`[PDF] Generated successfully for org ${org.name}`, { environment: "development" });
+  } catch (error) {
+    logger.error("[PDF] Generation failed", {
+      environment: "development",
+      error: error.message,
+      stack: error.stack,
+    });
+    res.status(500).json({ error: "Failed to generate PDF", message: error.message });
   }
 });
 

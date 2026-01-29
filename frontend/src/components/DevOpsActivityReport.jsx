@@ -100,6 +100,51 @@ export default function DevOpsActivityReport() {
     }
   };
 
+  const handleExportPDF = async () => {
+    if (!reportData) {
+      setError("Please generate a report first");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const currentOrgId = localStorage.getItem("currentOrganizationId");
+
+      const response = await fetch("/api/dashboard/activity-report/pdf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "X-Organization-ID": currentOrgId,
+        },
+        body: JSON.stringify({
+          startDate: dateRange.from.toISOString(),
+          endDate: dateRange.to.toISOString(),
+          reportData: reportData, // Pass existing data
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate PDF");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `devops-report-${dateRange.from.toISOString().split("T")[0]}-to-${dateRange.to.toISOString().split("T")[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div
       className={`bg-card rounded-lg border transition-colors ${
@@ -154,6 +199,18 @@ export default function DevOpsActivityReport() {
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {loading ? "Generating report…" : "Generate Report"}
               </Button>
+              {reportData && (
+                <Button
+                  onClick={handleExportPDF}
+                  disabled={loading}
+                  variant="outline"
+                  className="gap-2 whitespace-nowrap"
+                  size="sm"
+                >
+                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Export PDF
+                </Button>
+              )}
             </div>
 
             {/* Error Display */}
