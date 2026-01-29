@@ -97,23 +97,29 @@ export default function WorkItemsSection({ data }) {
         </h3>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="min-w-0">
+          <div className="min-w-0 text-center sm:text-left">
             <p className="text-2xl font-bold text-foreground">{data.created}</p>
             <p className="text-xs text-muted-foreground">Created</p>
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 text-center sm:text-left">
             <p className="text-xl font-semibold text-green-600 dark:text-green-400">
               {data.completed}
             </p>
             <p className="text-xs text-muted-foreground">Completed</p>
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 text-center sm:text-left">
             <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.overdue}</p>
             <p className="text-xs text-muted-foreground">Overdue</p>
           </div>
         </div>
+
+        {chartData.length > 0 && (
+          <div className="pt-3 border-t border-border text-xs text-muted-foreground hidden sm:block">
+            Chart shows top 5 work item states by count
+          </div>
+        )}
       </div>
 
       {/* Right: Pie Chart - 1/3 width */}
