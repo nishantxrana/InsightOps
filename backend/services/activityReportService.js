@@ -500,3 +500,12 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
     throw error;
   }
 }
+
+// Export individual fetch functions for streaming
+export {
+  fetchPRMetrics,
+  fetchPRDiscussionMetrics,
+  fetchBuildMetrics,
+  fetchReleaseMetrics,
+  fetchWorkItemMetrics,
+};
