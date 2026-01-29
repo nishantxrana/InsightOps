@@ -234,25 +234,30 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
     threadResults.forEach((result) => {
       if (result.status === "fulfilled" && result.value?.value) {
         const threads = result.value.value;
-        const prThreadCount = threads.length;
 
-        if (prThreadCount > 0) {
+        if (threads.length > 0) {
           prsWithComments++;
-          totalThreads += prThreadCount;
 
           let prResolvedCount = 0;
           let prUnresolvedCount = 0;
+          let prUserThreadCount = 0; // Only count user threads
 
           threads.forEach((thread) => {
             const status = thread.status?.toLowerCase();
-            const commentCount = thread.comments?.length || 0;
-            totalComments += commentCount;
 
             // Skip system threads (no status field) - they're not user discussions
             // System threads include: merge attempts, reviewer updates, vote updates, etc.
             if (!thread.status) {
-              return; // Don't count as resolved or unresolved
+              return; // Skip before counting anything
             }
+
+            // Count comments only from user threads
+            const commentCount = thread.comments?.length || 0;
+            totalComments += commentCount;
+
+            // Count user threads only
+            prUserThreadCount++;
+            totalThreads++;
 
             // Resolved: fixed, closed, wontFix, byDesign, resolved
             // Unresolved: active, pending, unknown
@@ -275,7 +280,7 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
           if (prUnresolvedCount > 0) {
             prsWithUnresolvedThreads++;
           }
-          if (prThreadCount > 0 && prUnresolvedCount === 0) {
+          if (prUserThreadCount > 0 && prUnresolvedCount === 0) {
             prsWithAllThreadsResolved++;
           }
         }
