@@ -63,7 +63,7 @@ export async function generateActivityReport(client, releaseClient, orgId, start
  */
 async function fetchPRMetrics(client, startDate, endDate) {
   try {
-    // Fetch ALL PRs using pagination with $skip (no limits)
+    // Fetch PRs using date filtering in API (much more efficient!)
     const fetchAllPRsByStatus = async (status) => {
       let allPRs = [];
       let skip = 0;
@@ -73,8 +73,11 @@ async function fetchPRMetrics(client, startDate, endDate) {
       while (hasMore) {
         const response = await client.client.get("/git/pullrequests", {
           params: {
-            "api-version": "7.0",
+            "api-version": "7.1",
             "searchCriteria.status": status,
+            "searchCriteria.minTime": startDate,
+            "searchCriteria.maxTime": endDate,
+            "searchCriteria.queryTimeRangeType": "created",
             $top: batchSize,
             $skip: skip,
           },
@@ -87,7 +90,7 @@ async function fetchPRMetrics(client, startDate, endDate) {
         hasMore = prs.length === batchSize;
         skip += batchSize;
 
-        // Safety limit to prevent infinite loops
+        // Safety limit to prevent infinite loops (unlikely to hit with date filtering)
         if (allPRs.length >= 10000) {
           logger.warn(`[ActivityReport] Reached safety limit of 10000 PRs for status: ${status}`);
           break;
@@ -108,28 +111,18 @@ async function fetchPRMetrics(client, startDate, endDate) {
 
     // Log fetched counts for debugging
     logger.info(
-      `[ActivityReport] Fetched ALL PRs - Active: ${activePRs.length}, Completed: ${completedPRs.length}, Abandoned: ${abandonedPRs.length}, Total: ${allPRs.length}`
+      `[ActivityReport] Fetched PRs in date range - Active: ${activePRs.length}, Completed: ${completedPRs.length}, Abandoned: ${abandonedPRs.length}, Total: ${allPRs.length}`
     );
 
-    // Filter by creation date
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const prsInRange = allPRs.filter((pr) => {
-      const created = new Date(pr.creationDate);
-      return created >= start && created <= end;
-    });
-
-    // Calculate metrics
+    // Calculate metrics (no need to filter by date - API already did it!)
     const byStatus = {
-      active: prsInRange.filter((pr) => pr.status === "active").length,
-      completed: prsInRange.filter((pr) => pr.status === "completed").length,
-      abandoned: prsInRange.filter((pr) => pr.status === "abandoned").length,
+      active: activePRs.length,
+      completed: completedPRs.length,
+      abandoned: abandonedPRs.length,
     };
 
     // Calculate avg time to complete (for completed PRs only)
-    const completedPRsWithDates = prsInRange.filter(
-      (pr) => pr.status === "completed" && pr.closedDate
-    );
+    const completedPRsWithDates = completedPRs.filter((pr) => pr.creationDate && pr.closedDate);
     const avgTimeToComplete =
       completedPRsWithDates.length > 0
         ? completedPRsWithDates.reduce((sum, pr) => {
@@ -140,7 +133,7 @@ async function fetchPRMetrics(client, startDate, endDate) {
         : 0;
 
     return {
-      totalPRs: prsInRange.length,
+      totalPRs: allPRs.length,
       byStatus,
       avgTimeToComplete: Math.round(avgTimeToComplete * 10) / 10, // 1 decimal
       totalFetched: allPRs.length, // Show total fetched for transparency
@@ -156,18 +149,51 @@ async function fetchPRMetrics(client, startDate, endDate) {
  */
 async function fetchPRDiscussionMetrics(client, startDate, endDate) {
   try {
-    // Get ALL PRs in date range (no artificial limit)
-    const activeRes = await client.getPullRequests("active");
-    const completedRes = await client.getPullRequests("completed");
+    // Use same pagination logic as fetchPRMetrics to get ALL PRs
+    const fetchAllPRsByStatus = async (status) => {
+      let allPRs = [];
+      let skip = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-    const allPRs = [...(activeRes.value || []), ...(completedRes.value || [])];
+      while (hasMore) {
+        const response = await client.client.get("/git/pullrequests", {
+          params: {
+            "api-version": "7.1",
+            "searchCriteria.status": status,
+            "searchCriteria.minTime": startDate,
+            "searchCriteria.maxTime": endDate,
+            "searchCriteria.queryTimeRangeType": "created",
+            $top: batchSize,
+            $skip: skip,
+          },
+        });
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const prsInRange = allPRs.filter((pr) => {
-      const created = new Date(pr.creationDate);
-      return created >= start && created <= end;
-    });
+        const prs = response.data.value || [];
+        allPRs = [...allPRs, ...prs];
+
+        hasMore = prs.length === batchSize;
+        skip += batchSize;
+
+        // Safety limit to prevent infinite loops
+        if (allPRs.length >= 10000) {
+          logger.warn(
+            `[ActivityReport] Reached safety limit of 10000 PRs for status: ${status} in PR Discussion`
+          );
+          break;
+        }
+      }
+
+      return allPRs;
+    };
+
+    // Fetch all PRs for each status in parallel
+    const [activePRs, completedPRs] = await Promise.all([
+      fetchAllPRsByStatus("active"),
+      fetchAllPRsByStatus("completed"),
+    ]);
+
+    const prsInRange = [...activePRs, ...completedPRs];
 
     if (prsInRange.length === 0) {
       return {
@@ -282,7 +308,7 @@ async function fetchBuildMetrics(client, startDate, endDate) {
     let continuationToken = null;
     let hasMore = true;
 
-    while (hasMore && allBuilds.length < 5000) {
+    while (hasMore) {
       const params = {
         "api-version": "7.0",
         minTime: startDate,
@@ -340,7 +366,7 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
     let continuationToken = null;
     let hasMore = true;
 
-    while (hasMore && allReleases.length < 1000) {
+    while (hasMore) {
       const response = await releaseClient.getReleases({
         top: 100,
         minCreatedTime: startDate,
