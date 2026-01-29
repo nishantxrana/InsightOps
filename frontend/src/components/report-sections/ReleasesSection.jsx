@@ -59,16 +59,13 @@ export default function ReleasesSection({ data }) {
 
   // Prepare chart data
   const chartData = [
-    { name: "Succeeded", value: data.succeeded },
-    { name: "Failed", value: data.failed },
-    { name: "Others", value: data.others || 0 },
+    { name: "Succeeded", value: data.succeeded, fill: "hsl(142 76% 60%)" },
+    { name: "Failed", value: data.failed, fill: "hsl(0 84% 70%)" },
+    { name: "Others", value: data.others || 0, fill: "hsl(25 95% 65%)" },
   ].filter((item) => item.value > 0);
 
   const chartConfig = {
-    value: {
-      label: "Releases",
-      color: "hsl(var(--muted-foreground))",
-    },
+    value: { label: "Releases" },
   };
 
   // Data loaded state
@@ -115,7 +112,7 @@ export default function ReleasesSection({ data }) {
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+              <Bar dataKey="value" radius={4} />
             </BarChart>
           </ChartContainer>
         )}

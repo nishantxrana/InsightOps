@@ -59,16 +59,17 @@ export default function PullRequestsSection({ data }) {
 
   // Prepare chart data
   const chartData = [
-    { name: "Completed", value: data.byStatus?.completed || 0 },
-    { name: "Active", value: data.byStatus?.active || 0 },
-    { name: "Abandoned", value: data.byStatus?.abandoned || 0 },
+    { name: "Completed", value: data.byStatus?.completed || 0, fill: "hsl(142 76% 60%)" },
+    { name: "Active", value: data.byStatus?.active || 0, fill: "hsl(221 83% 65%)" },
+    {
+      name: "Abandoned",
+      value: data.byStatus?.abandoned || 0,
+      fill: "hsl(var(--muted-foreground))",
+    },
   ].filter((item) => item.value > 0);
 
   const chartConfig = {
-    value: {
-      label: "PRs",
-      color: "hsl(var(--muted-foreground))",
-    },
+    value: { label: "PRs" },
   };
 
   // Data loaded state
@@ -116,7 +117,7 @@ export default function PullRequestsSection({ data }) {
             <XAxis type="number" hide />
             <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+            <Bar dataKey="value" radius={4} />
           </BarChart>
         </ChartContainer>
       )}
