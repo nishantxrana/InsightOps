@@ -59,6 +59,7 @@ export default function BuildsSection({ data }) {
   const chartData = [
     { name: "Succeeded", value: data.succeeded, fill: "hsl(142 76% 60%)" },
     { name: "Failed", value: data.failed, fill: "hsl(0 84% 70%)" },
+    { name: "Others", value: data.others || 0, fill: "hsl(25 95% 65%)" },
   ].filter((item) => item.value > 0);
 
   const chartConfig = {
@@ -94,26 +95,30 @@ export default function BuildsSection({ data }) {
           </div>
 
           <div className="min-w-0">
-            <p className="text-xl font-semibold text-muted-foreground">{data.failureRate}%</p>
-            <p className="text-xs text-muted-foreground">Failure Rate</p>
+            <p className="text-xl font-semibold text-orange-600 dark:text-orange-400">
+              {data.others || 0}
+            </p>
+            <p className="text-xs text-muted-foreground">Others</p>
           </div>
         </div>
 
-        {data.avgDuration > 0 && (
-          <div className="pt-3 border-t border-border">
-            <p className="text-xs text-muted-foreground">
+        <div className="pt-3 border-t border-border text-xs text-muted-foreground">
+          {data.avgDuration > 0 && (
+            <>
               <Clock className="h-3 w-3 inline mr-1" />
               Avg Duration:{" "}
               <span className="font-medium text-foreground">{data.avgDuration} min</span>
-            </p>
-          </div>
-        )}
+              {" • "}
+            </>
+          )}
+          Failure Rate: <span className="font-medium text-foreground">{data.failureRate}%</span>
+        </div>
       </div>
 
       {/* Right: Pie Chart - 1/3 width */}
       {chartData.length > 0 && (
         <div className="flex-[1] hidden sm:flex items-center justify-center">
-          <ChartContainer config={chartConfig} className="h-[160px] w-[160px]">
+          <ChartContainer config={chartConfig} className="h-[180px] w-[180px]">
             <PieChart>
               <ChartTooltip content={<ChartTooltipContent />} />
               <Pie
@@ -122,8 +127,7 @@ export default function BuildsSection({ data }) {
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                innerRadius={45}
-                outerRadius={70}
+                outerRadius={80}
               >
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.fill} />

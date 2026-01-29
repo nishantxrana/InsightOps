@@ -342,6 +342,7 @@ async function fetchBuildMetrics(client, startDate, endDate) {
 
     const succeeded = allBuilds.filter((b) => b.result === "succeeded").length;
     const failed = allBuilds.filter((b) => b.result === "failed").length;
+    const others = allBuilds.length - succeeded - failed;
     const failureRate = allBuilds.length > 0 ? (failed / allBuilds.length) * 100 : 0;
 
     // Calculate avg duration (in minutes) for completed builds
@@ -359,6 +360,7 @@ async function fetchBuildMetrics(client, startDate, endDate) {
       totalBuilds: allBuilds.length,
       succeeded,
       failed,
+      others,
       failureRate: Math.round(failureRate * 10) / 10,
       avgDuration: Math.round(avgDuration * 10) / 10,
     };
