@@ -39,7 +39,8 @@ export default function DevOpsActivityReport() {
         setError(response.error || "Failed to generate report");
       }
     } catch (err) {
-      setError(err.message || "Failed to generate report");
+      console.error("Activity report error:", err);
+      setError(err.userMessage || err.message || "Failed to generate report");
     } finally {
       setLoading(false);
     }
