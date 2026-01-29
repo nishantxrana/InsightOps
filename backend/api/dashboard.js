@@ -396,4 +396,148 @@ router.post("/activity-report", async (req, res) => {
   }
 });
 
+// SSE endpoint for streaming activity report
+router.get("/activity-report/stream", async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // Validate inputs
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate and endDate are required",
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid date format",
+      });
+    }
+
+    if (start > end) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate must be before endDate",
+      });
+    }
+
+    if (end > new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: "endDate cannot be in the future",
+      });
+    }
+
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    if (daysDiff > 90) {
+      return res.status(400).json({
+        success: false,
+        error: "Date range cannot exceed 90 days",
+      });
+    }
+
+    const org = await getOrganizationSettings(req);
+
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({
+        success: false,
+        error: "Azure DevOps configuration required",
+      });
+    }
+
+    const orgId = org._id?.toString();
+    const azureConfig = getAzureDevOpsConfig(org);
+
+    // Set SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // Disable nginx buffering
+    res.flushHeaders();
+
+    const sendEvent = (event, data) => {
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+      // Force flush to send immediately (critical for streaming!)
+      if (res.flush) {
+        res.flush();
+      }
+    };
+
+    logger.info(`[ActivityReport] Streaming report for org ${org.name}`);
+
+    const client = azureDevOpsClient.createUserClient(azureConfig);
+    const releaseClient = new AzureDevOpsReleaseClient(
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat,
+      azureConfig.baseUrl
+    );
+
+    // Import fetch functions
+    const {
+      fetchPRMetrics,
+      fetchPRDiscussionMetrics,
+      fetchBuildMetrics,
+      fetchReleaseMetrics,
+      fetchWorkItemMetrics,
+    } = await import("../services/activityReportService.js");
+
+    // Fetch each section and stream as it completes
+    const sections = [
+      { name: "pullRequests", fn: () => fetchPRMetrics(client, startDate, endDate) },
+      { name: "prDiscussion", fn: () => fetchPRDiscussionMetrics(client, startDate, endDate) },
+      { name: "builds", fn: () => fetchBuildMetrics(client, startDate, endDate) },
+      { name: "releases", fn: () => fetchReleaseMetrics(releaseClient, startDate, endDate) },
+      { name: "workItems", fn: () => fetchWorkItemMetrics(client, startDate, endDate) },
+    ];
+
+    const startTime = Date.now();
+
+    for (const section of sections) {
+      try {
+        const sectionStart = Date.now();
+        const data = await section.fn();
+        const sectionDuration = Date.now() - sectionStart;
+
+        sendEvent("section", {
+          name: section.name,
+          data,
+          duration: sectionDuration,
+        });
+
+        logger.info(`[ActivityReport] Streamed ${section.name} in ${sectionDuration}ms`);
+      } catch (error) {
+        sendEvent("section", {
+          name: section.name,
+          error: error.message,
+        });
+        logger.error(`[ActivityReport] Error streaming ${section.name}:`, error);
+      }
+    }
+
+    // Send completion event
+    const totalDuration = Date.now() - startTime;
+    sendEvent("complete", {
+      duration: totalDuration,
+      generatedAt: new Date().toISOString(),
+    });
+
+    logger.info(`[ActivityReport] Stream completed in ${totalDuration}ms`);
+
+    res.end();
+  } catch (error) {
+    logger.error("[ActivityReport] Error in stream:", error);
+    res.write(`event: error\n`);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
+  }
+});
+
 export default router;

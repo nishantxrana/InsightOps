@@ -1,7 +1,22 @@
 import React from "react";
-import { CheckSquare, Plus, CheckCircle, AlertTriangle } from "lucide-react";
+import { CheckSquare, Plus, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 
 export default function WorkItemsSection({ data }) {
+  if (!data) {
+    return (
+      <div className="bg-card rounded-lg border border-border p-4">
+        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+          <CheckSquare className="h-4 w-4" />
+          Work Items
+        </h3>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
   if (data?.error) {
     return (
       <div className="bg-card rounded-lg border border-border p-4">

@@ -1,7 +1,23 @@
 import React from "react";
-import { MessageSquare, CheckCircle2, AlertCircle, TrendingUp } from "lucide-react";
+import { MessageSquare, CheckCircle2, AlertCircle, TrendingUp, Loader2 } from "lucide-react";
 
 export default function PRDiscussionSection({ data }) {
+  // Loading state
+  if (!data) {
+    return (
+      <div className="bg-card rounded-lg border border-border p-4">
+        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+          <MessageSquare className="h-4 w-4" />
+          PR Discussion Health
+        </h3>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
   if (data?.error) {
     return (
       <div className="bg-card rounded-lg border border-border p-4">

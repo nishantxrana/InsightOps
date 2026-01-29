@@ -28,20 +28,74 @@ export default function DevOpsActivityReport() {
     setReportData(null);
 
     try {
-      const response = await apiService.generateActivityReport(
-        dateRange.from.toISOString(),
-        dateRange.to.toISOString()
-      );
+      const token = localStorage.getItem("token");
+      const currentOrgId = localStorage.getItem("currentOrganizationId");
 
-      if (response.success) {
-        setReportData(response.data);
-      } else {
-        setError(response.error || "Failed to generate report");
+      const url = new URL("/api/dashboard/activity-report/stream", window.location.origin);
+      url.searchParams.set("startDate", dateRange.from.toISOString());
+      url.searchParams.set("endDate", dateRange.to.toISOString());
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-Organization-ID": currentOrgId,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start report stream");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const reportSections = {};
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop(); // Keep incomplete message in buffer
+
+        for (const message of lines) {
+          if (!message.trim()) continue;
+
+          const eventMatch = message.match(/event: (\w+)\ndata: (.+)/s);
+          if (!eventMatch) continue;
+
+          const [, eventType, dataStr] = eventMatch;
+          const data = JSON.parse(dataStr);
+
+          if (eventType === "section") {
+            const { name, data: sectionData, error } = data;
+            reportSections[name] = error ? { error } : sectionData;
+
+            setReportData({
+              pullRequests: reportSections.pullRequests || null,
+              prDiscussion: reportSections.prDiscussion || null,
+              builds: reportSections.builds || null,
+              releases: reportSections.releases || null,
+              workItems: reportSections.workItems || null,
+              meta: { generatedAt: new Date().toISOString() },
+            });
+          } else if (eventType === "complete") {
+            setReportData((prev) => ({
+              ...prev,
+              meta: { generatedAt: data.generatedAt, durationMs: data.duration },
+            }));
+            setLoading(false);
+          } else if (eventType === "error") {
+            setError(data.error || "Failed to generate report");
+            setLoading(false);
+          }
+        }
       }
     } catch (err) {
       console.error("Activity report error:", err);
       setError(err.userMessage || err.message || "Failed to generate report");
-    } finally {
       setLoading(false);
     }
   };

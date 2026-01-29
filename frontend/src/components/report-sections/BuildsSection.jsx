@@ -1,7 +1,22 @@
 import React from "react";
-import { GitBranch, CheckCircle, XCircle, Clock } from "lucide-react";
+import { GitBranch, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
 
 export default function BuildsSection({ data }) {
+  if (!data) {
+    return (
+      <div className="bg-card rounded-lg border border-border p-4">
+        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+          <GitBranch className="h-4 w-4" />
+          Builds
+        </h3>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
   if (data?.error) {
     return (
       <div className="bg-card rounded-lg border border-border p-4">
