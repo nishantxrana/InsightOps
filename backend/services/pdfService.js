@@ -10,10 +10,10 @@ const __dirname = path.dirname(__filename);
 
 class PDFService {
   constructor() {
-    // Smaller charts for PDF - 40% reduction
+    // Optimized chart size for PDF with large, readable legends
     this.chartJSNodeCanvas = new ChartJSNodeCanvas({
-      width: 720, // Reduced from 1200
-      height: 480, // Reduced from 800
+      width: 800, // Increased for better legend space
+      height: 600, // Increased significantly for legend visibility
       backgroundColour: "transparent",
     });
     logger.info("[PDFService] Initialized", { environment: "development" });
@@ -23,9 +23,12 @@ class PDFService {
     try {
       logger.info("[PDFService] Starting PDF generation", { environment: "development" });
 
+      // Prepare safe metrics BEFORE chart generation
+      const safeMetrics = this.prepareSafeMetrics(reportData);
+
       // Generate chart images
       logger.info("[PDFService] Generating chart images...", { environment: "development" });
-      const chartImages = await this.generateChartImages(reportData);
+      const chartImages = await this.generateChartImages(safeMetrics);
       logger.info("[PDFService] Chart images generated", {
         environment: "development",
         chartCount: Object.keys(chartImages).length,
@@ -33,7 +36,7 @@ class PDFService {
 
       // Render HTML template
       logger.info("[PDFService] Rendering HTML template...", { environment: "development" });
-      const html = await this.renderTemplate(reportData, chartImages, userSettings);
+      const html = await this.renderTemplate(safeMetrics, chartImages, userSettings);
       logger.info("[PDFService] HTML template rendered", {
         environment: "development",
         htmlLength: html.length,
@@ -62,8 +65,8 @@ class PDFService {
     const images = {};
 
     try {
-      // Generate Work Items pie chart
-      if (reportData.workItems?.stateDistribution) {
+      // Generate Work Items pie chart - only if sufficient data
+      if (reportData.workItems?.stateDistribution && reportData.workItems?.hasSufficientData) {
         logger.info("[PDFService] Generating Work Items chart", { environment: "development" });
         images.workItems = await this.generatePieChart(reportData.workItems.stateDistribution, [
           "#3b82f6",
@@ -74,8 +77,8 @@ class PDFService {
         ]);
       }
 
-      // Generate Builds pie chart
-      if (reportData.builds) {
+      // Generate Builds pie chart - only if sufficient data
+      if (reportData.builds?.hasSufficientData) {
         logger.info("[PDFService] Generating Builds chart", { environment: "development" });
         images.builds = await this.generatePieChart(
           {
@@ -87,8 +90,8 @@ class PDFService {
         );
       }
 
-      // Generate Releases bar chart
-      if (reportData.releases) {
+      // Generate Releases bar chart - only if sufficient data
+      if (reportData.releases?.hasSufficientData) {
         logger.info("[PDFService] Generating Releases chart", { environment: "development" });
         images.releases = await this.generateBarChart(
           {
@@ -100,8 +103,8 @@ class PDFService {
         );
       }
 
-      // Generate PRs bar chart
-      if (reportData.pullRequests) {
+      // Generate PRs bar chart - only if sufficient data
+      if (reportData.pullRequests?.hasSufficientData) {
         logger.info("[PDFService] Generating Pull Requests chart", { environment: "development" });
         images.pullRequests = await this.generateBarChart(
           {
@@ -113,8 +116,8 @@ class PDFService {
         );
       }
 
-      // Generate PR Discussion pie chart
-      if (reportData.prDiscussion) {
+      // Generate PR Discussion pie chart - only if sufficient data
+      if (reportData.prDiscussion?.hasSufficientData) {
         logger.info("[PDFService] Generating PR Discussion chart", { environment: "development" });
         images.prDiscussion = await this.generatePieChart(
           {
@@ -136,6 +139,122 @@ class PDFService {
     }
   }
 
+  // Safe percentage calculation
+  safePercentage(numerator, denominator) {
+    if (!denominator || denominator === 0) return null;
+    return Math.round((numerator / denominator) * 100);
+  }
+
+  // Check if section has sufficient data
+  hasSufficientData(sectionData) {
+    if (!sectionData) return false;
+
+    // For PRs: check if we have actual status breakdown
+    if (sectionData.totalPRs !== undefined) {
+      const hasStatusData =
+        (sectionData.active || 0) + (sectionData.completed || 0) + (sectionData.abandoned || 0) > 0;
+      return sectionData.totalPRs >= 5 && hasStatusData;
+    }
+
+    // For PR Discussion: check if we have actual thread data
+    if (sectionData.totalThreads !== undefined) {
+      const hasThreadData = (sectionData.resolved || 0) + (sectionData.unresolved || 0) > 0;
+      return sectionData.totalThreads >= 5 && hasThreadData;
+    }
+
+    // For other sections: check total count
+    const total = sectionData.totalBuilds || sectionData.totalReleases || sectionData.created || 0;
+    return total >= 5;
+  }
+
+  // Prepare safe metrics for template
+  prepareSafeMetrics(reportData) {
+    return {
+      startDate: reportData.startDate,
+      endDate: reportData.endDate,
+      builds: {
+        ...reportData.builds,
+        successRate: this.safePercentage(
+          reportData.builds?.succeeded,
+          reportData.builds?.totalBuilds
+        ),
+        hasSufficientData: this.hasSufficientData(reportData.builds),
+      },
+      releases: {
+        ...reportData.releases,
+        successRate: this.safePercentage(
+          reportData.releases?.succeeded,
+          reportData.releases?.totalReleases
+        ),
+        hasSufficientData: this.hasSufficientData(reportData.releases),
+      },
+      pullRequests: {
+        totalPRs: reportData.pullRequests?.totalPRs || 0,
+        // Handle both flat and nested byStatus structure
+        active: reportData.pullRequests?.active || reportData.pullRequests?.byStatus?.active || 0,
+        completed:
+          reportData.pullRequests?.completed || reportData.pullRequests?.byStatus?.completed || 0,
+        abandoned:
+          reportData.pullRequests?.abandoned || reportData.pullRequests?.byStatus?.abandoned || 0,
+        avgTimeToComplete: reportData.pullRequests?.avgTimeToComplete,
+        completionRate: this.safePercentage(
+          reportData.pullRequests?.completed || reportData.pullRequests?.byStatus?.completed,
+          reportData.pullRequests?.totalPRs
+        ),
+        idleCount: reportData.pullRequests?.idle || 0,
+        hasSufficientData: this.hasSufficientData({
+          totalPRs: reportData.pullRequests?.totalPRs,
+          active: reportData.pullRequests?.active || reportData.pullRequests?.byStatus?.active,
+          completed:
+            reportData.pullRequests?.completed || reportData.pullRequests?.byStatus?.completed,
+          abandoned:
+            reportData.pullRequests?.abandoned || reportData.pullRequests?.byStatus?.abandoned,
+        }),
+      },
+      prDiscussion: {
+        totalThreads: reportData.prDiscussion?.totalThreads || 0,
+        // Handle different field name variations
+        resolved:
+          reportData.prDiscussion?.resolved ||
+          reportData.prDiscussion?.resolvedThreads ||
+          reportData.prDiscussion?.byStatus?.resolved ||
+          0,
+        unresolved:
+          reportData.prDiscussion?.unresolved ||
+          reportData.prDiscussion?.unresolvedThreads ||
+          reportData.prDiscussion?.byStatus?.unresolved ||
+          0,
+        prsNeedReview:
+          reportData.prDiscussion?.prsNeedReview ||
+          reportData.prDiscussion?.prsWithUnresolvedThreads ||
+          0,
+        totalComments: reportData.prDiscussion?.totalComments || 0,
+        resolutionRate: this.safePercentage(
+          reportData.prDiscussion?.resolved || reportData.prDiscussion?.resolvedThreads,
+          reportData.prDiscussion?.totalThreads
+        ),
+        hasSufficientData: this.hasSufficientData({
+          totalThreads: reportData.prDiscussion?.totalThreads,
+          resolved: reportData.prDiscussion?.resolved || reportData.prDiscussion?.resolvedThreads,
+          unresolved:
+            reportData.prDiscussion?.unresolved || reportData.prDiscussion?.unresolvedThreads,
+        }),
+      },
+      workItems: {
+        ...reportData.workItems,
+        completionRate: this.safePercentage(
+          reportData.workItems?.completed,
+          reportData.workItems?.created
+        ),
+        overdueRate: this.safePercentage(
+          reportData.workItems?.overdue,
+          reportData.workItems?.created
+        ),
+        hasSufficientData: this.hasSufficientData(reportData.workItems),
+      },
+    };
+  }
+
   async generatePieChart(data, colors) {
     const labels = Object.keys(data);
     const values = Object.values(data);
@@ -148,19 +267,34 @@ class PDFService {
           {
             data: values,
             backgroundColor: colors,
-            borderWidth: 0,
+            borderWidth: 2,
+            borderColor: "#ffffff",
           },
         ],
       },
       options: {
         responsive: false,
+        layout: {
+          padding: {
+            top: 20,
+            bottom: 40, // More space for legend
+            left: 20,
+            right: 20,
+          },
+        },
         plugins: {
           legend: {
             position: "bottom",
             labels: {
-              font: { size: 11 },
-              padding: 10,
-              boxWidth: 12,
+              font: {
+                size: 16, // Much larger font
+                weight: "500",
+              },
+              padding: 15,
+              boxWidth: 20,
+              boxHeight: 20,
+              usePointStyle: false,
+              color: "#1e293b",
             },
           },
         },
@@ -190,17 +324,31 @@ class PDFService {
       options: {
         indexAxis: "y",
         responsive: false,
+        layout: {
+          padding: {
+            left: 20,
+            right: 30,
+            top: 20,
+            bottom: 20,
+          },
+        },
         plugins: {
           legend: { display: false },
         },
         scales: {
           x: {
             grid: { display: false },
-            ticks: { font: { size: 10 } },
+            ticks: {
+              font: { size: 14, weight: "500" },
+              color: "#1e293b",
+            },
           },
           y: {
             grid: { display: false },
-            ticks: { font: { size: 10 } },
+            ticks: {
+              font: { size: 14, weight: "500" },
+              color: "#1e293b",
+            },
           },
         },
       },
@@ -243,7 +391,16 @@ class PDFService {
       const pdf = await page.pdf({
         format: "A4",
         printBackground: true,
-        margin: { top: "40px", right: "40px", bottom: "40px", left: "40px" },
+        margin: { top: "15mm", right: "15mm", bottom: "20mm", left: "15mm" },
+        displayHeaderFooter: true,
+        headerTemplate: "<div></div>",
+        footerTemplate: `
+          <div style="font-size: 9px; color: #94a3b8; text-align: center; width: 100%; padding: 0 15mm;">
+            <span class="pageNumber"></span> of <span class="totalPages"></span>
+          </div>
+        `,
+        preferCSSPageSize: false,
+        scale: 0.95,
       });
       logger.info("[PDFService] PDF generated", { environment: "development" });
 
