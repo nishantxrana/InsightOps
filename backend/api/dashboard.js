@@ -609,7 +609,15 @@ router.post("/activity-report/pdf", async (req, res) => {
 
     // Generate PDF
     logger.info("[PDF] Calling PDF service...", { environment: "development" });
-    const pdfBuffer = await pdfService.generateActivityReportPDF(reportData, org);
+
+    // Pass both org settings and Azure config for proper display
+    const userSettings = {
+      name: org.name,
+      azureDevOpsOrg: azureConfig.organization,
+      azureDevOpsProject: azureConfig.project,
+    };
+
+    const pdfBuffer = await pdfService.generateActivityReportPDF(reportData, userSettings);
     logger.info("[PDF] PDF buffer received", {
       environment: "development",
       size: pdfBuffer.length,
