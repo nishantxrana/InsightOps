@@ -367,7 +367,15 @@ class PDFService {
       reportData,
       chartImages,
       userSettings,
-      generatedAt: new Date().toLocaleString(),
+      generatedAt: new Date().toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
       dateRange: this.formatDateRange(reportData.startDate, reportData.endDate),
     };
 
