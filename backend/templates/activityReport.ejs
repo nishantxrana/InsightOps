@@ -234,16 +234,25 @@
     .chart-full-width {
       margin-top: 0.4cm;
       text-align: center;
-      max-height: 400px;
+      max-height: 350px;
       overflow: hidden;
     }
     .chart-full-width img {
       max-width: 100%;
       height: auto;
-      max-height: 380px;
+      max-height: 330px;
       display: block;
       margin: 0 auto;
     }
+    
+    /* Work Items chart - wider with horizontal legend */
+    .chart-full-width.workitems-chart {
+      max-height: 450px;
+    }
+    .chart-full-width.workitems-chart img {
+      max-height: 430px;
+    }
+    
     .chart-caption {
       font-size: 9pt;
       color: #64748b;
@@ -268,18 +277,19 @@
       width: 100%;
       max-width: 100%;
       border-collapse: collapse;
-      margin: 0.2cm 0 0.4cm 0; /* Reduced margins */
-      font-size: 9pt; /* Reduced from 10.5pt */
+      margin: 0.5cm 0;
+      font-size: 9.5pt;
       page-break-inside: avoid;
+      border: 1pt solid #d1d5db;
     }
     
     /* Table caption */
     .data-table caption {
-      font-size: 9pt; /* Reduced from 10pt */
+      font-size: 9pt;
       font-weight: 600;
       color: #4a4a4a;
       text-align: left;
-      margin-bottom: 0.15cm; /* Reduced */
+      margin-bottom: 0.25cm;
       caption-side: top;
     }
     
@@ -289,23 +299,24 @@
       color: #1a1a1a;
     }
     
-    /* Header row */
+    /* Header row - Azure blue background */
     .data-table thead {
       display: table-header-group;
+      background: #0078d4;
     }
     
     .data-table thead tr {
-      border-top: 1.5pt solid #333;
-      border-bottom: 0.75pt solid #333;
+      border: none;
     }
     
     .data-table th {
-      padding: 0.2cm 0.3cm; /* Reduced padding */
+      padding: 0.25cm 0.35cm;
       text-align: left;
       font-weight: 600;
-      font-size: 9pt; /* Smaller header */
-      color: #1a1a1a;
-      vertical-align: bottom;
+      font-size: 9pt;
+      color: #ffffff;
+      vertical-align: middle;
+      border: 1pt solid #0078d4;
     }
     
     .data-table th:last-child {
@@ -314,21 +325,30 @@
     
     /* Body rows */
     .data-table tbody tr {
-      border-bottom: 0.5pt solid #ddd;
+      border-bottom: 1pt solid #d1d5db;
+      background: #ffffff;
     }
     
-    .data-table tbody tr:last-child {
-      border-bottom: 1.5pt solid #333;
+    .data-table tbody tr:nth-child(even) {
+      background: #f3f4f6;
     }
     
     .data-table td {
-      padding: 0.2cm 0.3cm; /* Reduced padding */
+      padding: 0.25cm 0.35cm;
       vertical-align: middle;
-      font-size: 9pt; /* Smaller text */
+      font-size: 9.5pt;
+      color: #1f2937;
+      border-left: 1pt solid #d1d5db;
+      border-right: 1pt solid #d1d5db;
+    }
+    
+    .data-table td:first-child {
+      font-weight: 500;
     }
     
     .data-table td:last-child {
       text-align: right;
+      font-weight: 600;
     }
     
     /* Prevent row breaks */
@@ -338,14 +358,14 @@
     
     /* Metric value display */
     .metric-value {
-      font-size: 14pt; /* Reduced from 18pt */
+      font-size: 12pt;
       font-weight: 700;
-      display: block;
-      line-height: 1.2;
+      display: inline-block;
+      line-height: 1;
     }
     
     .metric-label {
-      font-size: 7.5pt; /* Reduced from 8.8pt */
+      font-size: 7.5pt;
       color: #6e6e6e;
       display: block;
       margin-top: 0.1cm;
@@ -558,7 +578,7 @@
     
     <div class="cover-content">
       <h1 class="cover-title"><%= userSettings.reportTitle || 'DevOps Activity Report' %></h1>
-      <p class="cover-subtitle">Comprehensive Analysis of Development Operations</p>
+      <p class="cover-subtitle">Executive Overview of Development Operations</p>
       
       <div class="cover-date-range"><%= dateRange || 'Date range not specified' %></div>
       
@@ -610,23 +630,41 @@
         <h4>Key Insights</h4>
         <ul>
           <% const completionRate = reportData.workItems.completionRate; %>
-          <% if (completionRate !== null) { %>
-            <li><strong><%= completionRate %>%</strong> completion rate for work items</li>
+          <% const created = reportData.workItems.created || 0; %>
+          <% const completed = reportData.workItems.completed || 0; %>
+          <% const overdue = reportData.workItems.overdue || 0; %>
+          
+          <% if (completionRate !== null && completionRate === 0) { %>
+            <li><strong class="negative">Delivery bottleneck:</strong> Zero completion rate indicates blocked workflow</li>
+          <% } else if (completionRate !== null && completionRate < 50) { %>
+            <li><strong class="caution">Low completion rate:</strong> Only <%= completionRate %>% of work items completed</li>
+          <% } else if (completionRate !== null) { %>
+            <li><strong class="positive">Healthy completion rate:</strong> <%= completionRate %>% of work items delivered</li>
           <% } %>
-          <% if (reportData.workItems.overdue > 0) { %>
-            <li><strong class="negative"><%= reportData.workItems.overdue %></strong> overdue items — requires immediate attention</li>
+          
+          <% if (overdue > 15) { %>
+            <li><strong class="negative">Backlog health:</strong> <%= overdue %> overdue items — critical risk</li>
+          <% } else if (overdue > 5) { %>
+            <li><strong class="caution">Backlog health:</strong> <%= overdue %> overdue items — needs attention</li>
+          <% } else if (overdue === 0) { %>
+            <li><strong class="positive">Backlog health:</strong> No overdue items — team is on track</li>
           <% } else { %>
-            <li class="positive">No overdue items — team is on track</li>
+            <li><strong class="info">Backlog health:</strong> <%= overdue %> overdue items — manageable</li>
           <% } %>
-          <% if (reportData.workItems.created > 0) { %>
-            <li><strong><%= reportData.workItems.created %></strong> work items created in this period</li>
+          
+          <% if (created > completed && completed === 0) { %>
+            <li><strong class="caution">Work intake:</strong> <%= created %> items added with zero throughput — backlog growing</li>
+          <% } else if (created > completed) { %>
+            <li><strong class="caution">Work intake:</strong> More items created (<%= created %>) than completed (<%= completed %>)</li>
+          <% } else if (completed > created) { %>
+            <li><strong class="positive">Work intake:</strong> Completing more than creating — backlog shrinking</li>
           <% } %>
         </ul>
       </div>
       
       <!-- Chart below insights -->
       <% if (chartImages.workItems) { %>
-      <div class="chart-full-width">
+      <div class="chart-full-width workitems-chart">
         <img src="<%= chartImages.workItems %>" alt="Work Item Status" />
         <p class="chart-caption">Figure 1: Work item state distribution (top 5 states by count)</p>
       </div>
