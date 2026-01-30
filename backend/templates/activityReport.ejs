@@ -24,22 +24,14 @@
       size: A4;
       margin: 1.8cm 1.8cm 2cm 1.8cm;  /* top right bottom left */
       
-      /* Running header - document title */
+      /* NO header */
       @top-center {
-        content: string(doctitle);
-        font-family: Georgia, 'Times New Roman', serif;
-        font-size: 9pt;
-        color: #666;
-        border-bottom: 0.5pt solid #ccc;
-        padding-bottom: 0.2cm;
+        content: none;
       }
       
-      /* Running footer - page number */
+      /* NO footer/page number */
       @bottom-center {
-        content: counter(page);
-        font-family: Georgia, 'Times New Roman', serif;
-        font-size: 9pt;
-        color: #666;
+        content: none;
       }
     }
     
@@ -257,6 +249,8 @@
       color: #64748b;
       margin-top: 8px;
       font-weight: 600;
+      text-align: center !important;
+      text-align-last: center !important;
     }
     
     /* Section layout with integrated chart */

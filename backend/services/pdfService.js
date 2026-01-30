@@ -393,16 +393,10 @@ class PDFService {
       const pdf = await page.pdf({
         format: "A4",
         printBackground: true,
-        margin: { top: "10mm", right: "15mm", bottom: "15mm", left: "15mm" }, // Reduced top margin
-        displayHeaderFooter: true,
-        headerTemplate: "<div></div>",
-        footerTemplate: `
-          <div style="font-size: 9px; color: #94a3b8; text-align: center; width: 100%; padding: 0 15mm;">
-            <span class="pageNumber"></span> of <span class="totalPages"></span>
-          </div>
-        `,
-        preferCSSPageSize: false,
-        scale: 0.95,
+        margin: { top: "0", right: "0", bottom: "0", left: "0" },
+        displayHeaderFooter: false,
+        preferCSSPageSize: true,
+        scale: 1.0,
       });
       logger.info("[PDFService] PDF generated", { environment: "development" });
 
