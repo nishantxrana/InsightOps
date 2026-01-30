@@ -150,28 +150,52 @@
       right: 0;
       width: 45%;
       height: 100%;
-      background: linear-gradient(160deg, #4a4a4a 0%, #2a2a2a 100%);
+      background: linear-gradient(160deg, rgba(0, 120, 212, 0.35) 0%, rgba(0, 90, 158, 0.45) 100%);
       clip-path: polygon(35% 0, 100% 0, 100% 100%, 0% 100%);
     }
     
-    /* Accent line */
+    /* Bottom corner bracket accent - matching top */
     .cover-accent-line {
       position: absolute;
-      bottom: 4cm;
-      left: 1.8cm;
-      width: 3cm;
-      height: 3pt;
-      background: #4a4a4a;
+      bottom: 3.5cm;
+      left: 1.5cm;
+      width: 2.5cm;
+      height: 2.5cm;
+      background: transparent;
+      border-bottom: 3pt solid rgba(0, 120, 212, 0.6);
+      border-left: 3pt solid rgba(0, 120, 212, 0.6);
     }
     
-    /* Small accent square */
+    .cover-accent-line::after {
+      content: '';
+      position: absolute;
+      bottom: -3pt;
+      left: -3pt;
+      width: 0.8cm;
+      height: 0.8cm;
+      background: linear-gradient(225deg, rgba(0, 120, 212, 0.15) 0%, transparent 100%);
+    }
+    
+    /* Creative corner bracket accent */
     .cover-accent-square {
       position: absolute;
-      top: 1.8cm;
-      left: 1.8cm;
-      width: 1cm;
-      height: 1cm;
-      background: #999;
+      top: 1.5cm;
+      left: 1.5cm;
+      width: 2.5cm;
+      height: 2.5cm;
+      background: transparent;
+      border-top: 3pt solid rgba(0, 120, 212, 0.6);
+      border-left: 3pt solid rgba(0, 120, 212, 0.6);
+    }
+    
+    .cover-accent-square::after {
+      content: '';
+      position: absolute;
+      top: -3pt;
+      left: -3pt;
+      width: 0.8cm;
+      height: 0.8cm;
+      background: linear-gradient(135deg, rgba(0, 120, 212, 0.15) 0%, transparent 100%);
     }
     
     /* Cover content container */
