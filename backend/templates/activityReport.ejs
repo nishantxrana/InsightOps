@@ -138,36 +138,50 @@
       padding: 0;
       position: relative;
       overflow: hidden;
-      background: #fafafa;
+      background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
       page-break-after: always;
     }
     
-    /* Geometric decoration - top right diagonal */
+    /* Balanced geometric decoration - top right */
     .cover::before {
       content: '';
       position: absolute;
-      top: 0;
-      right: 0;
-      width: 45%;
-      height: 100%;
-      background: linear-gradient(160deg, #4a4a4a 0%, #2a2a2a 100%);
-      clip-path: polygon(35% 0, 100% 0, 100% 100%, 0% 100%);
+      top: -20%;
+      right: -10%;
+      width: 55%;
+      height: 55%;
+      background: radial-gradient(circle, #0078d4 0%, #005a9e 100%);
+      border-radius: 50%;
+      opacity: 0.12;
     }
     
-    /* Accent line */
+    /* Bottom left complement */
+    .cover::after {
+      content: '';
+      position: absolute;
+      bottom: -20%;
+      left: -10%;
+      width: 45%;
+      height: 45%;
+      background: radial-gradient(circle, #50e6ff 0%, #0078d4 100%);
+      border-radius: 50%;
+      opacity: 0.10;
+    }
+    
+    /* Accent line - stronger and better positioned */
     .cover-accent-line {
       position: absolute;
-      bottom: 4cm;
+      bottom: 3.5cm;
       left: 1.8cm;
-      width: 3cm;
-      height: 3pt;
-      background: #4a4a4a;
+      width: 6cm;
+      height: 4pt;
+      background: linear-gradient(90deg, #0078d4 0%, #50e6ff 80%, transparent 100%);
+      border-radius: 2pt;
     }
     
-    /* Small accent square */
+    /* Small accent dot for visual interest */
     .cover-accent-square {
-      position: absolute;
-      top: 1.8cm;
+      display: none;
       left: 1.8cm;
       width: 1cm;
       height: 1cm;
