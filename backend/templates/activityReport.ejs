@@ -247,7 +247,6 @@
     }
     .chart-full-width img {
       max-width: 100%;
-      width: 100%;
       height: auto;
       max-height: 380px;
       display: block;
@@ -580,7 +579,78 @@
   </div>
 
   <!-- ============================================
-       PAGE 2: BUILD PERFORMANCE
+       PAGE 2: WORK ITEMS
+       ============================================ -->
+  <% if (reportData.workItems?.hasSufficientData) { %>
+  <div class="section-page">
+    <h1 class="section-header">Work Items</h1>
+    
+    <div class="section-content">
+      <!-- Table -->
+      <table class="data-table">
+        <caption data-label="Table 1">Work Item Metrics Summary</caption>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th style="text-align: right;">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Created</td>
+            <td><span class="metric-value info"><%= reportData.workItems.created || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Completed</td>
+            <td><span class="metric-value positive"><%= reportData.workItems.completed || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Overdue</td>
+            <td><span class="metric-value negative"><%= reportData.workItems.overdue || 0 %></span></td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <!-- Insights -->
+      <div class="insights">
+        <h4>Key Insights</h4>
+        <ul>
+          <% const completionRate = reportData.workItems.completionRate; %>
+          <% if (completionRate !== null) { %>
+            <li><strong><%= completionRate %>%</strong> completion rate for work items</li>
+          <% } %>
+          <% if (reportData.workItems.overdue > 0) { %>
+            <li><strong class="negative"><%= reportData.workItems.overdue %></strong> overdue items — requires immediate attention</li>
+          <% } else { %>
+            <li class="positive">No overdue items — team is on track</li>
+          <% } %>
+          <% if (reportData.workItems.created > 0) { %>
+            <li><strong><%= reportData.workItems.created %></strong> work items created in this period</li>
+          <% } %>
+        </ul>
+      </div>
+      
+      <!-- Chart below insights -->
+      <% if (chartImages.workItems) { %>
+      <div class="chart-full-width">
+        <img src="<%= chartImages.workItems %>" alt="Work Item Status" />
+        <p class="chart-caption">Figure 1: Work item state distribution (top 5 states by count)</p>
+      </div>
+      <% } %>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="section-page">
+    <h1 class="section-header">Work Items</h1>
+    <div class="empty-state">
+      <p>Insufficient data for meaningful analysis</p>
+      <p>Minimum 5 work items required. Current: <%= reportData.workItems?.created || 0 %></p>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- ============================================
+       PAGE 3: BUILD PERFORMANCE
        ============================================ -->
   <% if (reportData.builds?.hasSufficientData) { %>
   <div class="section-page">
@@ -589,7 +659,7 @@
     <div class="section-content">
       <!-- Table -->
       <table class="data-table">
-        <caption data-label="Table 1">Build Metrics Summary</caption>
+        <caption data-label="Table 2">Build Metrics Summary</caption>
         <thead>
           <tr>
             <th>Metric</th>
@@ -641,7 +711,7 @@
       <% if (chartImages.builds) { %>
       <div class="chart-full-width">
         <img src="<%= chartImages.builds %>" alt="Build Status Distribution" />
-        <p class="chart-caption">Figure 1: Build status distribution</p>
+        <p class="chart-caption">Figure 2: Build status distribution</p>
       </div>
       <% } %>
     </div>
@@ -666,7 +736,7 @@
     <div class="section-content">
       <!-- Table -->
       <table class="data-table">
-        <caption data-label="Table 2">Release Deployment Metrics</caption>
+        <caption data-label="Table 3">Release Deployment Metrics</caption>
         <thead>
           <tr>
             <th>Metric</th>
@@ -716,7 +786,7 @@
       <% if (chartImages.releases) { %>
       <div class="chart-full-width">
         <img src="<%= chartImages.releases %>" alt="Release Status" />
-        <p class="chart-caption">Figure 2: Deployment status breakdown</p>
+        <p class="chart-caption">Figure 3: Deployment status breakdown</p>
       </div>
       <% } %>
     </div>
@@ -741,7 +811,7 @@
     <div class="section-content">
       <!-- Table -->
       <table class="data-table">
-        <caption data-label="Table 3">Pull Request Metrics</caption>
+        <caption data-label="Table 4">Pull Request Metrics</caption>
         <thead>
           <tr>
             <th>Metric</th>
@@ -791,7 +861,7 @@
       <% if (chartImages.pullRequests) { %>
       <div class="chart-full-width">
         <img src="<%= chartImages.pullRequests %>" alt="PR Status" />
-        <p class="chart-caption">Figure 3: Pull request status distribution</p>
+        <p class="chart-caption">Figure 4: Pull request status distribution</p>
       </div>
       <% } %>
     </div>
@@ -820,7 +890,7 @@
     <div class="section-content">
       <!-- Table -->
       <table class="data-table">
-        <caption data-label="Table 4">Pull Request Discussion Metrics</caption>
+        <caption data-label="Table 5">Pull Request Discussion Metrics</caption>
         <thead>
           <tr>
             <th>Metric</th>
@@ -872,7 +942,7 @@
       <% if (chartImages.prDiscussion) { %>
       <div class="chart-full-width">
         <img src="<%= chartImages.prDiscussion %>" alt="Thread Resolution" />
-        <p class="chart-caption">Figure 4: Discussion thread resolution status</p>
+        <p class="chart-caption">Figure 5: Discussion thread resolution status</p>
       </div>
       <% } %>
     </div>

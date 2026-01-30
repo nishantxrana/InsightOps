@@ -10,10 +10,10 @@ const __dirname = path.dirname(__filename);
 
 class PDFService {
   constructor() {
-    // Optimized chart size for single-page layout
+    // Square canvas for circular pie charts
     this.chartJSNodeCanvas = new ChartJSNodeCanvas({
-      width: 800, // Reduced from 1000
-      height: 500, // Reduced from 700
+      width: 700,
+      height: 700,
       backgroundColour: "transparent",
     });
     logger.info("[PDFService] Initialized", { environment: "development" });
@@ -274,6 +274,8 @@ class PDFService {
       },
       options: {
         responsive: false,
+        maintainAspectRatio: true,
+        aspectRatio: 1, // Force square/circular shape
         layout: {
           padding: {
             top: 30,
