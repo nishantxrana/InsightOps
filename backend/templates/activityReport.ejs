@@ -2,182 +2,254 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>DevOps Activity Report</title>
+  <meta name="description" content="DevOps Activity Report">
+  <title><%= userSettings.reportTitle || 'DevOps Activity Report' %></title>
+  
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-      color: #1e293b; 
-      line-height: 1.5;
-      font-size: 11pt;
-    }
-    
-    .page { 
-      page-break-after: always; 
-      padding: 50px 60px;
-      min-height: 100vh;
-      page-break-inside: avoid;
-    }
-    .page:last-child { page-break-after: auto; }
-    
-    /* Typography System */
-    .page-title { font-size: 24pt; font-weight: 700; }
-    .section-header {
-      font-size: 18pt;
-      font-weight: 600;
-      margin-bottom: 24px;
-      color: #0f172a;
-      border-bottom: 2px solid #e2e8f0;
-      padding-bottom: 10px;
-      page-break-after: avoid;
-    }
-    .kpi-value { font-size: 20pt; font-weight: 700; }
-    .kpi-label { font-size: 10pt; font-weight: 400; color: #64748b; }
-    .body-text { font-size: 11pt; line-height: 1.5; }
-    .caption { font-size: 9pt; color: #64748b; }
-    
-    /* Spacing Rhythm */
-    .section-spacing { margin-bottom: 24px; }
-    .element-spacing { margin-bottom: 12px; }
-    
-    /* Cover Page */
-    .cover { 
-      display: flex; 
-      flex-direction: column; 
-      justify-content: center; 
-      align-items: center; 
-      text-align: center;
-      padding: 100px 60px;
-    }
-    .cover h1 { 
-      font-size: 28pt; 
-      font-weight: 700; 
-      margin-bottom: 30px;
-      color: #0f172a;
-    }
-    .cover .date-range { 
-      font-size: 18pt; 
-      color: #3b82f6; 
-      font-weight: 600;
-      margin-bottom: 60px;
-      padding: 12px 24px;
-      border: 2px solid #3b82f6;
-      border-radius: 8px;
-      display: inline-block;
-    }
-    .cover .metadata { 
-      font-size: 12pt; 
-      color: #64748b; 
-      line-height: 1.8;
-    }
-    .cover .footer { 
-      position: absolute; 
-      bottom: 40px; 
-      font-size: 10pt; 
-      color: #94a3b8;
-    }
-    
-    /* Executive Summary */
-    .summary-header {
-      font-size: 22pt;
-      font-weight: 700;
-      margin-bottom: 30px;
-      color: #0f172a;
-      border-bottom: 3px solid #e2e8f0;
-      padding-bottom: 12px;
-      page-break-after: avoid;
-    }
-    
-    .health-score {
-      text-align: center;
-      margin: 30px 0;
-      padding: 20px;
-      background: #f8fafc;
-      border-radius: 8px;
-    }
-    .health-score-value {
-      font-size: 48pt;
-      font-weight: 700;
-      color: #16a34a;
-    }
-    .health-score-label {
-      font-size: 12pt;
-      color: #64748b;
-      margin-top: 8px;
-    }
-    
-    .highlights, .concerns {
-      margin: 25px 0;
-      padding: 16px;
-      border-radius: 6px;
-      page-break-inside: avoid;
-    }
-    .highlights { background: #f8fafc; }
-    .concerns { background: #fef2f2; }
-    
-    .highlights h3, .concerns h3 {
-      font-size: 13pt;
-      font-weight: 600;
-      margin-bottom: 12px;
-    }
-    .highlights h3 { color: #16a34a; }
-    .concerns h3 { color: #dc2626; }
-    
-    .highlights ul, .concerns ul {
-      list-style: none;
+    /* ============================================
+       0. CSS RESET & BASE
+       ============================================ */
+    *, *::before, *::after {
+      margin: 0;
       padding: 0;
+      box-sizing: border-box;
     }
-    .highlights li, .concerns li {
-      padding: 6px 0 6px 20px;
-      position: relative;
+    
+    /* ============================================
+       1. PAGED.JS PAGINATION CONFIGURATION
+       ============================================ */
+    
+    /* Base page setup - REDUCED MARGINS */
+    @page {
+      size: A4;
+      margin: 1.8cm 1.8cm 2cm 1.8cm;  /* top right bottom left */
+      
+      /* Running header - document title */
+      @top-center {
+        content: string(doctitle);
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 9pt;
+        color: #666;
+        border-bottom: 0.5pt solid #ccc;
+        padding-bottom: 0.2cm;
+      }
+      
+      /* Running footer - page number */
+      @bottom-center {
+        content: counter(page);
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 9pt;
+        color: #666;
+      }
+    }
+    
+    /* First page (cover) - NO margins, NO header/footer */
+    @page :first {
+      margin: 0;
+      @top-center { content: none; }
+      @bottom-center { content: none; }
+    }
+    
+    /* Cover page named context */
+    @page cover {
+      margin: 0;
+      @top-center { content: none; }
+      @bottom-center { content: none; }
+    }
+    
+    /* Body base - prevent "undefined" in header */
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
       font-size: 11pt;
       line-height: 1.6;
-    }
-    .highlights li:before {
-      content: "•";
-      position: absolute;
-      left: 0;
-      color: #16a34a;
-      font-weight: bold;
-      font-size: 14pt;
-    }
-    .concerns li:before {
-      content: "•";
-      position: absolute;
-      left: 0;
-      color: #dc2626;
-      font-weight: bold;
-      font-size: 14pt;
+      color: #1a1a1a;
+      string-set: doctitle "";
     }
     
-    /* Section Pages */
-    .section-header {
-      font-size: 18pt;
+    /* ============================================
+       2. TYPOGRAPHY SYSTEM (Modular Scale 1.25)
+       ============================================ */
+    
+    /* Cover Title: 33.6pt */
+    .cover-title {
+      font-size: 33.6pt;
+      font-weight: 700;
+      line-height: 1.2;
+      color: #1a1a1a;
+    }
+    
+    /* Section Header (H1): 21.5pt */
+    h1, .section-header {
+      font-size: 21.5pt;
       font-weight: 600;
-      margin-bottom: 24px;
-      color: #0f172a;
-      border-bottom: 2px solid #e2e8f0;
-      padding-bottom: 10px;
+      color: #1a1a1a;
+      margin-bottom: 0.6cm;
+      padding-bottom: 0.25cm;
+      border-bottom: 1.5pt solid #333;
+      string-set: doctitle content();
       page-break-after: avoid;
     }
     
-    .section-layout {
-      display: flex;
-      gap: 30px;
-      margin-bottom: 30px;
+    /* Subsection (H2): 17.2pt */
+    h2 {
+      font-size: 17.2pt;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-top: 0.8cm;
+      margin-bottom: 0.4cm;
+      page-break-after: avoid;
     }
-    .section-main {
-      flex: 2;
+    
+    /* H3: 13.8pt */
+    h3 {
+      font-size: 13.8pt;
+      font-weight: 600;
+      color: #333;
+      margin-top: 0.5cm;
+      margin-bottom: 0.25cm;
+      page-break-after: avoid;
     }
-    .section-chart {
-      flex: 1;
+    
+    /* H4: 11pt (same as body, bold) */
+    h4 {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 0.25cm;
+      page-break-after: avoid;
+    }
+    
+    /* Body paragraph */
+    p {
+      margin-bottom: 0.4cm;
+      text-align: justify;
+      text-align-last: left;
+      orphans: 2;
+      widows: 2;
+    }
+    
+    /* Small text: 8.8pt */
+    .small {
+      font-size: 8.8pt;
+      color: #6e6e6e;
+    }
+    
+    /* ============================================
+       3. COVER PAGE - FULL BLEED A4
+       ============================================ */
+    
+    .cover {
+      page: cover;
+      width: 210mm;
+      height: 297mm;
+      margin: 0;
+      padding: 0;
+      position: relative;
+      overflow: hidden;
+      background: #fafafa;
+      page-break-after: always;
+    }
+    
+    /* Geometric decoration - top right diagonal */
+    .cover::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 45%;
+      height: 100%;
+      background: linear-gradient(160deg, #4a4a4a 0%, #2a2a2a 100%);
+      clip-path: polygon(35% 0, 100% 0, 100% 100%, 0% 100%);
+    }
+    
+    /* Accent line */
+    .cover-accent-line {
+      position: absolute;
+      bottom: 4cm;
+      left: 1.8cm;
+      width: 3cm;
+      height: 3pt;
+      background: #4a4a4a;
+    }
+    
+    /* Small accent square */
+    .cover-accent-square {
+      position: absolute;
+      top: 1.8cm;
+      left: 1.8cm;
+      width: 1cm;
+      height: 1cm;
+      background: #999;
+    }
+    
+    /* Cover content container */
+    .cover-content {
+      position: absolute;
+      top: 50%;
+      left: 1.8cm;
+      transform: translateY(-50%);
+      width: 50%;
+      z-index: 10;
+    }
+    
+    .cover-subtitle {
+      font-size: 13.8pt;
+      color: #4a4a4a;
+      margin-top: 0.4cm;
+      margin-bottom: 1.5cm;
+      font-weight: 400;
+    }
+    
+    .cover-date-range {
+      display: inline-block;
+      font-size: 11pt;
+      color: #4a4a4a;
+      font-weight: 600;
+      padding: 0.3cm 0.6cm;
+      border: 1.5pt solid #4a4a4a;
+      margin-bottom: 1.2cm;
+    }
+    
+    .cover-meta {
+      font-size: 10pt;
+      color: #6e6e6e;
+      line-height: 1.8;
+    }
+    
+    .cover-meta strong {
+      color: #4a4a4a;
+      font-weight: 600;
+    }
+    
+    .cover-footer {
+      position: absolute;
+      bottom: 1.5cm;
+      left: 1.8cm;
+      font-size: 8.8pt;
+      color: #999;
+      z-index: 10;
+    }
+    
+    /* ============================================
+       4. CONTENT PAGES - SECTION LAYOUT
+       ============================================ */
+    
+    .section-page {
+      page-break-before: always;
+    }
+    
+    /* Full Width Chart - Fits on same page */
+    .chart-full-width {
+      margin-top: 0.4cm;
       text-align: center;
+      max-height: 400px;
+      overflow: hidden;
     }
-    .section-chart img {
+    .chart-full-width img {
       max-width: 100%;
       width: 100%;
       height: auto;
-      max-height: 400px;
+      max-height: 380px;
       display: block;
       margin: 0 auto;
     }
@@ -185,182 +257,389 @@
       font-size: 9pt;
       color: #64748b;
       margin-top: 8px;
-      font-style: italic;
-    }
-    
-    /* Metrics Table */
-    .metrics-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-    }
-    .metrics-table th {
-      background: #f1f5f9;
-      padding: 12px;
-      text-align: left;
       font-weight: 600;
-      font-size: 10pt;
-      color: #475569;
-      border: 1px solid #e2e8f0;
-    }
-    .metrics-table td {
-      padding: 12px;
-      border: 1px solid #e2e8f0;
-      font-size: 11pt;
-    }
-    .metrics-table .metric-value {
-      font-size: 22pt;
-      font-weight: 700;
     }
     
-    /* Insights Block */
-    .insights {
-      background: #f8fafc;
-      padding: 16px;
-      border-radius: 6px;
-      margin-top: 20px;
+    /* Section layout with integrated chart */
+    .section-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6cm;
+    }
+    
+    /* ============================================
+       5. TABLES - THREE-LINE STYLE (Booktabs)
+       ============================================ */
+    
+    .data-table {
+      width: 100%;
+      max-width: 100%;
+      border-collapse: collapse;
+      margin: 0.2cm 0 0.4cm 0; /* Reduced margins */
+      font-size: 9pt; /* Reduced from 10.5pt */
       page-break-inside: avoid;
     }
+    
+    /* Table caption */
+    .data-table caption {
+      font-size: 9pt; /* Reduced from 10pt */
+      font-weight: 600;
+      color: #4a4a4a;
+      text-align: left;
+      margin-bottom: 0.15cm; /* Reduced */
+      caption-side: top;
+    }
+    
+    caption::before {
+      content: attr(data-label) ". ";
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+    
+    /* Header row */
+    .data-table thead {
+      display: table-header-group;
+    }
+    
+    .data-table thead tr {
+      border-top: 1.5pt solid #333;
+      border-bottom: 0.75pt solid #333;
+    }
+    
+    .data-table th {
+      padding: 0.2cm 0.3cm; /* Reduced padding */
+      text-align: left;
+      font-weight: 600;
+      font-size: 9pt; /* Smaller header */
+      color: #1a1a1a;
+      vertical-align: bottom;
+    }
+    
+    .data-table th:last-child {
+      text-align: right;
+    }
+    
+    /* Body rows */
+    .data-table tbody tr {
+      border-bottom: 0.5pt solid #ddd;
+    }
+    
+    .data-table tbody tr:last-child {
+      border-bottom: 1.5pt solid #333;
+    }
+    
+    .data-table td {
+      padding: 0.2cm 0.3cm; /* Reduced padding */
+      vertical-align: middle;
+      font-size: 9pt; /* Smaller text */
+    }
+    
+    .data-table td:last-child {
+      text-align: right;
+    }
+    
+    /* Prevent row breaks */
+    tr {
+      page-break-inside: avoid;
+    }
+    
+    /* Metric value display */
+    .metric-value {
+      font-size: 14pt; /* Reduced from 18pt */
+      font-weight: 700;
+      display: block;
+      line-height: 1.2;
+    }
+    
+    .metric-label {
+      font-size: 7.5pt; /* Reduced from 8.8pt */
+      color: #6e6e6e;
+      display: block;
+      margin-top: 0.1cm;
+    }
+    
+    /* ============================================
+       6. COLOR SYSTEM (Print-Optimized)
+       ============================================ */
+    
+    .positive { color: #1e5631; }
+    .negative { color: #8b0000; }
+    .caution { color: #b35900; }
+    .neutral { color: #6e6e6e; }
+    .info { color: #004d66; }
+    
+    /* ============================================
+       7. INSIGHTS BOX
+       ============================================ */
+    
+    .insights {
+      margin: 0.3cm 0; /* Reduced */
+      padding: 0.3cm; /* Reduced */
+      background: #f5f5f5;
+      border-left: 2pt solid #4a4a4a;
+      page-break-inside: avoid;
+    }
+    
     .insights h4 {
-      font-size: 12pt;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: #0f172a;
+      margin-top: 0;
+      margin-bottom: 0.2cm; /* Reduced */
+      font-size: 10pt; /* Reduced from 11pt */
+      color: #1a1a1a;
     }
+    
     .insights ul {
-      list-style: none;
-      padding: 0;
+      margin: 0;
+      padding-left: 1em;
+      font-size: 9pt; /* Reduced from 10.5pt */
     }
+    
     .insights li {
-      padding: 6px 0 6px 20px;
-      position: relative;
-      font-size: 10pt;
-      line-height: 1.6;
-      color: #475569;
-    }
-    .insights li:before {
-      content: "•";
-      position: absolute;
-      left: 0;
-      color: #3b82f6;
-      font-weight: bold;
+      margin-bottom: 0.1cm; /* Reduced */
+      color: #4a4a4a;
+      line-height: 1.4; /* Tighter */
     }
     
-    /* Semantic Colors */
-    .success { color: #16a34a; }
-    .danger { color: #dc2626; }
-    .warning { color: #f97316; }
-    .info { color: #3b82f6; }
-    .neutral { color: #64748b; }
-    
-    /* Metadata Page */
-    .metadata-section {
-      margin-bottom: 30px;
+    .insights li:last-child {
+      margin-bottom: 0;
     }
-    .metadata-section h3 {
-      font-size: 14pt;
+    
+    .insights strong {
+      color: #1a1a1a;
+    }
+    
+    /* ============================================
+       8. FIGURES & CHARTS
+       ============================================ */
+    
+    figure {
+      margin: 0.6cm 0;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    
+    figure img {
+      max-width: 100%;
+      width: 100%;
+      height: auto;
+      max-height: 7cm;
+      display: block;
+      margin: 0 auto;
+    }
+    
+    figcaption {
+      font-size: 9pt;
+      color: #6e6e6e;
+      margin-top: 0.3cm;
+      font-style: italic;
+      line-height: 1.4;
+    }
+    
+    figcaption::before {
+      content: attr(data-label) ". ";
       font-weight: 600;
-      margin-bottom: 12px;
-      color: #0f172a;
+      font-style: normal;
+      color: #1a1a1a;
     }
+    
+    /* ============================================
+       9. EMPTY STATE
+       ============================================ */
+    
+    .empty-state {
+      text-align: center;
+      padding: 1.5cm 1cm;
+      background: #f5f5f5;
+      border: 1pt dashed #ccc;
+      margin: 0.8cm 0;
+    }
+    
+    .empty-state p {
+      color: #6e6e6e;
+      font-size: 11pt;
+      margin-bottom: 0.25cm;
+      text-align: center;
+    }
+    
+    .empty-state p:last-child {
+      font-size: 9pt;
+      margin-bottom: 0;
+    }
+    
+    /* ============================================
+       10. METADATA PAGE
+       ============================================ */
+    
+    .metadata-section {
+      margin-bottom: 0.8cm;
+    }
+    
+    .metadata-section h3 {
+      font-size: 13.8pt;
+      margin-bottom: 0.3cm;
+      padding-bottom: 0.15cm;
+      border-bottom: 0.5pt solid #ddd;
+    }
+    
     .metadata-list {
       list-style: none;
       padding: 0;
-    }
-    .metadata-list li {
-      padding: 6px 0;
-      font-size: 10pt;
-      color: #475569;
+      margin: 0;
     }
     
-    /* Empty State */
-    .empty-state {
+    .metadata-list li {
+      padding: 0.2cm 0;
+      font-size: 10.5pt;
+      color: #4a4a4a;
+      border-bottom: 0.5pt solid #eee;
+    }
+    
+    .metadata-list li:last-child {
+      border-bottom: none;
+    }
+    
+    .metadata-list strong {
+      color: #1a1a1a;
+      display: inline-block;
+      min-width: 7em;
+      font-weight: 600;
+    }
+    
+    /* Glossary */
+    .glossary-term {
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+    
+    .glossary-def {
+      color: #6e6e6e;
+    }
+    
+    /* Report footer */
+    .report-footer {
+      margin-top: 1.5cm;
       text-align: center;
-      padding: 60px 40px;
-      color: #64748b;
-      background: #f8fafc;
-      border-radius: 8px;
-      border: 1px dashed #cbd5e1;
+      color: #999;
+      font-size: 8.8pt;
+      border-top: 0.5pt solid #ddd;
+      padding-top: 0.4cm;
     }
-    .empty-state p {
-      font-size: 11pt;
-      line-height: 1.6;
+    
+    .report-footer p {
+      text-align: center;
+      margin-bottom: 0.15cm;
     }
+    
+    /* ============================================
+       11. UTILITY & SAFETY
+       ============================================ */
+    
+    /* Prevent overflow */
+    pre, table, figure, img, svg, blockquote {
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    
+    a { 
+      word-break: break-all; 
+      color: #004d66;
+      text-decoration: none;
+    }
+    
+    /* Utility classes */
+    .text-center { text-align: center; }
+    .mt-1 { margin-top: 0.4cm; }
+    .mt-2 { margin-top: 0.8cm; }
+    .mb-1 { margin-bottom: 0.4cm; }
+    .mb-2 { margin-bottom: 0.8cm; }
   </style>
+<base target="_blank">
 </head>
 <body>
 
-  <!-- PAGE 1: COVER -->
-  <div class="page cover">
-    <h1>DevOps Activity Report</h1>
-    <div class="date-range"><%= dateRange %></div>
-    <div class="metadata">
-      <p><strong>Organization:</strong> <%= userSettings.azureDevOpsOrg || 'Not specified' %></p>
-      <p><strong>Project:</strong> <%= userSettings.azureDevOpsProject || 'Not specified' %></p>
-      <p style="margin-top: 20px; font-size: 10pt;">Generated: <%= generatedAt %></p>
+  <!-- ============================================
+       PAGE 1: COVER (No page number, counted)
+       ============================================ -->
+  <div class="cover">
+    <div class="cover-accent-square"></div>
+    <div class="cover-accent-line"></div>
+    
+    <div class="cover-content">
+      <h1 class="cover-title"><%= userSettings.reportTitle || 'DevOps Activity Report' %></h1>
+      <p class="cover-subtitle">Comprehensive Analysis of Development Operations</p>
+      
+      <div class="cover-date-range"><%= dateRange || 'Date range not specified' %></div>
+      
+      <div class="cover-meta">
+        <p><strong>Organization:</strong> <%= userSettings.azureDevOpsOrg || 'Not specified' %></p>
+        <p><strong>Project:</strong> <%= userSettings.azureDevOpsProject || 'Not specified' %></p>
+        <p style="margin-top: 0.4cm;"><strong>Generated:</strong> <%= generatedAt || 'Unknown' %></p>
+      </div>
     </div>
-    <div class="footer">Generated by InsightOps</div>
+    
+    <div class="cover-footer">Generated by InsightOps</div>
   </div>
 
-  <!-- PAGE 2: BUILD PERFORMANCE -->
+  <!-- ============================================
+       PAGE 2: BUILD PERFORMANCE
+       ============================================ -->
   <% if (reportData.builds?.hasSufficientData) { %>
-  <div class="page">
-    <h2 class="section-header">Build Performance</h2>
+  <div class="section-page">
+    <h1 class="section-header">Build Performance</h1>
     
-    <div class="section-layout">
-      <div class="section-main">
-        <table class="metrics-table">
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Total Builds</td>
-              <td><span class="metric-value neutral"><%= reportData.builds.totalBuilds || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Succeeded</td>
-              <td><span class="metric-value success"><%= reportData.builds.succeeded || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Failed</td>
-              <td><span class="metric-value danger"><%= reportData.builds.failed || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Others (Canceled/In Progress)</td>
-              <td><span class="metric-value warning"><%= reportData.builds.others || 0 %></span></td>
-            </tr>
-          </tbody>
-        </table>
-        
-        <div class="insights">
-          <h4>Key Insights</h4>
-          <ul>
-            <% 
-              const successRate = reportData.builds.successRate;
-            %>
-            <% if (successRate !== null) { %>
-              <li><strong><%= successRate %>%</strong> success rate across all builds</li>
-            <% } %>
-            <% if (reportData.builds.avgDuration) { %>
-              <li>Average build duration: <strong><%= reportData.builds.avgDuration %></strong></li>
-            <% } %>
-            <% if (reportData.builds.failed > 5) { %>
-              <li><strong><%= reportData.builds.failed %></strong> failed builds — investigate root causes</li>
-            <% } else if (reportData.builds.failed > 0) { %>
-              <li><strong><%= reportData.builds.failed %></strong> build failures detected</li>
-            <% } else { %>
-              <li>No build failures in this period — pipeline is stable</li>
-            <% } %>
-          </ul>
-        </div>
+    <div class="section-content">
+      <!-- Table -->
+      <table class="data-table">
+        <caption data-label="Table 1">Build Metrics Summary</caption>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th style="text-align: right;">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Total Builds</td>
+            <td><span class="metric-value neutral"><%= reportData.builds.totalBuilds || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Succeeded</td>
+            <td><span class="metric-value positive"><%= reportData.builds.succeeded || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Failed</td>
+            <td><span class="metric-value negative"><%= reportData.builds.failed || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Others</td>
+            <td><span class="metric-value caution"><%= reportData.builds.others || 0 %></span></td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <!-- Insights -->
+      <div class="insights">
+        <h4>Key Insights</h4>
+        <ul>
+          <% const buildSuccessRate = reportData.builds.successRate; %>
+          <% if (buildSuccessRate !== null) { %>
+            <li><strong><%= buildSuccessRate %>%</strong> success rate across all builds</li>
+          <% } %>
+          <% if (reportData.builds.avgDuration) { %>
+            <li>Average build duration: <strong><%= reportData.builds.avgDuration %></strong></li>
+          <% } %>
+          <% if (reportData.builds.failed > 5) { %>
+            <li><strong class="negative"><%= reportData.builds.failed %></strong> failed builds — investigate root causes</li>
+          <% } else if (reportData.builds.failed > 0) { %>
+            <li><strong><%= reportData.builds.failed %></strong> build failures detected</li>
+          <% } else { %>
+            <li class="positive">No build failures — pipeline is stable</li>
+          <% } %>
+        </ul>
       </div>
       
+      <!-- Chart below insights -->
       <% if (chartImages.builds) { %>
-      <div class="section-chart">
+      <div class="chart-full-width">
         <img src="<%= chartImages.builds %>" alt="Build Status Distribution" />
         <p class="chart-caption">Figure 1: Build status distribution</p>
       </div>
@@ -368,74 +647,74 @@
     </div>
   </div>
   <% } else { %>
-  <div class="page">
-    <h2 class="section-header">Build Performance</h2>
+  <div class="section-page">
+    <h1 class="section-header">Build Performance</h1>
     <div class="empty-state">
       <p>Insufficient data for meaningful analysis</p>
-      <p style="font-size: 10pt; margin-top: 8px;">Minimum 5 builds required. Current: <%= reportData.builds?.totalBuilds || 0 %></p>
+      <p>Minimum 5 builds required. Current: <%= reportData.builds?.totalBuilds || 0 %></p>
     </div>
   </div>
   <% } %>
 
-  <!-- PAGE 5: RELEASES -->
+  <!-- ============================================
+       PAGE 3: DEPLOYMENT HEALTH
+       ============================================ -->
   <% if (reportData.releases?.hasSufficientData) { %>
-  <div class="page">
-    <h2 class="section-header">Deployment Health</h2>
+  <div class="section-page">
+    <h1 class="section-header">Deployment Health</h1>
     
-    <div class="section-layout">
-      <div class="section-main">
-        <table class="metrics-table">
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Total Releases</td>
-              <td><span class="metric-value neutral"><%= reportData.releases.totalReleases || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Succeeded</td>
-              <td><span class="metric-value success"><%= reportData.releases.succeeded || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Failed</td>
-              <td><span class="metric-value danger"><%= reportData.releases.failed || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Others</td>
-              <td><span class="metric-value warning"><%= reportData.releases.others || 0 %></span></td>
-            </tr>
-          </tbody>
-        </table>
-        
-        <div class="insights">
-          <h4>Key Insights</h4>
-          <ul>
-            <% 
-              const releaseSuccess = reportData.releases.successRate;
-            %>
-            <% if (releaseSuccess !== null) { %>
-              <li><strong><%= releaseSuccess %>%</strong> deployment success rate</li>
-            <% } else { %>
-              <li>No release data available for success rate analysis</li>
-            <% } %>
-            <% if (reportData.releases.failed > 0) { %>
-              <li><strong><%= reportData.releases.failed %></strong> failed deployments — review release process</li>
-            <% } else if (reportData.releases.totalReleases > 0) { %>
-              <li>All deployments successful — release pipeline is reliable</li>
-            <% } %>
-            <% if (reportData.releases.totalReleases > 0) { %>
-              <li>Total of <strong><%= reportData.releases.totalReleases %></strong> release activities in this period</li>
-            <% } %>
-          </ul>
-        </div>
+    <div class="section-content">
+      <!-- Table -->
+      <table class="data-table">
+        <caption data-label="Table 2">Release Deployment Metrics</caption>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th style="text-align: right;">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Total Releases</td>
+            <td><span class="metric-value neutral"><%= reportData.releases.totalReleases || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Succeeded</td>
+            <td><span class="metric-value positive"><%= reportData.releases.succeeded || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Failed</td>
+            <td><span class="metric-value negative"><%= reportData.releases.failed || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Others</td>
+            <td><span class="metric-value caution"><%= reportData.releases.others || 0 %></span></td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <!-- Insights -->
+      <div class="insights">
+        <h4>Key Insights</h4>
+        <ul>
+          <% const releaseSuccessRate = reportData.releases.successRate; %>
+          <% if (releaseSuccessRate !== null) { %>
+            <li><strong><%= releaseSuccessRate %>%</strong> deployment success rate</li>
+          <% } %>
+          <% if (reportData.releases.failed > 0) { %>
+            <li><strong class="negative"><%= reportData.releases.failed %></strong> failed deployments — review release process</li>
+          <% } else if (reportData.releases.totalReleases > 0) { %>
+            <li class="positive">All deployments successful — release pipeline is reliable</li>
+          <% } %>
+          <% if (reportData.releases.totalReleases > 0) { %>
+            <li>Total of <strong><%= reportData.releases.totalReleases %></strong> release activities</li>
+          <% } %>
+        </ul>
       </div>
       
+      <!-- Chart below insights -->
       <% if (chartImages.releases) { %>
-      <div class="section-chart">
+      <div class="chart-full-width">
         <img src="<%= chartImages.releases %>" alt="Release Status" />
         <p class="chart-caption">Figure 2: Deployment status breakdown</p>
       </div>
@@ -443,74 +722,74 @@
     </div>
   </div>
   <% } else { %>
-  <div class="page">
-    <h2 class="section-header">Deployment Health</h2>
+  <div class="section-page">
+    <h1 class="section-header">Deployment Health</h1>
     <div class="empty-state">
       <p>Insufficient data for meaningful analysis</p>
-      <p style="font-size: 10pt; margin-top: 8px;">Minimum 5 releases required. Current: <%= reportData.releases?.totalReleases || 0 %></p>
+      <p>Minimum 5 releases required. Current: <%= reportData.releases?.totalReleases || 0 %></p>
     </div>
   </div>
   <% } %>
 
-  <!-- PAGE 6: PULL REQUESTS -->
+  <!-- ============================================
+       PAGE 4: CODE REVIEW HEALTH
+       ============================================ -->
   <% if (reportData.pullRequests?.hasSufficientData) { %>
-  <div class="page">
-    <h2 class="section-header">Code Review Health</h2>
+  <div class="section-page">
+    <h1 class="section-header">Code Review Health</h1>
     
-    <div class="section-layout">
-      <div class="section-main">
-        <table class="metrics-table">
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Total PRs</td>
-              <td><span class="metric-value neutral"><%= reportData.pullRequests.totalPRs || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Active</td>
-              <td><span class="metric-value info"><%= reportData.pullRequests.active || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Completed</td>
-              <td><span class="metric-value success"><%= reportData.pullRequests.completed || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Abandoned</td>
-              <td><span class="metric-value neutral"><%= reportData.pullRequests.abandoned || 0 %></span></td>
-            </tr>
-          </tbody>
-        </table>
-        
-        <div class="insights">
-          <h4>Key Insights</h4>
-          <ul>
-            <% 
-              const prCompletionRate = reportData.pullRequests.completionRate;
-            %>
-            <% if (prCompletionRate !== null) { %>
-              <li><strong><%= prCompletionRate %>%</strong> of PRs completed in this period</li>
-            <% } else { %>
-              <li>No PR data available for completion rate analysis</li>
-            <% } %>
-            <% if (reportData.pullRequests.avgTimeToComplete) { %>
-              <li>Average time to complete: <strong><%= reportData.pullRequests.avgTimeToComplete %>h</strong></li>
-            <% } %>
-            <% if (reportData.pullRequests.active > 20) { %>
-              <li><strong><%= reportData.pullRequests.active %></strong> active PRs — potential review bottleneck</li>
-            <% } else if (reportData.pullRequests.active > 0) { %>
-              <li><strong><%= reportData.pullRequests.active %></strong> active PRs — manageable workload</li>
-            <% } %>
-          </ul>
-        </div>
+    <div class="section-content">
+      <!-- Table -->
+      <table class="data-table">
+        <caption data-label="Table 3">Pull Request Metrics</caption>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th style="text-align: right;">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Total PRs</td>
+            <td><span class="metric-value neutral"><%= reportData.pullRequests.totalPRs || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Active</td>
+            <td><span class="metric-value info"><%= reportData.pullRequests.active || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Completed</td>
+            <td><span class="metric-value positive"><%= reportData.pullRequests.completed || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Abandoned</td>
+            <td><span class="metric-value neutral"><%= reportData.pullRequests.abandoned || 0 %></span></td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <!-- Insights -->
+      <div class="insights">
+        <h4>Key Insights</h4>
+        <ul>
+          <% const prCompletionRate = reportData.pullRequests.completionRate; %>
+          <% if (prCompletionRate !== null) { %>
+            <li><strong><%= prCompletionRate %>%</strong> of PRs completed in this period</li>
+          <% } %>
+          <% if (reportData.pullRequests.avgTimeToComplete) { %>
+            <li>Average time to complete: <strong><%= reportData.pullRequests.avgTimeToComplete %>h</strong></li>
+          <% } %>
+          <% if (reportData.pullRequests.active > 20) { %>
+            <li><strong class="caution"><%= reportData.pullRequests.active %></strong> active PRs — potential review bottleneck</li>
+          <% } else if (reportData.pullRequests.active > 0) { %>
+            <li><strong><%= reportData.pullRequests.active %></strong> active PRs — manageable workload</li>
+          <% } %>
+        </ul>
       </div>
       
+      <!-- Chart below insights -->
       <% if (chartImages.pullRequests) { %>
-      <div class="section-chart">
+      <div class="chart-full-width">
         <img src="<%= chartImages.pullRequests %>" alt="PR Status" />
         <p class="chart-caption">Figure 3: Pull request status distribution</p>
       </div>
@@ -518,85 +797,80 @@
     </div>
   </div>
   <% } else { %>
-  <div class="page">
-    <h2 class="section-header">Code Review Health</h2>
+  <div class="section-page">
+    <h1 class="section-header">Code Review Health</h1>
     <div class="empty-state">
       <p>Insufficient data for meaningful analysis</p>
       <% if (reportData.pullRequests?.totalPRs > 0) { %>
-        <p style="font-size: 10pt; margin-top: 8px;">
-          Data quality issue: <%= reportData.pullRequests.totalPRs %> PRs reported but status breakdown unavailable.
-          <br/>This may indicate an API data fetch issue.
-        </p>
+        <p>Data quality issue: <%= reportData.pullRequests.totalPRs %> PRs reported but status breakdown unavailable.</p>
       <% } else { %>
-        <p style="font-size: 10pt; margin-top: 8px;">
-          Minimum 5 pull requests required. Current: <%= reportData.pullRequests?.totalPRs || 0 %>
-        </p>
+        <p>Minimum 5 pull requests required. Current: <%= reportData.pullRequests?.totalPRs || 0 %></p>
       <% } %>
     </div>
   </div>
   <% } %>
 
-  <!-- PAGE 7: PR COMMENTS & THREADS -->
+  <!-- ============================================
+       PAGE 5: DISCUSSION HEALTH
+       ============================================ -->
   <% if (reportData.prDiscussion?.hasSufficientData) { %>
-  <div class="page">
-    <h2 class="section-header">Discussion Health</h2>
+  <div class="section-page">
+    <h1 class="section-header">Discussion Health</h1>
     
-    <div class="section-layout">
-      <div class="section-main">
-        <table class="metrics-table">
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Total Threads</td>
-              <td><span class="metric-value neutral"><%= reportData.prDiscussion.totalThreads || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Resolved</td>
-              <td><span class="metric-value success"><%= reportData.prDiscussion.resolved || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>Unresolved</td>
-              <td><span class="metric-value warning"><%= reportData.prDiscussion.unresolved || 0 %></span></td>
-            </tr>
-            <tr>
-              <td>PRs Needing Review</td>
-              <td><span class="metric-value warning"><%= reportData.prDiscussion.prsNeedReview || 0 %></span></td>
-            </tr>
-          </tbody>
-        </table>
-        
-        <div class="insights">
-          <h4>Key Insights</h4>
-          <ul>
-            <% 
-              const resolutionRate = reportData.prDiscussion.resolutionRate;
-            %>
-            <% if (resolutionRate !== null) { %>
-              <li><strong><%= resolutionRate %>%</strong> thread resolution rate</li>
-            <% } else { %>
-              <li>No discussion data available for resolution rate analysis</li>
-            <% } %>
-            <% if (reportData.prDiscussion.unresolved > 10) { %>
-              <li><strong><%= reportData.prDiscussion.unresolved %></strong> unresolved threads — review process may be slow</li>
-            <% } else if (reportData.prDiscussion.unresolved > 0) { %>
-              <li><strong><%= reportData.prDiscussion.unresolved %></strong> unresolved threads — within normal range</li>
-            <% } else { %>
-              <li>All discussion threads resolved</li>
-            <% } %>
-            <% if (reportData.prDiscussion.totalComments) { %>
-              <li>Total comments: <strong><%= reportData.prDiscussion.totalComments %></strong></li>
-            <% } %>
-          </ul>
-        </div>
+    <div class="section-content">
+      <!-- Table -->
+      <table class="data-table">
+        <caption data-label="Table 4">Pull Request Discussion Metrics</caption>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th style="text-align: right;">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Total Threads</td>
+            <td><span class="metric-value neutral"><%= reportData.prDiscussion.totalThreads || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Resolved</td>
+            <td><span class="metric-value positive"><%= reportData.prDiscussion.resolved || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>Unresolved</td>
+            <td><span class="metric-value caution"><%= reportData.prDiscussion.unresolved || 0 %></span></td>
+          </tr>
+          <tr>
+            <td>PRs Needing Review</td>
+            <td><span class="metric-value caution"><%= reportData.prDiscussion.prsNeedReview || 0 %></span></td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <!-- Insights -->
+      <div class="insights">
+        <h4>Key Insights</h4>
+        <ul>
+          <% const resolutionRate = reportData.prDiscussion.resolutionRate; %>
+          <% if (resolutionRate !== null) { %>
+            <li><strong><%= resolutionRate %>%</strong> thread resolution rate</li>
+          <% } %>
+          <% if (reportData.prDiscussion.unresolved > 10) { %>
+            <li><strong class="caution"><%= reportData.prDiscussion.unresolved %></strong> unresolved threads — review process may be slow</li>
+          <% } else if (reportData.prDiscussion.unresolved > 0) { %>
+            <li><strong><%= reportData.prDiscussion.unresolved %></strong> unresolved threads — within normal range</li>
+          <% } else { %>
+            <li class="positive">All discussion threads resolved</li>
+          <% } %>
+          <% if (reportData.prDiscussion.totalComments) { %>
+            <li>Total comments: <strong><%= reportData.prDiscussion.totalComments %></strong></li>
+          <% } %>
+        </ul>
       </div>
       
+      <!-- Chart below insights -->
       <% if (chartImages.prDiscussion) { %>
-      <div class="section-chart">
+      <div class="chart-full-width">
         <img src="<%= chartImages.prDiscussion %>" alt="Thread Resolution" />
         <p class="chart-caption">Figure 4: Discussion thread resolution status</p>
       </div>
@@ -604,33 +878,30 @@
     </div>
   </div>
   <% } else { %>
-  <div class="page">
-    <h2 class="section-header">Discussion Health</h2>
+  <div class="section-page">
+    <h1 class="section-header">Discussion Health</h1>
     <div class="empty-state">
       <p>Insufficient data for meaningful analysis</p>
       <% if (reportData.prDiscussion?.totalThreads > 0) { %>
-        <p style="font-size: 10pt; margin-top: 8px;">
-          Data quality issue: <%= reportData.prDiscussion.totalThreads %> threads reported but resolution status unavailable.
-          <br/>This may indicate an API data fetch issue.
-        </p>
+        <p>Data quality issue: <%= reportData.prDiscussion.totalThreads %> threads reported but resolution status unavailable.</p>
       <% } else { %>
-        <p style="font-size: 10pt; margin-top: 8px;">
-          Minimum 5 discussion threads required. Current: <%= reportData.prDiscussion?.totalThreads || 0 %>
-        </p>
+        <p>Minimum 5 discussion threads required. Current: <%= reportData.prDiscussion?.totalThreads || 0 %></p>
       <% } %>
     </div>
   </div>
   <% } %>
 
-  <!-- FINAL PAGE: METADATA -->
-  <div class="page">
-    <h2 class="summary-header">Report Metadata</h2>
+  <!-- ============================================
+       PAGE 6: METADATA & GLOSSARY
+       ============================================ -->
+  <div class="section-page">
+    <h1 class="section-header">Report Metadata</h1>
     
     <div class="metadata-section">
       <h3>Generation Details</h3>
       <ul class="metadata-list">
-        <li><strong>Generated:</strong> <%= generatedAt %></li>
-        <li><strong>Date Range:</strong> <%= dateRange %></li>
+        <li><strong>Generated:</strong> <%= generatedAt || 'Unknown' %></li>
+        <li><strong>Date Range:</strong> <%= dateRange || 'Not specified' %></li>
         <li><strong>Organization:</strong> <%= userSettings.azureDevOpsOrg || 'Not specified' %></li>
         <li><strong>Project:</strong> <%= userSettings.azureDevOpsProject || 'Not specified' %></li>
       </ul>
@@ -639,17 +910,18 @@
     <div class="metadata-section">
       <h3>Glossary</h3>
       <ul class="metadata-list">
-        <li><strong>PR:</strong> Pull Request — code review and merge workflow</li>
-        <li><strong>WI:</strong> Work Item — task, bug, or user story</li>
-        <li><strong>Success Rate:</strong> Percentage of succeeded builds or releases</li>
-        <li><strong>Others:</strong> Builds/Releases that are canceled, in progress, or partially succeeded</li>
-        <li><strong>Thread:</strong> Discussion thread in pull request comments</li>
-        <li><strong>Overdue:</strong> Work items past their due date</li>
+        <li><span class="glossary-term">PR:</span> <span class="glossary-def">Pull Request — code review and merge workflow</span></li>
+        <li><span class="glossary-term">WI:</span> <span class="glossary-def">Work Item — task, bug, or user story</span></li>
+        <li><span class="glossary-term">Success Rate:</span> <span class="glossary-def">Percentage of succeeded builds or releases</span></li>
+        <li><span class="glossary-term">Others:</span> <span class="glossary-def">Builds/Releases that are canceled, in progress, or partially succeeded</span></li>
+        <li><span class="glossary-term">Thread:</span> <span class="glossary-def">Discussion thread in pull request comments</span></li>
+        <li><span class="glossary-term">Overdue:</span> <span class="glossary-def">Work items past their due date</span></li>
       </ul>
     </div>
 
-    <div style="margin-top: 60px; text-align: center; color: #94a3b8; font-size: 10pt;">
+    <div class="report-footer">
       <p><strong>Generated by InsightOps</strong></p>
+      <p>Confidential — For authorized recipients only</p>
     </div>
   </div>
 

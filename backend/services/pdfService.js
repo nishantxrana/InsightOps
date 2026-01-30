@@ -10,10 +10,10 @@ const __dirname = path.dirname(__filename);
 
 class PDFService {
   constructor() {
-    // Optimized chart size for PDF with large, readable legends
+    // Optimized chart size for single-page layout
     this.chartJSNodeCanvas = new ChartJSNodeCanvas({
-      width: 800, // Increased for better legend space
-      height: 600, // Increased significantly for legend visibility
+      width: 800, // Reduced from 1000
+      height: 500, // Reduced from 700
       backgroundColour: "transparent",
     });
     logger.info("[PDFService] Initialized", { environment: "development" });
@@ -267,7 +267,7 @@ class PDFService {
           {
             data: values,
             backgroundColor: colors,
-            borderWidth: 2,
+            borderWidth: 3,
             borderColor: "#ffffff",
           },
         ],
@@ -276,10 +276,10 @@ class PDFService {
         responsive: false,
         layout: {
           padding: {
-            top: 20,
-            bottom: 40, // More space for legend
-            left: 20,
-            right: 20,
+            top: 30,
+            bottom: 80, // Much more space for legend
+            left: 30,
+            right: 30,
           },
         },
         plugins: {
@@ -287,14 +287,14 @@ class PDFService {
             position: "bottom",
             labels: {
               font: {
-                size: 16, // Much larger font
-                weight: "500",
+                size: 22, // MUCH larger
+                weight: "bold",
               },
-              padding: 15,
-              boxWidth: 20,
-              boxHeight: 20,
+              padding: 20,
+              boxWidth: 35,
+              boxHeight: 35,
               usePointStyle: false,
-              color: "#1e293b",
+              color: "#0f172a",
             },
           },
         },
@@ -326,10 +326,10 @@ class PDFService {
         responsive: false,
         layout: {
           padding: {
-            left: 20,
-            right: 30,
-            top: 20,
-            bottom: 20,
+            left: 30,
+            right: 40,
+            top: 30,
+            bottom: 30,
           },
         },
         plugins: {
@@ -339,15 +339,15 @@ class PDFService {
           x: {
             grid: { display: false },
             ticks: {
-              font: { size: 14, weight: "500" },
-              color: "#1e293b",
+              font: { size: 18, weight: "bold" },
+              color: "#0f172a",
             },
           },
           y: {
             grid: { display: false },
             ticks: {
-              font: { size: 14, weight: "500" },
-              color: "#1e293b",
+              font: { size: 18, weight: "bold" },
+              color: "#0f172a",
             },
           },
         },
@@ -391,7 +391,7 @@ class PDFService {
       const pdf = await page.pdf({
         format: "A4",
         printBackground: true,
-        margin: { top: "15mm", right: "15mm", bottom: "20mm", left: "15mm" },
+        margin: { top: "10mm", right: "15mm", bottom: "15mm", left: "15mm" }, // Reduced top margin
         displayHeaderFooter: true,
         headerTemplate: "<div></div>",
         footerTemplate: `
