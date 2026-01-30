@@ -12,8 +12,8 @@ class PDFService {
   constructor() {
     // Square canvas for circular pie charts
     this.chartJSNodeCanvas = new ChartJSNodeCanvas({
-      width: 700,
-      height: 700,
+      width: 600,
+      height: 600,
       backgroundColour: "transparent",
     });
     logger.info("[PDFService] Initialized", { environment: "development" });
@@ -68,7 +68,13 @@ class PDFService {
       // Generate Work Items pie chart - only if sufficient data
       if (reportData.workItems?.stateDistribution && reportData.workItems?.hasSufficientData) {
         logger.info("[PDFService] Generating Work Items chart", { environment: "development" });
-        images.workItems = await this.generatePieChart(reportData.workItems.stateDistribution, [
+
+        // Get top 5 states by count
+        const stateEntries = Object.entries(reportData.workItems.stateDistribution);
+        const sortedStates = stateEntries.sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const top5States = Object.fromEntries(sortedStates);
+
+        images.workItems = await this.generatePieChartWithHorizontalLegend(top5States, [
           "#3b82f6",
           "#a855f7",
           "#f97316",
@@ -278,10 +284,10 @@ class PDFService {
         aspectRatio: 1, // Force square/circular shape
         layout: {
           padding: {
-            top: 30,
-            bottom: 80, // Much more space for legend
-            left: 30,
-            right: 30,
+            top: 20,
+            bottom: 60,
+            left: 20,
+            right: 20,
           },
         },
         plugins: {
@@ -289,12 +295,12 @@ class PDFService {
             position: "bottom",
             labels: {
               font: {
-                size: 22, // MUCH larger
+                size: 18,
                 weight: "bold",
               },
-              padding: 20,
-              boxWidth: 35,
-              boxHeight: 35,
+              padding: 15,
+              boxWidth: 30,
+              boxHeight: 30,
               usePointStyle: false,
               color: "#0f172a",
             },
@@ -304,6 +310,65 @@ class PDFService {
     };
 
     const image = await this.chartJSNodeCanvas.renderToBuffer(configuration);
+    return `data:image/png;base64,${image.toString("base64")}`;
+  }
+
+  async generatePieChartWithHorizontalLegend(data, colors) {
+    const labels = Object.keys(data);
+    const values = Object.values(data);
+
+    // Create wider canvas for horizontal legend layout
+    const wideCanvas = new ChartJSNodeCanvas({
+      width: 900,
+      height: 700,
+      backgroundColour: "transparent",
+    });
+
+    const configuration = {
+      type: "pie",
+      data: {
+        labels,
+        datasets: [
+          {
+            data: values,
+            backgroundColor: colors,
+            borderWidth: 3,
+            borderColor: "#ffffff",
+          },
+        ],
+      },
+      options: {
+        responsive: false,
+        maintainAspectRatio: false,
+        layout: {
+          padding: {
+            top: 30,
+            bottom: 100,
+            left: 150,
+            right: 150,
+          },
+        },
+        plugins: {
+          legend: {
+            position: "bottom",
+            align: "center",
+            labels: {
+              font: {
+                size: 15,
+                weight: "bold",
+              },
+              padding: 10,
+              boxWidth: 25,
+              boxHeight: 25,
+              usePointStyle: false,
+              color: "#0f172a",
+            },
+          },
+        },
+      },
+    };
+
+    const image = await wideCanvas.renderToBuffer(configuration);
     return `data:image/png;base64,${image.toString("base64")}`;
   }
 
@@ -401,8 +466,14 @@ class PDFService {
       const pdf = await page.pdf({
         format: "A4",
         printBackground: true,
-        margin: { top: "0", right: "0", bottom: "0", left: "0" },
-        displayHeaderFooter: false,
+        margin: { top: "0", right: "0", bottom: "15mm", left: "0" },
+        displayHeaderFooter: true,
+        headerTemplate: "<div></div>",
+        footerTemplate: `
+          <div style="font-size: 9pt; color: #666; text-align: center; width: 100%; margin-top: 5mm;">
+            <span class="pageNumber"></span>
+          </div>
+        `,
         preferCSSPageSize: true,
         scale: 1.0,
       });
