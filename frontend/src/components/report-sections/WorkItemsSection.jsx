@@ -56,12 +56,7 @@ export default function WorkItemsSection({ data }) {
   }
 
   // Empty state
-  if (
-    data.created === 0 &&
-    data.completed === 0 &&
-    data.overdue === 0 &&
-    (data.inProgress || 0) === 0
-  ) {
+  if (data.created === 0 && data.overdue === 0) {
     return (
       <div className="bg-card rounded-lg border border-border p-4">
         <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -101,30 +96,37 @@ export default function WorkItemsSection({ data }) {
           Work Items
         </h3>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-2xl font-bold text-foreground">{data.created}</p>
-            <p className="text-xs text-muted-foreground">Created</p>
-          </div>
+        {/* State Distribution Table */}
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted">
+              <tr>
+                <th className="text-left p-2 font-semibold text-foreground">State</th>
+                <th className="text-right p-2 font-semibold text-foreground">Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b bg-primary/5">
+                <td className="p-2 font-semibold text-foreground">Total Created</td>
+                <td className="text-right p-2 font-bold text-primary">{data.created}</td>
+              </tr>
 
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">
-              {data.inProgress || 0}
-            </p>
-            <p className="text-xs text-muted-foreground">In Progress (Overall)</p>
-          </div>
+              {data.stateDistribution &&
+                Object.entries(data.stateDistribution)
+                  .sort((a, b) => a[0].localeCompare(b[0]))
+                  .map(([state, count]) => (
+                    <tr key={state} className="border-b hover:bg-muted/50">
+                      <td className="p-2 text-muted-foreground">{state}</td>
+                      <td className="text-right p-2 font-semibold text-foreground">{count}</td>
+                    </tr>
+                  ))}
 
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-green-600 dark:text-green-400">
-              {data.completed}
-            </p>
-            <p className="text-xs text-muted-foreground">Completed</p>
-          </div>
-
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.overdue}</p>
-            <p className="text-xs text-muted-foreground">Overdue</p>
-          </div>
+              <tr className="border-t-2 bg-destructive/5">
+                <td className="p-2 font-semibold text-foreground">Overdue</td>
+                <td className="text-right p-2 font-bold text-destructive">{data.overdue || 0}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         {chartData.length > 0 && (
