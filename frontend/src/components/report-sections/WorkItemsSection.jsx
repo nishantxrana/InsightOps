@@ -56,12 +56,7 @@ export default function WorkItemsSection({ data }) {
   }
 
   // Empty state
-  if (
-    data.created === 0 &&
-    data.completed === 0 &&
-    data.overdue === 0 &&
-    (data.inProgress || 0) === 0
-  ) {
+  if (data.created === 0 && data.overdue === 0) {
     return (
       <div className="bg-card rounded-lg border border-border p-4">
         <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -101,29 +96,39 @@ export default function WorkItemsSection({ data }) {
           Work Items
         </h3>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-2xl font-bold text-foreground">{data.created}</p>
-            <p className="text-xs text-muted-foreground">Created</p>
+        {/* State Distribution Table */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-2xl font-bold text-foreground">{data.created}</p>
+              <p className="text-xs text-muted-foreground">Total Created</p>
+            </div>
+
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-xl font-semibold text-red-600 dark:text-red-400">
+                {data.overdue || 0}
+              </p>
+              <p className="text-xs text-muted-foreground">Overdue</p>
+            </div>
           </div>
 
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">
-              {data.inProgress || 0}
-            </p>
-            <p className="text-xs text-muted-foreground">In Progress (Overall)</p>
-          </div>
-
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-green-600 dark:text-green-400">
-              {data.completed}
-            </p>
-            <p className="text-xs text-muted-foreground">Completed</p>
-          </div>
-
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.overdue}</p>
-            <p className="text-xs text-muted-foreground">Overdue</p>
+          {/* State breakdown */}
+          <div className="pt-3 border-t border-border">
+            <p className="text-xs font-medium text-muted-foreground mb-2">State Breakdown:</p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {data.stateDistribution &&
+                Object.entries(data.stateDistribution)
+                  .sort((a, b) => a[0].localeCompare(b[0]))
+                  .map(([state, count]) => (
+                    <div
+                      key={state}
+                      className="flex justify-between items-center py-1 px-2 rounded bg-muted/50"
+                    >
+                      <span className="text-muted-foreground truncate">{state}</span>
+                      <span className="font-semibold text-foreground ml-2">{count}</span>
+                    </div>
+                  ))}
+            </div>
           </div>
         </div>
 
