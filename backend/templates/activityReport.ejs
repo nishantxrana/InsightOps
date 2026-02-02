@@ -275,10 +275,10 @@
     
     /* Work Items chart - wider with horizontal legend */
     .chart-full-width.workitems-chart {
-      max-height: 450px;
+      max-height: 380px;
     }
     .chart-full-width.workitems-chart img {
-      max-height: 430px;
+      max-height: 360px;
     }
     
     .chart-caption {
@@ -644,6 +644,10 @@
             <td><span class="metric-value info"><%= reportData.workItems.created || 0 %></span></td>
           </tr>
           <tr>
+            <td>In Progress (Overall)</td>
+            <td><span class="metric-value caution"><%= reportData.workItems.inProgress || 0 %></span></td>
+          </tr>
+          <tr>
             <td>Completed</td>
             <td><span class="metric-value positive"><%= reportData.workItems.completed || 0 %></span></td>
           </tr>
@@ -942,11 +946,11 @@
   <% } %>
 
   <!-- ============================================
-       PAGE 5: DISCUSSION HEALTH
+       PAGE 5: PR COMMENTS & THREADS
        ============================================ -->
   <% if (reportData.prDiscussion?.hasSufficientData) { %>
   <div class="section-page">
-    <h1 class="section-header">Discussion Health</h1>
+    <h1 class="section-header">PR Comments & Threads</h1>
     
     <div class="section-content">
       <!-- Table -->
@@ -1010,7 +1014,7 @@
   </div>
   <% } else { %>
   <div class="section-page">
-    <h1 class="section-header">Discussion Health</h1>
+    <h1 class="section-header">PR Comments & Threads</h1>
     <div class="empty-state">
       <p>Insufficient data for meaningful analysis</p>
       <% if (reportData.prDiscussion?.totalThreads > 0) { %>
@@ -1043,6 +1047,7 @@
       <ul class="metadata-list">
         <li><span class="glossary-term">PR:</span> <span class="glossary-def">Pull Request — code review and merge workflow</span></li>
         <li><span class="glossary-term">WI:</span> <span class="glossary-def">Work Item — task, bug, or user story</span></li>
+        <li><span class="glossary-term">In Progress (Overall):</span> <span class="glossary-def">Work items actively being worked on (includes Active, In Progress, Paused, PR Created, Dev Complete, In QA states)</span></li>
         <li><span class="glossary-term">Success Rate:</span> <span class="glossary-def">Percentage of succeeded builds or releases</span></li>
         <li><span class="glossary-term">Others:</span> <span class="glossary-def">Builds/Releases that are canceled, in progress, or partially succeeded</span></li>
         <li><span class="glossary-term">Thread:</span> <span class="glossary-def">Discussion thread in pull request comments</span></li>

@@ -56,7 +56,12 @@ export default function WorkItemsSection({ data }) {
   }
 
   // Empty state
-  if (data.created === 0 && data.completed === 0 && data.overdue === 0) {
+  if (
+    data.created === 0 &&
+    data.completed === 0 &&
+    data.overdue === 0 &&
+    (data.inProgress || 0) === 0
+  ) {
     return (
       <div className="bg-card rounded-lg border border-border p-4">
         <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -100,6 +105,13 @@ export default function WorkItemsSection({ data }) {
           <div className="min-w-0 text-center sm:text-left">
             <p className="text-2xl font-bold text-foreground">{data.created}</p>
             <p className="text-xs text-muted-foreground">Created</p>
+          </div>
+
+          <div className="min-w-0 text-center sm:text-left">
+            <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">
+              {data.inProgress || 0}
+            </p>
+            <p className="text-xs text-muted-foreground">In Progress (Overall)</p>
           </div>
 
           <div className="min-w-0 text-center sm:text-left">
