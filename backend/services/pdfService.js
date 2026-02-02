@@ -248,10 +248,6 @@ class PDFService {
       },
       workItems: {
         ...reportData.workItems,
-        completionRate: this.safePercentage(
-          reportData.workItems?.completed,
-          reportData.workItems?.created
-        ),
         overdueRate: this.safePercentage(
           reportData.workItems?.overdue,
           reportData.workItems?.created
@@ -265,10 +261,13 @@ class PDFService {
     const labels = Object.keys(data);
     const values = Object.values(data);
 
+    // Create labels with counts: "Label (count)"
+    const labelsWithCounts = labels.map((label, index) => `${label} (${values[index]})`);
+
     const configuration = {
       type: "pie",
       data: {
-        labels,
+        labels: labelsWithCounts,
         datasets: [
           {
             data: values,
@@ -317,6 +316,9 @@ class PDFService {
     const labels = Object.keys(data);
     const values = Object.values(data);
 
+    // Create labels with counts: "Label (count)"
+    const labelsWithCounts = labels.map((label, index) => `${label} (${values[index]})`);
+
     // Create wider canvas for horizontal legend layout
     const wideCanvas = new ChartJSNodeCanvas({
       width: 900,
@@ -327,7 +329,7 @@ class PDFService {
     const configuration = {
       type: "pie",
       data: {
-        labels,
+        labels: labelsWithCounts,
         datasets: [
           {
             data: values,
@@ -376,10 +378,13 @@ class PDFService {
     const labels = Object.keys(data);
     const values = Object.values(data);
 
+    // Create labels with counts: "Label (count)"
+    const labelsWithCounts = labels.map((label, index) => `${label} (${values[index]})`);
+
     const configuration = {
       type: "bar",
       data: {
-        labels,
+        labels: labelsWithCounts,
         datasets: [
           {
             data: values,
