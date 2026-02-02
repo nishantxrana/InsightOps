@@ -624,7 +624,11 @@ router.post("/activity-report/pdf", async (req, res) => {
     });
 
     // Set response headers
-    const filename = `devops-report-${startDate.split("T")[0]}-to-${endDate.split("T")[0]}.pdf`;
+    const startDateStr = startDate.split("T")[0];
+    const endDateStr = endDate.split("T")[0];
+    const orgName = azureConfig.organization || "org";
+    const projectName = azureConfig.project || "project";
+    const filename = `${orgName}_${projectName}_${startDateStr}_to_${endDateStr}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBuffer.length);
