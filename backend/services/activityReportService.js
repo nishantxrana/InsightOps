@@ -468,6 +468,7 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
     let created = 0;
     let completed = 0;
     let overdue = 0;
+    let inProgress = 0;
     let stateDistribution = {};
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Set to start of day for comparison
@@ -475,6 +476,14 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
     // Define state categories based on workflow
     const completedStates = ["Closed", "Released To Production"];
     const removedStates = ["Removed", "Blocked"];
+    const inProgressStates = [
+      "Active",
+      "In Progress",
+      "Paused",
+      "PR Created / Awaiting Approval",
+      "Dev Complete / Ready for QA",
+      "In Internal QA",
+    ];
 
     if (createdRes.status === "fulfilled" && createdRes.value?.workItems) {
       const ids = createdRes.value.workItems.map((wi) => wi.id);
@@ -496,10 +505,15 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
 
         created = allItems.length;
 
-        // Calculate state distribution, completed count, and overdue count
+        // Calculate state distribution, in progress count, completed count, and overdue count
         allItems.forEach((item) => {
           const state = item.fields?.["System.State"] || "Unknown";
           stateDistribution[state] = (stateDistribution[state] || 0) + 1;
+
+          // Count in progress items
+          if (inProgressStates.includes(state)) {
+            inProgress++;
+          }
 
           // Count completed items (from created items)
           if (completedStates.includes(state)) {
@@ -526,6 +540,7 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
       created,
       completed,
       overdue,
+      inProgress,
       stateDistribution,
     };
   } catch (error) {
