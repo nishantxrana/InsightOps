@@ -248,10 +248,6 @@ class PDFService {
       },
       workItems: {
         ...reportData.workItems,
-        completionRate: this.safePercentage(
-          reportData.workItems?.completed,
-          reportData.workItems?.created
-        ),
         overdueRate: this.safePercentage(
           reportData.workItems?.overdue,
           reportData.workItems?.created

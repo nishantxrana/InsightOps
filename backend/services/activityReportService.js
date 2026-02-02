@@ -466,24 +466,14 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
 
     // Process created work items with batching (Azure DevOps limit: 200 items per request)
     let created = 0;
-    let completed = 0;
     let overdue = 0;
-    let inProgress = 0;
     let stateDistribution = {};
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Set to start of day for comparison
 
-    // Define state categories based on workflow
+    // Define state categories for overdue calculation
     const completedStates = ["Closed", "Released To Production"];
     const removedStates = ["Removed", "Blocked"];
-    const inProgressStates = [
-      "Active",
-      "In Progress",
-      "Paused",
-      "PR Created / Awaiting Approval",
-      "Dev Complete / Ready for QA",
-      "In Internal QA",
-    ];
 
     if (createdRes.status === "fulfilled" && createdRes.value?.workItems) {
       const ids = createdRes.value.workItems.map((wi) => wi.id);
@@ -505,20 +495,10 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
 
         created = allItems.length;
 
-        // Calculate state distribution, in progress count, completed count, and overdue count
+        // Calculate state distribution and overdue count
         allItems.forEach((item) => {
           const state = item.fields?.["System.State"] || "Unknown";
           stateDistribution[state] = (stateDistribution[state] || 0) + 1;
-
-          // Count in progress items
-          if (inProgressStates.includes(state)) {
-            inProgress++;
-          }
-
-          // Count completed items (from created items)
-          if (completedStates.includes(state)) {
-            completed++;
-          }
 
           // Check if this item is overdue (only for non-completed, non-removed items)
           const dueDate = item.fields?.["Microsoft.VSTS.Scheduling.DueDate"];
@@ -538,9 +518,7 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
 
     return {
       created,
-      completed,
       overdue,
-      inProgress,
       stateDistribution,
     };
   } catch (error) {
