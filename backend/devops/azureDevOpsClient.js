@@ -893,6 +893,58 @@ class AzureDevOpsClient {
     }
   }
 
+  // Pull Request Threads API (for comment analysis)
+  async getPullRequestThreads(repositoryId, pullRequestId) {
+    this.ensureInitialized();
+    try {
+      const response = await this.client.get(
+        `/git/repositories/${repositoryId}/pullRequests/${pullRequestId}/threads`,
+        {
+          params: { "api-version": "7.1" },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} threads:`, error);
+      throw error;
+    }
+  }
+
+  async getPullRequestComments(repositoryId, pullRequestId, threadId) {
+    this.ensureInitialized();
+    try {
+      const response = await this.client.get(
+        `/git/repositories/${repositoryId}/pullRequests/${pullRequestId}/threads/${threadId}/comments`,
+        {
+          params: { "api-version": "7.1" },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      logger.error(`Error fetching PR ${pullRequestId} thread ${threadId} comments:`, error);
+      throw error;
+    }
+  }
+
+  // Builds API with date range support
+  async getBuildsInDateRange(startDate, endDate, top = 100) {
+    this.ensureInitialized();
+    try {
+      const response = await this.client.get("/build/builds", {
+        params: {
+          "api-version": "7.0",
+          minTime: startDate,
+          maxTime: endDate,
+          $top: top,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      logger.error("Error fetching builds in date range:", error);
+      throw error;
+    }
+  }
+
   // Repository API
   async getRepositories() {
     try {
