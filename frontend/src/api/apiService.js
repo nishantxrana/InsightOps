@@ -200,6 +200,21 @@ export const apiService = {
     const response = await api.post("/settings/test-connection", azureDevOpsConfig);
     return response.data;
   },
+
+  // Activity Report
+  async generateActivityReport(startDate, endDate) {
+    const response = await api.post(
+      "/dashboard/activity-report",
+      {
+        startDate,
+        endDate,
+      },
+      {
+        timeout: 120000, // 2 minutes for large reports
+      }
+    );
+    return response.data;
+  },
 };
 
 export default api;

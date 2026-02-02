@@ -1295,6 +1295,20 @@ router.get("/releases", async (req, res) => {
       });
     }
 
+    // Validate date range if provided
+    if (fromDate && toDate) {
+      const start = new Date(fromDate);
+      const end = new Date(toDate);
+      const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff > 90) {
+        return res.status(400).json({
+          success: false,
+          error: "Date range cannot exceed 90 days",
+        });
+      }
+    }
+
     const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
       azureConfig.organization,
@@ -1627,6 +1641,20 @@ router.get("/releases/stats", async (req, res) => {
         success: false,
         error: "Azure DevOps configuration is incomplete",
       });
+    }
+
+    // Validate date range if provided
+    if (fromDate && toDate) {
+      const start = new Date(fromDate);
+      const end = new Date(toDate);
+      const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff > 90) {
+        return res.status(400).json({
+          success: false,
+          error: "Date range cannot exceed 90 days",
+        });
+      }
     }
 
     // Check cache first (5 min TTL - release stats are expensive and don't change frequently)

@@ -147,6 +147,10 @@ app.use(
 app.use(
   compression({
     filter: (req, res) => {
+      // Don't compress SSE streams (they need immediate flushing)
+      if (req.path.includes("/stream")) {
+        return false;
+      }
       // Don't compress if client doesn't support it
       if (req.headers["x-no-compression"]) {
         return false;
