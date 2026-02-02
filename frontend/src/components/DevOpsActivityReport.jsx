@@ -197,32 +197,34 @@ export default function DevOpsActivityReport() {
             )}
 
             {/* Controls */}
-            <div className="flex items-center gap-3 flex-wrap pt-2">
-              <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
                 <span className="text-sm text-muted-foreground whitespace-nowrap">Date Range:</span>
                 <TimeRangeSelector value={dateRange} onChange={setDateRange} disabled={loading} />
               </div>
-              <Button
-                onClick={handleGenerateReport}
-                disabled={loading}
-                className="gap-2 whitespace-nowrap"
-                size="sm"
-              >
-                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {loading ? "Generating report…" : "Generate Report"}
-              </Button>
-              {reportData && (
+              <div className="flex gap-2 sm:gap-3">
                 <Button
-                  onClick={handleExportPDF}
+                  onClick={handleGenerateReport}
                   disabled={loading}
-                  variant="outline"
-                  className="gap-2 whitespace-nowrap"
+                  className="gap-2 flex-1 sm:flex-none"
                   size="sm"
                 >
                   {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Export PDF
+                  {loading ? "Generating…" : "Generate Report"}
                 </Button>
-              )}
+                {reportData && (
+                  <Button
+                    onClick={handleExportPDF}
+                    disabled={loading}
+                    variant="outline"
+                    className="gap-2 flex-1 sm:flex-none"
+                    size="sm"
+                  >
+                    {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Export PDF
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Error Display */}
