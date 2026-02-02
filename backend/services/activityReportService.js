@@ -457,49 +457,70 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
     const completedQuery = `
       SELECT [System.Id]
       FROM WorkItems
-      WHERE [System.State] IN ('Done', 'Closed', 'Resolved')
+      WHERE [System.State] IN ('Closed', 'Released To Production')
       AND [System.ChangedDate] >= '${start}'
       AND [System.ChangedDate] <= '${end}'
     `;
 
-    const [createdRes, completedRes, overdueRes] = await Promise.allSettled([
-      client.queryWorkItems(createdQuery),
-      client.queryWorkItems(completedQuery),
-      client.getOverdueWorkItems(),
-    ]);
+    const [createdRes] = await Promise.allSettled([client.queryWorkItems(createdQuery)]);
 
     // Process created work items with batching (Azure DevOps limit: 200 items per request)
     let created = 0;
+    let completed = 0;
+    let overdue = 0;
     let stateDistribution = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of day for comparison
+
+    // Define state categories based on workflow
+    const completedStates = ["Closed", "Released To Production"];
+    const removedStates = ["Removed", "Blocked"];
+
     if (createdRes.status === "fulfilled" && createdRes.value?.workItems) {
       const ids = createdRes.value.workItems.map((wi) => wi.id);
       if (ids.length > 0) {
-        // Batch fetch in chunks of 200
+        // Batch fetch in chunks of 200, include DueDate field
         const batchSize = 200;
         const allItems = [];
 
         for (let i = 0; i < ids.length; i += batchSize) {
           const batchIds = ids.slice(i, i + batchSize);
-          const items = await client.getWorkItems(batchIds, ["System.State"]);
+          const items = await client.getWorkItems(batchIds, [
+            "System.State",
+            "Microsoft.VSTS.Scheduling.DueDate",
+          ]);
           if (items.value) {
             allItems.push(...items.value);
           }
         }
 
         created = allItems.length;
+
+        // Calculate state distribution, completed count, and overdue count
         allItems.forEach((item) => {
           const state = item.fields?.["System.State"] || "Unknown";
           stateDistribution[state] = (stateDistribution[state] || 0) + 1;
+
+          // Count completed items (from created items)
+          if (completedStates.includes(state)) {
+            completed++;
+          }
+
+          // Check if this item is overdue (only for non-completed, non-removed items)
+          const dueDate = item.fields?.["Microsoft.VSTS.Scheduling.DueDate"];
+          const isCompleted = completedStates.includes(state);
+          const isRemoved = removedStates.includes(state);
+
+          if (dueDate && !isCompleted && !isRemoved) {
+            const dueDateObj = new Date(dueDate);
+            dueDateObj.setHours(0, 0, 0, 0);
+            if (dueDateObj < today) {
+              overdue++;
+            }
+          }
         });
       }
     }
-
-    // Process completed work items
-    const completed =
-      completedRes.status === "fulfilled" ? completedRes.value?.workItems?.length || 0 : 0;
-
-    // Process overdue work items
-    const overdue = overdueRes.status === "fulfilled" ? overdueRes.value?.count || 0 : 0;
 
     return {
       created,
