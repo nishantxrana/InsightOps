@@ -16,6 +16,7 @@ import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorMessage from "../components/ErrorMessage";
+import DevOpsActivityReport from "../components/DevOpsActivityReport";
 
 export default function Dashboard() {
   const [initialLoading, setInitialLoading] = useState(true);
@@ -674,6 +675,11 @@ export default function Dashboard() {
             )}
           </div>
         </details>
+      </div>
+
+      {/* DevOps Activity Report - New Feature */}
+      <div className="mt-6 animate-fade-in" style={{ animationDelay: "0.3s" }}>
+        <DevOpsActivityReport />
       </div>
     </div>
   );

@@ -26,6 +26,38 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Add error handling interceptor (same as apiService)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const errorData = error.response?.data;
+
+    let userMessage = "Something went wrong. Please try again.";
+
+    if (error.code === "ECONNABORTED" || status === 504) {
+      userMessage = "Request timed out. Please check your connection and try again.";
+    } else if (status === 400) {
+      userMessage = errorData?.error || "Invalid request. Please check your input.";
+    } else if (status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("currentOrganizationId");
+      window.location.href = "/signin";
+      userMessage = "Your session has expired. Please sign in again.";
+    } else if (status === 403) {
+      userMessage = "You don't have permission to perform this action.";
+    } else if (status === 429) {
+      userMessage = "Too many requests. Please wait a moment and try again.";
+    } else if (status >= 500) {
+      userMessage = "Server error. Please try again later.";
+    }
+
+    error.userMessage = userMessage;
+    return Promise.reject(error);
+  }
+);
+
 export const releaseService = {
   // Get recent releases with optional filtering
   async getReleases(params = {}) {

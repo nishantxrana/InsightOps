@@ -9,6 +9,8 @@ import {
 import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workItemStates.js";
 import { AzureDevOpsReleaseClient } from "../devops/releaseClient.js";
 import { azureDevOpsCache } from "../cache/AzureDevOpsCache.js";
+import { generateActivityReport } from "../services/activityReportService.js";
+import pdfService from "../services/pdfService.js";
 
 const router = express.Router();
 
@@ -296,5 +298,353 @@ function getEmptyDashboardData() {
     releases: { total: 0, successRate: 0 },
   };
 }
+
+/**
+ * Activity Report Endpoint
+ *
+ * Generates comprehensive DevOps activity report for a date range.
+ * This is a MANUAL, ON-DEMAND endpoint - not called on dashboard load.
+ */
+router.post("/activity-report", async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { startDate, endDate } = req.body;
+
+    // Validate inputs
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate and endDate are required",
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Validate date range
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid date format",
+      });
+    }
+
+    if (start > end) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate must be before endDate",
+      });
+    }
+
+    if (end > new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: "endDate cannot be in the future",
+      });
+    }
+
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    if (daysDiff > 90) {
+      return res.status(400).json({
+        success: false,
+        error: "Date range cannot exceed 90 days",
+      });
+    }
+
+    // Get organization settings
+    const org = await getOrganizationSettings(req);
+
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({
+        success: false,
+        error: "Azure DevOps configuration required",
+      });
+    }
+
+    const orgId = org._id?.toString();
+    const azureConfig = getAzureDevOpsConfig(org);
+
+    // NO CACHING - Always generate fresh report for accurate real-time data
+    logger.info(`[ActivityReport] Generating fresh report for org ${org.name}`);
+
+    // Generate report
+    const client = azureDevOpsClient.createUserClient(azureConfig);
+    const releaseClient = new AzureDevOpsReleaseClient(
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat,
+      azureConfig.baseUrl
+    );
+
+    const report = await generateActivityReport(client, releaseClient, orgId, startDate, endDate);
+
+    const duration = Date.now() - startTime;
+    logger.info(`[ActivityReport] Report generated in ${duration}ms for org ${org.name}`);
+
+    res.json({
+      success: true,
+      data: report,
+      cached: false,
+    });
+  } catch (error) {
+    logger.error("[ActivityReport] Error generating report:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to generate activity report",
+      message: error.message,
+    });
+  }
+});
+
+// SSE endpoint for streaming activity report
+router.get("/activity-report/stream", async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // Validate inputs
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate and endDate are required",
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid date format",
+      });
+    }
+
+    if (start > end) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate must be before endDate",
+      });
+    }
+
+    if (end > new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: "endDate cannot be in the future",
+      });
+    }
+
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    if (daysDiff > 90) {
+      return res.status(400).json({
+        success: false,
+        error: "Date range cannot exceed 90 days",
+      });
+    }
+
+    const org = await getOrganizationSettings(req);
+
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({
+        success: false,
+        error: "Azure DevOps configuration required",
+      });
+    }
+
+    const orgId = org._id?.toString();
+    const azureConfig = getAzureDevOpsConfig(org);
+
+    // Set SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // Disable nginx buffering
+    res.flushHeaders();
+
+    const sendEvent = (event, data) => {
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+      // Force flush to send immediately (critical for streaming!)
+      if (res.flush) {
+        res.flush();
+      }
+    };
+
+    logger.info(`[ActivityReport] Streaming report for org ${org.name}`);
+
+    const client = azureDevOpsClient.createUserClient(azureConfig);
+    const releaseClient = new AzureDevOpsReleaseClient(
+      azureConfig.organization,
+      azureConfig.project,
+      azureConfig.pat,
+      azureConfig.baseUrl
+    );
+
+    // Import fetch functions
+    const {
+      fetchPRMetrics,
+      fetchPRDiscussionMetrics,
+      fetchBuildMetrics,
+      fetchReleaseMetrics,
+      fetchWorkItemMetrics,
+    } = await import("../services/activityReportService.js");
+
+    // Fetch each section and stream as it completes
+    const sections = [
+      { name: "pullRequests", fn: () => fetchPRMetrics(client, startDate, endDate) },
+      { name: "prDiscussion", fn: () => fetchPRDiscussionMetrics(client, startDate, endDate) },
+      { name: "builds", fn: () => fetchBuildMetrics(client, startDate, endDate) },
+      { name: "releases", fn: () => fetchReleaseMetrics(releaseClient, startDate, endDate) },
+      { name: "workItems", fn: () => fetchWorkItemMetrics(client, startDate, endDate) },
+    ];
+
+    const startTime = Date.now();
+
+    for (const section of sections) {
+      try {
+        const sectionStart = Date.now();
+        const data = await section.fn();
+        const sectionDuration = Date.now() - sectionStart;
+
+        sendEvent("section", {
+          name: section.name,
+          data,
+          duration: sectionDuration,
+        });
+
+        logger.info(`[ActivityReport] Streamed ${section.name} in ${sectionDuration}ms`);
+      } catch (error) {
+        sendEvent("section", {
+          name: section.name,
+          error: error.message,
+        });
+        logger.error(`[ActivityReport] Error streaming ${section.name}:`, error);
+      }
+    }
+
+    // Send completion event
+    const totalDuration = Date.now() - startTime;
+    sendEvent("complete", {
+      duration: totalDuration,
+      generatedAt: new Date().toISOString(),
+    });
+
+    logger.info(`[ActivityReport] Stream completed in ${totalDuration}ms`);
+
+    res.end();
+  } catch (error) {
+    logger.error("[ActivityReport] Error in stream:", error);
+    res.write(`event: error\n`);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
+  }
+});
+
+/**
+ * Generate PDF Report
+ * POST /api/dashboard/activity-report/pdf
+ */
+router.post("/activity-report/pdf", async (req, res) => {
+  try {
+    const { startDate, endDate, reportData: existingData } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "startDate and endDate are required" });
+    }
+
+    logger.info(`[PDF] Generating report, range: ${startDate} to ${endDate}`, {
+      environment: "development",
+    });
+
+    // Get organization settings from request
+    const org = await getOrganizationSettings(req);
+
+    if (!hasAzureDevOpsConfig(org)) {
+      logger.error("[PDF] Azure DevOps configuration not found", { environment: "development" });
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
+    }
+
+    const azureConfig = getAzureDevOpsConfig(org);
+    logger.info("[PDF] Config retrieved", { environment: "development", org: org.name });
+
+    let reportData;
+
+    // Use existing data if provided, otherwise fetch fresh
+    if (existingData) {
+      logger.info("[PDF] Using existing report data (no refetch)", { environment: "development" });
+      reportData = { startDate, endDate, ...existingData };
+    } else {
+      logger.info("[PDF] Fetching fresh report data...", { environment: "development" });
+
+      // Import fetch functions
+      const {
+        fetchPRMetrics,
+        fetchPRDiscussionMetrics,
+        fetchBuildMetrics,
+        fetchReleaseMetrics,
+        fetchWorkItemMetrics,
+      } = await import("../services/activityReportService.js");
+
+      // Fetch all report data
+      const client = azureDevOpsClient.createUserClient(azureConfig);
+      const releaseClient = new AzureDevOpsReleaseClient(
+        azureConfig.organization,
+        azureConfig.project,
+        azureConfig.pat,
+        azureConfig.baseUrl
+      );
+
+      reportData = {
+        startDate,
+        endDate,
+        workItems: await fetchWorkItemMetrics(client, startDate, endDate),
+        builds: await fetchBuildMetrics(client, startDate, endDate),
+        releases: await fetchReleaseMetrics(releaseClient, startDate, endDate),
+        pullRequests: await fetchPRMetrics(client, startDate, endDate),
+        prDiscussion: await fetchPRDiscussionMetrics(client, startDate, endDate),
+      };
+      logger.info("[PDF] Report data fetched", { environment: "development" });
+    }
+
+    // Generate PDF
+    logger.info("[PDF] Calling PDF service...", { environment: "development" });
+
+    // Pass both org settings and Azure config for proper display
+    const userSettings = {
+      name: org.name,
+      azureDevOpsOrg: azureConfig.organization,
+      azureDevOpsProject: azureConfig.project,
+    };
+
+    const pdfBuffer = await pdfService.generateActivityReportPDF(reportData, userSettings);
+    logger.info("[PDF] PDF buffer received", {
+      environment: "development",
+      size: pdfBuffer.length,
+    });
+
+    // Set response headers
+    const startDateStr = startDate.split("T")[0];
+    const endDateStr = endDate.split("T")[0];
+    const orgName = azureConfig.organization || "org";
+    const projectName = azureConfig.project || "project";
+    const filename = `${orgName}_${projectName}_${startDateStr}_to_${endDateStr}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+
+    // Send as Buffer, not JSON
+    res.end(pdfBuffer, "binary");
+
+    logger.info(`[PDF] Generated successfully for org ${org.name}`, { environment: "development" });
+  } catch (error) {
+    logger.error("[PDF] Generation failed", {
+      environment: "development",
+      error: error.message,
+      stack: error.stack,
+    });
+    res.status(500).json({ error: "Failed to generate PDF", message: error.message });
+  }
+});
 
 export default router;
