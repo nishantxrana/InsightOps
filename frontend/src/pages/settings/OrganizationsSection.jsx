@@ -341,7 +341,12 @@ export default function OrganizationsSection() {
 
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="project">Project</Label>
+          <Label htmlFor="project">
+            Default Project
+            <span className="ml-2 text-xs text-muted-foreground font-normal">
+              (used when no project selected in header)
+            </span>
+          </Label>
           <Button
             type="button"
             variant="ghost"

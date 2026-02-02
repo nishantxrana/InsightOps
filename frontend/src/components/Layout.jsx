@@ -5,6 +5,7 @@ import { useHealth } from "../contexts/HealthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { DevOpsAppSidebar } from "./DevOpsAppSidebar";
 import OrganizationSwitcher from "./OrganizationSwitcher";
+import ProjectSwitcher from "./ProjectSwitcher";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -110,10 +111,13 @@ export default function Layout({ children }) {
                 </Breadcrumb>
               </div>
 
-              {/* Right Section - Org Switcher, Status & Theme */}
+              {/* Right Section - Org Switcher, Project Switcher, Status & Theme */}
               <div className="ml-auto flex items-center gap-3 px-4">
                 {/* Organization Switcher */}
                 <OrganizationSwitcher />
+
+                {/* Project Switcher */}
+                <ProjectSwitcher />
 
                 <Separator orientation="vertical" className="h-4" />
 

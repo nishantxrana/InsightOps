@@ -8,6 +8,7 @@ export function OrganizationProvider({ children }) {
   const { isAuthenticated, token } = useAuth();
   const [organizations, setOrganizations] = useState([]);
   const [currentOrganization, setCurrentOrganization] = useState(null);
+  const [currentProject, setCurrentProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -48,6 +49,10 @@ export function OrganizationProvider({ children }) {
       const newCurrent = savedOrg || defaultOrg || null;
       setCurrentOrganization(newCurrent);
 
+      // Set current project from localStorage or org default
+      const savedProject = localStorage.getItem("currentProject");
+      setCurrentProject(savedProject || newCurrent?.azureDevOps?.project || null);
+
       // Update localStorage if we selected a different org
       if (newCurrent && newCurrent._id !== savedOrgId) {
         localStorage.setItem("currentOrganizationId", newCurrent._id);
@@ -81,12 +86,24 @@ export function OrganizationProvider({ children }) {
       if (org) {
         setCurrentOrganization(org);
         localStorage.setItem("currentOrganizationId", orgId);
+        // Reset project to org default
+        setCurrentProject(org.azureDevOps?.project || null);
+        localStorage.setItem("currentProject", org.azureDevOps?.project || "");
         // Force page reload to refetch all data with new org context
         window.location.reload();
       }
     },
     [organizations]
   );
+
+  // Switch project
+  const switchProject = useCallback((projectName) => {
+    // Only update local state and storage (don't save to DB)
+    setCurrentProject(projectName);
+    localStorage.setItem("currentProject", projectName);
+    // Force page reload to refetch all data with new project context
+    window.location.reload();
+  }, []);
 
   // Add organization
   const addOrganization = useCallback(
@@ -219,11 +236,13 @@ export function OrganizationProvider({ children }) {
   const value = {
     organizations,
     currentOrganization,
+    currentProject,
     loading,
     error,
     hasOrganizations,
     needsSetup,
     switchOrganization,
+    switchProject,
     addOrganization,
     updateOrganization,
     deleteOrganization,

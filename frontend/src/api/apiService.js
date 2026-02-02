@@ -23,6 +23,12 @@ api.interceptors.request.use(
       config.headers["X-Organization-ID"] = currentOrgId;
     }
 
+    // Add project context header
+    const currentProject = localStorage.getItem("currentProject");
+    if (currentProject) {
+      config.headers["X-Project-Name"] = currentProject;
+    }
+
     return config;
   },
   (error) => {

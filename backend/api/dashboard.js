@@ -9,6 +9,7 @@ import {
 import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workItemStates.js";
 import { AzureDevOpsReleaseClient } from "../devops/releaseClient.js";
 import { azureDevOpsCache } from "../cache/AzureDevOpsCache.js";
+import { CACHE_TTL } from "../config/cache.js";
 import { generateActivityReport } from "../services/activityReportService.js";
 import pdfService from "../services/pdfService.js";
 
@@ -53,10 +54,10 @@ router.get("/summary", async (req, res) => {
     // Parallel fetch all data with caching
     const [workItemsResult, buildsResult, pullRequestsResult, releaseStatsResult] =
       await Promise.allSettled([
-        fetchWorkItemsSummary(client, orgId),
-        fetchBuilds(client, orgId),
-        fetchPullRequests(client, orgId),
-        fetchReleaseStats(azureConfig, orgId),
+        fetchWorkItemsSummary(client, orgId, org),
+        fetchBuilds(client, orgId, org),
+        fetchPullRequests(client, orgId, org),
+        fetchReleaseStats(azureConfig, orgId, org),
       ]);
 
     // Process results (handle failures gracefully)
@@ -110,13 +111,15 @@ router.get("/summary", async (req, res) => {
 /**
  * Fetch work items summary with caching
  */
-async function fetchWorkItemsSummary(client, orgId) {
+async function fetchWorkItemsSummary(client, orgId, org) {
+  const projectName = org.azureDevOps?.project;
+
   // Check cache
-  let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
+  let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId, projectName);
 
   if (!allWorkItems) {
     allWorkItems = await client.getAllCurrentSprintWorkItems();
-    azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
+    azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, CACHE_TTL, projectName);
   }
 
   const items = allWorkItems.value || [];
@@ -127,11 +130,11 @@ async function fetchWorkItemsSummary(client, orgId) {
   let overdueCount = 0;
   try {
     const overdueCacheKey = "workItems:overdue";
-    let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
+    let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey, projectName);
 
     if (!overdueItems) {
       overdueItems = await client.getOverdueWorkItems();
-      azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
+      azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, CACHE_TTL, projectName);
     }
 
     overdueCount = overdueItems.count || 0;
@@ -150,15 +153,16 @@ async function fetchWorkItemsSummary(client, orgId) {
 /**
  * Fetch builds with caching
  */
-async function fetchBuilds(client, orgId) {
+async function fetchBuilds(client, orgId, org) {
+  const projectName = org.azureDevOps?.project;
   const limit = 20;
   const cacheKey = `builds:recent:${limit}`;
 
-  let builds = azureDevOpsCache.get(orgId, cacheKey);
+  let builds = azureDevOpsCache.get(orgId, cacheKey, projectName);
 
   if (!builds) {
     builds = await client.getRecentBuilds(limit);
-    azureDevOpsCache.set(orgId, cacheKey, builds, 60);
+    azureDevOpsCache.set(orgId, cacheKey, builds, CACHE_TTL, projectName);
   }
 
   const buildList = builds.value || [];
@@ -173,13 +177,15 @@ async function fetchBuilds(client, orgId) {
 /**
  * Fetch pull requests with caching - shared data for both total and idle
  */
-async function fetchPullRequests(client, orgId) {
+async function fetchPullRequests(client, orgId, org) {
+  const projectName = org.azureDevOps?.project;
+
   // Get PRs (shared between total and idle)
-  let allPRs = azureDevOpsCache.getPullRequests(orgId);
+  let allPRs = azureDevOpsCache.getPullRequests(orgId, projectName);
 
   if (!allPRs) {
     allPRs = await client.getPullRequests("active");
-    azureDevOpsCache.setPullRequests(orgId, allPRs, 60);
+    azureDevOpsCache.setPullRequests(orgId, allPRs, CACHE_TTL, projectName);
   }
 
   const prList = allPRs.value || [];
@@ -211,13 +217,14 @@ async function fetchPullRequests(client, orgId) {
 }
 
 /**
- * Fetch release stats with caching (longer TTL since expensive)
+ * Fetch release stats with caching
  */
-async function fetchReleaseStats(azureConfig, orgId) {
+async function fetchReleaseStats(azureConfig, orgId, org) {
+  const projectName = org.azureDevOps?.project;
   const dateRange = "90d_now";
 
-  // Check cache (5 min TTL)
-  const cached = azureDevOpsCache.getReleaseStats(orgId, dateRange);
+  // Check cache
+  const cached = azureDevOpsCache.getReleaseStats(orgId, dateRange, projectName);
   if (cached?.success) {
     return {
       total: cached.data.totalReleases || 0,
@@ -275,7 +282,8 @@ async function fetchReleaseStats(azureConfig, orgId) {
           successRate,
         },
       },
-      300
+      CACHE_TTL,
+      projectName
     );
 
     return stats;

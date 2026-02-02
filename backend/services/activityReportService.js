@@ -441,23 +441,28 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
  */
 async function fetchWorkItemMetrics(client, startDate, endDate) {
   try {
+    // Get project name from client config
+    const projectName = client.project;
+
     // Azure DevOps WIQL requires date-only format (YYYY-MM-DD), not ISO timestamps
     const start = new Date(startDate).toISOString().split("T")[0];
     const end = new Date(endDate).toISOString().split("T")[0];
 
-    // Query 1: Created in range
+    // Query 1: Created in range (filtered by project)
     const createdQuery = `
       SELECT [System.Id], [System.State]
       FROM WorkItems
-      WHERE [System.CreatedDate] >= '${start}'
+      WHERE [System.TeamProject] = '${projectName}'
+      AND [System.CreatedDate] >= '${start}'
       AND [System.CreatedDate] <= '${end}'
     `;
 
-    // Query 2: Completed in range
+    // Query 2: Completed in range (filtered by project)
     const completedQuery = `
       SELECT [System.Id]
       FROM WorkItems
-      WHERE [System.State] IN ('Closed', 'Released To Production')
+      WHERE [System.TeamProject] = '${projectName}'
+      AND [System.State] IN ('Closed', 'Released To Production')
       AND [System.ChangedDate] >= '${start}'
       AND [System.ChangedDate] <= '${end}'
     `;
