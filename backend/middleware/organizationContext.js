@@ -52,6 +52,31 @@ export const injectOrganizationContext = async (req, res, next) => {
         req.organizationId = org._id;
         req.organization = org;
 
+        // Check for project override from header
+        const projectName =
+          req.headers["x-project-name"] ||
+          req.headers["X-Project-Name"] ||
+          req.get("X-Project-Name");
+
+        if (projectName) {
+          // Override the project in the organization context
+          req.organization = {
+            ...org,
+            azureDevOps: {
+              ...org.azureDevOps,
+              project: projectName,
+            },
+          };
+
+          if (!skipLogging) {
+            log.debug("Project override from header", {
+              orgProject: org.azureDevOps.project,
+              headerProject: projectName,
+              url: req.url,
+            });
+          }
+        }
+
         // Only log debug for normal requests, warn for missing header
         if (!skipLogging) {
           if (orgSource === "default") {

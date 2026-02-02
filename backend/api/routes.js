@@ -22,6 +22,7 @@ import { validateRequest } from "../middleware/validation.js";
 import { settingsSchema, testConnectionSchema } from "../validators/schemas.js";
 import { AzureDevOpsReleaseClient } from "../devops/releaseClient.js";
 import { azureDevOpsCache } from "../cache/AzureDevOpsCache.js";
+import { CACHE_TTL } from "../config/cache.js";
 import emergencyRoutes from "./emergency.js";
 
 const router = express.Router();
@@ -364,14 +365,15 @@ router.get("/work-items/sprint-summary", async (req, res) => {
     }
 
     const orgId = org._id?.toString();
+    const projectName = org.azureDevOps?.project;
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
 
     // Use cache-first pattern (same cache as dashboard)
-    let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
+    let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId, projectName);
 
     if (!allWorkItems) {
       allWorkItems = await client.getAllCurrentSprintWorkItems();
-      azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
+      azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, CACHE_TTL, projectName);
     } else {
       logger.debug("[Performance] Sprint summary using cached work items");
     }
@@ -384,11 +386,11 @@ router.get("/work-items/sprint-summary", async (req, res) => {
     let overdueCount = 0;
     try {
       const overdueCacheKey = "workItems:overdue";
-      let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
+      let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey, projectName);
 
       if (!overdueItems) {
         overdueItems = await client.getOverdueWorkItems();
-        azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
+        azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, CACHE_TTL, projectName);
       } else {
         logger.debug("[Performance] Sprint summary using cached overdue items");
       }
@@ -449,14 +451,15 @@ router.get("/work-items/ai-summary", async (req, res) => {
     }
 
     const orgId = org._id?.toString();
+    const projectName = org.azureDevOps?.project;
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
 
     // Use cache-first pattern (same cache as dashboard/sprint-summary)
-    let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
+    let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId, projectName);
 
     if (!allWorkItems) {
       allWorkItems = await client.getAllCurrentSprintWorkItems();
-      azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
+      azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, CACHE_TTL, projectName);
     } else {
       logger.debug("[Performance] AI summary using cached work items");
     }
@@ -590,15 +593,16 @@ router.get("/work-items/overdue", async (req, res) => {
     }
 
     const orgId = org._id?.toString();
+    const projectName = org.azureDevOps?.project;
     const overdueCacheKey = "workItems:overdue";
 
     // Check cache first
-    let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
+    let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey, projectName);
 
     if (!overdueItems) {
       const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
       overdueItems = await client.getOverdueWorkItems();
-      azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
+      azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, CACHE_TTL, projectName);
     } else {
       logger.debug("[Performance] Overdue items using cache");
     }
@@ -645,15 +649,16 @@ router.get("/builds/recent", async (req, res) => {
     // Get limit from query parameter, default to 20, min 10, max 50
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 10), 50);
     const repositoryFilter = req.query.repository;
+    const projectName = org.azureDevOps?.project;
 
-    // Check cache first (60s TTL)
+    // Check cache first
     const { azureDevOpsCache } = await import("../cache/AzureDevOpsCache.js");
     const cacheKey =
       repositoryFilter && repositoryFilter !== "all"
         ? `builds:recent:${limit}:${repositoryFilter}`
         : `builds:recent:${limit}`;
 
-    let builds = azureDevOpsCache.get(org._id?.toString(), cacheKey);
+    let builds = azureDevOpsCache.get(org._id?.toString(), cacheKey, projectName);
 
     if (!builds) {
       const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
@@ -668,8 +673,8 @@ router.get("/builds/recent", async (req, res) => {
         );
       }
 
-      // Cache for 60 seconds
-      azureDevOpsCache.set(org._id?.toString(), cacheKey, builds, 60);
+      // Cache
+      azureDevOpsCache.set(org._id?.toString(), cacheKey, builds, CACHE_TTL, projectName);
     } else {
       logger.debug("[Performance] Builds cache hit");
     }
@@ -775,9 +780,10 @@ router.get("/pull-requests", async (req, res) => {
     }
 
     const orgId = org._id?.toString();
+    const projectName = org.azureDevOps?.project;
 
-    // Check cache first (60s TTL)
-    const cached = azureDevOpsCache.getPullRequests(orgId);
+    // Check cache first
+    const cached = azureDevOpsCache.getPullRequests(orgId, projectName);
     if (cached) {
       logger.debug("[Performance] PR cache hit");
       return res.json(cached);
@@ -786,8 +792,8 @@ router.get("/pull-requests", async (req, res) => {
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const pullRequests = await client.getPullRequests("active");
 
-    // Cache for 60 seconds
-    azureDevOpsCache.setPullRequests(orgId, pullRequests, 60);
+    // Cache
+    azureDevOpsCache.setPullRequests(orgId, pullRequests, CACHE_TTL, projectName);
 
     res.json(pullRequests);
   } catch (error) {
@@ -805,15 +811,16 @@ router.get("/pull-requests/idle", async (req, res) => {
     }
 
     const orgId = org._id?.toString();
+    const projectName = org.azureDevOps?.project;
 
     // Check cache for base PR data (shared with /pull-requests endpoint)
-    let allPRs = azureDevOpsCache.getPullRequests(orgId);
+    let allPRs = azureDevOpsCache.getPullRequests(orgId, projectName);
 
     if (!allPRs) {
       // Fetch and cache if not available
       const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
       allPRs = await client.getPullRequests("active");
-      azureDevOpsCache.setPullRequests(orgId, allPRs, 60);
+      azureDevOpsCache.setPullRequests(orgId, allPRs, CACHE_TTL, projectName);
     } else {
       logger.debug("[Performance] Idle PRs using cached PR data");
     }
@@ -1657,10 +1664,11 @@ router.get("/releases/stats", async (req, res) => {
       }
     }
 
-    // Check cache first (5 min TTL - release stats are expensive and don't change frequently)
+    // Check cache first
     const { azureDevOpsCache } = await import("../cache/AzureDevOpsCache.js");
+    const projectName = org.azureDevOps?.project;
     const dateRange = `${fromDate || "90d"}_${toDate || "now"}`;
-    const cached = azureDevOpsCache.getReleaseStats(org._id?.toString(), dateRange);
+    const cached = azureDevOpsCache.getReleaseStats(org._id?.toString(), dateRange, projectName);
 
     if (cached) {
       logger.debug("[Performance] Release stats cache hit");
@@ -1809,8 +1817,14 @@ router.get("/releases/stats", async (req, res) => {
         data: stats,
       };
 
-      // Cache for 5 minutes (300s) - release stats are expensive
-      azureDevOpsCache.setReleaseStats(org._id?.toString(), dateRange, response, 300);
+      // Cache
+      azureDevOpsCache.setReleaseStats(
+        org._id?.toString(),
+        dateRange,
+        response,
+        CACHE_TTL,
+        projectName
+      );
 
       res.json(response);
     } catch (apiError) {
@@ -1827,8 +1841,14 @@ router.get("/releases/stats", async (req, res) => {
             environmentStats: {},
           },
         };
-        // Cache empty response too (but shorter TTL)
-        azureDevOpsCache.setReleaseStats(org._id?.toString(), dateRange, emptyResponse, 60);
+        // Cache empty response too
+        azureDevOpsCache.setReleaseStats(
+          org._id?.toString(),
+          dateRange,
+          emptyResponse,
+          CACHE_TTL,
+          projectName
+        );
         res.json(emptyResponse);
       } else {
         throw apiError;

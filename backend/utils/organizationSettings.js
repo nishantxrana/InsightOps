@@ -7,42 +7,46 @@ import { logger } from "./logger.js";
  * Falls back to default organization if not specified
  */
 export async function getOrganizationSettings(req) {
+  let org;
+  let projectOverride = null;
+
   // If organization already loaded by middleware
   if (req.organization) {
-    // Get with decrypted credentials
-    const org = await organizationService.getOrganizationWithCredentials(req.organization._id);
-    logger.info(
-      `[GET-ORG-SETTINGS] Using middleware org: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`
-    );
-    return org;
-  }
+    // Check if middleware applied a project override
+    projectOverride = req.organization.azureDevOps?.project;
 
+    // Get with decrypted credentials
+    org = await organizationService.getOrganizationWithCredentials(req.organization._id);
+  }
   // If organizationId specified but not loaded
-  if (req.organizationId) {
-    const org = await organizationService.getOrganizationWithCredentials(
+  else if (req.organizationId) {
+    org = await organizationService.getOrganizationWithCredentials(
       req.organizationId,
       req.user._id
     );
-    logger.info(
-      `[GET-ORG-SETTINGS] Using orgId: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`
-    );
-    return org;
   }
-
   // Fall back to default organization
-  const defaultOrg = await organizationService.getDefaultOrganization(req.user._id);
-  if (!defaultOrg) {
-    logger.info(`[GET-ORG-SETTINGS] No org found for user`);
-    return null;
+  else {
+    const defaultOrg = await organizationService.getDefaultOrganization(req.user._id);
+    if (!defaultOrg) {
+      logger.info(`[GET-ORG-SETTINGS] No org found for user`);
+      return null;
+    }
+
+    org = await organizationService.getOrganizationWithCredentials(defaultOrg._id, req.user._id);
   }
 
-  const org = await organizationService.getOrganizationWithCredentials(
-    defaultOrg._id,
-    req.user._id
-  );
-  logger.info(
-    `[GET-ORG-SETTINGS] Using DEFAULT org: ${org?.name} (${org?.azureDevOps?.organization}/${org?.azureDevOps?.project})`
-  );
+  // Apply project override if middleware set one (from X-Project-Name header)
+  if (projectOverride && org) {
+    org.azureDevOps.project = projectOverride;
+  }
+
+  if (org) {
+    logger.info(
+      `[GET-ORG-SETTINGS] Using org: ${org.name} (${org.azureDevOps?.organization}/${org.azureDevOps?.project})`
+    );
+  }
+
   return org;
 }
 
