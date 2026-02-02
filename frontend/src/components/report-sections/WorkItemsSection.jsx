@@ -97,36 +97,39 @@ export default function WorkItemsSection({ data }) {
         </h3>
 
         {/* State Distribution Table */}
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted">
-              <tr>
-                <th className="text-left p-2 font-semibold text-foreground">State</th>
-                <th className="text-right p-2 font-semibold text-foreground">Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b bg-primary/5">
-                <td className="p-2 font-semibold text-foreground">Total Created</td>
-                <td className="text-right p-2 font-bold text-primary">{data.created}</td>
-              </tr>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-2xl font-bold text-foreground">{data.created}</p>
+              <p className="text-xs text-muted-foreground">Total Created</p>
+            </div>
 
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-xl font-semibold text-red-600 dark:text-red-400">
+                {data.overdue || 0}
+              </p>
+              <p className="text-xs text-muted-foreground">Overdue</p>
+            </div>
+          </div>
+
+          {/* State breakdown */}
+          <div className="pt-3 border-t border-border">
+            <p className="text-xs font-medium text-muted-foreground mb-2">State Breakdown:</p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
               {data.stateDistribution &&
                 Object.entries(data.stateDistribution)
                   .sort((a, b) => a[0].localeCompare(b[0]))
                   .map(([state, count]) => (
-                    <tr key={state} className="border-b hover:bg-muted/50">
-                      <td className="p-2 text-muted-foreground">{state}</td>
-                      <td className="text-right p-2 font-semibold text-foreground">{count}</td>
-                    </tr>
+                    <div
+                      key={state}
+                      className="flex justify-between items-center py-1 px-2 rounded bg-muted/50"
+                    >
+                      <span className="text-muted-foreground truncate">{state}</span>
+                      <span className="font-semibold text-foreground ml-2">{count}</span>
+                    </div>
                   ))}
-
-              <tr className="border-t-2 bg-destructive/5">
-                <td className="p-2 font-semibold text-foreground">Overdue</td>
-                <td className="text-right p-2 font-bold text-destructive">{data.overdue || 0}</td>
-              </tr>
-            </tbody>
-          </table>
+            </div>
+          </div>
         </div>
 
         {chartData.length > 0 && (
