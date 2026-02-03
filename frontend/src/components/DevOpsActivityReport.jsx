@@ -1,8 +1,11 @@
 import React, { useState } from "react";
-import { FileText, ChevronDown, ChevronUp, Loader2, Info } from "lucide-react";
+import { FileText, ChevronDown, ChevronUp, Loader2, Info, Filter } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import TimeRangeSelector from "./TimeRangeSelector";
 import ErrorMessage from "./ErrorMessage";
 import PullRequestsSection from "./report-sections/PullRequestsSection";
@@ -16,6 +19,7 @@ export default function DevOpsActivityReport() {
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState(null);
+  const [productionOnly, setProductionOnly] = useState(false);
   const [dateRange, setDateRange] = useState(() => {
     const to = new Date();
     const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -35,6 +39,7 @@ export default function DevOpsActivityReport() {
       const url = new URL("/api/dashboard/activity-report/stream", window.location.origin);
       url.searchParams.set("startDate", dateRange.from.toISOString());
       url.searchParams.set("endDate", dateRange.to.toISOString());
+      url.searchParams.set("productionOnly", productionOnly.toString());
 
       const response = await fetch(url, {
         method: "GET",
@@ -126,6 +131,7 @@ export default function DevOpsActivityReport() {
           startDate: dateRange.from.toISOString(),
           endDate: dateRange.to.toISOString(),
           reportData: reportData, // Pass existing data
+          productionOnly: productionOnly,
         }),
       });
 
@@ -201,33 +207,58 @@ export default function DevOpsActivityReport() {
             )}
 
             {/* Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Date Range:</span>
-                <TimeRangeSelector value={dateRange} onChange={setDateRange} disabled={loading} />
-              </div>
-              <div className="flex gap-2 sm:gap-3">
-                <Button
-                  onClick={handleGenerateReport}
+            <div className="flex flex-col gap-3 pt-2">
+              {/* Production Filter Toggle */}
+              <div className="flex items-center space-x-2 p-2 bg-muted/50 rounded-md">
+                <Switch
+                  id="production-only"
+                  checked={productionOnly}
+                  onCheckedChange={setProductionOnly}
                   disabled={loading}
-                  className="gap-2 flex-1 sm:flex-none"
-                  size="sm"
-                >
-                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {loading ? "Generating…" : "Generate Report"}
-                </Button>
-                {reportData && (
+                />
+                <Label htmlFor="production-only" className="cursor-pointer flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Production Only Report
+                </Label>
+                {productionOnly && (
+                  <Badge variant="secondary" className="ml-2">
+                    <Filter className="w-3 h-3 mr-1" />
+                    Filtered
+                  </Badge>
+                )}
+              </div>
+
+              {/* Date Range and Buttons */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    Date Range:
+                  </span>
+                  <TimeRangeSelector value={dateRange} onChange={setDateRange} disabled={loading} />
+                </div>
+                <div className="flex gap-2 sm:gap-3">
                   <Button
-                    onClick={handleExportPDF}
+                    onClick={handleGenerateReport}
                     disabled={loading}
-                    variant="outline"
                     className="gap-2 flex-1 sm:flex-none"
                     size="sm"
                   >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                    Export PDF
+                    {loading ? "Generating…" : "Generate Report"}
                   </Button>
-                )}
+                  {reportData && (
+                    <Button
+                      onClick={handleExportPDF}
+                      disabled={loading}
+                      variant="outline"
+                      className="gap-2 flex-1 sm:flex-none"
+                      size="sm"
+                    >
+                      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Export PDF
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 
