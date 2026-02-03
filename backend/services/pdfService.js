@@ -178,6 +178,8 @@ class PDFService {
     return {
       startDate: reportData.startDate,
       endDate: reportData.endDate,
+      productionOnly: reportData.productionOnly,
+      filters: reportData.filters,
       builds: {
         ...reportData.builds,
         successRate: this.safePercentage(
@@ -448,6 +450,13 @@ class PDFService {
       }),
       dateRange: this.formatDateRange(reportData.startDate, reportData.endDate),
     };
+
+    logger.debug(
+      `[PDFService] Template data: productionOnly=${reportData.productionOnly}, filters=${JSON.stringify(reportData.filters)}`,
+      {
+        environment: "development",
+      }
+    );
 
     return await ejs.renderFile(templatePath, templateData);
   }

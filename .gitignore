@@ -108,3 +108,5 @@ Docs/
 
 # Git credential files
 .git-credentials-local
+
+.kiro/

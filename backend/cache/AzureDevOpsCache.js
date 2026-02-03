@@ -1,5 +1,6 @@
 import { logger } from "../utils/logger.js";
 import { metrics } from "../observability/metrics.js";
+import { CACHE_TTL } from "../config/cache.js";
 
 /**
  * Per-organization cache for Azure DevOps API responses
@@ -14,7 +15,7 @@ class AzureDevOpsCache {
   constructor() {
     // Map<organizationId, Map<cacheKey, { data, expiry }>>
     this.cache = new Map();
-    this.defaultTTL = 60; // 60 seconds default
+    this.defaultTTL = CACHE_TTL;
     this.stats = {
       hits: 0,
       misses: 0,
@@ -27,26 +28,33 @@ class AzureDevOpsCache {
 
   /**
    * Generate cache key for a specific operation
+   * @param {string} operation - Operation name
+   * @param {object} params - Parameters (can include projectName for project-specific caching)
+   * @returns {string} Cache key
    */
   generateKey(operation, params = {}) {
     const sortedParams = Object.keys(params)
       .sort()
       .map((k) => `${k}=${JSON.stringify(params[k])}`)
       .join("&");
-    return `${operation}:${sortedParams}`;
+    return sortedParams ? `${operation}:${sortedParams}` : operation;
   }
 
   /**
-   * Get cached data for an organization
+   * Get cached data for an organization + project
    * @param {string} organizationId - Required for multi-tenant isolation
    * @param {string} cacheKey - The cache key
+   * @param {string} projectName - Optional project name for project-specific caching
    * @returns {any|null} Cached data or null if not found/expired
    */
-  get(organizationId, cacheKey) {
+  get(organizationId, cacheKey, projectName = null) {
     if (!organizationId) {
       logger.warn("[AzureDevOpsCache] get called without organizationId - skipping cache");
       return null;
     }
+
+    // Include project in cache key if provided
+    const fullKey = projectName ? `${projectName}:${cacheKey}` : cacheKey;
 
     const orgCache = this.cache.get(organizationId);
     if (!orgCache) {
@@ -55,7 +63,7 @@ class AzureDevOpsCache {
       return null;
     }
 
-    const entry = orgCache.get(cacheKey);
+    const entry = orgCache.get(fullKey);
     if (!entry) {
       this.stats.misses++;
       metrics.recordCacheAccess(false);
@@ -64,7 +72,7 @@ class AzureDevOpsCache {
 
     // Check if expired
     if (Date.now() > entry.expiry) {
-      orgCache.delete(cacheKey);
+      orgCache.delete(fullKey);
       this.stats.misses++;
       metrics.recordCacheAccess(false);
       return null;
@@ -72,35 +80,39 @@ class AzureDevOpsCache {
 
     this.stats.hits++;
     metrics.recordCacheAccess(true);
-    logger.debug(`[AzureDevOpsCache] HIT for org ${organizationId}: ${cacheKey}`);
+    logger.debug(`[AzureDevOpsCache] HIT for org ${organizationId}: ${fullKey}`);
     return entry.data;
   }
 
   /**
-   * Set cached data for an organization
+   * Set cached data for an organization + project
    * @param {string} organizationId - Required for multi-tenant isolation
    * @param {string} cacheKey - The cache key
    * @param {any} data - Data to cache
    * @param {number} ttl - Time to live in seconds (default 60s)
+   * @param {string} projectName - Optional project name for project-specific caching
    */
-  set(organizationId, cacheKey, data, ttl = this.defaultTTL) {
+  set(organizationId, cacheKey, data, ttl = this.defaultTTL, projectName = null) {
     if (!organizationId) {
-      logger.warn("[AzureDevOpsCache] set called without organizationId - not caching");
+      logger.warn("[AzureDevOpsCache] set called without organizationId - skipping cache");
       return;
     }
+
+    // Include project in cache key if provided
+    const fullKey = projectName ? `${projectName}:${cacheKey}` : cacheKey;
 
     if (!this.cache.has(organizationId)) {
       this.cache.set(organizationId, new Map());
     }
 
     const orgCache = this.cache.get(organizationId);
-    orgCache.set(cacheKey, {
+    orgCache.set(fullKey, {
       data,
       expiry: Date.now() + ttl * 1000,
     });
 
     this.stats.sets++;
-    logger.debug(`[AzureDevOpsCache] SET for org ${organizationId}: ${cacheKey} (TTL: ${ttl}s)`);
+    logger.debug(`[AzureDevOpsCache] SET for org ${organizationId}: ${fullKey} (TTL: ${ttl}s)`);
   }
 
   /**
@@ -175,41 +187,39 @@ class AzureDevOpsCache {
    */
 
   // Pull requests cache
-  getPullRequests(organizationId) {
-    return this.get(organizationId, "pullRequests:active");
+  getPullRequests(organizationId, projectName = null) {
+    return this.get(organizationId, "pullRequests", projectName);
   }
 
-  setPullRequests(organizationId, data, ttl = 60) {
-    this.set(organizationId, "pullRequests:active", data, ttl);
+  setPullRequests(organizationId, data, ttl = CACHE_TTL, projectName = null) {
+    this.set(organizationId, "pullRequests", data, ttl, projectName);
   }
 
   // Builds cache
-  getBuilds(organizationId, limit) {
-    return this.get(organizationId, `builds:recent:${limit}`);
+  getBuilds(organizationId, limit, projectName = null) {
+    return this.get(organizationId, `builds:recent:${limit}`, projectName);
   }
 
-  setBuilds(organizationId, limit, data, ttl = 60) {
-    this.set(organizationId, `builds:recent:${limit}`, data, ttl);
+  setBuilds(organizationId, limit, data, ttl = CACHE_TTL, projectName = null) {
+    this.set(organizationId, `builds:recent:${limit}`, data, ttl, projectName);
   }
 
   // Work items cache
-  getSprintWorkItems(organizationId) {
-    return this.get(organizationId, "workItems:sprint");
+  getSprintWorkItems(organizationId, projectName = null) {
+    return this.get(organizationId, "sprintWorkItems", projectName);
   }
 
-  setSprintWorkItems(organizationId, data, ttl = 60) {
-    this.set(organizationId, "workItems:sprint", data, ttl);
+  setSprintWorkItems(organizationId, data, ttl = CACHE_TTL, projectName = null) {
+    this.set(organizationId, "sprintWorkItems", data, ttl, projectName);
   }
 
-  // Release stats cache (longer TTL since expensive)
-  getReleaseStats(organizationId, dateRange) {
-    const key = `releaseStats:${dateRange || "default"}`;
-    return this.get(organizationId, key);
+  // Release stats cache
+  getReleaseStats(organizationId, dateRange, projectName = null) {
+    return this.get(organizationId, `releaseStats:${dateRange}`, projectName);
   }
 
-  setReleaseStats(organizationId, dateRange, data, ttl = 300) {
-    const key = `releaseStats:${dateRange || "default"}`;
-    this.set(organizationId, key, data, ttl);
+  setReleaseStats(organizationId, dateRange, data, ttl = CACHE_TTL, projectName = null) {
+    this.set(organizationId, `releaseStats:${dateRange}`, data, ttl, projectName);
   }
 }
 
