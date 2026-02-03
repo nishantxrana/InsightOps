@@ -467,8 +467,7 @@ export default function OrganizationsSection() {
             <div className="space-y-2">
               <Label>Production Branches</Label>
               <p className="text-xs text-muted-foreground">
-                Filters builds (source branch) and PRs (target branch). Supports wildcards: main,
-                e3, release/*
+                Exact match or wildcards. Examples: main, master, release/*
               </p>
               <TagInput
                 value={formData.productionFilters?.branches || []}
@@ -489,7 +488,7 @@ export default function OrganizationsSection() {
             <div className="space-y-2">
               <Label>Production Environments</Label>
               <p className="text-xs text-muted-foreground">
-                Filters releases by environment name. Examples: Production, E3, PRD
+                Exact match or wildcards. Examples: Production, E3, Prod-*
               </p>
               <TagInput
                 value={formData.productionFilters?.environments || []}
@@ -510,7 +509,7 @@ export default function OrganizationsSection() {
             <div className="space-y-2">
               <Label>Production Build Definitions (Optional)</Label>
               <p className="text-xs text-muted-foreground">
-                Filters builds by pipeline name. Supports wildcards: Prod-*, Release-*
+                Exact match or wildcards. Examples: Prod-Deploy, Release-*
               </p>
               <TagInput
                 value={formData.productionFilters?.buildDefinitions || []}

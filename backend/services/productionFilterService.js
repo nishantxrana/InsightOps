@@ -85,17 +85,17 @@ class ProductionFilterService {
     const strLower = str.toLowerCase();
     const patternLower = pattern.toLowerCase();
 
-    // Exact match
+    // 1. Exact match
     if (strLower === patternLower) return true;
 
-    // Wildcard support
+    // 2. Wildcard support
     if (pattern.includes("*")) {
       const regex = new RegExp("^" + patternLower.replace(/\*/g, ".*") + "$");
       return regex.test(strLower);
     }
 
-    // Contains match
-    return strLower.includes(patternLower);
+    // 3. No contains match - only exact or wildcard
+    return false;
   }
 
   /**
