@@ -627,13 +627,28 @@ router.post("/activity-report/pdf", async (req, res) => {
     // Use existing data if provided, otherwise fetch fresh
     if (existingData) {
       logger.info("[PDF] Using existing report data (no refetch)", { environment: "development" });
+      logger.debug(`[PDF] existingData keys: ${Object.keys(existingData).join(", ")}`, {
+        environment: "development",
+      });
+      logger.debug(`[PDF] productionOnly param: ${productionOnly}`, { environment: "development" });
+      logger.debug(`[PDF] productionFilters: ${JSON.stringify(productionFilters)}`, {
+        environment: "development",
+      });
+
       reportData = {
+        ...existingData,
         startDate,
         endDate,
         productionOnly: productionOnly || false,
         filters: productionFilters,
-        ...existingData,
       };
+
+      logger.debug(`[PDF] Final reportData.productionOnly: ${reportData.productionOnly}`, {
+        environment: "development",
+      });
+      logger.debug(`[PDF] Final reportData.filters: ${JSON.stringify(reportData.filters)}`, {
+        environment: "development",
+      });
     } else {
       logger.info("[PDF] Fetching fresh report data...", { environment: "development" });
 

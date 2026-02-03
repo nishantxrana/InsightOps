@@ -237,52 +237,6 @@
       font-weight: 600;
     }
     
-    /* Production Badge */
-    .production-badge {
-      background: #10b981;
-      color: white;
-      padding: 8pt 16pt;
-      border-radius: 4pt;
-      font-weight: 700;
-      font-size: 11pt;
-      display: inline-block;
-      margin: 0.6cm 0;
-      text-align: center;
-    }
-    
-    /* Filter Info Box */
-    .filter-info {
-      background: #f3f4f6;
-      border-left: 4pt solid #10b981;
-      padding: 0.4cm;
-      margin: 0.6cm 0;
-      border-radius: 2pt;
-    }
-    
-    .filter-info h3 {
-      margin: 0 0 0.3cm 0;
-      font-size: 11pt;
-      color: #374151;
-    }
-    
-    .filter-info ul {
-      margin: 0;
-      padding-left: 0.6cm;
-      list-style-type: disc;
-    }
-    
-    .filter-info li {
-      font-size: 9.5pt;
-      color: #6b7280;
-      margin: 0.15cm 0;
-      line-height: 1.5;
-    }
-    
-    .filter-info strong {
-      color: #374151;
-      font-weight: 600;
-    }
-    
     .cover-footer {
       position: absolute;
       bottom: 1.5cm;
@@ -657,36 +611,16 @@
       <h1 class="cover-title"><%= userSettings.reportTitle || 'DevOps Activity Report' %></h1>
       <p class="cover-subtitle">Executive Overview of Development Operations</p>
       
-      <% if (reportData.productionOnly) { %>
-        <div class="production-badge">
-          🎯 PRODUCTION ONLY REPORT
-        </div>
-      <% } %>
-      
       <div class="cover-date-range"><%= dateRange || 'Date range not specified' %></div>
       
       <div class="cover-meta">
         <p><strong>Organization:</strong> <%= userSettings.azureDevOpsOrg || 'Not specified' %></p>
         <p><strong>Project:</strong> <%= userSettings.azureDevOpsProject || 'Not specified' %></p>
         <p style="margin-top: 0.4cm;"><strong>Generated:</strong> <%= generatedAt || 'Unknown' %></p>
+        <% if (reportData.productionOnly) { %>
+          <p><strong>Filter:</strong> Production Only</p>
+        <% } %>
       </div>
-      
-      <% if (reportData.productionOnly && reportData.filters?.enabled) { %>
-        <div class="filter-info">
-          <h3>Production Filters Applied:</h3>
-          <ul>
-            <% if (reportData.filters.branches?.length > 0) { %>
-              <li><strong>Branches:</strong> <%= reportData.filters.branches.join(', ') %></li>
-            <% } %>
-            <% if (reportData.filters.environments?.length > 0) { %>
-              <li><strong>Environments:</strong> <%= reportData.filters.environments.join(', ') %></li>
-            <% } %>
-            <% if (reportData.filters.buildDefinitions?.length > 0) { %>
-              <li><strong>Build Definitions:</strong> <%= reportData.filters.buildDefinitions.join(', ') %></li>
-            <% } %>
-          </ul>
-        </div>
-      <% } %>
     </div>
   </div>
 
