@@ -3,6 +3,7 @@ import { markdownFormatter } from "../utils/markdownFormatter.js";
 import axios from "axios";
 import notificationHistoryService from "../services/notificationHistoryService.js";
 import BaseWebhook from "./BaseWebhook.js";
+import { productionFilterService } from "../services/productionFilterService.js";
 
 class ReleaseWebhook extends BaseWebhook {
   async handleDeploymentCompleted(req, res, userId = null, organizationId = null) {
@@ -61,15 +62,18 @@ class ReleaseWebhook extends BaseWebhook {
         organizationId,
       });
 
-      // Check if environment is production
-      const envNameLower = environmentName?.toLowerCase() || "";
-      const isProduction =
-        envNameLower.includes("production") ||
-        envNameLower.includes("prod") ||
-        envNameLower.includes("prd");
+      // Check if environment is production using configurable filters
+      const release = { environments: [{ name: environmentName }] };
+      const isProduction = productionFilterService.isProductionRelease(
+        release,
+        org?.productionFilters
+      );
 
       if (!isProduction) {
-        logger.info("Skipping notification - not a production environment", { environmentName });
+        logger.info("Skipping notification - not a production environment", {
+          environmentName,
+          filtersEnabled: org?.productionFilters?.enabled || false,
+        });
         return res.json({
           message: "Release deployment webhook received - non-production environment",
           releaseId,

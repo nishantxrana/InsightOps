@@ -617,6 +617,9 @@
         <p><strong>Organization:</strong> <%= userSettings.azureDevOpsOrg || 'Not specified' %></p>
         <p><strong>Project:</strong> <%= userSettings.azureDevOpsProject || 'Not specified' %></p>
         <p style="margin-top: 0.4cm;"><strong>Generated:</strong> <%= generatedAt || 'Unknown' %></p>
+        <% if (reportData.productionOnly) { %>
+          <p><strong>Filter:</strong> Production Only</p>
+        <% } %>
       </div>
     </div>
   </div>

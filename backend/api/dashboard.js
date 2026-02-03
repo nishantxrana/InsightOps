@@ -9,6 +9,7 @@ import {
 import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workItemStates.js";
 import { AzureDevOpsReleaseClient } from "../devops/releaseClient.js";
 import { azureDevOpsCache } from "../cache/AzureDevOpsCache.js";
+import { CACHE_TTL } from "../config/cache.js";
 import { generateActivityReport } from "../services/activityReportService.js";
 import pdfService from "../services/pdfService.js";
 
@@ -53,10 +54,10 @@ router.get("/summary", async (req, res) => {
     // Parallel fetch all data with caching
     const [workItemsResult, buildsResult, pullRequestsResult, releaseStatsResult] =
       await Promise.allSettled([
-        fetchWorkItemsSummary(client, orgId),
-        fetchBuilds(client, orgId),
-        fetchPullRequests(client, orgId),
-        fetchReleaseStats(azureConfig, orgId),
+        fetchWorkItemsSummary(client, orgId, org),
+        fetchBuilds(client, orgId, org),
+        fetchPullRequests(client, orgId, org),
+        fetchReleaseStats(azureConfig, orgId, org),
       ]);
 
     // Process results (handle failures gracefully)
@@ -110,13 +111,15 @@ router.get("/summary", async (req, res) => {
 /**
  * Fetch work items summary with caching
  */
-async function fetchWorkItemsSummary(client, orgId) {
+async function fetchWorkItemsSummary(client, orgId, org) {
+  const projectName = org.azureDevOps?.project;
+
   // Check cache
-  let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId);
+  let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId, projectName);
 
   if (!allWorkItems) {
     allWorkItems = await client.getAllCurrentSprintWorkItems();
-    azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, 60);
+    azureDevOpsCache.setSprintWorkItems(orgId, allWorkItems, CACHE_TTL, projectName);
   }
 
   const items = allWorkItems.value || [];
@@ -127,11 +130,11 @@ async function fetchWorkItemsSummary(client, orgId) {
   let overdueCount = 0;
   try {
     const overdueCacheKey = "workItems:overdue";
-    let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey);
+    let overdueItems = azureDevOpsCache.get(orgId, overdueCacheKey, projectName);
 
     if (!overdueItems) {
       overdueItems = await client.getOverdueWorkItems();
-      azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, 60);
+      azureDevOpsCache.set(orgId, overdueCacheKey, overdueItems, CACHE_TTL, projectName);
     }
 
     overdueCount = overdueItems.count || 0;
@@ -150,15 +153,16 @@ async function fetchWorkItemsSummary(client, orgId) {
 /**
  * Fetch builds with caching
  */
-async function fetchBuilds(client, orgId) {
+async function fetchBuilds(client, orgId, org) {
+  const projectName = org.azureDevOps?.project;
   const limit = 20;
   const cacheKey = `builds:recent:${limit}`;
 
-  let builds = azureDevOpsCache.get(orgId, cacheKey);
+  let builds = azureDevOpsCache.get(orgId, cacheKey, projectName);
 
   if (!builds) {
     builds = await client.getRecentBuilds(limit);
-    azureDevOpsCache.set(orgId, cacheKey, builds, 60);
+    azureDevOpsCache.set(orgId, cacheKey, builds, CACHE_TTL, projectName);
   }
 
   const buildList = builds.value || [];
@@ -173,13 +177,15 @@ async function fetchBuilds(client, orgId) {
 /**
  * Fetch pull requests with caching - shared data for both total and idle
  */
-async function fetchPullRequests(client, orgId) {
+async function fetchPullRequests(client, orgId, org) {
+  const projectName = org.azureDevOps?.project;
+
   // Get PRs (shared between total and idle)
-  let allPRs = azureDevOpsCache.getPullRequests(orgId);
+  let allPRs = azureDevOpsCache.getPullRequests(orgId, projectName);
 
   if (!allPRs) {
     allPRs = await client.getPullRequests("active");
-    azureDevOpsCache.setPullRequests(orgId, allPRs, 60);
+    azureDevOpsCache.setPullRequests(orgId, allPRs, CACHE_TTL, projectName);
   }
 
   const prList = allPRs.value || [];
@@ -211,13 +217,14 @@ async function fetchPullRequests(client, orgId) {
 }
 
 /**
- * Fetch release stats with caching (longer TTL since expensive)
+ * Fetch release stats with caching
  */
-async function fetchReleaseStats(azureConfig, orgId) {
+async function fetchReleaseStats(azureConfig, orgId, org) {
+  const projectName = org.azureDevOps?.project;
   const dateRange = "90d_now";
 
-  // Check cache (5 min TTL)
-  const cached = azureDevOpsCache.getReleaseStats(orgId, dateRange);
+  // Check cache
+  const cached = azureDevOpsCache.getReleaseStats(orgId, dateRange, projectName);
   if (cached?.success) {
     return {
       total: cached.data.totalReleases || 0,
@@ -275,7 +282,8 @@ async function fetchReleaseStats(azureConfig, orgId) {
           successRate,
         },
       },
-      300
+      CACHE_TTL,
+      projectName
     );
 
     return stats;
@@ -365,8 +373,15 @@ router.post("/activity-report", async (req, res) => {
     const orgId = org._id?.toString();
     const azureConfig = getAzureDevOpsConfig(org);
 
+    // Check if production-only report requested
+    const productionOnly = req.query.productionOnly === "true";
+    const productionFilters = productionOnly ? org.productionFilters : null;
+
     // NO CACHING - Always generate fresh report for accurate real-time data
-    logger.info(`[ActivityReport] Generating fresh report for org ${org.name}`);
+    logger.info(`[ActivityReport] Generating fresh report for org ${org.name}`, {
+      productionOnly,
+      filtersEnabled: productionFilters?.enabled || false,
+    });
 
     // Generate report
     const client = azureDevOpsClient.createUserClient(azureConfig);
@@ -377,7 +392,15 @@ router.post("/activity-report", async (req, res) => {
       azureConfig.baseUrl
     );
 
-    const report = await generateActivityReport(client, releaseClient, orgId, startDate, endDate);
+    const report = await generateActivityReport(
+      client,
+      releaseClient,
+      orgId,
+      startDate,
+      endDate,
+      productionOnly,
+      productionFilters
+    );
 
     const duration = Date.now() - startTime;
     logger.info(`[ActivityReport] Report generated in ${duration}ms for org ${org.name}`);
@@ -454,6 +477,10 @@ router.get("/activity-report/stream", async (req, res) => {
     const orgId = org._id?.toString();
     const azureConfig = getAzureDevOpsConfig(org);
 
+    // Check if production-only report requested
+    const productionOnly = req.query.productionOnly === "true";
+    const productionFilters = productionOnly ? org.productionFilters : null;
+
     // Set SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -471,7 +498,10 @@ router.get("/activity-report/stream", async (req, res) => {
       }
     };
 
-    logger.info(`[ActivityReport] Streaming report for org ${org.name}`);
+    logger.info(`[ActivityReport] Streaming report for org ${org.name}`, {
+      productionOnly,
+      filtersEnabled: productionFilters?.enabled || false,
+    });
 
     const client = azureDevOpsClient.createUserClient(azureConfig);
     const releaseClient = new AzureDevOpsReleaseClient(
@@ -492,10 +522,24 @@ router.get("/activity-report/stream", async (req, res) => {
 
     // Fetch each section and stream as it completes
     const sections = [
-      { name: "pullRequests", fn: () => fetchPRMetrics(client, startDate, endDate) },
-      { name: "prDiscussion", fn: () => fetchPRDiscussionMetrics(client, startDate, endDate) },
-      { name: "builds", fn: () => fetchBuildMetrics(client, startDate, endDate) },
-      { name: "releases", fn: () => fetchReleaseMetrics(releaseClient, startDate, endDate) },
+      {
+        name: "pullRequests",
+        fn: () => fetchPRMetrics(client, startDate, endDate, productionOnly, productionFilters),
+      },
+      {
+        name: "prDiscussion",
+        fn: () =>
+          fetchPRDiscussionMetrics(client, startDate, endDate, productionOnly, productionFilters),
+      },
+      {
+        name: "builds",
+        fn: () => fetchBuildMetrics(client, startDate, endDate, productionOnly, productionFilters),
+      },
+      {
+        name: "releases",
+        fn: () =>
+          fetchReleaseMetrics(releaseClient, startDate, endDate, productionOnly, productionFilters),
+      },
       { name: "workItems", fn: () => fetchWorkItemMetrics(client, startDate, endDate) },
     ];
 
@@ -547,7 +591,7 @@ router.get("/activity-report/stream", async (req, res) => {
  */
 router.post("/activity-report/pdf", async (req, res) => {
   try {
-    const { startDate, endDate, reportData: existingData } = req.body;
+    const { startDate, endDate, reportData: existingData, productionOnly } = req.body;
 
     if (!startDate || !endDate) {
       return res.status(400).json({ error: "startDate and endDate are required" });
@@ -555,6 +599,7 @@ router.post("/activity-report/pdf", async (req, res) => {
 
     logger.info(`[PDF] Generating report, range: ${startDate} to ${endDate}`, {
       environment: "development",
+      productionOnly: productionOnly || false,
     });
 
     // Get organization settings from request
@@ -566,14 +611,44 @@ router.post("/activity-report/pdf", async (req, res) => {
     }
 
     const azureConfig = getAzureDevOpsConfig(org);
-    logger.info("[PDF] Config retrieved", { environment: "development", org: org.name });
+    const productionFilters = productionOnly ? org.productionFilters : null;
+
+    logger.info("[PDF] Config retrieved", {
+      environment: "development",
+      org: org.name,
+      project: azureConfig.project,
+      organization: azureConfig.organization,
+      productionOnly: productionOnly || false,
+      filtersEnabled: productionFilters?.enabled || false,
+    });
 
     let reportData;
 
     // Use existing data if provided, otherwise fetch fresh
     if (existingData) {
       logger.info("[PDF] Using existing report data (no refetch)", { environment: "development" });
-      reportData = { startDate, endDate, ...existingData };
+      logger.debug(`[PDF] existingData keys: ${Object.keys(existingData).join(", ")}`, {
+        environment: "development",
+      });
+      logger.debug(`[PDF] productionOnly param: ${productionOnly}`, { environment: "development" });
+      logger.debug(`[PDF] productionFilters: ${JSON.stringify(productionFilters)}`, {
+        environment: "development",
+      });
+
+      reportData = {
+        ...existingData,
+        startDate,
+        endDate,
+        productionOnly: productionOnly || false,
+        filters: productionFilters,
+      };
+
+      logger.debug(`[PDF] Final reportData.productionOnly: ${reportData.productionOnly}`, {
+        environment: "development",
+      });
+      logger.debug(`[PDF] Final reportData.filters: ${JSON.stringify(reportData.filters)}`, {
+        environment: "development",
+      });
     } else {
       logger.info("[PDF] Fetching fresh report data...", { environment: "development" });
 
@@ -598,11 +673,37 @@ router.post("/activity-report/pdf", async (req, res) => {
       reportData = {
         startDate,
         endDate,
+        productionOnly: productionOnly || false,
+        filters: productionFilters,
         workItems: await fetchWorkItemMetrics(client, startDate, endDate),
-        builds: await fetchBuildMetrics(client, startDate, endDate),
-        releases: await fetchReleaseMetrics(releaseClient, startDate, endDate),
-        pullRequests: await fetchPRMetrics(client, startDate, endDate),
-        prDiscussion: await fetchPRDiscussionMetrics(client, startDate, endDate),
+        builds: await fetchBuildMetrics(
+          client,
+          startDate,
+          endDate,
+          productionOnly,
+          productionFilters
+        ),
+        releases: await fetchReleaseMetrics(
+          releaseClient,
+          startDate,
+          endDate,
+          productionOnly,
+          productionFilters
+        ),
+        pullRequests: await fetchPRMetrics(
+          client,
+          startDate,
+          endDate,
+          productionOnly,
+          productionFilters
+        ),
+        prDiscussion: await fetchPRDiscussionMetrics(
+          client,
+          startDate,
+          endDate,
+          productionOnly,
+          productionFilters
+        ),
       };
       logger.info("[PDF] Report data fetched", { environment: "development" });
     }
@@ -628,7 +729,8 @@ router.post("/activity-report/pdf", async (req, res) => {
     const endDateStr = endDate.split("T")[0];
     const orgName = azureConfig.organization || "org";
     const projectName = azureConfig.project || "project";
-    const filename = `${orgName}_${projectName}_${startDateStr}_to_${endDateStr}.pdf`;
+    const prodSuffix = productionOnly ? "_PRODUCTION" : "";
+    const filename = `${orgName}_${projectName}${prodSuffix}_${startDateStr}_to_${endDateStr}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBuffer.length);
