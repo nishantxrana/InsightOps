@@ -978,6 +978,7 @@ class UserAzureDevOpsClient extends AzureDevOpsClient {
     this.client = client;
     this.orgClient = orgClient;
     this.config = config;
+    this.project = config.project; // Add project for WIQL queries
     this.initialized = true;
   }
 }

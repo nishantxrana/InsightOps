@@ -1,5 +1,15 @@
 import React, { useState } from "react";
-import { Building2, Plus, Trash2, Check, ExternalLink, TestTube, Pencil, Star } from "lucide-react";
+import {
+  Building2,
+  Plus,
+  Trash2,
+  Check,
+  ExternalLink,
+  TestTube,
+  Pencil,
+  Star,
+  Filter,
+} from "lucide-react";
 import { useOrganization } from "../../contexts/OrganizationContext";
 import { Button } from "../../components/ui/button";
 import {
@@ -12,6 +22,8 @@ import {
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
+import { Switch } from "../../components/ui/switch";
+import { TagInput } from "../../components/ui/TagInput";
 import {
   Select,
   SelectContent,
@@ -45,6 +57,12 @@ const emptyOrg = {
     project: "",
     pat: "",
     baseUrl: "https://dev.azure.com",
+  },
+  productionFilters: {
+    enabled: false,
+    branches: [],
+    environments: [],
+    buildDefinitions: [],
   },
 };
 
@@ -102,6 +120,12 @@ export default function OrganizationsSection() {
         project: org.azureDevOps?.project || "",
         pat: "********",
         baseUrl: org.azureDevOps?.baseUrl || "https://dev.azure.com",
+      },
+      productionFilters: org.productionFilters || {
+        enabled: false,
+        branches: [],
+        environments: [],
+        buildDefinitions: [],
       },
     });
     setErrors({});
@@ -221,6 +245,12 @@ export default function OrganizationsSection() {
       const result = await addOrganization({
         name: formData.name,
         azureDevOps: formData.azureDevOps,
+        productionFilters: formData.productionFilters || {
+          enabled: false,
+          branches: [],
+          environments: [],
+          buildDefinitions: [],
+        },
       });
 
       if (result.success) {
@@ -245,6 +275,12 @@ export default function OrganizationsSection() {
           organization: formData.azureDevOps.organization,
           project: formData.azureDevOps.project,
           baseUrl: formData.azureDevOps.baseUrl,
+        },
+        productionFilters: formData.productionFilters || {
+          enabled: false,
+          branches: [],
+          environments: [],
+          buildDefinitions: [],
         },
       };
 
@@ -341,7 +377,12 @@ export default function OrganizationsSection() {
 
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="project">Project</Label>
+          <Label htmlFor="project">
+            Default Project
+            <span className="ml-2 text-xs text-muted-foreground font-normal">
+              (used when no project selected in header)
+            </span>
+          </Label>
           <Button
             type="button"
             variant="ghost"
@@ -392,6 +433,100 @@ export default function OrganizationsSection() {
           />
         )}
         {errors.project && <p className="text-sm text-destructive">{errors.project}</p>}
+      </div>
+
+      {/* Production Filters Section */}
+      <div className="space-y-4 pt-4 border-t">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-base font-semibold flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Production Filters
+            </Label>
+            <p className="text-sm text-muted-foreground mt-1">
+              Define what constitutes "production" for reports and notifications
+            </p>
+          </div>
+          <Switch
+            checked={formData.productionFilters?.enabled || false}
+            onCheckedChange={(checked) =>
+              setFormData({
+                ...formData,
+                productionFilters: {
+                  ...formData.productionFilters,
+                  enabled: checked,
+                },
+              })
+            }
+          />
+        </div>
+
+        {formData.productionFilters?.enabled && (
+          <div className="space-y-4 pl-4 border-l-2 border-muted">
+            {/* Branch Patterns */}
+            <div className="space-y-2">
+              <Label>Production Branches</Label>
+              <p className="text-xs text-muted-foreground">
+                Exact match or wildcards. Examples: main, master, release/*
+              </p>
+              <TagInput
+                value={formData.productionFilters?.branches || []}
+                onChange={(branches) =>
+                  setFormData({
+                    ...formData,
+                    productionFilters: {
+                      ...formData.productionFilters,
+                      branches,
+                    },
+                  })
+                }
+                placeholder="Add branch pattern..."
+              />
+            </div>
+
+            {/* Environment Patterns */}
+            <div className="space-y-2">
+              <Label>Production Environments</Label>
+              <p className="text-xs text-muted-foreground">
+                Exact match or wildcards. Examples: Production, E3, Prod-*
+              </p>
+              <TagInput
+                value={formData.productionFilters?.environments || []}
+                onChange={(environments) =>
+                  setFormData({
+                    ...formData,
+                    productionFilters: {
+                      ...formData.productionFilters,
+                      environments,
+                    },
+                  })
+                }
+                placeholder="Add environment name..."
+              />
+            </div>
+
+            {/* Build Definition Patterns */}
+            <div className="space-y-2">
+              <Label>Production Build Definitions (Optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Exact match or wildcards. Examples: Prod-Deploy, Release-*
+              </p>
+              <TagInput
+                value={formData.productionFilters?.buildDefinitions || []}
+                onChange={(buildDefinitions) =>
+                  setFormData({
+                    ...formData,
+                    productionFilters: {
+                      ...formData.productionFilters,
+                      buildDefinitions,
+                    },
+                  })
+                }
+                placeholder="Add build definition pattern..."
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3 pt-2">
@@ -513,13 +648,13 @@ export default function OrganizationsSection() {
 
       {/* Add Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Organization</DialogTitle>
             <DialogDescription>Connect a new Azure DevOps organization</DialogDescription>
           </DialogHeader>
           {formContent}
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
@@ -532,13 +667,13 @@ export default function OrganizationsSection() {
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Organization</DialogTitle>
             <DialogDescription>Update organization settings</DialogDescription>
           </DialogHeader>
           {formContent}
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Cancel
             </Button>

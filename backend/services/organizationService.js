@@ -121,6 +121,7 @@ class OrganizationService {
       if (data.ai) existing.ai = this.encryptSensitiveData(data).ai;
       if (data.notifications) existing.notifications = data.notifications;
       if (data.polling) existing.polling = data.polling;
+      if (data.productionFilters) existing.productionFilters = data.productionFilters;
       await existing.save();
       logger.info(`Reactivated organization ${existing.name} for user ${userId}`);
       return this.sanitizeOrganization(existing.toObject());
@@ -140,6 +141,12 @@ class OrganizationService {
       ai: encryptedData.ai,
       notifications: data.notifications || {},
       polling: data.polling || {},
+      productionFilters: data.productionFilters || {
+        enabled: false,
+        branches: [],
+        environments: [],
+        buildDefinitions: [],
+      },
       isDefault,
     });
 
@@ -197,6 +204,20 @@ class OrganizationService {
 
     if (data.polling) {
       Object.assign(org.polling, data.polling);
+    }
+
+    if (data.productionFilters) {
+      logger.debug(`[ORG-UPDATE] Updating productionFilters:`, {
+        received: data.productionFilters,
+        current: org.productionFilters,
+      });
+      org.productionFilters = {
+        enabled: data.productionFilters.enabled ?? org.productionFilters.enabled,
+        branches: data.productionFilters.branches ?? org.productionFilters.branches,
+        environments: data.productionFilters.environments ?? org.productionFilters.environments,
+        buildDefinitions:
+          data.productionFilters.buildDefinitions ?? org.productionFilters.buildDefinitions,
+      };
     }
 
     if (data.name) {
