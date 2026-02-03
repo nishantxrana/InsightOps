@@ -48,6 +48,12 @@ const organizationSchema = new mongoose.Schema(
       overdueFilterEnabled: { type: Boolean, default: true },
       overdueMaxDays: { type: Number, default: 60 },
     },
+    productionFilters: {
+      enabled: { type: Boolean, default: false },
+      branches: { type: [String], default: [] },
+      environments: { type: [String], default: [] },
+      buildDefinitions: { type: [String], default: [] },
+    },
     isDefault: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now },

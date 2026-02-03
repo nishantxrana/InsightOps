@@ -273,12 +273,12 @@
       margin: 0 auto;
     }
     
-    /* Work Items chart - wider with horizontal legend */
+    /* Work Items chart - larger since it's on separate page */
     .chart-full-width.workitems-chart {
-      max-height: 380px;
+      max-height: 450px;
     }
     .chart-full-width.workitems-chart img {
-      max-height: 360px;
+      max-height: 430px;
     }
     
     .chart-caption {
@@ -557,18 +557,18 @@
     
     /* Report footer */
     .report-footer {
-      margin-top: 1.5cm;
+      margin-top: 0.8cm;
       text-align: center;
-      color: #4b5563;
-      font-size: 9.5pt;
-      border-top: 1pt solid #d1d5db;
-      padding-top: 0.4cm;
+      color: #6b7280;
+      font-size: 8pt;
+      border-top: 0.5pt solid #e5e7eb;
+      padding-top: 0.3cm;
     }
     
     .report-footer p {
       text-align: center !important;
       text-align-last: center !important;
-      margin-bottom: 0.15cm;
+      margin: 0;
       margin-left: auto;
       margin-right: auto;
     }
@@ -617,6 +617,9 @@
         <p><strong>Organization:</strong> <%= userSettings.azureDevOpsOrg || 'Not specified' %></p>
         <p><strong>Project:</strong> <%= userSettings.azureDevOpsProject || 'Not specified' %></p>
         <p style="margin-top: 0.4cm;"><strong>Generated:</strong> <%= generatedAt || 'Unknown' %></p>
+        <% if (reportData.productionOnly) { %>
+          <p><strong>Filter:</strong> Production Only</p>
+        <% } %>
       </div>
     </div>
   </div>
@@ -634,25 +637,30 @@
         <caption data-label="Table 1">Work Item Metrics Summary</caption>
         <thead>
           <tr>
-            <th>Metric</th>
+            <th>State</th>
             <th style="text-align: right;">Count</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Created</td>
+            <td><strong>Total Created</strong></td>
             <td><span class="metric-value info"><%= reportData.workItems.created || 0 %></span></td>
           </tr>
-          <tr>
-            <td>In Progress (Overall)</td>
-            <td><span class="metric-value caution"><%= reportData.workItems.inProgress || 0 %></span></td>
-          </tr>
-          <tr>
-            <td>Completed</td>
-            <td><span class="metric-value positive"><%= reportData.workItems.completed || 0 %></span></td>
-          </tr>
-          <tr>
-            <td>Overdue</td>
+          <% if (reportData.workItems.stateDistribution) { %>
+            <% 
+              // Sort states alphabetically
+              const sortedStates = Object.entries(reportData.workItems.stateDistribution)
+                .sort((a, b) => a[0].localeCompare(b[0]));
+            %>
+            <% sortedStates.forEach(([state, count]) => { %>
+              <tr>
+                <td><%= state %></td>
+                <td><span class="metric-value"><%= count %></span></td>
+              </tr>
+            <% }); %>
+          <% } %>
+          <tr style="border-top: 2pt solid #d1d5db;">
+            <td><strong>Overdue</strong></td>
             <td><span class="metric-value negative"><%= reportData.workItems.overdue || 0 %></span></td>
           </tr>
         </tbody>
@@ -662,16 +670,25 @@
       <div class="insights">
         <h4>Key Insights</h4>
         <ul>
-          <% const completionRate = reportData.workItems.completionRate; %>
           <% const created = reportData.workItems.created || 0; %>
-          <% const completed = reportData.workItems.completed || 0; %>
           <% const overdue = reportData.workItems.overdue || 0; %>
+          <% const stateDistribution = reportData.workItems.stateDistribution || {}; %>
           
-          <% if (completionRate !== null && completionRate === 0) { %>
+          <% 
+            // Calculate completed from state distribution
+            const completedStates = ['Closed', 'Released To Production'];
+            const completed = Object.entries(stateDistribution)
+              .filter(([state]) => completedStates.includes(state))
+              .reduce((sum, [, count]) => sum + count, 0);
+            
+            const completionRate = created > 0 ? Math.round((completed / created) * 100) : 0;
+          %>
+          
+          <% if (completionRate === 0 && created > 0) { %>
             <li><strong class="negative">Delivery bottleneck:</strong> Zero completion rate indicates blocked workflow</li>
-          <% } else if (completionRate !== null && completionRate < 50) { %>
+          <% } else if (completionRate < 50 && created > 0) { %>
             <li><strong class="caution">Low completion rate:</strong> Only <%= completionRate %>% of work items completed</li>
-          <% } else if (completionRate !== null) { %>
+          <% } else if (completionRate >= 50) { %>
             <li><strong class="positive">Healthy completion rate:</strong> <%= completionRate %>% of work items delivered</li>
           <% } %>
           
@@ -685,25 +702,33 @@
             <li><strong class="info">Backlog health:</strong> <%= overdue %> overdue items — manageable</li>
           <% } %>
           
-          <% if (created > completed && completed === 0) { %>
-            <li><strong class="caution">Work intake:</strong> <%= created %> items added with zero throughput — backlog growing</li>
-          <% } else if (created > completed) { %>
-            <li><strong class="caution">Work intake:</strong> More items created (<%= created %>) than completed (<%= completed %>)</li>
+          <% if (created > 0 && completed === 0) { %>
+            <li><strong class="caution">Work intake:</strong> <%= created %> items created with zero completed — backlog growing</li>
+          <% } else if (created > completed && completed > 0) { %>
+            <li><strong class="info">Work intake:</strong> <%= created %> created, <%= completed %> completed — net growth of <%= created - completed %> items</li>
           <% } else if (completed > created) { %>
             <li><strong class="positive">Work intake:</strong> Completing more than creating — backlog shrinking</li>
+          <% } else if (completed === created && created > 0) { %>
+            <li><strong class="positive">Work intake:</strong> Balanced — <%= created %> created and completed</li>
           <% } %>
         </ul>
       </div>
-      
-      <!-- Chart below insights -->
-      <% if (chartImages.workItems) { %>
+    </div>
+  </div>
+  
+  <!-- Chart on separate page -->
+  <% if (chartImages.workItems) { %>
+  <div class="section-page">
+    <h1 class="section-header">Work Items Distribution</h1>
+    <div class="section-content">
       <div class="chart-full-width workitems-chart">
         <img src="<%= chartImages.workItems %>" alt="Work Item Status" />
         <p class="chart-caption">Figure 1: Work item state distribution (top 5 states by count)</p>
       </div>
-      <% } %>
     </div>
   </div>
+  <% } %>
+  
   <% } else { %>
   <div class="section-page">
     <h1 class="section-header">Work Items</h1>
@@ -1047,17 +1072,16 @@
       <ul class="metadata-list">
         <li><span class="glossary-term">PR:</span> <span class="glossary-def">Pull Request — code review and merge workflow</span></li>
         <li><span class="glossary-term">WI:</span> <span class="glossary-def">Work Item — task, bug, or user story</span></li>
-        <li><span class="glossary-term">In Progress (Overall):</span> <span class="glossary-def">Work items actively being worked on (includes Active, In Progress, Paused, PR Created, Dev Complete, In QA states)</span></li>
+        <li><span class="glossary-term">State:</span> <span class="glossary-def">Current status of a work item as defined in Azure DevOps workflow</span></li>
+        <li><span class="glossary-term">Overdue:</span> <span class="glossary-def">Work items past their due date (excludes completed and removed items)</span></li>
         <li><span class="glossary-term">Success Rate:</span> <span class="glossary-def">Percentage of succeeded builds or releases</span></li>
         <li><span class="glossary-term">Others:</span> <span class="glossary-def">Builds/Releases that are canceled, in progress, or partially succeeded</span></li>
         <li><span class="glossary-term">Thread:</span> <span class="glossary-def">Discussion thread in pull request comments</span></li>
-        <li><span class="glossary-term">Overdue:</span> <span class="glossary-def">Work items past their due date</span></li>
       </ul>
     </div>
 
     <div class="report-footer">
       <p><strong>Generated by <a href="https://devops-monitoring-agent-bafag4fkfffvesct.centralindia-01.azurewebsites.net" target="_blank">InsightOps</a></strong></p>
-      <p>Confidential — For authorized recipients only</p>
     </div>
   </div>
 

@@ -1,5 +1,6 @@
 import { logger } from "../utils/logger.js";
 import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workItemStates.js";
+import { productionFilterService } from "./productionFilterService.js";
 
 /**
  * Activity Report Service
@@ -11,27 +12,41 @@ import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workIt
 /**
  * Main report generator
  */
-export async function generateActivityReport(client, releaseClient, orgId, startDate, endDate) {
+export async function generateActivityReport(
+  client,
+  releaseClient,
+  orgId,
+  startDate,
+  endDate,
+  productionOnly = false,
+  productionFilters = null
+) {
   const start = Date.now();
 
   logger.info(`[ActivityReport] Generating report for org ${orgId}`, {
     startDate,
     endDate,
+    productionOnly,
+    filters: productionOnly ? productionFilterService.getFilterSummary(productionFilters) : "None",
   });
 
   const [workItemsResult, buildsResult, releasesResult, prResult, discussionResult] =
     await Promise.allSettled([
       fetchWorkItemMetrics(client, startDate, endDate),
-      fetchBuildMetrics(client, startDate, endDate),
-      fetchReleaseMetrics(releaseClient, startDate, endDate),
-      fetchPRMetrics(client, startDate, endDate),
-      fetchPRDiscussionMetrics(client, startDate, endDate),
+      fetchBuildMetrics(client, startDate, endDate, productionOnly, productionFilters),
+      fetchReleaseMetrics(releaseClient, startDate, endDate, productionOnly, productionFilters),
+      fetchPRMetrics(client, startDate, endDate, productionOnly, productionFilters),
+      fetchPRDiscussionMetrics(client, startDate, endDate, productionOnly, productionFilters),
     ]);
 
   const duration = Date.now() - start;
   logger.info(`[ActivityReport] Report generated in ${duration}ms`);
 
   return {
+    startDate,
+    endDate,
+    productionOnly,
+    filters: productionOnly ? productionFilters : null,
     pullRequests:
       prResult.status === "fulfilled" ? prResult.value : { error: prResult.reason?.message },
     prDiscussion:
@@ -61,7 +76,7 @@ export async function generateActivityReport(client, releaseClient, orgId, start
 /**
  * Fetch Pull Request metrics
  */
-async function fetchPRMetrics(client, startDate, endDate) {
+async function fetchPRMetrics(client, startDate, endDate, productionOnly = false, filters = null) {
   try {
     // Fetch PRs using date filtering in API (much more efficient!)
     const fetchAllPRsByStatus = async (status) => {
@@ -107,7 +122,16 @@ async function fetchPRMetrics(client, startDate, endDate) {
       fetchAllPRsByStatus("abandoned"),
     ]);
 
-    const allPRs = [...activePRs, ...completedPRs, ...abandonedPRs];
+    let allPRs = [...activePRs, ...completedPRs, ...abandonedPRs];
+
+    // Apply production filter if enabled
+    if (productionOnly && filters?.enabled) {
+      const originalCount = allPRs.length;
+      allPRs = allPRs.filter((pr) => productionFilterService.isProductionPR(pr, filters));
+      logger.info(
+        `[ActivityReport] Filtered PRs: ${allPRs.length}/${originalCount} (production only)`
+      );
+    }
 
     // Log fetched counts for debugging
     logger.info(
@@ -147,7 +171,13 @@ async function fetchPRMetrics(client, startDate, endDate) {
 /**
  * Fetch PR Discussion Health metrics (threads and comments)
  */
-async function fetchPRDiscussionMetrics(client, startDate, endDate) {
+async function fetchPRDiscussionMetrics(
+  client,
+  startDate,
+  endDate,
+  productionOnly = false,
+  filters = null
+) {
   try {
     // Use same pagination logic as fetchPRMetrics to get ALL PRs
     const fetchAllPRsByStatus = async (status) => {
@@ -193,7 +223,16 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
       fetchAllPRsByStatus("completed"),
     ]);
 
-    const prsInRange = [...activePRs, ...completedPRs];
+    let prsInRange = [...activePRs, ...completedPRs];
+
+    // Apply production filter if enabled
+    if (productionOnly && filters?.enabled) {
+      const originalCount = prsInRange.length;
+      prsInRange = prsInRange.filter((pr) => productionFilterService.isProductionPR(pr, filters));
+      logger.info(
+        `[ActivityReport] Filtered PRs for discussion: ${prsInRange.length}/${originalCount} (production only)`
+      );
+    }
 
     if (prsInRange.length === 0) {
       return {
@@ -313,7 +352,13 @@ async function fetchPRDiscussionMetrics(client, startDate, endDate) {
 /**
  * Fetch Build metrics
  */
-async function fetchBuildMetrics(client, startDate, endDate) {
+async function fetchBuildMetrics(
+  client,
+  startDate,
+  endDate,
+  productionOnly = false,
+  filters = null
+) {
   try {
     // Fetch ALL builds using continuation tokens (like releases)
     let allBuilds = [];
@@ -340,13 +385,24 @@ async function fetchBuildMetrics(client, startDate, endDate) {
       hasMore = !!continuationToken && builds.length > 0;
     }
 
-    const succeeded = allBuilds.filter((b) => b.result === "succeeded").length;
-    const failed = allBuilds.filter((b) => b.result === "failed").length;
-    const others = allBuilds.length - succeeded - failed;
-    const failureRate = allBuilds.length > 0 ? (failed / allBuilds.length) * 100 : 0;
+    // Apply production filter if enabled
+    let buildsToAnalyze = allBuilds;
+    if (productionOnly && filters?.enabled) {
+      buildsToAnalyze = allBuilds.filter((build) =>
+        productionFilterService.isProductionBuild(build, filters)
+      );
+      logger.info(
+        `[ActivityReport] Filtered builds: ${buildsToAnalyze.length}/${allBuilds.length} (production only)`
+      );
+    }
+
+    const succeeded = buildsToAnalyze.filter((b) => b.result === "succeeded").length;
+    const failed = buildsToAnalyze.filter((b) => b.result === "failed").length;
+    const others = buildsToAnalyze.length - succeeded - failed;
+    const failureRate = buildsToAnalyze.length > 0 ? (failed / buildsToAnalyze.length) * 100 : 0;
 
     // Calculate avg duration (in minutes) for completed builds
-    const completedBuilds = allBuilds.filter((b) => b.finishTime && b.startTime);
+    const completedBuilds = buildsToAnalyze.filter((b) => b.finishTime && b.startTime);
     const avgDuration =
       completedBuilds.length > 0
         ? completedBuilds.reduce((sum, b) => {
@@ -357,7 +413,7 @@ async function fetchBuildMetrics(client, startDate, endDate) {
         : 0;
 
     return {
-      totalBuilds: allBuilds.length,
+      totalBuilds: buildsToAnalyze.length,
       succeeded,
       failed,
       others,
@@ -373,7 +429,13 @@ async function fetchBuildMetrics(client, startDate, endDate) {
 /**
  * Fetch Release metrics
  */
-async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
+async function fetchReleaseMetrics(
+  releaseClient,
+  startDate,
+  endDate,
+  productionOnly = false,
+  filters = null
+) {
   try {
     // Fetch ALL releases using continuation token pagination (like /releases/stats does)
     let allReleases = [];
@@ -395,12 +457,23 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
       hasMore = !!continuationToken && releases.length > 0;
     }
 
+    // Apply production filter if enabled
+    let releasesToAnalyze = allReleases;
+    if (productionOnly && filters?.enabled) {
+      releasesToAnalyze = allReleases.filter((release) =>
+        productionFilterService.isProductionRelease(release, filters)
+      );
+      logger.info(
+        `[ActivityReport] Filtered releases: ${releasesToAnalyze.length}/${allReleases.length} (production only)`
+      );
+    }
+
     let succeeded = 0;
     let failed = 0;
     let others = 0;
     let failedEnvironments = 0;
 
-    allReleases.forEach((release) => {
+    releasesToAnalyze.forEach((release) => {
       if (release.environments && release.environments.length > 0) {
         const envStatuses = release.environments.map((env) => env.status?.toLowerCase());
         const hasFailure = envStatuses.some((s) => s === "rejected" || s === "failed");
@@ -420,10 +493,11 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
       }
     });
 
-    const successRate = allReleases.length > 0 ? (succeeded / allReleases.length) * 100 : 0;
+    const successRate =
+      releasesToAnalyze.length > 0 ? (succeeded / releasesToAnalyze.length) * 100 : 0;
 
     return {
-      totalReleases: allReleases.length,
+      totalReleases: releasesToAnalyze.length,
       succeeded,
       failed,
       others,
@@ -441,23 +515,28 @@ async function fetchReleaseMetrics(releaseClient, startDate, endDate) {
  */
 async function fetchWorkItemMetrics(client, startDate, endDate) {
   try {
+    // Get project name from client config
+    const projectName = client.project;
+
     // Azure DevOps WIQL requires date-only format (YYYY-MM-DD), not ISO timestamps
     const start = new Date(startDate).toISOString().split("T")[0];
     const end = new Date(endDate).toISOString().split("T")[0];
 
-    // Query 1: Created in range
+    // Query 1: Created in range (filtered by project)
     const createdQuery = `
       SELECT [System.Id], [System.State]
       FROM WorkItems
-      WHERE [System.CreatedDate] >= '${start}'
+      WHERE [System.TeamProject] = '${projectName}'
+      AND [System.CreatedDate] >= '${start}'
       AND [System.CreatedDate] <= '${end}'
     `;
 
-    // Query 2: Completed in range
+    // Query 2: Completed in range (filtered by project)
     const completedQuery = `
       SELECT [System.Id]
       FROM WorkItems
-      WHERE [System.State] IN ('Closed', 'Released To Production')
+      WHERE [System.TeamProject] = '${projectName}'
+      AND [System.State] IN ('Closed', 'Released To Production')
       AND [System.ChangedDate] >= '${start}'
       AND [System.ChangedDate] <= '${end}'
     `;
@@ -466,24 +545,14 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
 
     // Process created work items with batching (Azure DevOps limit: 200 items per request)
     let created = 0;
-    let completed = 0;
     let overdue = 0;
-    let inProgress = 0;
     let stateDistribution = {};
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Set to start of day for comparison
 
-    // Define state categories based on workflow
+    // Define state categories for overdue calculation
     const completedStates = ["Closed", "Released To Production"];
     const removedStates = ["Removed", "Blocked"];
-    const inProgressStates = [
-      "Active",
-      "In Progress",
-      "Paused",
-      "PR Created / Awaiting Approval",
-      "Dev Complete / Ready for QA",
-      "In Internal QA",
-    ];
 
     if (createdRes.status === "fulfilled" && createdRes.value?.workItems) {
       const ids = createdRes.value.workItems.map((wi) => wi.id);
@@ -505,20 +574,10 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
 
         created = allItems.length;
 
-        // Calculate state distribution, in progress count, completed count, and overdue count
+        // Calculate state distribution and overdue count
         allItems.forEach((item) => {
           const state = item.fields?.["System.State"] || "Unknown";
           stateDistribution[state] = (stateDistribution[state] || 0) + 1;
-
-          // Count in progress items
-          if (inProgressStates.includes(state)) {
-            inProgress++;
-          }
-
-          // Count completed items (from created items)
-          if (completedStates.includes(state)) {
-            completed++;
-          }
 
           // Check if this item is overdue (only for non-completed, non-removed items)
           const dueDate = item.fields?.["Microsoft.VSTS.Scheduling.DueDate"];
@@ -538,9 +597,7 @@ async function fetchWorkItemMetrics(client, startDate, endDate) {
 
     return {
       created,
-      completed,
       overdue,
-      inProgress,
       stateDistribution,
     };
   } catch (error) {
