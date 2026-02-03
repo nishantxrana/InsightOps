@@ -30,6 +30,7 @@ export default function DevOpsActivityReport() {
     try {
       const token = localStorage.getItem("token");
       const currentOrgId = localStorage.getItem("currentOrganizationId");
+      const currentProject = localStorage.getItem("currentProject");
 
       const url = new URL("/api/dashboard/activity-report/stream", window.location.origin);
       url.searchParams.set("startDate", dateRange.from.toISOString());
@@ -40,6 +41,7 @@ export default function DevOpsActivityReport() {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-Organization-ID": currentOrgId,
+          ...(currentProject && { "X-Project-Name": currentProject }),
         },
       });
 
@@ -110,6 +112,7 @@ export default function DevOpsActivityReport() {
     try {
       const token = localStorage.getItem("token");
       const currentOrgId = localStorage.getItem("currentOrganizationId");
+      const currentProject = localStorage.getItem("currentProject");
 
       const response = await fetch("/api/dashboard/activity-report/pdf", {
         method: "POST",
@@ -117,6 +120,7 @@ export default function DevOpsActivityReport() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
           "X-Organization-ID": currentOrgId,
+          ...(currentProject && { "X-Project-Name": currentProject }),
         },
         body: JSON.stringify({
           startDate: dateRange.from.toISOString(),

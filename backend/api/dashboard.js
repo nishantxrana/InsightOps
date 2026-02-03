@@ -574,7 +574,12 @@ router.post("/activity-report/pdf", async (req, res) => {
     }
 
     const azureConfig = getAzureDevOpsConfig(org);
-    logger.info("[PDF] Config retrieved", { environment: "development", org: org.name });
+    logger.info("[PDF] Config retrieved", {
+      environment: "development",
+      org: org.name,
+      project: azureConfig.project,
+      organization: azureConfig.organization,
+    });
 
     let reportData;
 
