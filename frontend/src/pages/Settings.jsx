@@ -78,6 +78,7 @@ export default function Settings() {
   const { currentOrganization, updateOrganization, needsSetup } = useOrganization();
 
   const [activeSection, setActiveSection] = useState("organizations");
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
@@ -333,7 +334,7 @@ export default function Settings() {
         <div>
           <div className="flex justify-between items-center mb-2">
             <div className="flex items-center gap-4">
-              <Sheet>
+              <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="icon" className="md:hidden">
                     <Menu className="h-4 w-4" />
@@ -342,7 +343,12 @@ export default function Settings() {
                 <SheetContent side="left" className="w-64">
                   <div className="py-4">
                     <h2 className="text-lg font-semibold mb-4">Settings</h2>
-                    <Sidebar onSelect={(id) => handleSectionChange(id)} />
+                    <Sidebar
+                      onSelect={(id) => {
+                        handleSectionChange(id);
+                        setSheetOpen(false);
+                      }}
+                    />
                   </div>
                 </SheetContent>
               </Sheet>
