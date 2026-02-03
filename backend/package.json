@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node main.js",
     "dev": "nodemon main.js",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "npx puppeteer browsers install chrome || echo 'Chromium install skipped'"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

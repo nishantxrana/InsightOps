@@ -465,10 +465,22 @@ class PDFService {
     let browser;
     try {
       logger.info("[PDFService] Launching Puppeteer browser...", { environment: "development" });
-      browser = await puppeteer.launch({
+
+      const launchOptions = {
         headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      });
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-accelerated-2d-canvas",
+          "--no-first-run",
+          "--no-zygote",
+          "--single-process", // Important for Azure App Service
+          "--disable-gpu",
+        ],
+      };
+
+      browser = await puppeteer.launch(launchOptions);
       logger.info("[PDFService] Browser launched", { environment: "development" });
 
       const page = await browser.newPage();
