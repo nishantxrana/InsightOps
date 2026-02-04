@@ -1,0 +1,59 @@
+# Node modules
+node_modules
+**/node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+frontend/dist
+backend/public
+
+# Development files
+.git
+.gitignore
+.env
+.env.*
+*.md
+!README.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+backend/logs
+
+# Test files
+**/*.test.js
+**/*.spec.js
+coverage
+.nyc_output
+
+# CI/CD
+.github
+.azure
+pipelines
+
+# Documentation
+Docs
+docs
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Cache
+.cache
+.npm
+.eslintcache

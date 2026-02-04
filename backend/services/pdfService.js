@@ -467,6 +467,7 @@ class PDFService {
       logger.info("[PDFService] Launching Puppeteer browser...", { environment: "development" });
 
       const launchOptions = {
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
         headless: true,
         args: [
           "--no-sandbox",
@@ -475,7 +476,7 @@ class PDFService {
           "--disable-accelerated-2d-canvas",
           "--no-first-run",
           "--no-zygote",
-          "--single-process", // Important for Azure App Service
+          "--single-process",
           "--disable-gpu",
         ],
       };
