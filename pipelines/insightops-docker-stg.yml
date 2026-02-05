@@ -12,7 +12,7 @@ steps:
   - task: Docker@2
     inputs:
       containerRegistry: "dockerhub-insightops-prd"
-      repository: "insightops"
+      repository: "grazittiinteractive/insightops"
       command: "buildAndPush"
       Dockerfile: "**/Dockerfile"
 
