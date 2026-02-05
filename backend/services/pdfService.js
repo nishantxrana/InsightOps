@@ -467,7 +467,6 @@ class PDFService {
       logger.info("[PDFService] Launching Puppeteer browser...", { environment: "development" });
 
       const launchOptions = {
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
         headless: true,
         args: [
           "--no-sandbox",
@@ -480,6 +479,12 @@ class PDFService {
           "--disable-gpu",
         ],
       };
+
+      // Only set custom Chrome path if explicitly configured (Docker/Production)
+      // In local dev, Puppeteer will use its bundled Chrome automatically
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      }
 
       browser = await puppeteer.launch(launchOptions);
       logger.info("[PDFService] Browser launched", { environment: "development" });

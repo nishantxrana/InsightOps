@@ -9,14 +9,14 @@ services:
         VITE_CLARITY_PROJECT_ID: ${VITE_CLARITY_PROJECT_ID:-}
         VITE_DEMO_VIDEO_URL: ${VITE_DEMO_VIDEO_URL:-}
     ports:
-      - "3001:3001"
+      - "8000:8000"
     environment:
       - NODE_ENV=production
       - MONGODB_URI=${MONGODB_URI}
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3001}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8000}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8000}
     restart: unless-stopped
     healthcheck:
       test:
@@ -24,7 +24,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+          "require('http').get('http://localhost:8000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
         ]
       interval: 30s
       timeout: 10s
