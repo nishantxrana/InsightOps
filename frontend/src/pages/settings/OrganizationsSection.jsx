@@ -467,7 +467,13 @@ export default function OrganizationsSection() {
             <div className="space-y-2">
               <Label>Production Branches</Label>
               <p className="text-xs text-muted-foreground">
-                Exact match or wildcards. Examples: main, master, release/*
+                Used for:{" "}
+                <Badge variant="secondary" className="text-xs">
+                  Pull Requests
+                </Badge>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Exact match or wildcards. Examples: main, master, release/*, *prod*
               </p>
               <TagInput
                 value={formData.productionFilters?.branches || []}
@@ -488,7 +494,13 @@ export default function OrganizationsSection() {
             <div className="space-y-2">
               <Label>Production Environments</Label>
               <p className="text-xs text-muted-foreground">
-                Exact match or wildcards. Examples: Production, E3, Prod-*
+                Used for:{" "}
+                <Badge variant="secondary" className="text-xs">
+                  Releases
+                </Badge>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Exact match or wildcards. Examples: Production, E3, Prod-*, *prod*
               </p>
               <TagInput
                 value={formData.productionFilters?.environments || []}
@@ -507,9 +519,15 @@ export default function OrganizationsSection() {
 
             {/* Build Definition Patterns */}
             <div className="space-y-2">
-              <Label>Production Build Definitions (Optional)</Label>
+              <Label>Production Build Definitions</Label>
               <p className="text-xs text-muted-foreground">
-                Exact match or wildcards. Examples: Prod-Deploy, Release-*
+                Used for:{" "}
+                <Badge variant="secondary" className="text-xs">
+                  Builds
+                </Badge>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Exact match or wildcards. Examples: e3, Prod-*, *production*
               </p>
               <TagInput
                 value={formData.productionFilters?.buildDefinitions || []}
@@ -524,6 +542,26 @@ export default function OrganizationsSection() {
                 }
                 placeholder="Add build definition pattern..."
               />
+            </div>
+
+            {/* Help Text */}
+            <div className="bg-muted/50 p-3 rounded-md text-xs text-muted-foreground space-y-1">
+              <p className="font-semibold">How filters work:</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>
+                  <strong>Builds:</strong> Filtered by definition name only (branch ignored)
+                </li>
+                <li>
+                  <strong>Releases:</strong> Filtered by environment name only
+                </li>
+                <li>
+                  <strong>PRs:</strong> Filtered by target branch only (where merging TO)
+                </li>
+                <li>
+                  <strong>Wildcards:</strong> Use * to match any characters (e.g., *prod*,
+                  release/*)
+                </li>
+              </ul>
             </div>
           </div>
         )}

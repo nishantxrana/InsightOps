@@ -5,6 +5,7 @@ import { markdownFormatter } from "../utils/markdownFormatter.js";
 import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
 import notificationHistoryService from "../services/notificationHistoryService.js";
 import BaseWebhook from "./BaseWebhook.js";
+import { productionFilterService } from "../services/productionFilterService.js";
 
 class PullRequestWebhook extends BaseWebhook {
   async handleCreated(req, res, userId = null, organizationId = null) {
@@ -88,6 +89,23 @@ class PullRequestWebhook extends BaseWebhook {
 
       if (!userSettings) {
         return res.status(404).json({ error: "Organization settings not found" });
+      }
+
+      // Check if PR is production-related using configurable filters
+      const pr = { targetRefName: resource.targetRefName };
+      const isProduction = productionFilterService.isProductionPR(pr, org?.productionFilters);
+
+      if (!isProduction) {
+        logger.info("Skipping notification - not a production PR", {
+          targetBranch: resource.targetRefName,
+          sourceBranch: resource.sourceRefName,
+          filtersEnabled: org?.productionFilters?.enabled || false,
+        });
+        return res.json({
+          message: "PR webhook received - non-production PR",
+          pullRequestId,
+          targetBranch: resource.targetRefName,
+        });
       }
 
       // Generate AI summary if configured

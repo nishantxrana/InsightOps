@@ -5,6 +5,7 @@ import { markdownFormatter } from "../utils/markdownFormatter.js";
 import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
 import notificationHistoryService from "../services/notificationHistoryService.js";
 import BaseWebhook from "./BaseWebhook.js";
+import { productionFilterService } from "../services/productionFilterService.js";
 
 class BuildWebhook extends BaseWebhook {
   async handleCompleted(req, res, userId = null, organizationId = null) {
@@ -95,6 +96,27 @@ class BuildWebhook extends BaseWebhook {
         hasAIConfig: !!userSettings.ai,
       });
 
+      // Check if build is production using configurable filters
+      const build = {
+        sourceBranch: resource.sourceBranch,
+        definition: { name: definition },
+      };
+      const isProduction = productionFilterService.isProductionBuild(build, org?.productionFilters);
+
+      if (!isProduction) {
+        logger.info("Skipping notification - not a production build", {
+          sourceBranch: resource.sourceBranch,
+          definition,
+          filtersEnabled: org?.productionFilters?.enabled || false,
+        });
+        return res.json({
+          message: "Build webhook received - non-production build",
+          buildId,
+          buildNumber,
+          definition,
+        });
+      }
+
       let message;
       let aiSummary = null;
 
@@ -142,7 +164,8 @@ class BuildWebhook extends BaseWebhook {
           notificationType,
           resource,
           aiSummary,
-          userSettings?.azureDevOps
+          userSettings?.azureDevOps,
+          orgWithCredentials
         );
       } else {
         // Legacy global notification
@@ -171,7 +194,8 @@ class BuildWebhook extends BaseWebhook {
     notificationType,
     build,
     aiSummary,
-    userConfig
+    userConfig,
+    orgWithCredentials = null
   ) {
     try {
       // Get notification settings - use already fetched org
