@@ -16,7 +16,9 @@ COPY frontend/ ./
 
 # Build frontend
 ARG VITE_CLARITY_PROJECT_ID
+ARG VITE_DEMO_VIDEO_URL
 ENV VITE_CLARITY_PROJECT_ID=$VITE_CLARITY_PROJECT_ID
+ENV VITE_DEMO_VIDEO_URL=$VITE_DEMO_VIDEO_URL
 RUN npm run build
 
 # ============================================
