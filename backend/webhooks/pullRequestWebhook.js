@@ -29,6 +29,8 @@ class PullRequestWebhook extends BaseWebhook {
         return this.sendOrgValidationError(res, orgValidation);
       }
 
+      const org = orgValidation.org; // Extract org from validation result
+
       const { resource } = req.body;
 
       if (!resource) {
@@ -64,17 +66,19 @@ class PullRequestWebhook extends BaseWebhook {
       // Get organization settings with credentials
       let userConfig = null;
       let userSettings = null;
+      let orgWithCredentials = null;
 
       try {
         const { organizationService } = await import("../services/organizationService.js");
-        const org = await organizationService.getOrganizationWithCredentials(organizationId);
-        if (org) {
-          userId = org.userId;
-          userConfig = org.azureDevOps;
+        orgWithCredentials =
+          await organizationService.getOrganizationWithCredentials(organizationId);
+        if (orgWithCredentials) {
+          userId = orgWithCredentials.userId;
+          userConfig = orgWithCredentials.azureDevOps;
           userSettings = {
-            azureDevOps: org.azureDevOps,
-            ai: org.ai,
-            notifications: org.notifications,
+            azureDevOps: orgWithCredentials.azureDevOps,
+            ai: orgWithCredentials.ai,
+            notifications: orgWithCredentials.notifications,
           };
         }
       } catch (error) {
@@ -102,7 +106,14 @@ class PullRequestWebhook extends BaseWebhook {
 
       // Send notification
       if (userId) {
-        await this.sendUserNotification(card, userId, organizationId, resource, aiSummary);
+        await this.sendUserNotification(
+          card,
+          userId,
+          organizationId,
+          resource,
+          aiSummary,
+          orgWithCredentials
+        );
       } else {
         await notificationService.sendNotification(card, "pull-request-created");
       }
@@ -132,11 +143,20 @@ class PullRequestWebhook extends BaseWebhook {
     return resource?.reviewers?.map((r) => r.displayName) || [];
   }
 
-  async sendUserNotification(card, userId, organizationId, pr, aiSummary) {
+  async sendUserNotification(
+    card,
+    userId,
+    organizationId,
+    pr,
+    aiSummary,
+    orgWithCredentials = null
+  ) {
     try {
-      // Get notification settings - prefer org settings over user settings
+      // Get notification settings - use passed org or fetch if not provided
       let settings;
-      if (organizationId) {
+      if (orgWithCredentials) {
+        settings = { notifications: orgWithCredentials.notifications };
+      } else if (organizationId) {
         try {
           const { organizationService } = await import("../services/organizationService.js");
           const org = await organizationService.getOrganizationWithCredentials(organizationId);

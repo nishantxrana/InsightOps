@@ -29,6 +29,8 @@ class BuildWebhook extends BaseWebhook {
         return this.sendOrgValidationError(res, orgValidation);
       }
 
+      const org = orgValidation.org; // Extract org from validation result
+
       const { resource } = req.body;
 
       if (!resource) {
@@ -62,19 +64,21 @@ class BuildWebhook extends BaseWebhook {
       // Get organization settings with credentials
       let userSettings = null;
       let userClient = null;
+      let orgWithCredentials = null;
 
       try {
         const { organizationService } = await import("../services/organizationService.js");
-        const org = await organizationService.getOrganizationWithCredentials(organizationId);
-        if (org) {
-          userId = org.userId;
+        orgWithCredentials =
+          await organizationService.getOrganizationWithCredentials(organizationId);
+        if (orgWithCredentials) {
+          userId = orgWithCredentials.userId;
           userSettings = {
-            azureDevOps: org.azureDevOps,
-            ai: org.ai,
-            notifications: org.notifications,
+            azureDevOps: orgWithCredentials.azureDevOps,
+            ai: orgWithCredentials.ai,
+            notifications: orgWithCredentials.notifications,
           };
-          if (org.azureDevOps?.pat) {
-            userClient = azureDevOpsClient.createUserClient(org.azureDevOps);
+          if (orgWithCredentials.azureDevOps?.pat) {
+            userClient = azureDevOpsClient.createUserClient(orgWithCredentials.azureDevOps);
           }
         }
       } catch (error) {
@@ -170,18 +174,10 @@ class BuildWebhook extends BaseWebhook {
     userConfig
   ) {
     try {
-      // Get notification settings - prefer org settings over user settings
+      // Get notification settings - use already fetched org
       let settings;
-      if (organizationId) {
-        try {
-          const { organizationService } = await import("../services/organizationService.js");
-          const org = await organizationService.getOrganizationWithCredentials(organizationId);
-          if (org) {
-            settings = { notifications: org.notifications };
-          }
-        } catch (error) {
-          logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
-        }
+      if (orgWithCredentials) {
+        settings = { notifications: orgWithCredentials.notifications };
       }
 
       // Fall back to user settings if org settings not available

@@ -82,7 +82,9 @@ COPY --from=backend-setup --chown=appuser:appuser /app ./
 # Create logs directory with proper permissions
 RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
 
-# Set Puppeteer to use system Chromium
+# Configure Puppeteer to use system Chromium instead of downloading its own
+# This env var tells Puppeteer where to find Chrome in the container
+# Local dev: Don't set this - Puppeteer will use its bundled Chrome automatically
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     CHROME_DEVEL_SANDBOX=/usr/lib/chromium/chrome-sandbox \
@@ -97,11 +99,11 @@ RUN mkdir -p /tmp/.chromium /tmp/.chromium-cache \
 USER appuser
 
 # Expose port
-EXPOSE 3001
+EXPOSE 8000
 
 # Health check with timeout
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "const req=require('http').get('http://localhost:3001/api/health',res=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.setTimeout(5000,()=>{req.destroy();process.exit(1);});"
+    CMD node -e "const req=require('http').get('http://localhost:8000/api/health',res=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.setTimeout(5000,()=>{req.destroy();process.exit(1);});"
 
 # Start application
 CMD ["node", "main.js"]
