@@ -103,7 +103,7 @@ EXPOSE 8000
 
 # Health check with timeout
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "const req=require('http').get('http://localhost:8000/api/health',res=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.setTimeout(5000,()=>{req.destroy();process.exit(1);});"
+    CMD node -e "const port=process.env.PORT||3001;const req=require('http').get('http://localhost:'+port+'/api/health',res=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.setTimeout(5000,()=>{req.destroy();process.exit(1);});"
 
 # Start application
 CMD ["node", "main.js"]
