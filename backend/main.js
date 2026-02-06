@@ -120,14 +120,8 @@ app.use(
         return callback(null, true);
       }
 
-      const allowedOrigins =
-        isProduction() || isStaging()
-          ? (env.ALLOWED_ORIGINS || env.FRONTEND_URL || "").split(",").filter(Boolean)
-          : [
-              `http://localhost:${env.PORT}`,
-              `https://sure-ant-informally.ngrok-free.app`,
-              `http://172.17.198.200:${env.PORT}`,
-            ];
+      // Parse ALLOWED_ORIGINS from env (comma-separated)
+      const allowedOrigins = (env.ALLOWED_ORIGINS || "").split(",").filter(Boolean);
 
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
