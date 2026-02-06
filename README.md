@@ -57,12 +57,20 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 
 ### 🔄 Azure DevOps Integration
 
+- **Multi-Organization Support**: Manage multiple Azure DevOps organizations from one account
+- **Multi-Project Support**: Switch between projects within an organization seamlessly
 - **Work Items**: Real-time sprint tracking with AI-powered summaries
 - **Pipelines**: Build monitoring, failure analysis, and automated diagnostics
 - **Pull Requests**: Active PR tracking, idle detection, and review suggestions
 - **Releases**: Deployment tracking and success rate monitoring
 - **Webhooks**: Real-time event processing for instant notifications
 - **Polling**: Configurable backup monitoring for webhook reliability
+- **Production Filters**: Define production environments with configurable filters
+  - Filter by branches (exact match or wildcards like `release/*`)
+  - Filter by environments (e.g., `Production`, `E3`, `Prod-*`)
+  - Filter by build definitions (pipeline names)
+  - Generate production-only activity reports
+  - Production deployment notifications via webhooks
 
 ### 📢 Smart Notifications
 
@@ -137,7 +145,13 @@ InsightOps/
 │   │   ├── aiService.js          # Multi-provider AI service
 │   │   └── FreeModelRouter.js    # Smart model routing
 │   ├── api/                      # REST API endpoints
+│   │   ├── routes.js             # Main API routes
+│   │   ├── dashboard.js          # Dashboard & reports
+│   │   └── organizationRoutes.js # Organization management
+│   ├── cache/                    # Caching layer
+│   │   └── AzureDevOpsCache.js   # Project-aware cache
 │   ├── config/                   # Configuration management
+│   │   └── cache.js              # Cache TTL constants
 │   ├── devops/                   # Azure DevOps client
 │   │   ├── azureDevOpsClient.js  # Main DevOps API client
 │   │   └── releaseClient.js      # Release management
@@ -148,26 +162,45 @@ InsightOps/
 │   ├── memory/                   # Context and memory
 │   │   ├── ContextManager.js     # Conversation context
 │   │   └── MongoVectorStore.js   # Vector storage
+│   ├── models/                   # MongoDB schemas
+│   │   ├── Organization.js       # Organization with filters
+│   │   ├── User.js               # User accounts
+│   │   ├── UserSettings.js       # User preferences
+│   │   └── ...                   # Other models
 │   ├── notifications/            # Multi-platform alerts
+│   │   └── googleChatService.js  # Google Chat integration
 │   ├── polling/                  # Background monitoring
 │   │   ├── userPollingManager.js # Per-user polling
 │   │   ├── buildPoller.js        # Pipeline monitoring
 │   │   ├── workItemPoller.js     # Work item tracking
 │   │   └── pullRequestPoller.js  # PR monitoring
+│   ├── services/                 # Business logic
+│   │   ├── activityReportService.js    # Report generation
+│   │   ├── organizationService.js      # Org management
+│   │   ├── pdfService.js               # PDF generation
+│   │   └── productionFilterService.js  # Filter matching
+│   ├── templates/                # EJS templates
+│   │   └── activityReport.ejs    # PDF report template
+│   ├── utils/                    # Utility functions
+│   │   └── organizationSettings.js # Org context helpers
+│   ├── webhooks/                 # Real-time event handlers
+│   │   ├── releaseWebhook.js     # Release notifications
+│   │   └── ...                   # Other webhooks
 │   ├── workflows/                # Workflow automation
 │   │   ├── SimpleWorkflowEngine.js  # Workflow execution
 │   │   ├── workflowLoader.js     # Load workflow definitions
 │   │   └── definitions/          # Workflow JSON configs
-│   ├── webhooks/                 # Real-time event handlers
-│   ├── utils/                    # Utility functions
 │   └── main.js                   # Application entry point
 │
 ├── frontend/                     # React/Vite Frontend
 │   ├── src/
 │   │   ├── components/           # React components
 │   │   │   ├── ui/               # shadcn/ui primitives
+│   │   │   │   ├── TagInput.jsx  # Tag input for filters
+│   │   │   │   └── ...           # Other UI components
 │   │   │   ├── Layout.jsx        # Main layout wrapper
-│   │   │   └── DevOpsAppSidebar.jsx  # Navigation sidebar
+│   │   │   ├── DevOpsAppSidebar.jsx  # Navigation sidebar
+│   │   │   └── DevOpsActivityReport.jsx  # Activity report component
 │   │   ├── pages/                # Route pages
 │   │   │   ├── Dashboard.jsx     # Main dashboard
 │   │   │   ├── WorkItems.jsx     # Sprint board
@@ -175,6 +208,7 @@ InsightOps/
 │   │   │   ├── PullRequests.jsx  # PR management
 │   │   │   ├── Releases.jsx      # Release tracking
 │   │   │   ├── Settings.jsx      # Configuration
+│   │   │   │   └── OrganizationsSection.jsx  # Org settings with filters
 │   │   │   ├── Logs.jsx          # Application logs
 │   │   │   └── LandingPage.jsx   # Marketing page
 │   │   ├── contexts/             # React Context providers
@@ -289,7 +323,7 @@ cd backend && npm start
 
 ## ⚙️ Configuration
 
-### Required Environment Variables
+### Backend Environment Variables
 
 Create a `.env` file in the `backend/` directory with the following configuration:
 
@@ -310,9 +344,20 @@ JWT_SECRET=your-jwt-secret-key-here-64-characters-long-random-string-example
 ENCRYPTION_KEY=your-32-byte-hex-encryption-key-here-64-characters-total-example
 ```
 
-### Azure DevOps Configuration (Optional)
+#### Application Configuration (Required)
 
-If you want to connect to your Azure DevOps organization:
+```env
+# Frontend URL for CORS
+FRONTEND_URL=http://localhost:5173
+
+# Allowed origins (comma-separated for multiple)
+ALLOWED_ORIGINS=http://localhost:5173
+
+# Node environment
+NODE_ENV=development
+```
+
+#### Azure DevOps Configuration (Optional - Can be configured per-user in UI)
 
 ```env
 AZURE_DEVOPS_ORG=your-organization
@@ -321,9 +366,9 @@ AZURE_DEVOPS_PAT=your-personal-access-token
 AZURE_DEVOPS_BASE_URL=https://dev.azure.com
 ```
 
-**Note**: InsightOps supports multi-user configuration where each user can connect their own Azure DevOps instance through the Settings page.
+**Note**: InsightOps supports multi-organization and multi-user configuration. Each user can connect their own Azure DevOps organizations through the Settings page in the UI.
 
-### AI Provider Configuration (Optional)
+#### AI Provider Configuration (Optional - Can be configured per-organization in UI)
 
 Choose one or more AI providers:
 
@@ -338,7 +383,7 @@ GROQ_API_KEY=gsk_...
 GEMINI_API_KEY=AI...
 ```
 
-### Notification Webhooks (Optional)
+#### Notification Webhooks (Optional - Can be configured per-organization in UI)
 
 Configure notification destinations:
 
@@ -351,6 +396,29 @@ SLACK_WEBHOOK_URL=https://your-slack-webhook-url
 
 # Google Chat
 GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/...
+```
+
+### Frontend Environment Variables
+
+Create a `.env` file in the `frontend/` directory (optional):
+
+```env
+# Microsoft Clarity Analytics (optional)
+VITE_CLARITY_PROJECT_ID=your_project_id_here
+```
+
+### Generating Secure Keys
+
+#### JWT Secret (64 characters)
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+#### Encryption Key (64 characters hex)
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ---
@@ -405,7 +473,37 @@ The main dashboard provides:
 - Track success rates and deployment frequency
 - View release history and artifacts
 
-#### 5. Autonomous Workflows
+#### 5. Production Filters
+
+Configure what constitutes "production" for your organization:
+
+**Setup (in Settings → Organizations → Production Filters):**
+
+- Enable production filters toggle
+- Add branch patterns: `main`, `master`, `release/*`
+- Add environment patterns: `Production`, `E3`, `Prod-*`
+- Add build definition patterns (optional): `Prod-Deploy`, `Release-*`
+
+**Usage (in Activity Reports):**
+
+- Toggle "Production Only Report" to filter data
+- PDF reports include "Filter: Production Only" indicator
+- Filename includes `_PRODUCTION` suffix
+- Webhook notifications respect production filters
+
+**Pattern Matching:**
+
+- **Exact match**: `main` matches only `main`
+- **Wildcard match**: `release/*` matches `release/v1.0`, `release/hotfix`
+- **Case-insensitive**: `Main` matches `main`, `MAIN`, `MaIn`
+
+**Filter Logic:**
+
+- **Builds**: Filtered by source branch OR build definition name
+- **Releases**: Filtered by environment name
+- **Pull Requests**: Filtered by target branch (where merging TO)
+
+#### 6. Autonomous Workflows
 
 - Build failure detection → AI analysis → Team notification
 - Idle PR detection → Reminder notification
@@ -534,11 +632,25 @@ Authorization: Bearer <jwt_token>
 - `GET /api/releases` - List recent releases
 - `GET /api/releases/:releaseId` - Get specific release details
 
+### Activity Reports
+
+- `GET /api/dashboard/activity-report/stream` - Stream activity report data (supports `?productionOnly=true`)
+- `POST /api/dashboard/activity-report/pdf` - Generate PDF report with optional production filtering
+
 ### AI Configuration
 
 - `GET /api/ai/providers` - List available AI providers
 - `GET /api/ai/models/:provider` - Get models for specific provider
 - `GET /api/ai/config` - Get current AI configuration
+
+### Organizations
+
+- `GET /api/organizations` - List user's organizations
+- `POST /api/organizations` - Create new organization
+- `PUT /api/organizations/:id` - Update organization (includes production filters)
+- `DELETE /api/organizations/:id` - Delete organization
+- `POST /api/organizations/:id/set-default` - Set default organization
+- `GET /api/organizations/:id/projects` - List projects in organization
 
 ### Settings Management
 
@@ -699,6 +811,14 @@ npm run lint            # Lint code with ESLint
 - Verify webhook URL is publicly accessible
 - Check webhook secret matches configuration
 - Review Azure DevOps Service Hook logs
+
+**❌ Production Filters Not Working**
+
+- Verify filters are enabled in Settings → Organizations → Production Filters
+- Check pattern syntax (exact match or wildcard with `*`)
+- Ensure "Production Only Report" toggle is ON when generating reports
+- Review logs for filter matching: `[ActivityReport] Filtered X/Y (production only)`
+- Empty filter arrays will include all items (not exclude all)
 
 ### Debug Mode
 

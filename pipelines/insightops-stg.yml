@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - stage
+      - none
 
 pool:
   vmImage: ubuntu-latest
@@ -22,9 +22,9 @@ steps:
     workingDirectory: frontend
     displayName: "Install frontend dependencies"
 
-  - script: npm ci
-    workingDirectory: backend
-    displayName: "Install backend dependencies"
+  # - script: npm ci
+  #   workingDirectory: backend
+  #   displayName: "Install backend dependencies"
 
   - script: npm run build
     workingDirectory: frontend
@@ -36,6 +36,9 @@ steps:
       mkdir -p backend/public
       cp -r frontend/dist/. backend/public/
     displayName: "Move frontend build to backend"
+
+  - script: rm -rf backend/node_modules
+    displayName: "Remove backend node_modules"
 
   - task: ArchiveFiles@2
     displayName: "Create deployment zip"
