@@ -20,7 +20,6 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().optional(), // Used for encrypting user settings
 
   // Frontend Configuration
-  FRONTEND_URL: z.string().url().optional(),
   ALLOWED_ORIGINS: z.string().optional(),
 
   // AI Providers (at least one required)
@@ -56,7 +55,7 @@ const envSchema = z.object({
   DB_MAX_POOL_SIZE: z.string().regex(/^\d+$/).transform(Number).default("20"),
   DB_CONNECTION_TIMEOUT: z.string().regex(/^\d+$/).transform(Number).default("30000"),
 
-  // Webhook Configuration (Optional)
+  // Webhook Configuration (Optional
   WEBHOOK_SECRET: z.string().optional(),
   API_TOKEN: z.string().optional(),
 
@@ -123,8 +122,8 @@ try {
 
   // Validate production-specific requirements (warnings only, no crashes)
   if (validatedEnv.NODE_ENV === "production") {
-    if (!validatedEnv.FRONTEND_URL && !validatedEnv.ALLOWED_ORIGINS) {
-      logger.warn("⚠️  FRONTEND_URL or ALLOWED_ORIGINS not set. CORS may not work properly.");
+    if (!validatedEnv.ALLOWED_ORIGINS) {
+      logger.warn("⚠️  ALLOWED_ORIGINS not set. CORS may not work properly.");
     }
 
     if (validatedEnv.JWT_SECRET.length < 64) {
