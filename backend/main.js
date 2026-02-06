@@ -200,6 +200,31 @@ app.use((req, res, next) => {
 // Auth routes (public)
 app.use("/api/auth", authRoutes);
 
+// Health check (public - must be before authenticated routes)
+app.get("/api/health", async (req, res) => {
+  const serverStartTime = Date.now() - process.uptime() * 1000;
+  const health = {
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    serverStartTime: serverStartTime,
+    service: "Azure DevOps Monitoring InsightOps",
+    environment: process.env.NODE_ENV,
+    version: process.env.npm_package_version || "1.0.0",
+  };
+
+  try {
+    await mongoose.connection.db.admin().ping();
+    health.database = "connected";
+  } catch (error) {
+    health.status = "unhealthy";
+    health.database = "disconnected";
+  }
+
+  const statusCode = health.status === "healthy" ? 200 : 503;
+  res.status(statusCode).json(health);
+});
+
 // Diagnostics routes (health is public, others authenticated)
 app.use("/api/diagnostics", diagnosticsRoutes);
 
