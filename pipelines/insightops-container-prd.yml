@@ -1,0 +1,27 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: "ubuntu-latest"
+
+steps:
+  - checkout: self
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: "dockerhub-insightops-prd"
+      repository: "grazittiinteractive/insightops"
+      command: "buildAndPush"
+      Dockerfile: "**/Dockerfile"
+
+  - script: |
+      echo "$(Build.BuildId)" > $(Build.ArtifactStagingDirectory)/tagname.txt
+    displayName: "Save Docker image tag to file"
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+      ArtifactName: "drop"
+      publishLocation: "Container"
