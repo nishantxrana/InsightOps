@@ -5,6 +5,7 @@ import { markdownFormatter } from "../utils/markdownFormatter.js";
 import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
 import notificationHistoryService from "../services/notificationHistoryService.js";
 import BaseWebhook from "./BaseWebhook.js";
+import { productionFilterService } from "../services/productionFilterService.js";
 
 class BuildWebhook extends BaseWebhook {
   async handleCompleted(req, res, userId = null, organizationId = null) {
@@ -28,6 +29,8 @@ class BuildWebhook extends BaseWebhook {
       if (!orgValidation.valid) {
         return this.sendOrgValidationError(res, orgValidation);
       }
+
+      const org = orgValidation.org; // Extract org from validation result
 
       const { resource } = req.body;
 
@@ -62,19 +65,21 @@ class BuildWebhook extends BaseWebhook {
       // Get organization settings with credentials
       let userSettings = null;
       let userClient = null;
+      let orgWithCredentials = null;
 
       try {
         const { organizationService } = await import("../services/organizationService.js");
-        const org = await organizationService.getOrganizationWithCredentials(organizationId);
-        if (org) {
-          userId = org.userId;
+        orgWithCredentials =
+          await organizationService.getOrganizationWithCredentials(organizationId);
+        if (orgWithCredentials) {
+          userId = orgWithCredentials.userId;
           userSettings = {
-            azureDevOps: org.azureDevOps,
-            ai: org.ai,
-            notifications: org.notifications,
+            azureDevOps: orgWithCredentials.azureDevOps,
+            ai: orgWithCredentials.ai,
+            notifications: orgWithCredentials.notifications,
           };
-          if (org.azureDevOps?.pat) {
-            userClient = azureDevOpsClient.createUserClient(org.azureDevOps);
+          if (orgWithCredentials.azureDevOps?.pat) {
+            userClient = azureDevOpsClient.createUserClient(orgWithCredentials.azureDevOps);
           }
         }
       } catch (error) {
@@ -90,6 +95,27 @@ class BuildWebhook extends BaseWebhook {
         hasAzureDevOpsConfig: !!userSettings.azureDevOps,
         hasAIConfig: !!userSettings.ai,
       });
+
+      // Check if build is production using configurable filters
+      const build = {
+        sourceBranch: resource.sourceBranch,
+        definition: { name: definition },
+      };
+      const isProduction = productionFilterService.isProductionBuild(build, org?.productionFilters);
+
+      if (!isProduction) {
+        logger.info("Skipping notification - not a production build", {
+          sourceBranch: resource.sourceBranch,
+          definition,
+          filtersEnabled: org?.productionFilters?.enabled || false,
+        });
+        return res.json({
+          message: "Build webhook received - non-production build",
+          buildId,
+          buildNumber,
+          definition,
+        });
+      }
 
       let message;
       let aiSummary = null;
@@ -138,7 +164,8 @@ class BuildWebhook extends BaseWebhook {
           notificationType,
           resource,
           aiSummary,
-          userSettings?.azureDevOps
+          userSettings?.azureDevOps,
+          orgWithCredentials
         );
       } else {
         // Legacy global notification
@@ -167,21 +194,14 @@ class BuildWebhook extends BaseWebhook {
     notificationType,
     build,
     aiSummary,
-    userConfig
+    userConfig,
+    orgWithCredentials = null
   ) {
     try {
-      // Get notification settings - prefer org settings over user settings
+      // Get notification settings - use already fetched org
       let settings;
-      if (organizationId) {
-        try {
-          const { organizationService } = await import("../services/organizationService.js");
-          const org = await organizationService.getOrganizationWithCredentials(organizationId);
-          if (org) {
-            settings = { notifications: org.notifications };
-          }
-        } catch (error) {
-          logger.warn(`Failed to get org notification settings for ${organizationId}:`, error);
-        }
+      if (orgWithCredentials) {
+        settings = { notifications: orgWithCredentials.notifications };
       }
 
       // Fall back to user settings if org settings not available

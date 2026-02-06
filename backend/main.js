@@ -124,10 +124,9 @@ app.use(
         isProduction() || isStaging()
           ? (env.ALLOWED_ORIGINS || env.FRONTEND_URL || "").split(",").filter(Boolean)
           : [
-              "http://localhost:3001",
-              "http://localhost:5173",
-              "https://sure-ant-informally.ngrok-free.app",
-              "http://172.17.198.200:5173",
+              `http://localhost:${env.PORT}`,
+              `https://sure-ant-informally.ngrok-free.app`,
+              `http://172.17.198.200:${env.PORT}`,
             ];
 
       if (allowedOrigins.includes(origin)) {

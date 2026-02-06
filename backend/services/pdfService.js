@@ -465,10 +465,28 @@ class PDFService {
     let browser;
     try {
       logger.info("[PDFService] Launching Puppeteer browser...", { environment: "development" });
-      browser = await puppeteer.launch({
+
+      const launchOptions = {
         headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      });
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-accelerated-2d-canvas",
+          "--no-first-run",
+          "--no-zygote",
+          "--single-process",
+          "--disable-gpu",
+        ],
+      };
+
+      // Only set custom Chrome path if explicitly configured (Docker/Production)
+      // In local dev, Puppeteer will use its bundled Chrome automatically
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      }
+
+      browser = await puppeteer.launch(launchOptions);
       logger.info("[PDFService] Browser launched", { environment: "development" });
 
       const page = await browser.newPage();

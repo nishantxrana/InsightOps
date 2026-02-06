@@ -5,6 +5,7 @@ import { markdownFormatter } from "../utils/markdownFormatter.js";
 import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
 import notificationHistoryService from "../services/notificationHistoryService.js";
 import BaseWebhook from "./BaseWebhook.js";
+import { productionFilterService } from "../services/productionFilterService.js";
 
 class PullRequestWebhook extends BaseWebhook {
   async handleCreated(req, res, userId = null, organizationId = null) {
@@ -28,6 +29,8 @@ class PullRequestWebhook extends BaseWebhook {
       if (!orgValidation.valid) {
         return this.sendOrgValidationError(res, orgValidation);
       }
+
+      const org = orgValidation.org; // Extract org from validation result
 
       const { resource } = req.body;
 
@@ -64,17 +67,19 @@ class PullRequestWebhook extends BaseWebhook {
       // Get organization settings with credentials
       let userConfig = null;
       let userSettings = null;
+      let orgWithCredentials = null;
 
       try {
         const { organizationService } = await import("../services/organizationService.js");
-        const org = await organizationService.getOrganizationWithCredentials(organizationId);
-        if (org) {
-          userId = org.userId;
-          userConfig = org.azureDevOps;
+        orgWithCredentials =
+          await organizationService.getOrganizationWithCredentials(organizationId);
+        if (orgWithCredentials) {
+          userId = orgWithCredentials.userId;
+          userConfig = orgWithCredentials.azureDevOps;
           userSettings = {
-            azureDevOps: org.azureDevOps,
-            ai: org.ai,
-            notifications: org.notifications,
+            azureDevOps: orgWithCredentials.azureDevOps,
+            ai: orgWithCredentials.ai,
+            notifications: orgWithCredentials.notifications,
           };
         }
       } catch (error) {
@@ -84,6 +89,23 @@ class PullRequestWebhook extends BaseWebhook {
 
       if (!userSettings) {
         return res.status(404).json({ error: "Organization settings not found" });
+      }
+
+      // Check if PR is production-related using configurable filters
+      const pr = { targetRefName: resource.targetRefName };
+      const isProduction = productionFilterService.isProductionPR(pr, org?.productionFilters);
+
+      if (!isProduction) {
+        logger.info("Skipping notification - not a production PR", {
+          targetBranch: resource.targetRefName,
+          sourceBranch: resource.sourceRefName,
+          filtersEnabled: org?.productionFilters?.enabled || false,
+        });
+        return res.json({
+          message: "PR webhook received - non-production PR",
+          pullRequestId,
+          targetBranch: resource.targetRefName,
+        });
       }
 
       // Generate AI summary if configured
@@ -102,7 +124,14 @@ class PullRequestWebhook extends BaseWebhook {
 
       // Send notification
       if (userId) {
-        await this.sendUserNotification(card, userId, organizationId, resource, aiSummary);
+        await this.sendUserNotification(
+          card,
+          userId,
+          organizationId,
+          resource,
+          aiSummary,
+          orgWithCredentials
+        );
       } else {
         await notificationService.sendNotification(card, "pull-request-created");
       }
@@ -132,11 +161,20 @@ class PullRequestWebhook extends BaseWebhook {
     return resource?.reviewers?.map((r) => r.displayName) || [];
   }
 
-  async sendUserNotification(card, userId, organizationId, pr, aiSummary) {
+  async sendUserNotification(
+    card,
+    userId,
+    organizationId,
+    pr,
+    aiSummary,
+    orgWithCredentials = null
+  ) {
     try {
-      // Get notification settings - prefer org settings over user settings
+      // Get notification settings - use passed org or fetch if not provided
       let settings;
-      if (organizationId) {
+      if (orgWithCredentials) {
+        settings = { notifications: orgWithCredentials.notifications };
+      } else if (organizationId) {
         try {
           const { organizationService } = await import("../services/organizationService.js");
           const org = await organizationService.getOrganizationWithCredentials(organizationId);

@@ -7,6 +7,8 @@ import { logger } from "../utils/logger.js";
 class ProductionFilterService {
   /**
    * Check if a build is production-related
+   * Uses ONLY build definition name (pipeline name)
+   * Branch is ignored because production pipelines can run from any branch
    * @param {Object} build - Build object from Azure DevOps
    * @param {Object} filters - Organization production filters
    * @returns {boolean}
@@ -14,25 +16,19 @@ class ProductionFilterService {
   isProductionBuild(build, filters) {
     if (!filters?.enabled) return true; // If not enabled, include all
 
-    const { branches = [], buildDefinitions = [] } = filters;
+    const { buildDefinitions = [] } = filters;
 
-    // Check branch
-    const sourceBranch = build.sourceBranch?.replace("refs/heads/", "") || "";
-    const branchMatch =
-      branches.length === 0 || branches.some((pattern) => this.matchPattern(sourceBranch, pattern));
+    // If no build definitions configured, include all
+    if (buildDefinitions.length === 0) return true;
 
-    // Check build definition
+    // Check build definition name only
     const definitionName = build.definition?.name || "";
-    const definitionMatch =
-      buildDefinitions.length === 0 ||
-      buildDefinitions.some((pattern) => this.matchPattern(definitionName, pattern));
-
-    // Match if either branch OR definition matches (OR logic)
-    return branchMatch || definitionMatch;
+    return buildDefinitions.some((pattern) => this.matchPattern(definitionName, pattern));
   }
 
   /**
    * Check if a release is production-related
+   * Uses ONLY environment name
    * @param {Object} release - Release object from Azure DevOps
    * @param {Object} filters - Organization production filters
    * @returns {boolean}
@@ -42,6 +38,7 @@ class ProductionFilterService {
 
     const { environments = [] } = filters;
 
+    // If no environments configured, include all
     if (environments.length === 0) return true;
 
     // Check if any environment matches production patterns
@@ -55,6 +52,7 @@ class ProductionFilterService {
 
   /**
    * Check if a PR is production-related
+   * Uses ONLY target branch (where PR is merging TO)
    * @param {Object} pr - Pull request object from Azure DevOps
    * @param {Object} filters - Organization production filters
    * @returns {boolean}
@@ -64,13 +62,12 @@ class ProductionFilterService {
 
     const { branches = [] } = filters;
 
+    // If no branches configured, include all
     if (branches.length === 0) return true;
 
-    // Check target branch (where PR is merging to)
+    // Check target branch only (where PR is merging to)
     const targetBranch = pr.targetRefName?.replace("refs/heads/", "") || "";
-    const branchMatch = branches.some((pattern) => this.matchPattern(targetBranch, pattern));
-
-    return branchMatch;
+    return branches.some((pattern) => this.matchPattern(targetBranch, pattern));
   }
 
   /**
