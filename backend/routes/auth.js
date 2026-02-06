@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User.js";
 import { PendingSignup } from "../models/PendingSignup.js";
+import { PendingPasswordReset } from "../models/PendingPasswordReset.js";
 import { UserSettings } from "../models/UserSettings.js";
 import { generateToken, authenticate } from "../middleware/auth.js";
 import { logger, sanitizeForLogging } from "../utils/logger.js";
@@ -267,84 +268,200 @@ router.post(
   })
 );
 
-// Forgot password
+// Forgot password - Request OTP
 router.post(
-  "/forgot-password",
+  "/forgot-password/request-otp",
   validateRequest(forgotPasswordSchema),
   asyncHandler(async (req, res) => {
     const { email } = req.validatedData;
+
+    logger.info("Password reset OTP request:", sanitizeForLogging({ email }));
 
     const user = await User.findOne({ email });
 
     // Always return success (don't reveal if email exists)
     if (!user) {
-      logger.info("Forgot password: Email not found", { email });
+      logger.info("Password reset: Email not found", { email });
       return res.json({
-        message: "If that email exists, a reset link has been sent",
+        message: "If that email exists, a reset code has been sent",
       });
     }
 
-    // Generate reset token
-    const resetToken = user.generateResetToken();
-    await user.save();
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    // Send email
+    // Delete any existing pending reset for this email
+    await PendingPasswordReset.deleteOne({ email });
+
+    // Create pending reset
+    const pendingReset = new PendingPasswordReset({
+      email,
+      otp, // Will be hashed by pre-save hook
+      otpExpiry,
+      attempts: 0,
+    });
+    await pendingReset.save();
+
+    // Send OTP email
     try {
-      await emailService.sendPasswordResetEmail(user, resetToken);
-      logger.info("Password reset email sent", { email });
+      await emailService.sendPasswordResetOTP(email, user.name, otp);
+      logger.info("Password reset OTP sent", { email });
     } catch (error) {
-      logger.error("Failed to send password reset email", {
-        email,
-        error: error.message,
-      });
+      logger.error("Failed to send password reset OTP", { email, error: error.message });
     }
 
     res.json({
-      message: "If that email exists, a reset link has been sent",
+      message: "If that email exists, a reset code has been sent",
+      email, // Return email for frontend
     });
   })
 );
 
-// Reset password
+// Verify OTP and reset password
 router.post(
-  "/reset-password/:token",
+  "/forgot-password/verify-otp",
+  validateRequest(verifyOTPSchema),
+  asyncHandler(async (req, res) => {
+    const { email, otp } = req.validatedData;
+
+    logger.info("Password reset OTP verification:", sanitizeForLogging({ email }));
+
+    // Find pending reset
+    const pendingReset = await PendingPasswordReset.findOne({ email });
+    if (!pendingReset) {
+      logger.warn("Password reset failed: Session not found", { email });
+      return res.status(400).json({ error: "Reset session expired. Please try again." });
+    }
+
+    // Check if OTP expired
+    if (pendingReset.isOTPExpired()) {
+      await PendingPasswordReset.deleteOne({ email });
+      logger.warn("Password reset failed: OTP expired", { email });
+      return res.status(400).json({ error: "Reset code expired. Please try again." });
+    }
+
+    // Check attempts
+    if (pendingReset.attempts >= 3) {
+      await PendingPasswordReset.deleteOne({ email });
+      logger.warn("Password reset failed: Too many attempts", { email });
+      return res.status(429).json({ error: "Too many failed attempts. Please try again." });
+    }
+
+    // Verify OTP
+    const isValid = await pendingReset.verifyOTP(otp);
+    if (!isValid) {
+      pendingReset.attempts += 1;
+      await pendingReset.save();
+
+      const remainingAttempts = 3 - pendingReset.attempts;
+      logger.warn("Password reset failed: Invalid OTP", {
+        email,
+        attempts: pendingReset.attempts,
+      });
+      return res.status(400).json({
+        error: `Invalid reset code. ${remainingAttempts} attempt(s) remaining.`,
+      });
+    }
+
+    // OTP verified! Return success (frontend will show password input)
+    logger.info("Password reset OTP verified", { email });
+
+    res.json({
+      message: "Code verified! Please enter your new password.",
+      email,
+    });
+  })
+);
+
+// Set new password after OTP verification
+router.post(
+  "/forgot-password/reset",
   validateRequest(resetPasswordSchema),
   asyncHandler(async (req, res) => {
-    const { token } = req.params;
-    const { password } = req.validatedData;
+    const { email, password } = req.validatedData;
 
-    // Verify JWT token
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.PASSWORD_RESET_SECRET);
-    } catch (error) {
-      logger.warn("Password reset failed: Invalid token", { error: error.message });
-      return res.status(400).json({ error: "Invalid or expired reset link" });
+    logger.info("Setting new password:", sanitizeForLogging({ email }));
+
+    // Verify pending reset still exists (OTP was verified)
+    const pendingReset = await PendingPasswordReset.findOne({ email });
+    if (!pendingReset) {
+      logger.warn("Password reset failed: No verified session", { email });
+      return res.status(400).json({ error: "Reset session expired. Please try again." });
     }
 
     // Find user
-    const user = await User.findById(decoded.userId);
+    const user = await User.findOne({ email });
     if (!user) {
-      logger.warn("Password reset failed: User not found", { userId: decoded.userId });
+      logger.warn("Password reset failed: User not found", { email });
       return res.status(404).json({ error: "User not found" });
-    }
-
-    // Check token expiry
-    if (user.resetPasswordExpiry < Date.now()) {
-      logger.warn("Password reset failed: Token expired", { email: user.email });
-      return res.status(400).json({ error: "Reset link expired" });
     }
 
     // Update password
     user.password = password; // Will be hashed by pre-save hook
-    user.resetPasswordToken = null;
-    user.resetPasswordExpiry = null;
     user.lastPasswordResetAt = Date.now();
     await user.save();
 
-    logger.info("Password reset successfully", { email: user.email });
+    // Delete pending reset
+    await PendingPasswordReset.deleteOne({ email });
+
+    logger.info("Password reset successfully", { email });
 
     res.json({ message: "Password reset successfully!" });
+  })
+);
+
+// Resend password reset OTP
+router.post(
+  "/forgot-password/resend-otp",
+  validateRequest(resendOTPSchema),
+  asyncHandler(async (req, res) => {
+    const { email } = req.validatedData;
+
+    logger.info("Password reset OTP resend:", sanitizeForLogging({ email }));
+
+    // Find pending reset
+    const pendingReset = await PendingPasswordReset.findOne({ email });
+    if (!pendingReset) {
+      logger.warn("OTP resend failed: Session not found", { email });
+      return res.status(400).json({ error: "Reset session expired. Please try again." });
+    }
+
+    // Rate limit: Can't resend within 60 seconds
+    const timeSinceCreation = Date.now() - pendingReset.createdAt.getTime();
+    if (timeSinceCreation < 60000) {
+      const waitTime = Math.ceil((60000 - timeSinceCreation) / 1000);
+      logger.warn("OTP resend failed: Rate limited", { email, waitTime });
+      return res.status(429).json({
+        error: `Please wait ${waitTime} seconds before requesting a new code.`,
+      });
+    }
+
+    // Find user for name
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Generate new OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = Date.now() + 10 * 60 * 1000;
+
+    pendingReset.otp = otp; // Will be hashed by pre-save hook
+    pendingReset.otpExpiry = otpExpiry;
+    pendingReset.attempts = 0; // Reset attempts
+    pendingReset.createdAt = Date.now(); // Update for rate limiting
+    await pendingReset.save();
+
+    // Send new OTP
+    try {
+      await emailService.sendPasswordResetOTP(email, user.name, otp);
+      logger.info("Password reset OTP resent", { email });
+      res.json({ message: "New reset code sent to your email" });
+    } catch (error) {
+      logger.error("Failed to resend password reset OTP", { email, error: error.message });
+      res.status(500).json({ error: "Failed to send reset code. Please try again." });
+    }
   })
 );
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function ForgotPassword() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -20,10 +21,14 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      await axios.post("/api/auth/forgot-password", { email });
-      setSubmitted(true);
+      await axios.post("/api/auth/forgot-password/request-otp", { email });
+
+      // Navigate to OTP verification page
+      navigate("/reset-password-otp", {
+        state: { email },
+      });
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to send reset email. Please try again.");
+      setError(err.response?.data?.error || "Failed to send reset code. Please try again.");
     } finally {
       setLoading(false);
     }
