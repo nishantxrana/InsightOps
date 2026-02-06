@@ -130,6 +130,8 @@ router.post(
       email: pendingSignup.email,
       name: pendingSignup.name,
       password: pendingSignup.passwordHash,
+      isEmailVerified: true,
+      emailVerifiedAt: new Date(),
     });
 
     // Skip password hashing (already hashed)
