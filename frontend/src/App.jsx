@@ -12,7 +12,7 @@ import NotificationHistory from "./pages/NotificationHistory";
 import LandingPage from "./pages/LandingPage";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
-import VerifyEmail from "./pages/VerifyEmail";
+import VerifyOTP from "./pages/VerifyOTP";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import { HealthProvider } from "./contexts/HealthContext";
@@ -79,7 +79,7 @@ function AppContent() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
-        <Route path="/verify-email/:token" element={<VerifyEmail />} />
+        <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/" replace />} />

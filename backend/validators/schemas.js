@@ -119,3 +119,16 @@ export const resetPasswordSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number")
     .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
 });
+
+// OTP verification schemas
+export const verifyOTPSchema = z.object({
+  email: z.string().email("Invalid email format").max(255),
+  otp: z
+    .string()
+    .length(6, "Verification code must be 6 digits")
+    .regex(/^\d+$/, "Verification code must contain only numbers"),
+});
+
+export const resendOTPSchema = z.object({
+  email: z.string().email("Invalid email format").max(255),
+});
