@@ -172,10 +172,20 @@ const limiter = rateLimit({
     const ip = req.ip || req.socket?.remoteAddress || "unknown";
     return ip.split(":")[0];
   },
-  skip: (req) => req.path === "/api/health",
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Separate rate limiter for health check (more lenient but still protected)
+const healthLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute (1 per second average)
+  message: { error: "Too many health check requests" },
+  trustProxy: 1,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use("/api", limiter);
 
 // Body parsing middleware
@@ -200,8 +210,8 @@ app.use((req, res, next) => {
 // Auth routes (public)
 app.use("/api/auth", authRoutes);
 
-// Health check (public - must be before authenticated routes)
-app.get("/api/health", async (req, res) => {
+// Health check (public with rate limiting - must be before authenticated routes)
+app.get("/api/health", healthLimiter, async (req, res) => {
   const serverStartTime = Date.now() - process.uptime() * 1000;
   const health = {
     status: "healthy",
