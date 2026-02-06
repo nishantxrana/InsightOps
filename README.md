@@ -347,8 +347,6 @@ ENCRYPTION_KEY=your-32-byte-hex-encryption-key-here-64-characters-total-example
 #### Application Configuration (Required)
 
 ```env
-# Frontend URL for CORS
-FRONTEND_URL=http://localhost:5173
 
 # Allowed origins (comma-separated for multiple)
 ALLOWED_ORIGINS=http://localhost:5173

@@ -52,10 +52,6 @@ jobs:
                 "value": "${{ vars.NODE_ENV }}"
               },
               {
-                "name": "FRONTEND_URL",
-                "value": "${{ vars.FRONTEND_URL }}"
-              },
-              {
                 "name": "ALLOWED_ORIGINS",
                 "value": "${{ vars.ALLOWED_ORIGINS }}"
               },
