@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 const userSchema = new mongoose.Schema(
   {
@@ -25,13 +26,43 @@ const userSchema = new mongoose.Schema(
     lockUntil: {
       type: Date,
     },
+    // Email verification
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: {
+      type: String,
+      default: null,
+    },
+    verificationTokenExpiry: {
+      type: Date,
+      default: null,
+    },
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+    // Password reset
+    resetPasswordToken: {
+      type: String,
+      default: null,
+    },
+    resetPasswordExpiry: {
+      type: Date,
+      default: null,
+    },
+    lastPasswordResetAt: {
+      type: Date,
+      default: null,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
     },
   },
   {
-    collection: "app_users", // Use different collection name to avoid conflicts
+    collection: "app_users",
   }
 );
 
@@ -74,6 +105,39 @@ userSchema.methods.resetLoginAttempts = async function () {
 
 userSchema.methods.isLocked = function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
+};
+
+// Generate email verification token (24 hours)
+userSchema.methods.generateVerificationToken = function () {
+  const token = jwt.sign(
+    { userId: this._id.toString(), type: "email-verification" },
+    process.env.EMAIL_VERIFICATION_SECRET,
+    { expiresIn: "24h" }
+  );
+  this.verificationToken = token;
+  this.verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
+  return token;
+};
+
+// Generate password reset token (1 hour)
+userSchema.methods.generateResetToken = function () {
+  const token = jwt.sign(
+    { userId: this._id.toString(), type: "password-reset" },
+    process.env.PASSWORD_RESET_SECRET,
+    { expiresIn: "1h" }
+  );
+  this.resetPasswordToken = token;
+  this.resetPasswordExpiry = Date.now() + 60 * 60 * 1000;
+  return token;
+};
+
+// Mark email as verified
+userSchema.methods.verifyEmail = async function () {
+  this.isEmailVerified = true;
+  this.emailVerifiedAt = Date.now();
+  this.verificationToken = null;
+  this.verificationTokenExpiry = null;
+  await this.save();
 };
 
 // Add database indexes for performance
