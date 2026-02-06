@@ -17,7 +17,6 @@ import { useHealth } from "../contexts/HealthContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorMessage from "../components/ErrorMessage";
 import DevOpsActivityReport from "../components/DevOpsActivityReport";
-import EmailVerificationBanner from "../components/EmailVerificationBanner";
 
 export default function Dashboard() {
   const [initialLoading, setInitialLoading] = useState(true);
@@ -203,9 +202,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Email Verification Banner */}
-      <EmailVerificationBanner />
-
       <style>{`
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(20px); }

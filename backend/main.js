@@ -69,7 +69,7 @@ const app = express();
 const PORT = env.PORT;
 
 // Trust proxy for deployed environments (Azure App Service, etc.)
-app.set("trust proxy", true);
+app.set("trust proxy", true); // Required for ngrok and production proxies
 
 // Request ID middleware (must be early in the chain)
 app.use(requestIdMiddleware);
@@ -167,11 +167,6 @@ const limiter = rateLimit({
   windowMs: rateLimits.windowMs,
   max: rateLimits.max,
   message: { error: "Too many requests from this IP, please try again later." },
-  trustProxy: 1,
-  keyGenerator: (req) => {
-    const ip = req.ip || req.socket?.remoteAddress || "unknown";
-    return ip.split(":")[0];
-  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -181,7 +176,6 @@ const healthLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60, // 60 requests per minute (1 per second average)
   message: { error: "Too many health check requests" },
-  trustProxy: 1,
   standardHeaders: true,
   legacyHeaders: false,
 });
