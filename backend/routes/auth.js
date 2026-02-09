@@ -9,6 +9,7 @@ import { generateToken, authenticate } from "../middleware/auth.js";
 import { logger, sanitizeForLogging } from "../utils/logger.js";
 import { validateRequest } from "../middleware/validation.js";
 import { generateOTP } from "../utils/otpGenerator.js";
+import { otpRequestLimiter } from "../middleware/otpRateLimiter.js";
 import {
   registerSchema,
   loginSchema,
@@ -30,6 +31,7 @@ router.get("/health", (req, res) => {
 // Step 1: Request OTP (initiate signup)
 router.post(
   "/signup/request-otp",
+  otpRequestLimiter,
   validateRequest(registerSchema),
   asyncHandler(async (req, res) => {
     logger.info("OTP request:", sanitizeForLogging({ email: req.validatedData.email }));
@@ -274,6 +276,7 @@ router.post(
 // Forgot password - Request OTP
 router.post(
   "/forgot-password/request-otp",
+  otpRequestLimiter,
   validateRequest(forgotPasswordSchema),
   asyncHandler(async (req, res) => {
     const { email } = req.validatedData;
