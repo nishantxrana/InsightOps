@@ -8,6 +8,7 @@ import { UserSettings } from "../models/UserSettings.js";
 import { generateToken, authenticate } from "../middleware/auth.js";
 import { logger, sanitizeForLogging } from "../utils/logger.js";
 import { validateRequest } from "../middleware/validation.js";
+import { generateOTP } from "../utils/otpGenerator.js";
 import {
   registerSchema,
   loginSchema,
@@ -43,7 +44,7 @@ router.post(
     }
 
     // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOTP();
     const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     // Hash password
@@ -189,7 +190,7 @@ router.post(
     }
 
     // Generate new OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOTP();
     const otpExpiry = Date.now() + 10 * 60 * 1000;
 
     pendingSignup.otp = otp; // Will be hashed by pre-save hook
@@ -290,7 +291,7 @@ router.post(
     }
 
     // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOTP();
     const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     // Delete any existing pending reset for this email
@@ -446,7 +447,7 @@ router.post(
     }
 
     // Generate new OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOTP();
     const otpExpiry = Date.now() + 10 * 60 * 1000;
 
     pendingReset.otp = otp; // Will be hashed by pre-save hook
