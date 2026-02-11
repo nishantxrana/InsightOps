@@ -1,5 +1,6 @@
 import * as brevo from "@getbrevo/brevo";
 import { logger } from "../utils/logger.js";
+import { EmailLog } from "../models/EmailLog.js";
 
 class EmailService {
   constructor() {
@@ -19,6 +20,10 @@ class EmailService {
     // ✅ ENV-FIRST (with safe defaults)
     this.fromEmail = process.env.FROM_EMAIL || "support@notbatman.me";
     this.fromName = process.env.FROM_NAME || "InsightOps";
+
+    // Retry configuration
+    this.maxRetries = 3;
+    this.retryDelays = [0, 2000, 4000]; // 0s, 2s, 4s
   }
 
   // ------------------------
@@ -34,6 +39,7 @@ class EmailService {
       intro:
         "Thanks for signing up for InsightOps. Use the verification code below to complete your registration.",
       subject: "Your InsightOps verification code",
+      type: "signup_otp",
     });
   }
 
@@ -46,6 +52,7 @@ class EmailService {
       intro:
         "We received a request to reset your InsightOps password. Use the code below to continue.",
       subject: "Your InsightOps password reset code",
+      type: "password_reset_otp",
     });
   }
 
@@ -53,7 +60,7 @@ class EmailService {
   // Core implementation
   // ------------------------
 
-  async sendTransactionalOTP({ email, name, otp, title, intro, subject, accentColor }) {
+  async sendTransactionalOTP({ email, name, otp, title, intro, subject, type, accentColor }) {
     if (!this.enabled) {
       logger.warn("Email service disabled - skipping email send");
       return { skipped: true };
@@ -92,6 +99,7 @@ support@notbatman.me
       subject,
       htmlContent,
       textContent,
+      type,
     });
   }
 
@@ -226,39 +234,122 @@ support@notbatman.me
   }
 
   // ------------------------
-  // Sender
+  // Sender with Retry Logic
   // ------------------------
 
-  async sendEmail({ to, subject, htmlContent, textContent }) {
+  async sendEmail({ to, subject, htmlContent, textContent, type }) {
+    let lastError = null;
+
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        // Wait before retry (except first attempt)
+        if (attempt > 0) {
+          await this.sleep(this.retryDelays[attempt]);
+          logger.info(`Retrying email send (attempt ${attempt + 1}/${this.maxRetries})`, {
+            to,
+            type,
+          });
+        }
+
+        const email = new brevo.SendSmtpEmail();
+
+        email.sender = {
+          email: this.fromEmail,
+          name: this.fromName,
+        };
+
+        email.to = [{ email: to }];
+        email.subject = subject;
+        email.htmlContent = htmlContent;
+        email.textContent = textContent;
+
+        const result = await this.apiInstance.sendTransacEmail(email);
+
+        // Success! Log to database
+        await this.logEmail({
+          email: to,
+          type,
+          status: "sent",
+          messageId: result.messageId,
+          attempts: attempt + 1,
+        });
+
+        logger.info("Email sent successfully", {
+          to,
+          subject,
+          messageId: result.messageId,
+          attempts: attempt + 1,
+        });
+
+        return result;
+      } catch (error) {
+        lastError = error;
+
+        logger.warn(`Email send attempt ${attempt + 1} failed`, {
+          to,
+          type,
+          error: error.message,
+        });
+
+        // Don't retry on certain errors
+        if (this.isNonRetryableError(error)) {
+          break;
+        }
+      }
+    }
+
+    // All retries failed - log failure
+    await this.logEmail({
+      email: to,
+      type,
+      status: "failed",
+      attempts: this.maxRetries,
+      lastError: lastError?.message || "Unknown error",
+    });
+
+    logger.error("Failed to send email after all retries", {
+      to,
+      subject,
+      attempts: this.maxRetries,
+      error: lastError?.message,
+    });
+
+    throw lastError;
+  }
+
+  // Helper: Check if error should not be retried
+  isNonRetryableError(error) {
+    const message = error.message?.toLowerCase() || "";
+
+    // Don't retry on invalid email, quota exceeded, etc.
+    return (
+      message.includes("invalid email") ||
+      message.includes("quota exceeded") ||
+      message.includes("unauthorized") ||
+      message.includes("forbidden")
+    );
+  }
+
+  // Helper: Sleep for retry delay
+  sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // Helper: Log email to database
+  async logEmail({ email, type, status, messageId = null, attempts = 1, lastError = null }) {
     try {
-      const email = new brevo.SendSmtpEmail();
-
-      email.sender = {
-        email: this.fromEmail,
-        name: this.fromName,
-      };
-
-      email.to = [{ email: to }];
-      email.subject = subject;
-      email.htmlContent = htmlContent;
-      email.textContent = textContent;
-
-      const result = await this.apiInstance.sendTransacEmail(email);
-
-      logger.info("Email sent successfully", {
-        to,
-        subject,
-        messageId: result.messageId,
+      await EmailLog.create({
+        email,
+        type,
+        status,
+        messageId,
+        attempts,
+        lastError,
+        sentAt: new Date(),
       });
-
-      return result;
     } catch (error) {
-      logger.error("Failed to send email", {
-        to,
-        subject,
-        error: error.message,
-      });
-      throw error;
+      // Don't fail email send if logging fails
+      logger.error("Failed to log email", { error: error.message });
     }
   }
 }
