@@ -12,19 +12,6 @@ export function OrganizationProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Create axios instance that always uses current token
-  const api = useMemo(() => {
-    const instance = axios.create({ baseURL: "/api" });
-    instance.interceptors.request.use((config) => {
-      const currentToken = localStorage.getItem("token");
-      if (currentToken) {
-        config.headers.Authorization = `Bearer ${currentToken}`;
-      }
-      return config;
-    });
-    return instance;
-  }, []);
-
   // Fetch organizations
   const fetchOrganizations = useCallback(async () => {
     const currentToken = localStorage.getItem("token");
@@ -37,7 +24,8 @@ export function OrganizationProvider({ children }) {
 
     try {
       setLoading(true);
-      const response = await api.get("/organizations");
+      // Use global axios (has interceptor from AuthContext)
+      const response = await axios.get("/api/organizations");
       const orgs = response.data.organizations || [];
       setOrganizations(orgs);
 
@@ -60,13 +48,22 @@ export function OrganizationProvider({ children }) {
 
       setError(null);
     } catch (err) {
+      // If 401, user is not authenticated - let AuthContext handle logout
+      if (err.response?.status === 401) {
+        console.warn("OrganizationContext: 401 detected, skipping error handling");
+        setOrganizations([]);
+        setCurrentOrganization(null);
+        setLoading(false);
+        return;
+      }
+
       const message = err.userMessage || "Failed to load organizations. Please try again.";
       setError(message);
       setOrganizations([]);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, api]);
+  }, [isAuthenticated]); // Removed 'api' dependency
 
   useEffect(() => {
     fetchOrganizations();
@@ -109,7 +106,7 @@ export function OrganizationProvider({ children }) {
   const addOrganization = useCallback(
     async (orgData) => {
       try {
-        const response = await api.post("/organizations", orgData);
+        const response = await axios.post("/api/organizations", orgData);
         const newOrg = response.data.organization;
         setOrganizations((prev) => [...prev, newOrg]);
 
@@ -137,7 +134,7 @@ export function OrganizationProvider({ children }) {
   const updateOrganization = useCallback(
     async (orgId, updates) => {
       try {
-        const response = await api.put(`/organizations/${orgId}`, updates);
+        const response = await axios.put(`/api/organizations/${orgId}`, updates);
         const updatedOrg = response.data.organization;
 
         setOrganizations((prev) => prev.map((o) => (o._id === orgId ? updatedOrg : o)));
@@ -164,7 +161,7 @@ export function OrganizationProvider({ children }) {
   const deleteOrganization = useCallback(
     async (orgId) => {
       try {
-        await api.delete(`/organizations/${orgId}`);
+        await axios.delete(`/api/organizations/${orgId}`);
 
         setOrganizations((prev) => prev.filter((o) => o._id !== orgId));
 
@@ -197,7 +194,7 @@ export function OrganizationProvider({ children }) {
   // Test connection
   const testConnection = useCallback(async (orgId) => {
     try {
-      const response = await api.post(`/organizations/${orgId}/test-connection`);
+      const response = await axios.post(`/api/organizations/${orgId}/test-connection`);
       return response.data;
     } catch (err) {
       return {
@@ -210,7 +207,7 @@ export function OrganizationProvider({ children }) {
   // Set default organization
   const setDefaultOrganization = useCallback(async (orgId) => {
     try {
-      const response = await api.post(`/organizations/${orgId}/set-default`);
+      const response = await axios.post(`/api/organizations/${orgId}/set-default`);
       const updatedOrg = response.data.organization;
 
       setOrganizations((prev) =>
