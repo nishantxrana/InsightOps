@@ -69,7 +69,8 @@ const app = express();
 const PORT = env.PORT;
 
 // Trust proxy for deployed environments (Azure App Service, etc.)
-app.set("trust proxy", true);
+// Set to 1 to trust only the first proxy (Azure App Service)
+app.set("trust proxy", 1);
 
 // Request ID middleware (must be early in the chain)
 app.use(requestIdMiddleware);
@@ -182,6 +183,10 @@ const healthLimiter = rateLimit({
   max: 60, // 60 requests per minute (1 per second average)
   message: { error: "Too many health check requests" },
   trustProxy: 1,
+  keyGenerator: (req) => {
+    const ip = req.ip || req.socket?.remoteAddress || "unknown";
+    return ip.split(":")[0];
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
