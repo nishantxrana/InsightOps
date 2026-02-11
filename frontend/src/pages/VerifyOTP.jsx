@@ -64,8 +64,21 @@ export default function VerifyOTP() {
         window.location.href = "/dashboard";
       }, 2000);
     } catch (err) {
-      setError(err.response?.data?.error || "Invalid verification code. Please try again.");
+      const errorMessage =
+        err.response?.data?.error || "Invalid verification code. Please try again.";
+      setError(errorMessage);
       setOtp("");
+
+      // If session expired or too many attempts, redirect to signup
+      if (
+        errorMessage.includes("session expired") ||
+        errorMessage.includes("Too many failed attempts") ||
+        err.response?.status === 429
+      ) {
+        setTimeout(() => {
+          navigate("/signup");
+        }, 3000);
+      }
     } finally {
       setLoading(false);
     }

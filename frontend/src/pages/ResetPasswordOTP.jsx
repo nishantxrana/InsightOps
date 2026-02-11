@@ -59,8 +59,20 @@ export default function ResetPasswordOTP() {
       await axios.post("/api/auth/forgot-password/verify-otp", { email, otp });
       setStep(2);
     } catch (err) {
-      setError(err.response?.data?.error || "Invalid reset code. Please try again.");
+      const errorMessage = err.response?.data?.error || "Invalid reset code. Please try again.";
+      setError(errorMessage);
       setOtp("");
+
+      // If session expired or too many attempts, redirect to forgot password
+      if (
+        errorMessage.includes("session expired") ||
+        errorMessage.includes("Too many failed attempts") ||
+        err.response?.status === 429
+      ) {
+        setTimeout(() => {
+          navigate("/forgot-password");
+        }, 3000);
+      }
     } finally {
       setLoading(false);
     }
