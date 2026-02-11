@@ -134,26 +134,26 @@ async function fetchPRMetrics(client, startDate, endDate, productionOnly = false
     }
 
     // Log fetched counts for debugging
-    logger.info(
-      `[ActivityReport] Fetched PRs in date range - Active: ${activePRs.length}, Completed: ${completedPRs.length}, Abandoned: ${abandonedPRs.length}, Total: ${allPRs.length}`
-    );
+    logger.info(`[ActivityReport] Fetched PRs in date range - Total: ${allPRs.length}`);
 
-    // Calculate metrics (no need to filter by date - API already did it!)
+    // Calculate metrics from FILTERED PRs
     const byStatus = {
-      active: activePRs.length,
-      completed: completedPRs.length,
-      abandoned: abandonedPRs.length,
+      active: allPRs.filter((pr) => pr.status === "active").length,
+      completed: allPRs.filter((pr) => pr.status === "completed").length,
+      abandoned: allPRs.filter((pr) => pr.status === "abandoned").length,
     };
 
     // Calculate avg time to complete (for completed PRs only)
-    const completedPRsWithDates = completedPRs.filter((pr) => pr.creationDate && pr.closedDate);
+    const completedPRsFiltered = allPRs.filter(
+      (pr) => pr.status === "completed" && pr.creationDate && pr.closedDate
+    );
     const avgTimeToComplete =
-      completedPRsWithDates.length > 0
-        ? completedPRsWithDates.reduce((sum, pr) => {
+      completedPRsFiltered.length > 0
+        ? completedPRsFiltered.reduce((sum, pr) => {
             const created = new Date(pr.creationDate);
             const closed = new Date(pr.closedDate);
             return sum + (closed - created) / (1000 * 60 * 60); // hours
-          }, 0) / completedPRsWithDates.length
+          }, 0) / completedPRsFiltered.length
         : 0;
 
     return {
