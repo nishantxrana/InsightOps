@@ -143,4 +143,35 @@ userSchema.methods.verifyEmail = async function () {
 // Add database indexes for performance
 userSchema.index({ createdAt: -1 });
 
+// Cascade delete: Remove all user-related data when user is deleted
+userSchema.pre("deleteOne", { document: true, query: false }, async function (next) {
+  try {
+    const userId = this._id;
+
+    // Import models (avoid circular dependency)
+    const Organization = mongoose.model("Organization");
+    const UserSettings = mongoose.model("UserSettings");
+    const NotificationHistory = mongoose.model("NotificationHistory");
+    const PollingJob = mongoose.model("PollingJob");
+    const WorkflowExecution = mongoose.model("WorkflowExecution");
+    const Memory = mongoose.model("Memory");
+    const Pattern = mongoose.model("Pattern");
+
+    // Delete all related data in parallel
+    await Promise.all([
+      Organization.deleteMany({ userId }),
+      UserSettings.deleteMany({ userId }),
+      NotificationHistory.deleteMany({ userId }),
+      PollingJob.deleteMany({ userId }),
+      WorkflowExecution.deleteMany({ userId }),
+      Memory.deleteMany({ userId }),
+      Pattern.deleteMany({ userId }),
+    ]);
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 export const User = mongoose.model("User", userSchema);
