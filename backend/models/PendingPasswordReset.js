@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { OTP_CONFIG } from "../config/otp.js";
 
 const pendingPasswordResetSchema = new mongoose.Schema({
   email: {
@@ -23,7 +24,7 @@ const pendingPasswordResetSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 900, // TTL: 15 minutes (auto-delete)
+    expires: OTP_CONFIG.SESSION_TTL_SECONDS, // TTL: 15 minutes (auto-delete)
   },
 });
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OTP_CONFIG } from "../config/otp.js";
 
 // Authentication schemas
 export const registerSchema = z.object({
@@ -126,7 +127,7 @@ export const verifyOTPSchema = z.object({
   email: z.string().email("Invalid email format").max(255),
   otp: z
     .string()
-    .length(6, "Verification code must be 6 digits")
+    .length(OTP_CONFIG.OTP_LENGTH, `Verification code must be ${OTP_CONFIG.OTP_LENGTH} digits`)
     .regex(/^\d+$/, "Verification code must contain only numbers"),
 });
 

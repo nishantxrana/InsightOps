@@ -10,6 +10,7 @@ import { logger, sanitizeForLogging } from "../utils/logger.js";
 import { validateRequest } from "../middleware/validation.js";
 import { generateOTP } from "../utils/otpGenerator.js";
 import { otpRequestLimiter } from "../middleware/otpRateLimiter.js";
+import { OTP_CONFIG, OTP_HELPERS } from "../config/otp.js";
 import {
   registerSchema,
   loginSchema,
@@ -47,7 +48,7 @@ router.post(
 
     // Generate 6-digit OTP
     const otp = generateOTP();
-    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const otpExpiry = OTP_HELPERS.getOTPExpiry();
 
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
@@ -106,7 +107,7 @@ router.post(
     }
 
     // Check attempts
-    if (pendingSignup.attempts >= 3) {
+    if (pendingSignup.attempts >= OTP_CONFIG.MAX_VERIFICATION_ATTEMPTS) {
       await PendingSignup.deleteOne({ email });
       logger.warn("OTP verification failed: Too many attempts", { email });
       return res.status(429).json({ error: "Too many failed attempts. Please sign up again." });
@@ -118,7 +119,7 @@ router.post(
       pendingSignup.attempts += 1;
       await pendingSignup.save();
 
-      const remainingAttempts = 3 - pendingSignup.attempts;
+      const remainingAttempts = OTP_CONFIG.MAX_VERIFICATION_ATTEMPTS - pendingSignup.attempts;
       logger.warn("OTP verification failed: Invalid code", {
         email,
         attempts: pendingSignup.attempts,
@@ -181,10 +182,9 @@ router.post(
       return res.status(400).json({ error: "Verification session expired. Please sign up again." });
     }
 
-    // Rate limit: Can't resend within 60 seconds
-    const timeSinceCreation = Date.now() - pendingSignup.createdAt.getTime();
-    if (timeSinceCreation < 60000) {
-      const waitTime = Math.ceil((60000 - timeSinceCreation) / 1000);
+    // Rate limit: Can't resend within cooldown period
+    if (!OTP_HELPERS.canResend(pendingSignup.createdAt)) {
+      const waitTime = OTP_HELPERS.getResendWaitTime(pendingSignup.createdAt);
       logger.warn("OTP resend failed: Rate limited", { email, waitTime });
       return res.status(429).json({
         error: `Please wait ${waitTime} seconds before requesting a new code.`,
@@ -193,7 +193,7 @@ router.post(
 
     // Generate new OTP
     const otp = generateOTP();
-    const otpExpiry = Date.now() + 10 * 60 * 1000;
+    const otpExpiry = OTP_HELPERS.getOTPExpiry();
 
     pendingSignup.otp = otp; // Will be hashed by pre-save hook
     pendingSignup.otpExpiry = otpExpiry;
@@ -295,7 +295,7 @@ router.post(
 
     // Generate 6-digit OTP
     const otp = generateOTP();
-    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const otpExpiry = OTP_HELPERS.getOTPExpiry();
 
     // Delete any existing pending reset for this email
     await PendingPasswordReset.deleteOne({ email });
@@ -348,7 +348,7 @@ router.post(
     }
 
     // Check attempts
-    if (pendingReset.attempts >= 3) {
+    if (pendingReset.attempts >= OTP_CONFIG.MAX_VERIFICATION_ATTEMPTS) {
       await PendingPasswordReset.deleteOne({ email });
       logger.warn("Password reset failed: Too many attempts", { email });
       return res.status(429).json({ error: "Too many failed attempts. Please try again." });
@@ -360,7 +360,7 @@ router.post(
       pendingReset.attempts += 1;
       await pendingReset.save();
 
-      const remainingAttempts = 3 - pendingReset.attempts;
+      const remainingAttempts = OTP_CONFIG.MAX_VERIFICATION_ATTEMPTS - pendingReset.attempts;
       logger.warn("Password reset failed: Invalid OTP", {
         email,
         attempts: pendingReset.attempts,
@@ -433,10 +433,9 @@ router.post(
       return res.status(400).json({ error: "Reset session expired. Please try again." });
     }
 
-    // Rate limit: Can't resend within 60 seconds
-    const timeSinceCreation = Date.now() - pendingReset.createdAt.getTime();
-    if (timeSinceCreation < 60000) {
-      const waitTime = Math.ceil((60000 - timeSinceCreation) / 1000);
+    // Rate limit: Can't resend within cooldown period
+    if (!OTP_HELPERS.canResend(pendingReset.createdAt)) {
+      const waitTime = OTP_HELPERS.getResendWaitTime(pendingReset.createdAt);
       logger.warn("OTP resend failed: Rate limited", { email, waitTime });
       return res.status(429).json({
         error: `Please wait ${waitTime} seconds before requesting a new code.`,
@@ -451,7 +450,7 @@ router.post(
 
     // Generate new OTP
     const otp = generateOTP();
-    const otpExpiry = Date.now() + 10 * 60 * 1000;
+    const otpExpiry = OTP_HELPERS.getOTPExpiry();
 
     pendingReset.otp = otp; // Will be hashed by pre-save hook
     pendingReset.otpExpiry = otpExpiry;
