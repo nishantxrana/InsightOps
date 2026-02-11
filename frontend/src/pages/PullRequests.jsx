@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCw,
+  Download,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiService } from "../api/apiService";
@@ -283,6 +284,74 @@ export default function PullRequests() {
     return sorted;
   };
 
+  const handleExportCSV = () => {
+    const prsToExport = getFilteredAndSortedPRs();
+
+    if (prsToExport.length === 0) {
+      return;
+    }
+
+    // CSV headers
+    const headers = [
+      "ID",
+      "Title",
+      "Status",
+      "Repository",
+      "Source Branch",
+      "Target Branch",
+      "Created By",
+      "Created Date",
+      "Reviewers",
+      "Merge Status",
+      "URL",
+    ];
+
+    // CSV rows
+    const rows = prsToExport.map((pr) => {
+      const reviewers =
+        pr.reviewers?.map((r) => r.displayName || r.uniqueName).join("; ") || "None";
+      const createdDate = pr.creationDate
+        ? format(new Date(pr.creationDate), "yyyy-MM-dd HH:mm:ss")
+        : "";
+      const url = pr.webUrl || pr._links?.web?.href || "";
+
+      return [
+        pr.pullRequestId || "",
+        (pr.title || "").replace(/"/g, '""'), // Escape quotes
+        pr.status || "",
+        pr.repository?.name || "",
+        (pr.sourceRefName || "").replace("refs/heads/", ""),
+        (pr.targetRefName || "").replace("refs/heads/", ""),
+        pr.createdBy?.displayName || pr.createdBy?.uniqueName || "",
+        createdDate,
+        reviewers.replace(/"/g, '""'),
+        pr.mergeStatus || "",
+        url,
+      ]
+        .map((field) => `"${field}"`)
+        .join(",");
+    });
+
+    // Combine headers and rows
+    const csv = [headers.map((h) => `"${h}"`).join(","), ...rows].join("\n");
+
+    // Download
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const timestamp = format(new Date(), "yyyy-MM-dd-HHmmss");
+    const filterSuffix = filter !== "all" ? `-${filter}` : "";
+    link.download = `pull-requests${filterSuffix}-${timestamp}.csv`;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const filteredPRs = getFilteredAndSortedPRs();
+
   if (error && initialLoading) {
     return <ErrorMessage message={error} onRetry={loadPullRequestsData} />;
   }
@@ -388,6 +457,16 @@ export default function PullRequests() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleExportCSV}
+              disabled={
+                filteredPRs.length === 0 || Object.values(loadingStates).some((loading) => loading)
+              }
+              className="group flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-sm font-medium rounded-full disabled:opacity-60 transition-all duration-200"
+            >
+              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform duration-200" />
+              Export CSV
+            </button>
             <button
               onClick={handleSync}
               disabled={Object.values(loadingStates).some((loading) => loading)}
@@ -684,10 +763,9 @@ export default function PullRequests() {
           </div>
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-muted text-foreground">
-              {filter === "all" ? pullRequests.length : getFilteredAndSortedPRs().length} of{" "}
-              {pullRequests.length}
+              {filteredPRs.length} of {pullRequests.length}
             </span>
-            {getFilteredAndSortedPRs().length !== pullRequests.length && (
+            {filteredPRs.length !== pullRequests.length && (
               <button
                 onClick={() => setFilter("all")}
                 className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium transition-colors"
@@ -732,7 +810,7 @@ export default function PullRequests() {
             </div>
           ) : getFilteredAndSortedPRs().length > 0 ? (
             <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-              {getFilteredAndSortedPRs().map((pr) => {
+              {filteredPRs.map((pr) => {
                 const isUnassigned =
                   pr.status === "active" && (!pr.reviewers || pr.reviewers.length === 0);
                 const hasConflicts = pr.mergeStatus === "conflicts";
