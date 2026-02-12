@@ -63,6 +63,8 @@ const getDefaultSettings = () => ({
     overdueCheckEnabled: false,
     overdueFilterEnabled: true,
     overdueMaxDays: 60,
+    idlePRFilterEnabled: true,
+    idlePRMaxDays: 90,
   },
   security: {
     webhookSecret: "",
@@ -75,7 +77,8 @@ const getDefaultSettings = () => ({
 export default function Settings() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { currentOrganization, updateOrganization, needsSetup } = useOrganization();
+  const { currentOrganization, currentProject, updateOrganization, needsSetup, clearSwitching } =
+    useOrganization();
 
   const [activeSection, setActiveSection] = useState("organizations");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -121,16 +124,20 @@ export default function Settings() {
           slackEnabled: org.notifications?.slackEnabled ?? false,
           googleChatEnabled: org.notifications?.googleChatEnabled ?? false,
         },
-        polling: org.polling || getDefaultSettings().polling,
+        polling: {
+          ...getDefaultSettings().polling,
+          ...org.polling,
+        },
         security: getDefaultSettings().security,
       };
 
       setTabSettings(loaded);
       setOriginalTabSettings(JSON.parse(JSON.stringify(loaded)));
+      clearSwitching(); // Clear switching overlay after settings load
     };
 
     loadOrgSettings();
-  }, [currentOrganization]);
+  }, [currentOrganization, currentProject]);
 
   // Check if current tab has changes
   const hasCurrentTabChanges = useCallback(() => {

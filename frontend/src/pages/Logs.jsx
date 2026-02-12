@@ -12,12 +12,14 @@ import {
 } from "lucide-react";
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
+import { useOrganization } from "../contexts/OrganizationContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorMessage from "../components/ErrorMessage";
 import { Checkbox } from "../components/ui/checkbox";
 import { format, formatDistanceToNow } from "date-fns";
 
 export default function Logs() {
+  const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -28,8 +30,10 @@ export default function Logs() {
   const { checkConnection } = useHealth();
 
   useEffect(() => {
-    loadLogs();
-  }, []);
+    if (currentOrganization) {
+      loadLogs();
+    }
+  }, [currentOrganization, currentProject]);
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadLogs()]);
@@ -59,6 +63,7 @@ export default function Logs() {
       setError(err.userMessage || "Failed to load logs. Please try again.");
     } finally {
       setLoading(false);
+      clearSwitching(); // Clear switching overlay
     }
   };
 

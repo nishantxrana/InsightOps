@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -17,9 +18,10 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { OrganizationProvider, useOrganization } from "./contexts/OrganizationContext";
 import { Toaster } from "./components/ui/toaster";
+import { SwitchingOverlay } from "./components/SwitchingOverlay";
 
 function AuthenticatedApp() {
-  const { needsSetup, loading } = useOrganization();
+  const { needsSetup, loading, switching, switchingTo, currentOrganization } = useOrganization();
 
   if (loading) {
     return (
@@ -43,18 +45,26 @@ function AuthenticatedApp() {
 
   return (
     <Layout>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/work-items" element={<WorkItems />} />
-        <Route path="/pipelines" element={<Pipelines />} />
-        <Route path="/releases" element={<Releases />} />
-        <Route path="/pull-requests" element={<PullRequests />} />
-        <Route path="/logs" element={<Logs />} />
-        <Route path="/notifications" element={<NotificationHistory />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <SwitchingOverlay isVisible={switching} switchingTo={switchingTo} />
+      <motion.div
+        key={currentOrganization?._id || "no-org"}
+        initial={{ opacity: 0.7 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/work-items" element={<WorkItems />} />
+          <Route path="/pipelines" element={<Pipelines />} />
+          <Route path="/releases" element={<Releases />} />
+          <Route path="/pull-requests" element={<PullRequests />} />
+          <Route path="/logs" element={<Logs />} />
+          <Route path="/notifications" element={<NotificationHistory />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </motion.div>
     </Layout>
   );
 }
