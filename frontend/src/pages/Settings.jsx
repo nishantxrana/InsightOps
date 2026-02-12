@@ -63,6 +63,8 @@ const getDefaultSettings = () => ({
     overdueCheckEnabled: false,
     overdueFilterEnabled: true,
     overdueMaxDays: 60,
+    idlePRFilterEnabled: true,
+    idlePRMaxDays: 90,
   },
   security: {
     webhookSecret: "",

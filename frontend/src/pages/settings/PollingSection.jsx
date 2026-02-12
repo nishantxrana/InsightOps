@@ -78,7 +78,7 @@ export default function PollingSection({ data, onChange }) {
           </div>
 
           {data.pullRequestEnabled && (
-            <div className="space-y-2 pl-0">
+            <div className="space-y-3 pl-0">
               <div className="flex gap-2 flex-wrap">
                 {PRESETS.pullRequest.map((preset) => (
                   <button
@@ -106,6 +106,40 @@ export default function PollingSection({ data, onChange }) {
                   ? getCronDescription(data.pullRequestInterval)
                   : "Select a preset or enter a cron expression"}
               </p>
+
+              {/* Idle PR filter options */}
+              <div className="mt-2 space-y-3 p-3 border rounded-md bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Filter Old PRs</Label>
+                    <p className="text-xs text-muted-foreground">Ignore PRs created too long ago</p>
+                  </div>
+                  <Switch
+                    checked={data.idlePRFilterEnabled !== false}
+                    onCheckedChange={(checked) => handleChange("idlePRFilterEnabled", checked)}
+                  />
+                </div>
+
+                {data.idlePRFilterEnabled !== false && (
+                  <div>
+                    <Label className="text-sm">Ignore PRs created more than</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        type="number"
+                        min="7"
+                        max="365"
+                        value={data.idlePRMaxDays ?? 90}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val) && val >= 7) handleChange("idlePRMaxDays", val);
+                        }}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-muted-foreground">days ago</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
