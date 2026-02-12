@@ -47,7 +47,7 @@ import { exportNotificationToCSV } from "@/utils/csvExport";
 
 const NotificationHistory = () => {
   const { user } = useAuth();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const [notifications, setNotifications] = useState([]);
   const [counts, setCounts] = useState({});
   const [activeTab, setActiveTab] = useState("all");
@@ -66,8 +66,9 @@ const NotificationHistory = () => {
       fetchCounts();
     } else {
       setLoading(false);
+      clearSwitching(); // Clear switching overlay if no user/org
     }
-  }, [user, activeTab, currentOrganization]); // Refetch when tab or org changes
+  }, [user, activeTab, currentOrganization, currentProject]); // Refetch when tab, org, or project changes
 
   const getHeaders = () => {
     const headers = {
@@ -124,6 +125,7 @@ const NotificationHistory = () => {
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      clearSwitching(); // Clear switching overlay
     }
   };
 

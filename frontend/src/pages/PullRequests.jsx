@@ -18,6 +18,7 @@ import {
   Download,
 } from "lucide-react";
 import { apiService } from "../api/apiService";
+import { useOrganization } from "../contexts/OrganizationContext";
 import { useHealth } from "../contexts/HealthContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorMessage from "../components/ErrorMessage";
@@ -53,10 +54,13 @@ export default function PullRequests() {
   const [selectedPR, setSelectedPR] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { checkConnection } = useHealth();
+  const { currentOrganization, currentProject, clearSwitching } = useOrganization();
 
   useEffect(() => {
-    loadPullRequestsData();
-  }, [timeRange]); // Reload when time range changes
+    if (currentOrganization) {
+      loadPullRequestsData();
+    }
+  }, [timeRange, currentOrganization, currentProject]); // Reload when time range, org, or project changes
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadPullRequestsData()]);
@@ -117,6 +121,8 @@ export default function PullRequests() {
           err.userMessage ||
             "Failed to load pull requests. Please check your Azure DevOps configuration."
         );
+        setInitialLoading(false);
+        clearSwitching(); // Clear switching overlay on error
         return;
       }
 
@@ -141,6 +147,7 @@ export default function PullRequests() {
 
       // Set initialLoading false only after all APIs complete successfully
       setInitialLoading(false);
+      clearSwitching(); // Clear switching overlay after data loads
     } catch (err) {
       setError(
         err.userMessage ||
@@ -154,6 +161,8 @@ export default function PullRequests() {
         idlePRs: false,
         stats: false,
       });
+      setInitialLoading(false);
+      clearSwitching(); // Clear switching overlay on error
     }
   };
 
