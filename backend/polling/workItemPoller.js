@@ -103,7 +103,7 @@ class WorkItemPoller {
 
       if (overdueItems.count > 0) {
         let filteredItems = overdueItems.value;
-        const filterEnabled = org.polling?.overdueFilterEnabled !== false;
+        const filterEnabled = org.polling?.overdueFilterEnabled === true;
         const maxDays = org.polling?.overdueMaxDays || 60;
 
         if (filterEnabled && maxDays > 0) {

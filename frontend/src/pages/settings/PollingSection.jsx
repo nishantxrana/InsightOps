@@ -115,12 +115,12 @@ export default function PollingSection({ data, onChange }) {
                     <p className="text-xs text-muted-foreground">Ignore PRs created too long ago</p>
                   </div>
                   <Switch
-                    checked={data.idlePRFilterEnabled !== false}
+                    checked={data.idlePRFilterEnabled === true}
                     onCheckedChange={(checked) => handleChange("idlePRFilterEnabled", checked)}
                   />
                 </div>
 
-                {data.idlePRFilterEnabled !== false && (
+                {data.idlePRFilterEnabled === true && (
                   <div>
                     <Label className="text-sm">Ignore PRs created more than</Label>
                     <div className="flex items-center gap-2 mt-1">
@@ -199,12 +199,12 @@ export default function PollingSection({ data, onChange }) {
                     </p>
                   </div>
                   <Switch
-                    checked={data.overdueFilterEnabled !== false}
+                    checked={data.overdueFilterEnabled === true}
                     onCheckedChange={(checked) => handleChange("overdueFilterEnabled", checked)}
                   />
                 </div>
 
-                {data.overdueFilterEnabled !== false && (
+                {data.overdueFilterEnabled === true && (
                   <div>
                     <Label className="text-sm">Ignore items overdue for more than</Label>
                     <div className="flex items-center gap-2 mt-1">

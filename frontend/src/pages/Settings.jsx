@@ -123,7 +123,10 @@ export default function Settings() {
           slackEnabled: org.notifications?.slackEnabled ?? false,
           googleChatEnabled: org.notifications?.googleChatEnabled ?? false,
         },
-        polling: org.polling || getDefaultSettings().polling,
+        polling: {
+          ...getDefaultSettings().polling,
+          ...org.polling,
+        },
         security: getDefaultSettings().security,
       };
 
