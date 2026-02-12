@@ -802,6 +802,89 @@ router.get("/pull-requests", async (req, res) => {
   }
 });
 
+// Pull Requests by date range (with pagination)
+router.get("/pull-requests/by-date", async (req, res) => {
+  try {
+    const org = await getOrganizationSettings(req);
+
+    if (!hasAzureDevOpsConfig(org)) {
+      return res.status(400).json({ error: "Azure DevOps configuration required" });
+    }
+
+    const { days = 30 } = req.query;
+    const daysNum = parseInt(days, 10);
+
+    // Validate max 90 days
+    if (daysNum > 90) {
+      return res.status(400).json({ error: "Maximum time range is 90 days" });
+    }
+
+    const endDate = new Date().toISOString();
+    const startDate = new Date(Date.now() - daysNum * 24 * 60 * 60 * 1000).toISOString();
+
+    const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
+
+    // Fetch all PRs for each status with pagination (like activity report)
+    const fetchAllPRsByStatus = async (status) => {
+      let allPRs = [];
+      let skip = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await client.client.get("/git/pullrequests", {
+          params: {
+            "api-version": "7.1",
+            "searchCriteria.status": status,
+            "searchCriteria.minTime": startDate,
+            "searchCriteria.maxTime": endDate,
+            "searchCriteria.queryTimeRangeType": "created",
+            $top: batchSize,
+            $skip: skip,
+          },
+        });
+
+        const prs = response.data.value || [];
+
+        // Add webUrl to each PR
+        const prsWithUrl = prs.map((pr) => ({
+          ...pr,
+          webUrl: client.constructPullRequestWebUrl(pr),
+        }));
+
+        allPRs = [...allPRs, ...prsWithUrl];
+
+        hasMore = prs.length === batchSize;
+        skip += batchSize;
+
+        // Safety limit
+        if (allPRs.length >= 10000) {
+          logger.warn(`[PR-by-date] Reached safety limit of 10000 PRs for status: ${status}`);
+          break;
+        }
+      }
+
+      return allPRs;
+    };
+
+    // Fetch all statuses in parallel
+    const [activePRs, completedPRs, abandonedPRs] = await Promise.all([
+      fetchAllPRsByStatus("active"),
+      fetchAllPRsByStatus("completed"),
+      fetchAllPRsByStatus("abandoned"),
+    ]);
+
+    const allPRs = [...activePRs, ...completedPRs, ...abandonedPRs];
+
+    logger.info(`[PR-by-date] Fetched ${allPRs.length} PRs for ${daysNum} days`);
+
+    res.json({ value: allPRs, count: allPRs.length });
+  } catch (error) {
+    logger.error("Error fetching PRs by date:", error);
+    res.status(500).json({ error: "Failed to fetch pull requests" });
+  }
+});
+
 router.get("/pull-requests/idle", async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);

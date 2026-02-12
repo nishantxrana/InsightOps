@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   GitPullRequest,
   User,
@@ -16,12 +17,12 @@ import {
   RefreshCw,
   Download,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorMessage from "../components/ErrorMessage";
 import PullRequestDetailModal from "../components/PullRequestDetailModal";
+import TimeRangeSelector from "../components/TimeRangeSelector";
 import { format, formatDistanceToNow } from "date-fns";
 
 export default function PullRequests() {
@@ -36,6 +37,12 @@ export default function PullRequests() {
   const [idlePRs, setIdlePRs] = useState([]);
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [timeRange, setTimeRange] = useState({
+    from: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+    to: new Date(),
+    label: "1 Day",
+    value: "1d",
+  });
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -49,7 +56,7 @@ export default function PullRequests() {
 
   useEffect(() => {
     loadPullRequestsData();
-  }, []);
+  }, [timeRange]); // Reload when time range changes
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadPullRequestsData()]);
@@ -65,10 +72,26 @@ export default function PullRequests() {
         stats: true,
       });
 
-      // Load pull requests first
+      let prsList = []; // Declare here so it's accessible in idle PR section
+
+      // Load pull requests with time filter
       try {
-        const prsData = await apiService.getPullRequests();
-        const prsList = prsData.value || [];
+        // Calculate days from timeRange
+        const days = Math.ceil((timeRange.to - timeRange.from) / (1000 * 60 * 60 * 24));
+
+        const response = await fetch(`/api/pull-requests/by-date?days=${days}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "X-Organization-ID": localStorage.getItem("currentOrganizationId"),
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch pull requests");
+        }
+
+        const prsData = await response.json();
+        prsList = prsData.value || [];
         setPullRequests(prsList);
 
         // Calculate stats
@@ -101,8 +124,13 @@ export default function PullRequests() {
       try {
         const idleData = await apiService.getIdlePullRequests();
         const idleList = idleData.value || [];
-        setIdlePRs(idleList);
-        setStats((prev) => ({ ...prev, idle: idleList.length }));
+
+        // Filter idle PRs to only include ones in the time-filtered PR list
+        const prIds = new Set(prsList.map((pr) => pr.pullRequestId));
+        const filteredIdlePRs = idleList.filter((idlePR) => prIds.has(idlePR.pullRequestId));
+
+        setIdlePRs(filteredIdlePRs);
+        setStats((prev) => ({ ...prev, idle: filteredIdlePRs.length }));
         setLoadingStates((prev) => ({ ...prev, idlePRs: false }));
       } catch {
         // Idle PRs are secondary, fail silently
@@ -352,6 +380,15 @@ export default function PullRequests() {
 
   const filteredPRs = getFilteredAndSortedPRs();
 
+  // Virtual scrolling setup (must be after filteredPRs)
+  const parentRef = useRef(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredPRs.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 120,
+    overscan: 5,
+  });
+
   if (error && initialLoading) {
     return <ErrorMessage message={error} onRetry={loadPullRequestsData} />;
   }
@@ -456,27 +493,31 @@ export default function PullRequests() {
                 : "Active pull requests and review status"}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleExportCSV}
-              disabled={
-                filteredPRs.length === 0 || Object.values(loadingStates).some((loading) => loading)
-              }
-              className="group flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-sm font-medium rounded-full disabled:opacity-60 transition-all duration-200"
-            >
-              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform duration-200" />
-              Export CSV
-            </button>
-            <button
-              onClick={handleSync}
-              disabled={Object.values(loadingStates).some((loading) => loading)}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${Object.values(loadingStates).some((loading) => loading) ? "animate-spin" : "group-hover:rotate-180"} transition-transform duration-300`}
-              />
-              Sync
-            </button>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={handleSync}
+                disabled={Object.values(loadingStates).some((loading) => loading)}
+                className="flex-1 sm:flex-none group flex items-center justify-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${Object.values(loadingStates).some((loading) => loading) ? "animate-spin" : "group-hover:rotate-180"} transition-transform duration-300`}
+                />
+                <span>Sync</span>
+              </button>
+              <button
+                onClick={handleExportCSV}
+                disabled={
+                  filteredPRs.length === 0 ||
+                  Object.values(loadingStates).some((loading) => loading)
+                }
+                className="flex-1 sm:flex-none group flex items-center justify-center gap-2 px-4 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-sm font-medium rounded-full disabled:opacity-60 transition-all duration-200"
+              >
+                <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform duration-200" />
+                <span>Export</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -775,7 +816,13 @@ export default function PullRequests() {
             )}
           </div>
         </div>
-        <ScrollArea className="h-[55vh]">
+        <div
+          ref={parentRef}
+          className="h-[55vh] overflow-auto custom-scrollbar"
+          style={{
+            contain: "strict",
+          }}
+        >
           {loadingStates.pullRequests ? (
             <div className="divide-y divide-border dark:divide-[#1a1a1a]">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -808,9 +855,16 @@ export default function PullRequests() {
                 </div>
               ))}
             </div>
-          ) : getFilteredAndSortedPRs().length > 0 ? (
-            <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-              {filteredPRs.map((pr) => {
+          ) : filteredPRs.length > 0 ? (
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const pr = filteredPRs[virtualRow.index];
                 const isUnassigned =
                   pr.status === "active" && (!pr.reviewers || pr.reviewers.length === 0);
                 const hasConflicts = pr.mergeStatus === "conflicts";
@@ -818,8 +872,17 @@ export default function PullRequests() {
 
                 return (
                   <div
-                    key={pr.pullRequestId}
-                    className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer ${
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                    className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer border-b border-border dark:border-[#1a1a1a] ${
                       hasConflicts
                         ? "border-l-2 border-l-red-500"
                         : isUnassigned
@@ -958,7 +1021,7 @@ export default function PullRequests() {
               No pull requests found
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       {/* No Data State */}
