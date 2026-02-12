@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiService } from "../api/apiService";
+import { useOrganization } from "../contexts/OrganizationContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorMessage from "../components/ErrorMessage";
 import SkeletonCard, { SkeletonTable } from "../components/SkeletonCard";
@@ -35,6 +36,7 @@ import { useHealth } from "../contexts/HealthContext";
 import { format, formatDistanceToNow } from "date-fns";
 
 export default function WorkItems() {
+  const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadingStates, setLoadingStates] = useState({
     sprintSummary: true,
@@ -126,8 +128,10 @@ export default function WorkItems() {
   const { checkConnection } = useHealth();
 
   useEffect(() => {
-    loadWorkItemsData();
-  }, []);
+    if (currentOrganization) {
+      loadWorkItemsData();
+    }
+  }, [currentOrganization, currentProject]);
 
   // Close dropdowns when clicking outside or opening another dropdown
   useEffect(() => {
@@ -221,6 +225,7 @@ export default function WorkItems() {
         setSprintSummary(sprintData);
         setLoadingStates((prev) => ({ ...prev, sprintSummary: false }));
         setInitialLoading(false); // Show UI immediately after basic data loads
+        clearSwitching(); // Clear switching overlay after sprint data loads
       } catch (err) {
         setLoadingStates((prev) => ({ ...prev, sprintSummary: false }));
         setError(
@@ -250,6 +255,7 @@ export default function WorkItems() {
         err.userMessage || "Failed to load work items. Please check your connection and try again."
       );
       setInitialLoading(false);
+      clearSwitching(); // Clear switching overlay on error
       setLoadingStates({
         sprintSummary: false,
         aiSummary: false,

@@ -10,6 +10,8 @@ export function OrganizationProvider({ children }) {
   const [currentOrganization, setCurrentOrganization] = useState(null);
   const [currentProject, setCurrentProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState(null); // { type: 'org'|'project', name: string }
   const [error, setError] = useState(null);
 
   // Create axios instance that always uses current token
@@ -81,29 +83,53 @@ export function OrganizationProvider({ children }) {
 
   // Switch organization
   const switchOrganization = useCallback(
-    (orgId) => {
+    async (orgId) => {
+      // Don't switch if already selected
+      if (currentOrganization?._id === orgId) {
+        return;
+      }
+
       const org = organizations.find((o) => o._id === orgId);
       if (org) {
+        setSwitching(true);
+        setSwitchingTo({ type: "organization", name: org.name });
+
+        // Small delay for smooth animation
+        await new Promise((resolve) => setTimeout(resolve, 150));
+
         setCurrentOrganization(org);
         localStorage.setItem("currentOrganizationId", orgId);
-        // Reset project to org default
         setCurrentProject(org.azureDevOps?.project || null);
         localStorage.setItem("currentProject", org.azureDevOps?.project || "");
-        // Force page reload to refetch all data with new org context
-        window.location.reload();
+
+        // Keep switching state for data to load
+        // Pages will clear it when ready
       }
     },
-    [organizations]
+    [organizations, currentOrganization]
   );
 
   // Switch project
-  const switchProject = useCallback((projectName) => {
-    // Only update local state and storage (don't save to DB)
-    setCurrentProject(projectName);
-    localStorage.setItem("currentProject", projectName);
-    // Force page reload to refetch all data with new project context
-    window.location.reload();
-  }, []);
+  const switchProject = useCallback(
+    async (projectName) => {
+      // Don't switch if already selected
+      if (currentProject === projectName) {
+        return;
+      }
+
+      setSwitching(true);
+      setSwitchingTo({ type: "project", name: projectName });
+
+      // Small delay for smooth animation
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      setCurrentProject(projectName);
+      localStorage.setItem("currentProject", projectName);
+
+      // Keep switching state for data to load
+    },
+    [currentProject]
+  );
 
   // Add organization
   const addOrganization = useCallback(
@@ -229,6 +255,12 @@ export function OrganizationProvider({ children }) {
     }
   }, []);
 
+  // Clear switching state (called by pages after data loads)
+  const clearSwitching = useCallback(() => {
+    setSwitching(false);
+    setSwitchingTo(null);
+  }, []);
+
   // Check if user has any organizations
   const hasOrganizations = organizations.length > 0;
   const needsSetup = isAuthenticated && !loading && !hasOrganizations;
@@ -238,6 +270,9 @@ export function OrganizationProvider({ children }) {
     currentOrganization,
     currentProject,
     loading,
+    switching,
+    switchingTo,
+    clearSwitching,
     error,
     hasOrganizations,
     needsSetup,

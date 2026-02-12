@@ -29,6 +29,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useHealth } from "../contexts/HealthContext";
+import { useOrganization } from "../contexts/OrganizationContext";
 import { releaseService } from "../api/releaseService";
 import ReleaseFilterDropdown from "../components/ReleaseFilterDropdown";
 import ReleaseDetailModal from "../components/ReleaseDetailModal";
@@ -142,6 +143,7 @@ const getEnvironmentStatusColor = (status) => {
 };
 
 export default function Releases() {
+  const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const [loading, setLoading] = useState(true);
   const [paginationLoading, setPaginationLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -187,9 +189,11 @@ export default function Releases() {
   const { checkConnection } = useHealth();
 
   useEffect(() => {
-    setCurrentPage(1); // Reset to first page when time range changes
-    loadReleasesData();
-  }, [timeRange]); // Reset page and reload when time range changes
+    if (currentOrganization) {
+      setCurrentPage(1); // Reset to first page when time range changes
+      loadReleasesData();
+    }
+  }, [timeRange, currentOrganization, currentProject]); // Reset page and reload when time range, org, or project changes
 
   useEffect(() => {
     if (currentPage > 1) {
@@ -325,6 +329,7 @@ export default function Releases() {
       setLoading(false);
       setPaginationLoading(false);
       setInitialLoad(false);
+      clearSwitching(); // Clear switching overlay
     } catch (err) {
       setError(
         err.userMessage || "Failed to load releases. Please check your Azure DevOps configuration."
@@ -332,6 +337,7 @@ export default function Releases() {
       setLoading(false);
       setPaginationLoading(false);
       setInitialLoad(false);
+      clearSwitching(); // Clear switching overlay on error
     }
   };
 

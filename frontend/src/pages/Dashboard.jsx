@@ -14,11 +14,13 @@ import {
 } from "lucide-react";
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
+import { useOrganization } from "../contexts/OrganizationContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorMessage from "../components/ErrorMessage";
 import DevOpsActivityReport from "../components/DevOpsActivityReport";
 
 export default function Dashboard() {
+  const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadingStates, setLoadingStates] = useState({
     workItems: true,
@@ -73,8 +75,10 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (currentOrganization) {
+      loadDashboardData();
+    }
+  }, [currentOrganization, currentProject]);
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadDashboardData()]);
@@ -136,6 +140,7 @@ export default function Dashboard() {
         });
         setInitialLoading(false);
         setError(null);
+        clearSwitching(); // Clear switching overlay on success
       } else {
         // Handle error with user-friendly message
         const errorReason = dashboardResult.reason || dashboardResult.value;
@@ -159,6 +164,7 @@ export default function Dashboard() {
           releases: false,
         }));
         setInitialLoading(false);
+        clearSwitching(); // Clear switching overlay after data loads
       }
 
       // Handle logs separately (local data, fast)
@@ -189,6 +195,7 @@ export default function Dashboard() {
         releases: false,
         logs: false,
       });
+      clearSwitching(); // Clear switching overlay on error
     }
   };
 

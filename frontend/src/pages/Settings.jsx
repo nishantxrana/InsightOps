@@ -77,7 +77,8 @@ const getDefaultSettings = () => ({
 export default function Settings() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { currentOrganization, updateOrganization, needsSetup } = useOrganization();
+  const { currentOrganization, currentProject, updateOrganization, needsSetup, clearSwitching } =
+    useOrganization();
 
   const [activeSection, setActiveSection] = useState("organizations");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -132,10 +133,11 @@ export default function Settings() {
 
       setTabSettings(loaded);
       setOriginalTabSettings(JSON.parse(JSON.stringify(loaded)));
+      clearSwitching(); // Clear switching overlay after settings load
     };
 
     loadOrgSettings();
-  }, [currentOrganization]);
+  }, [currentOrganization, currentProject]);
 
   // Check if current tab has changes
   const hasCurrentTabChanges = useCallback(() => {
