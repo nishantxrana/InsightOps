@@ -75,7 +75,7 @@ class PullRequestPoller {
 
       if (idlePRs.count > 0) {
         let filteredPRs = idlePRs.value;
-        const filterEnabled = org.polling?.idlePRFilterEnabled !== false;
+        const filterEnabled = org.polling?.idlePRFilterEnabled === true;
         const maxDays = org.polling?.idlePRMaxDays || 90;
 
         if (filterEnabled && maxDays > 0) {
