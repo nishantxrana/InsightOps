@@ -11,6 +11,7 @@ import { apiRoutes } from "./api/routes.js";
 import { authRoutes } from "./routes/auth.js";
 import organizationRoutes from "./api/organizationRoutes.js";
 import queueStatusRoutes from "./api/queueStatus.js";
+import emailStatsRoutes from "./api/emailStats.js";
 import { errorHandler } from "./utils/errorHandler.js";
 import { userPollingManager } from "./polling/userPollingManager.js";
 import { requestIdMiddleware } from "./middleware/requestId.js";
@@ -168,11 +169,6 @@ const limiter = rateLimit({
   windowMs: rateLimits.windowMs,
   max: rateLimits.max,
   message: { error: "Too many requests from this IP, please try again later." },
-  trustProxy: 1,
-  keyGenerator: (req) => {
-    const ip = req.ip || req.socket?.remoteAddress || "unknown";
-    return ip.split(":")[0];
-  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -245,6 +241,9 @@ app.use("/api/diagnostics", diagnosticsRoutes);
 
 // Organization routes (authenticated)
 app.use("/api/organizations", authenticate, injectOrganizationContext, organizationRoutes);
+
+// Email stats routes (authenticated)
+app.use("/api/email", emailStatsRoutes);
 
 // API Routes (BEFORE static files) - with authentication and organization context
 app.use("/api/webhooks", webhookRoutes);
