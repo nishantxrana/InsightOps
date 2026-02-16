@@ -21,22 +21,33 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("currentOrganizationId");
     delete axios.defaults.headers.common["Authorization"];
+    window.location.href = "/signin"; // Force redirect
   };
+
+  // Setup axios interceptor globally (outside useEffect)
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        // Auto-logout on 401 Unauthorized
+        if (error.response?.status === 401 && window.location.pathname !== "/signin") {
+          console.warn("Authentication failed - logging out");
+          logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Cleanup on unmount
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []); // Run once on mount
 
   useEffect(() => {
     const initializeAuth = () => {
-      // Add axios interceptor first
-      const interceptor = axios.interceptors.response.use(
-        (response) => response,
-        (error) => {
-          if (error.response?.status === 401) {
-            logout();
-          }
-          return Promise.reject(error);
-        }
-      );
-
       const storedToken = localStorage.getItem("token");
       const storedUser = localStorage.getItem("user");
 
@@ -58,11 +69,6 @@ export const AuthProvider = ({ children }) => {
       }
 
       setLoading(false);
-
-      // Cleanup interceptor on unmount
-      return () => {
-        axios.interceptors.response.eject(interceptor);
-      };
     };
 
     initializeAuth();
