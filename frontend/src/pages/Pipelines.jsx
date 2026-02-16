@@ -18,12 +18,14 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
+import { useOrganization } from "../contexts/OrganizationContext";
 import ErrorMessage from "../components/ErrorMessage";
 import FilterDropdown from "../components/FilterDropdown";
 import BuildDetailModal from "../components/BuildDetailModal";
 import { format, formatDistanceToNow } from "date-fns";
 
 export default function Pipelines() {
+  const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState(null);
@@ -80,9 +82,11 @@ export default function Pipelines() {
   }, [builds, statusFilter]);
 
   useEffect(() => {
-    loadPipelinesData();
+    if (currentOrganization) {
+      loadPipelinesData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildLimit, repositoryFilter]);
+  }, [buildLimit, repositoryFilter, currentOrganization, currentProject]);
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadPipelinesData()]);
@@ -117,11 +121,13 @@ export default function Pipelines() {
       setStats(newStats);
       setLoading(false);
       setInitialLoad(false);
+      clearSwitching(); // Clear switching overlay
     } catch (err) {
       setError(
         err.userMessage || "Failed to load pipelines. Please check your Azure DevOps configuration."
       );
       setLoading(false);
+      clearSwitching(); // Clear switching overlay on error
       // Don't set initialLoad to false on error so error page shows
     }
   };

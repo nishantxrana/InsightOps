@@ -10,20 +10,9 @@ export function OrganizationProvider({ children }) {
   const [currentOrganization, setCurrentOrganization] = useState(null);
   const [currentProject, setCurrentProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState(null); // { type: 'org'|'project', name: string }
   const [error, setError] = useState(null);
-
-  // Create axios instance that always uses current token
-  const api = useMemo(() => {
-    const instance = axios.create({ baseURL: "/api" });
-    instance.interceptors.request.use((config) => {
-      const currentToken = localStorage.getItem("token");
-      if (currentToken) {
-        config.headers.Authorization = `Bearer ${currentToken}`;
-      }
-      return config;
-    });
-    return instance;
-  }, []);
 
   // Fetch organizations
   const fetchOrganizations = useCallback(async () => {
@@ -37,7 +26,8 @@ export function OrganizationProvider({ children }) {
 
     try {
       setLoading(true);
-      const response = await api.get("/organizations");
+      // Use global axios (has interceptor from AuthContext)
+      const response = await axios.get("/api/organizations");
       const orgs = response.data.organizations || [];
       setOrganizations(orgs);
 
@@ -60,13 +50,22 @@ export function OrganizationProvider({ children }) {
 
       setError(null);
     } catch (err) {
+      // If 401, user is not authenticated - let AuthContext handle logout
+      if (err.response?.status === 401) {
+        console.warn("OrganizationContext: 401 detected, skipping error handling");
+        setOrganizations([]);
+        setCurrentOrganization(null);
+        setLoading(false);
+        return;
+      }
+
       const message = err.userMessage || "Failed to load organizations. Please try again.";
       setError(message);
       setOrganizations([]);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, api]);
+  }, [isAuthenticated]); // Removed 'api' dependency
 
   useEffect(() => {
     fetchOrganizations();
@@ -81,35 +80,59 @@ export function OrganizationProvider({ children }) {
 
   // Switch organization
   const switchOrganization = useCallback(
-    (orgId) => {
+    async (orgId) => {
+      // Don't switch if already selected
+      if (currentOrganization?._id === orgId) {
+        return;
+      }
+
       const org = organizations.find((o) => o._id === orgId);
       if (org) {
+        setSwitching(true);
+        setSwitchingTo({ type: "organization", name: org.name });
+
+        // Small delay for smooth animation
+        await new Promise((resolve) => setTimeout(resolve, 150));
+
         setCurrentOrganization(org);
         localStorage.setItem("currentOrganizationId", orgId);
-        // Reset project to org default
         setCurrentProject(org.azureDevOps?.project || null);
         localStorage.setItem("currentProject", org.azureDevOps?.project || "");
-        // Force page reload to refetch all data with new org context
-        window.location.reload();
+
+        // Keep switching state for data to load
+        // Pages will clear it when ready
       }
     },
-    [organizations]
+    [organizations, currentOrganization]
   );
 
   // Switch project
-  const switchProject = useCallback((projectName) => {
-    // Only update local state and storage (don't save to DB)
-    setCurrentProject(projectName);
-    localStorage.setItem("currentProject", projectName);
-    // Force page reload to refetch all data with new project context
-    window.location.reload();
-  }, []);
+  const switchProject = useCallback(
+    async (projectName) => {
+      // Don't switch if already selected
+      if (currentProject === projectName) {
+        return;
+      }
+
+      setSwitching(true);
+      setSwitchingTo({ type: "project", name: projectName });
+
+      // Small delay for smooth animation
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      setCurrentProject(projectName);
+      localStorage.setItem("currentProject", projectName);
+
+      // Keep switching state for data to load
+    },
+    [currentProject]
+  );
 
   // Add organization
   const addOrganization = useCallback(
     async (orgData) => {
       try {
-        const response = await api.post("/organizations", orgData);
+        const response = await axios.post("/api/organizations", orgData);
         const newOrg = response.data.organization;
         setOrganizations((prev) => [...prev, newOrg]);
 
@@ -137,7 +160,7 @@ export function OrganizationProvider({ children }) {
   const updateOrganization = useCallback(
     async (orgId, updates) => {
       try {
-        const response = await api.put(`/organizations/${orgId}`, updates);
+        const response = await axios.put(`/api/organizations/${orgId}`, updates);
         const updatedOrg = response.data.organization;
 
         setOrganizations((prev) => prev.map((o) => (o._id === orgId ? updatedOrg : o)));
@@ -164,7 +187,7 @@ export function OrganizationProvider({ children }) {
   const deleteOrganization = useCallback(
     async (orgId) => {
       try {
-        await api.delete(`/organizations/${orgId}`);
+        await axios.delete(`/api/organizations/${orgId}`);
 
         setOrganizations((prev) => prev.filter((o) => o._id !== orgId));
 
@@ -197,7 +220,7 @@ export function OrganizationProvider({ children }) {
   // Test connection
   const testConnection = useCallback(async (orgId) => {
     try {
-      const response = await api.post(`/organizations/${orgId}/test-connection`);
+      const response = await axios.post(`/api/organizations/${orgId}/test-connection`);
       return response.data;
     } catch (err) {
       return {
@@ -210,7 +233,7 @@ export function OrganizationProvider({ children }) {
   // Set default organization
   const setDefaultOrganization = useCallback(async (orgId) => {
     try {
-      const response = await api.post(`/organizations/${orgId}/set-default`);
+      const response = await axios.post(`/api/organizations/${orgId}/set-default`);
       const updatedOrg = response.data.organization;
 
       setOrganizations((prev) =>
@@ -229,6 +252,12 @@ export function OrganizationProvider({ children }) {
     }
   }, []);
 
+  // Clear switching state (called by pages after data loads)
+  const clearSwitching = useCallback(() => {
+    setSwitching(false);
+    setSwitchingTo(null);
+  }, []);
+
   // Check if user has any organizations
   const hasOrganizations = organizations.length > 0;
   const needsSetup = isAuthenticated && !loading && !hasOrganizations;
@@ -238,6 +267,9 @@ export function OrganizationProvider({ children }) {
     currentOrganization,
     currentProject,
     loading,
+    switching,
+    switchingTo,
+    clearSwitching,
     error,
     hasOrganizations,
     needsSetup,

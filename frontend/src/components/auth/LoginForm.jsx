@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -62,24 +63,35 @@ export const LoginForm = ({ onToggleMode }) => {
             )}
           </div>
 
-          <div className="relative">
-            <Input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${
-                errors.password ? "border-red-500" : ""
-              }`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-medium text-foreground">Password</label>
+              <Link
+                to="/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${
+                  errors.password ? "border-red-500" : ""
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {errors.password && (
               <div className="flex items-center gap-1 text-red-500 text-sm mt-1">
                 <AlertCircle className="h-4 w-4" />

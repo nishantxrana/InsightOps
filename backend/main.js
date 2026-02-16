@@ -11,6 +11,7 @@ import { apiRoutes } from "./api/routes.js";
 import { authRoutes } from "./routes/auth.js";
 import organizationRoutes from "./api/organizationRoutes.js";
 import queueStatusRoutes from "./api/queueStatus.js";
+import emailStatsRoutes from "./api/emailStats.js";
 import { errorHandler } from "./utils/errorHandler.js";
 import { userPollingManager } from "./polling/userPollingManager.js";
 import { requestIdMiddleware } from "./middleware/requestId.js";
@@ -69,7 +70,8 @@ const app = express();
 const PORT = env.PORT;
 
 // Trust proxy for deployed environments (Azure App Service, etc.)
-app.set("trust proxy", true);
+// Set to 1 to trust only the first proxy (Azure App Service)
+app.set("trust proxy", 1);
 
 // Request ID middleware (must be early in the chain)
 app.use(requestIdMiddleware);
@@ -120,14 +122,8 @@ app.use(
         return callback(null, true);
       }
 
-      const allowedOrigins =
-        isProduction() || isStaging()
-          ? (env.ALLOWED_ORIGINS || env.FRONTEND_URL || "").split(",").filter(Boolean)
-          : [
-              `http://localhost:${env.PORT}`,
-              `https://sure-ant-informally.ngrok-free.app`,
-              `http://172.17.198.200:${env.PORT}`,
-            ];
+      // Parse ALLOWED_ORIGINS from env (comma-separated)
+      const allowedOrigins = (env.ALLOWED_ORIGINS || "").split(",").filter(Boolean);
 
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -173,15 +169,24 @@ const limiter = rateLimit({
   windowMs: rateLimits.windowMs,
   max: rateLimits.max,
   message: { error: "Too many requests from this IP, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Separate rate limiter for health check (more lenient but still protected)
+const healthLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute (1 per second average)
+  message: { error: "Too many health check requests" },
   trustProxy: 1,
   keyGenerator: (req) => {
     const ip = req.ip || req.socket?.remoteAddress || "unknown";
     return ip.split(":")[0];
   },
-  skip: (req) => req.path === "/api/health",
   standardHeaders: true,
   legacyHeaders: false,
 });
+
 app.use("/api", limiter);
 
 // Body parsing middleware
@@ -206,11 +211,39 @@ app.use((req, res, next) => {
 // Auth routes (public)
 app.use("/api/auth", authRoutes);
 
+// Health check (public with rate limiting - must be before authenticated routes)
+app.get("/api/health", healthLimiter, async (req, res) => {
+  const serverStartTime = Date.now() - process.uptime() * 1000;
+  const health = {
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    serverStartTime: serverStartTime,
+    service: "Azure DevOps Monitoring InsightOps",
+    environment: process.env.NODE_ENV,
+    version: process.env.npm_package_version || "1.0.0",
+  };
+
+  try {
+    await mongoose.connection.db.admin().ping();
+    health.database = "connected";
+  } catch (error) {
+    health.status = "unhealthy";
+    health.database = "disconnected";
+  }
+
+  const statusCode = health.status === "healthy" ? 200 : 503;
+  res.status(statusCode).json(health);
+});
+
 // Diagnostics routes (health is public, others authenticated)
 app.use("/api/diagnostics", diagnosticsRoutes);
 
 // Organization routes (authenticated)
 app.use("/api/organizations", authenticate, injectOrganizationContext, organizationRoutes);
+
+// Email stats routes (authenticated)
+app.use("/api/email", emailStatsRoutes);
 
 // API Routes (BEFORE static files) - with authentication and organization context
 app.use("/api/webhooks", webhookRoutes);

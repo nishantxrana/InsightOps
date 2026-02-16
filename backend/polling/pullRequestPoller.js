@@ -74,10 +74,30 @@ class PullRequestPoller {
       const idlePRs = await client.getIdlePullRequests(48);
 
       if (idlePRs.count > 0) {
-        logger.warn(`Found ${idlePRs.count} idle pull requests for org ${organizationId}`);
+        let filteredPRs = idlePRs.value;
+        const filterEnabled = org.polling?.idlePRFilterEnabled === true;
+        const maxDays = org.polling?.idlePRMaxDays || 90;
 
-        if (org.notifications?.enabled) {
-          await this.sendIdlePRNotificationForOrg(idlePRs.value, org, organizationId);
+        if (filterEnabled && maxDays > 0) {
+          const cutoffDate = Date.now() - maxDays * 24 * 60 * 60 * 1000;
+          filteredPRs = idlePRs.value.filter((pr) => {
+            const createdDate = new Date(pr.creationDate).getTime();
+            return createdDate >= cutoffDate;
+          });
+
+          logger.info(
+            `Filtered idle PRs for org ${organizationId}: ${idlePRs.value.length} -> ${filteredPRs.length} (ignoring PRs older than ${maxDays} days)`
+          );
+        }
+
+        if (filteredPRs.length > 0) {
+          logger.warn(`Found ${filteredPRs.length} idle pull requests for org ${organizationId}`);
+
+          if (org.notifications?.enabled) {
+            await this.sendIdlePRNotificationForOrg(filteredPRs, org, organizationId);
+          }
+        } else {
+          logger.info(`No idle pull requests found for org ${organizationId} after filtering`);
         }
       } else {
         logger.info(`No idle pull requests found for org ${organizationId}`);
