@@ -9,7 +9,7 @@
 
 **AI-powered DevOps intelligence platform with autonomous agents, real-time monitoring, and multi-provider AI integration for Azure DevOps.**
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [API](#-api-reference) • [Live Demo](#-live-demo)
+[Features](#-features) • [Quick Start](#-installation--quick-start) • [Tech Stack](#-tech-stack) • [API Reference](#-api-reference) • [Live Demo](#-live-demo)
 
 </div>
 
@@ -57,12 +57,20 @@ InsightOps is a comprehensive DevOps intelligence platform that bridges the gap 
 
 ### 🔄 Azure DevOps Integration
 
+- **Multi-Organization Support**: Manage multiple Azure DevOps organizations from one account
+- **Multi-Project Support**: Switch between projects within an organization seamlessly
 - **Work Items**: Real-time sprint tracking with AI-powered summaries
 - **Pipelines**: Build monitoring, failure analysis, and automated diagnostics
 - **Pull Requests**: Active PR tracking, idle detection, and review suggestions
 - **Releases**: Deployment tracking and success rate monitoring
 - **Webhooks**: Real-time event processing for instant notifications
 - **Polling**: Configurable backup monitoring for webhook reliability
+- **Production Filters**: Define production environments with configurable filters
+  - Filter by branches (exact match or wildcards like `release/*`)
+  - Filter by environments (e.g., `Production`, `E3`, `Prod-*`)
+  - Filter by build definitions (pipeline names)
+  - Generate production-only activity reports
+  - Production deployment notifications via webhooks
 
 ### 📢 Smart Notifications
 
@@ -137,7 +145,13 @@ InsightOps/
 │   │   ├── aiService.js          # Multi-provider AI service
 │   │   └── FreeModelRouter.js    # Smart model routing
 │   ├── api/                      # REST API endpoints
+│   │   ├── routes.js             # Main API routes
+│   │   ├── dashboard.js          # Dashboard & reports
+│   │   └── organizationRoutes.js # Organization management
+│   ├── cache/                    # Caching layer
+│   │   └── AzureDevOpsCache.js   # Project-aware cache
 │   ├── config/                   # Configuration management
+│   │   └── cache.js              # Cache TTL constants
 │   ├── devops/                   # Azure DevOps client
 │   │   ├── azureDevOpsClient.js  # Main DevOps API client
 │   │   └── releaseClient.js      # Release management
@@ -148,26 +162,45 @@ InsightOps/
 │   ├── memory/                   # Context and memory
 │   │   ├── ContextManager.js     # Conversation context
 │   │   └── MongoVectorStore.js   # Vector storage
+│   ├── models/                   # MongoDB schemas
+│   │   ├── Organization.js       # Organization with filters
+│   │   ├── User.js               # User accounts
+│   │   ├── UserSettings.js       # User preferences
+│   │   └── ...                   # Other models
 │   ├── notifications/            # Multi-platform alerts
+│   │   └── googleChatService.js  # Google Chat integration
 │   ├── polling/                  # Background monitoring
 │   │   ├── userPollingManager.js # Per-user polling
 │   │   ├── buildPoller.js        # Pipeline monitoring
 │   │   ├── workItemPoller.js     # Work item tracking
 │   │   └── pullRequestPoller.js  # PR monitoring
+│   ├── services/                 # Business logic
+│   │   ├── activityReportService.js    # Report generation
+│   │   ├── organizationService.js      # Org management
+│   │   ├── pdfService.js               # PDF generation
+│   │   └── productionFilterService.js  # Filter matching
+│   ├── templates/                # EJS templates
+│   │   └── activityReport.ejs    # PDF report template
+│   ├── utils/                    # Utility functions
+│   │   └── organizationSettings.js # Org context helpers
+│   ├── webhooks/                 # Real-time event handlers
+│   │   ├── releaseWebhook.js     # Release notifications
+│   │   └── ...                   # Other webhooks
 │   ├── workflows/                # Workflow automation
 │   │   ├── SimpleWorkflowEngine.js  # Workflow execution
 │   │   ├── workflowLoader.js     # Load workflow definitions
 │   │   └── definitions/          # Workflow JSON configs
-│   ├── webhooks/                 # Real-time event handlers
-│   ├── utils/                    # Utility functions
 │   └── main.js                   # Application entry point
 │
 ├── frontend/                     # React/Vite Frontend
 │   ├── src/
 │   │   ├── components/           # React components
 │   │   │   ├── ui/               # shadcn/ui primitives
+│   │   │   │   ├── TagInput.jsx  # Tag input for filters
+│   │   │   │   └── ...           # Other UI components
 │   │   │   ├── Layout.jsx        # Main layout wrapper
-│   │   │   └── DevOpsAppSidebar.jsx  # Navigation sidebar
+│   │   │   ├── DevOpsAppSidebar.jsx  # Navigation sidebar
+│   │   │   └── DevOpsActivityReport.jsx  # Activity report component
 │   │   ├── pages/                # Route pages
 │   │   │   ├── Dashboard.jsx     # Main dashboard
 │   │   │   ├── WorkItems.jsx     # Sprint board
@@ -175,6 +208,7 @@ InsightOps/
 │   │   │   ├── PullRequests.jsx  # PR management
 │   │   │   ├── Releases.jsx      # Release tracking
 │   │   │   ├── Settings.jsx      # Configuration
+│   │   │   │   └── OrganizationsSection.jsx  # Org settings with filters
 │   │   │   ├── Logs.jsx          # Application logs
 │   │   │   └── LandingPage.jsx   # Marketing page
 │   │   ├── contexts/             # React Context providers
@@ -191,6 +225,135 @@ InsightOps/
 
 ---
 
+## 🔐 Authentication & Security
+
+### Email-Based Authentication with OTP
+
+InsightOps uses a **secure, passwordless-first authentication system** powered by **Brevo** (formerly Sendinblue):
+
+#### **Sign Up Flow:**
+
+1. User enters email, name, and password
+2. System generates 6-digit OTP (valid for 10 minutes)
+3. OTP sent via Brevo transactional email
+4. User verifies OTP to complete registration
+5. JWT token issued for session management
+
+#### **Password Reset Flow:**
+
+1. User requests password reset
+2. System generates 6-digit OTP
+3. OTP sent to registered email
+4. User verifies OTP and sets new password
+
+#### **Security Features:**
+
+- **Bcrypt Password Hashing**: 12 rounds for strong protection
+- **JWT Tokens**: Secure session management with configurable expiry
+- **OTP Rate Limiting**: Prevents brute-force attacks (max 5 attempts)
+- **Email Verification**: Ensures valid email addresses
+- **Encryption**: Sensitive data encrypted with AES-256
+- **CORS Protection**: Configurable allowed origins
+- **Helmet.js**: Security headers for Express
+- **Rate Limiting**: API endpoint protection
+
+#### **Why Brevo?**
+
+- **Free Tier**: 300 emails/day (sufficient for most use cases)
+- **Reliable**: 99.9% uptime SLA
+- **Fast**: Email delivery in seconds
+- **Transactional**: Purpose-built for OTP/verification emails
+- **Easy Setup**: Simple API integration
+
+**Required Environment Variables:**
+
+```env
+BREVO_API_KEY=xkeysib-your-api-key-here
+FROM_EMAIL=support@yourdomain.com
+FROM_NAME=InsightOps
+EMAIL_VERIFICATION_SECRET=your-secret-here
+PASSWORD_RESET_SECRET=your-secret-here
+```
+
+---
+
+## 🎨 Key Technical Features
+
+### 1. **Multi-Organization & Multi-Project Support**
+
+- **Per-User Organizations**: Each user can connect multiple Azure DevOps organizations
+- **Organization Switching**: Seamless switching without page reload
+- **Project Switching**: Switch between projects within an organization
+- **Isolated Settings**: Each organization has independent AI, notification, and polling settings
+- **Production Filters**: Define production environments per organization
+
+### 2. **PDF Report Generation with Puppeteer**
+
+- **Chromium-Based**: Uses Puppeteer for high-quality PDF rendering
+- **EJS Templates**: Dynamic HTML templates with embedded charts
+- **ChartJS Integration**: Beautiful pie charts and bar graphs
+- **Production Filtering**: Generate reports for production deployments only
+- **Containerized**: Requires Docker/Container Apps for Chromium dependencies
+
+**Why Container Apps?**
+
+- Azure App Service doesn't support Chromium system libraries
+- Container Apps provide full control over runtime environment
+- Puppeteer requires specific system packages (fonts, libraries)
+
+### 3. **Smart Code Splitting (Vite)**
+
+- **Manual Chunks**: Vendor libraries split by category (React, Framer Motion, Radix UI)
+- **Route-Based Splitting**: Each page loaded on-demand
+- **Optimized Caching**: Vendor chunks cached separately from app code
+- **Performance**: Initial load reduced from 1.36 MB to ~500 KB (~150 KB gzipped)
+
+**Configuration:**
+
+```javascript
+// vite.config.js
+manualChunks: (id) => {
+  if (id.includes("node_modules/react")) return "react-core";
+  if (id.includes("node_modules/framer-motion")) return "framer-motion";
+  if (id.includes("/src/pages/Dashboard.jsx")) return "page-dashboard";
+  // ... more chunks
+};
+```
+
+### 4. **Real-Time Organization Switching**
+
+- **Context-Based**: Uses React Context for state management
+- **No Page Reload**: Smooth transitions with Framer Motion animations
+- **Toast Notifications**: User-friendly feedback ("Switching organization → Acme")
+- **Automatic Refetch**: All pages refetch data when org/project changes
+- **Mobile Optimized**: Responsive toast with text truncation
+
+### 5. **Intelligent Caching**
+
+- **Project-Aware Cache**: Separate cache per Azure DevOps project
+- **TTL Configuration**: Configurable time-to-live per resource type
+- **Cache Invalidation**: Automatic invalidation on org/project switch
+- **Performance**: Reduces API calls to Azure DevOps by 70%
+
+### 6. **Production Filters**
+
+Define what constitutes "production" for your organization:
+
+- **Branch Filters**: `main`, `master`, `release/*` (supports wildcards)
+- **Environment Filters**: `Production`, `E3`, `Prod-*` (case-insensitive)
+- **Build Definition Filters**: Filter by pipeline name
+- **Report Filtering**: Generate production-only activity reports
+- **Webhook Filtering**: Send notifications for production deployments only
+
+**Use Cases:**
+
+- Focus on production deployments in reports
+- Reduce notification noise from dev/staging
+- Track production success rates separately
+- Compliance and audit requirements
+
+---
+
 ## ⚡ Installation & Quick Start
 
 ### Prerequisites
@@ -199,11 +362,12 @@ Before getting started, ensure you have:
 
 - **Node.js 22+** and npm installed
 - **MongoDB** instance (local or Atlas cloud)
-- **Azure DevOps** organization and Personal Access Token (PAT)
-- **AI Provider API Key** (choose one):
+- **Brevo Account** for email service (free tier available)
+- **Azure DevOps** organization and Personal Access Token (PAT) - Optional, can configure in UI
+- **AI Provider API Key** (optional, can configure in UI):
   - OpenAI API Key, OR
-  - Groq API Key, OR
-  - Google Gemini API Key
+  - Groq API Key (free tier), OR
+  - Google Gemini API Key (free tier)
 
 ### 🚀 Quick Setup (Recommended)
 
@@ -218,7 +382,7 @@ npm run install:all
 # 3. Configure environment variables
 cd backend
 cp .env.example .env
-# Edit .env file with your credentials (see Configuration section)
+# Edit .env file with your credentials (see Configuration section below)
 
 # 4. Start both backend and frontend in development mode
 cd ..
@@ -263,6 +427,9 @@ cd frontend
 # Install dependencies
 npm install
 
+# Create environment file (optional)
+cp .env.example .env
+
 # Start development server
 npm run dev
 
@@ -289,68 +456,134 @@ cd backend && npm start
 
 ## ⚙️ Configuration
 
-### Required Environment Variables
+### 📁 Environment Files Overview
 
-Create a `.env` file in the `backend/` directory with the following configuration:
+InsightOps uses three separate `.env` files:
 
-#### Database Configuration (Required)
+1. **`backend/.env`** - Backend server configuration (Node.js/Express)
+2. **`frontend/.env`** - Frontend build-time variables (React/Vite)
+3. **`.env`** (root) - Docker deployment configuration
+
+**All three have corresponding `.env.example` files with detailed documentation.**
+
+---
+
+### 🔧 Backend Configuration (`backend/.env`)
+
+Create a `.env` file in the `backend/` directory. Copy from `backend/.env.example` and fill in your values.
+
+#### ✅ Required Variables
+
+These are **mandatory** for the application to run:
 
 ```env
-# MongoDB connection string
-MONGODB_URI=mongodb+srv://username:password@cluster0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+# Database
+MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/InsightOps?retryWrites=true&w=majority
+
+# Security - Generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+JWT_SECRET=your-64-character-jwt-secret-here
+
+# Encryption - Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ENCRYPTION_KEY=your-64-character-encryption-key-here
+
+# Application
+NODE_ENV=development
+PORT=3001
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3001
+
+# Email Service (Brevo) - Required for signup/login with OTP
+BREVO_API_KEY=xkeysib-your-api-key-here
+FROM_EMAIL=support@yourdomain.com
+FROM_NAME=InsightOps
+
+# Email Secrets - Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+EMAIL_VERIFICATION_SECRET=your-64-character-secret-here
+PASSWORD_RESET_SECRET=your-64-character-secret-here
 ```
 
-#### Security Configuration (Required)
+#### 🔑 How to Get Required Keys
 
-```env
-# JWT secret for authentication (64 characters recommended)
-JWT_SECRET=your-jwt-secret-key-here-64-characters-long-random-string-example
+**MongoDB URI:**
 
-# Encryption key for sensitive data (32 bytes hex = 64 characters)
-ENCRYPTION_KEY=your-32-byte-hex-encryption-key-here-64-characters-total-example
+1. Sign up at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a free cluster
+3. Click "Connect" → "Connect your application"
+4. Copy the connection string and replace `<password>` with your database password
+
+**Brevo API Key (Email Service):**
+
+1. Sign up at [Brevo](https://app.brevo.com) (free tier: 300 emails/day)
+2. Go to **Settings** → **SMTP & API** → **API Keys**
+3. Create new API key
+4. Copy the key (starts with `xkeysib-`)
+
+**Security Keys (JWT, Encryption, Email Secrets):**
+
+```bash
+# Generate all at once
+node -e "console.log('JWT_SECRET=' + require('crypto').randomBytes(64).toString('hex'))"
+node -e "console.log('ENCRYPTION_KEY=' + require('crypto').randomBytes(32).toString('hex'))"
+node -e "console.log('EMAIL_VERIFICATION_SECRET=' + require('crypto').randomBytes(32).toString('hex'))"
+node -e "console.log('PASSWORD_RESET_SECRET=' + require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-### Azure DevOps Configuration (Optional)
+### 🎨 Frontend Configuration (`frontend/.env`)
 
-If you want to connect to your Azure DevOps organization:
+Create a `.env` file in the `frontend/` directory (optional):
 
 ```env
-AZURE_DEVOPS_ORG=your-organization
-AZURE_DEVOPS_PROJECT=your-project
-AZURE_DEVOPS_PAT=your-personal-access-token
-AZURE_DEVOPS_BASE_URL=https://dev.azure.com
+# Microsoft Clarity Analytics (optional)
+VITE_CLARITY_PROJECT_ID=your_project_id_here
+
+# Demo Video URL (optional)
+VITE_DEMO_VIDEO_URL=https://yourdomain.blob.core.windows.net/videos/demo.mp4
 ```
 
-**Note**: InsightOps supports multi-user configuration where each user can connect their own Azure DevOps instance through the Settings page.
+**Note:** Frontend variables are **build-time only**. Changes require rebuilding the frontend.
 
-### AI Provider Configuration (Optional)
+---
 
-Choose one or more AI providers:
+### 🐳 Docker Configuration (`.env` in root)
+
+For Docker deployment, create a `.env` file in the **project root**:
 
 ```env
-# OpenAI
-OPENAI_API_KEY=sk-...
+# Application
+PORT=8000
 
-# Groq (Free tier available)
-GROQ_API_KEY=gsk_...
+# Database
+MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/InsightOps
 
-# Google Gemini (Free tier available)
-GEMINI_API_KEY=AI...
+# Security
+JWT_SECRET=your-64-character-jwt-secret-here
+ENCRYPTION_KEY=your-64-character-encryption-key-here
+
+# CORS
+ALLOWED_ORIGINS=http://localhost:8000,https://yourdomain.com
+
+# Email Service
+BREVO_API_KEY=xkeysib-your-api-key-here
+FROM_EMAIL=support@yourdomain.com
+FROM_NAME=InsightOps
+EMAIL_VERIFICATION_SECRET=your-64-character-secret-here
+PASSWORD_RESET_SECRET=your-64-character-secret-here
+
+# Frontend Build Args (optional)
+VITE_CLARITY_PROJECT_ID=your_clarity_project_id_here
+VITE_DEMO_VIDEO_URL=https://yourdomain.blob.core.windows.net/videos/demo.mp4
 ```
 
-### Notification Webhooks (Optional)
+**Deploy with Docker:**
 
-Configure notification destinations:
+```bash
+# Build and run
+docker-compose up -d
 
-```env
-# Microsoft Teams
-TEAMS_WEBHOOK_URL=https://your-teams-webhook-url
+# View logs
+docker-compose logs -f
 
-# Slack
-SLACK_WEBHOOK_URL=https://your-slack-webhook-url
-
-# Google Chat
-GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/...
+# Stop
+docker-compose down
 ```
 
 ---
@@ -405,7 +638,37 @@ The main dashboard provides:
 - Track success rates and deployment frequency
 - View release history and artifacts
 
-#### 5. Autonomous Workflows
+#### 5. Production Filters
+
+Configure what constitutes "production" for your organization:
+
+**Setup (in Settings → Organizations → Production Filters):**
+
+- Enable production filters toggle
+- Add branch patterns: `main`, `master`, `release/*`
+- Add environment patterns: `Production`, `E3`, `Prod-*`
+- Add build definition patterns (optional): `Prod-Deploy`, `Release-*`
+
+**Usage (in Activity Reports):**
+
+- Toggle "Production Only Report" to filter data
+- PDF reports include "Filter: Production Only" indicator
+- Filename includes `_PRODUCTION` suffix
+- Webhook notifications respect production filters
+
+**Pattern Matching:**
+
+- **Exact match**: `main` matches only `main`
+- **Wildcard match**: `release/*` matches `release/v1.0`, `release/hotfix`
+- **Case-insensitive**: `Main` matches `main`, `MAIN`, `MaIn`
+
+**Filter Logic:**
+
+- **Builds**: Filtered by source branch OR build definition name
+- **Releases**: Filtered by environment name
+- **Pull Requests**: Filtered by target branch (where merging TO)
+
+#### 6. Autonomous Workflows
 
 - Build failure detection → AI analysis → Team notification
 - Idle PR detection → Reminder notification
@@ -534,11 +797,25 @@ Authorization: Bearer <jwt_token>
 - `GET /api/releases` - List recent releases
 - `GET /api/releases/:releaseId` - Get specific release details
 
+### Activity Reports
+
+- `GET /api/dashboard/activity-report/stream` - Stream activity report data (supports `?productionOnly=true`)
+- `POST /api/dashboard/activity-report/pdf` - Generate PDF report with optional production filtering
+
 ### AI Configuration
 
 - `GET /api/ai/providers` - List available AI providers
 - `GET /api/ai/models/:provider` - Get models for specific provider
 - `GET /api/ai/config` - Get current AI configuration
+
+### Organizations
+
+- `GET /api/organizations` - List user's organizations
+- `POST /api/organizations` - Create new organization
+- `PUT /api/organizations/:id` - Update organization (includes production filters)
+- `DELETE /api/organizations/:id` - Delete organization
+- `POST /api/organizations/:id/set-default` - Set default organization
+- `GET /api/organizations/:id/projects` - List projects in organization
 
 ### Settings Management
 
@@ -564,71 +841,108 @@ Authorization: Bearer <jwt_token>
 
 ---
 
-## 🚀 Deployment
+## 🚀 Running the Application
 
-### Azure App Service (Current Production)
+### 🐳 Using Docker (Recommended)
 
-The project is configured for automated deployment to Azure App Service via GitHub Actions.
-
-**Deployment Workflow:**
-
-1. Push to `main` branch triggers production deployment
-2. Frontend is built with Vite
-3. Frontend build is copied to `backend/public/`
-4. Backend is deployed to Azure App Service
-5. Environment variables are injected from Azure secrets
-
-**GitHub Secrets Required:**
-
-- `AZURE_WEBAPP_NAME` - Azure App Service name
-- `AZURE_WEBAPP_PUBLISH_PROFILE` - Publishing profile from Azure
-- `VITE_CLARITY_PROJECT_ID` - Microsoft Clarity tracking ID
-
-### Manual Deployment
+**Option 1: Docker Compose (Easiest)**
 
 ```bash
-# Build frontend
-cd frontend && npm run build
+# 1. Clone and setup
+git clone https://github.com/nishantxrana/InsightOps.git
+cd InsightOps
 
-# Copy frontend to backend public folder
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# 3. Run
+docker-compose up -d
+
+# 4. View logs
+docker-compose logs -f
+
+# 5. Stop
+docker-compose down
+```
+
+Application available at: `http://localhost:8000`
+
+**Option 2: Using Dockerfile**
+
+```bash
+# 1. Build image
+docker build -t insightops:latest .
+
+# 2. Run container
+docker run -p 8000:8000 --env-file .env insightops:latest
+
+# 3. View logs
+docker logs <container-id>
+```
+
+**Why Docker?**
+
+- ✅ Chromium pre-installed (required for PDF generation)
+- ✅ All dependencies included
+- ✅ Consistent environment
+- ✅ No manual setup needed
+
+---
+
+### 🖥️ Manual Setup (Without Docker)
+
+**Requirements:**
+
+- Node.js 22+
+- Chromium browser (for PDF generation)
+- MongoDB instance
+
+**Install Chromium:**
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update && sudo apt-get install -y chromium-browser
+
+# macOS
+brew install chromium
+```
+
+**Run Application:**
+
+```bash
+# 1. Install dependencies
+npm run install:all
+
+# 2. Configure backend
+cd backend
+cp .env.example .env
+# Edit .env with your credentials
+
+# 3. Build frontend
+cd ../frontend
+cp .env.example .env
+npm run dev
+
+# 4. Copy frontend to backend
 mkdir -p ../backend/public
 cp -r dist/* ../backend/public/
 
-# Start production server
-cd ../backend && npm start
+# 5. Start server
+cd ../backend
+npm run dev
 ```
 
-### Docker Deployment (Optional)
+Application available at: `http://localhost:5173`
 
-```dockerfile
-FROM node:22-alpine
+---
 
-WORKDIR /app
+### 🌐 Production Deployment
 
-# Copy package files
-COPY package*.json ./
-COPY backend/package*.json ./backend/
-COPY frontend/package*.json ./frontend/
+For production deployment to Azure Container Apps or other cloud platforms, see the included GitHub Actions workflows in `.github/workflows/`:
 
-# Install dependencies
-RUN npm ci && \
-    cd backend && npm ci --only=production && \
-    cd ../frontend && npm ci
-
-# Copy application code
-COPY . .
-
-# Build frontend
-RUN cd frontend && npm run build && \
-    mkdir -p ../backend/public && \
-    cp -r dist/* ../backend/public/
-
-# Expose port
-EXPOSE 3001
-
-# Start backend server
-CMD ["node", "backend/main.js"]
-```
+- `deploy.yml` - Production deployment
+- `deploy-stage.yml` - Staging deployment
 
 ---
 
@@ -661,8 +975,25 @@ npm run lint            # Lint code with ESLint
 
 1. **Backend Hot Reload**: Uses nodemon to automatically restart on file changes
 2. **Frontend Hot Module Replacement**: Vite provides instant HMR for React components
-3. **API Proxy**: Frontend dev server proxies `/api` requests to backend
+3. **API Proxy**: Frontend dev server proxies `/api` requests to backend (port 3001)
 4. **Environment Variables**: Keep `.env` files out of git with `.gitignore`
+5. **PDF Generation**: Works locally if Chromium is installed (Puppeteer auto-downloads)
+
+### Testing Docker Build Locally
+
+```bash
+# Build image
+docker build -t insightops:test .
+
+# Run container
+docker run -p 8000:8000 --env-file .env insightops:test
+
+# Test health check
+curl http://localhost:8000/api/health
+
+# View logs
+docker logs <container-id>
+```
 
 ---
 
@@ -700,6 +1031,14 @@ npm run lint            # Lint code with ESLint
 - Check webhook secret matches configuration
 - Review Azure DevOps Service Hook logs
 
+**❌ Production Filters Not Working**
+
+- Verify filters are enabled in Settings → Organizations → Production Filters
+- Check pattern syntax (exact match or wildcard with `*`)
+- Ensure "Production Only Report" toggle is ON when generating reports
+- Review logs for filter matching: `[ActivityReport] Filtered X/Y (production only)`
+- Empty filter arrays will include all items (not exclude all)
+
 ### Debug Mode
 
 Enable detailed logging:
@@ -717,33 +1056,5 @@ Then check logs at:
 ## 🌟 Live Demo
 
 🚀 **Try InsightOps**: [https://stginsightops.azurewebsites.net/]
-
-**Demo Credentials:**
-
-```
-Email: demo@insightops.dev
-Password: W6%Q5=?!;f4f
-```
-
-_Note: Demo resets every 24 hours. Your data will not be persisted._
-
----
-
-## 📸 Screenshots
-
-### Dashboard
-
-![Dashboard](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Dashboard.png)
-_Real-time overview of work items, builds, PRs, and releases_
-
-### Pipeline Analysis
-
-![Pipeline Analysis](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Release.png)
-_AI-powered build failure analysis with actionable insights_
-
-### Settings
-
-![Settings](https://insightopssa.blob.core.windows.net/insightops-demo/Assets/Settings.png)
-_Configure Azure DevOps, AI providers, and notifications_
 
 ---

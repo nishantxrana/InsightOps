@@ -1,40 +1,50 @@
 import React, { useState } from "react";
-import { useAuth } from "../../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 
 export const SignupForm = ({ onToggleMode }) => {
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const { signup } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setErrors({});
 
-    const result = await signup(email, password, name);
+    try {
+      // Request OTP (doesn't create account yet)
+      await axios.post("/api/auth/signup/request-otp", {
+        email,
+        password,
+        name,
+      });
 
-    if (!result.success) {
-      // Handle validation errors from backend
-      if (result.error === "Validation failed" && result.details) {
+      // Navigate to OTP verification page
+      navigate("/verify-otp", {
+        state: { email, name },
+      });
+    } catch (error) {
+      if (error.response?.data?.error === "Validation failed" && error.response?.data?.details) {
         const fieldErrors = {};
-        result.details.forEach((detail) => {
+        error.response.data.details.forEach((detail) => {
           fieldErrors[detail.field] = detail.message;
         });
         setErrors(fieldErrors);
       } else {
-        setErrors({ general: result.error });
+        setErrors({ general: error.response?.data?.error || "Signup failed" });
       }
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -82,24 +92,26 @@ export const SignupForm = ({ onToggleMode }) => {
             )}
           </div>
 
-          <div className="relative">
-            <Input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${
-                errors.password ? "border-red-500" : ""
-              }`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+          <div>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${
+                  errors.password ? "border-red-500" : ""
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {errors.password && (
               <div className="flex items-center gap-1 text-red-500 text-sm mt-1">
                 <AlertCircle className="h-4 w-4" />

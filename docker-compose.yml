@@ -1,0 +1,28 @@
+services:
+  insightops:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_CLARITY_PROJECT_ID: ${VITE_CLARITY_PROJECT_ID:-}
+        VITE_DEMO_VIDEO_URL: ${VITE_DEMO_VIDEO_URL:-}
+    ports:
+      - ${PORT}:${PORT}
+    environment:
+      - NODE_ENV=production
+      - PORT=${PORT}
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:${PORT}}
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "const port=process.env.PORT||8000;require(''http'').get(''http://localhost:''+port+''/api/health'',(r)=>{process.exit(r.statusCode===200?0:1)})"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

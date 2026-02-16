@@ -28,6 +28,8 @@ class WorkItemWebhook extends BaseWebhook {
         return this.sendOrgValidationError(res, orgValidation);
       }
 
+      const org = orgValidation.org; // Extract org from validation result
+
       const { resource } = req.body;
 
       if (!resource) {
@@ -169,6 +171,8 @@ class WorkItemWebhook extends BaseWebhook {
       if (!orgValidation.valid) {
         return this.sendOrgValidationError(res, orgValidation);
       }
+
+      const org = orgValidation.org; // Extract org from validation result
 
       const webhookData = req.body;
       const { resource } = webhookData;
