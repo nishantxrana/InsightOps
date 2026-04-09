@@ -352,7 +352,8 @@ WorkItemPoller.prototype.formatOverdueItemsCard = function (
         },
         {
           decoratedText: {
-            startIcon: { knownIcon: "CALENDAR_TODAY" },
+            // Google Chat only renders icons from the built-in set (CALENDAR_TODAY is not valid).
+            startIcon: { knownIcon: "INVITE" },
             topLabel: "Due Date",
             text: dueDateFormatted,
           },
