@@ -47,6 +47,8 @@ const organizationSchema = new mongoose.Schema(
       overdueCheckEnabled: { type: Boolean, default: false },
       overdueFilterEnabled: { type: Boolean, default: true },
       overdueMaxDays: { type: Number, default: 60 },
+      overdueExcludedStates: { type: [String], default: [] },
+      overdueExcludedStatesEnabled: { type: Boolean, default: true },
       idlePRFilterEnabled: { type: Boolean, default: true },
       idlePRMaxDays: { type: Number, default: 90 },
     },

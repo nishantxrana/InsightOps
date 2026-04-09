@@ -1,6 +1,11 @@
 import { logger } from "../utils/logger.js";
 import { azureDevOpsClient } from "../devops/azureDevOpsClient.js";
 import notificationHistoryService from "../services/notificationHistoryService.js";
+import {
+  buildExcludedStatesSet,
+  isWorkItemExcludedByState,
+  shouldApplyExcludedStateFilter,
+} from "../utils/overdueExcludedStates.js";
 
 class WorkItemPoller {
   constructor() {
@@ -108,10 +113,17 @@ class WorkItemPoller {
 
         if (filterEnabled && maxDays > 0) {
           const cutoffDate = Date.now() - maxDays * 24 * 60 * 60 * 1000;
-          filteredItems = overdueItems.value.filter((item) => {
+          filteredItems = filteredItems.filter((item) => {
             const dueDate = item.fields?.["Microsoft.VSTS.Scheduling.DueDate"];
             return dueDate && new Date(dueDate).getTime() >= cutoffDate;
           });
+        }
+
+        if (shouldApplyExcludedStateFilter(org.polling)) {
+          const excludedStatesLower = buildExcludedStatesSet(org.polling?.overdueExcludedStates);
+          filteredItems = filteredItems.filter(
+            (item) => !isWorkItemExcludedByState(item, excludedStatesLower)
+          );
         }
 
         if (filteredItems.length > 0 && org.notifications?.enabled) {

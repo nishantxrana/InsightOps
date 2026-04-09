@@ -110,3 +110,4 @@ Docs/
 .git-credentials-local
 
 .kiro/
+.venv*/

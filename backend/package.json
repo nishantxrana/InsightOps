@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node main.js",
     "dev": "nodemon main.js",
-    "test": "jest"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "@getbrevo/brevo": "^3.0.1",

@@ -79,6 +79,8 @@ export const settingsSchema = z.object({
       overdueCheckEnabled: z.boolean().optional(),
       overdueFilterEnabled: z.boolean().optional(),
       overdueMaxDays: z.number().int().min(1).max(365).optional(),
+      overdueExcludedStates: z.array(z.string()).optional(),
+      overdueExcludedStatesEnabled: z.boolean().optional(),
     })
     .optional(),
   security: z

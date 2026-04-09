@@ -63,6 +63,8 @@ const getDefaultSettings = () => ({
     overdueCheckEnabled: false,
     overdueFilterEnabled: true,
     overdueMaxDays: 60,
+    overdueExcludedStates: [],
+    overdueExcludedStatesEnabled: true,
     idlePRFilterEnabled: true,
     idlePRMaxDays: 90,
   },

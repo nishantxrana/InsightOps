@@ -11,6 +11,7 @@ import {
 } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { TagInput } from "../../components/ui/TagInput";
 
 const getCronDescription = (cronExpression) => {
   try {
@@ -40,6 +41,23 @@ export default function PollingSection({ data, onChange }) {
       onChange({ ...data, [field]: value });
     },
     [data, onChange]
+  );
+
+  const handleExcludedStatesChange = useCallback(
+    (next) => {
+      const normalized = [];
+      const seen = new Set();
+      for (const s of next) {
+        const t = typeof s === "string" ? s.trim() : "";
+        if (!t) continue;
+        const key = t.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        normalized.push(t);
+      }
+      handleChange("overdueExcludedStates", normalized);
+    },
+    [handleChange]
   );
 
   return (
@@ -223,6 +241,59 @@ export default function PollingSection({ data, onChange }) {
                     </div>
                   </div>
                 )}
+
+                <div className="space-y-2 pt-1 border-t border-border/60">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Filter by state</Label>
+                      <p className="text-xs text-muted-foreground">
+                        When off, saved state names stay in the list below but are not applied to
+                        overdue polling alerts.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={data.overdueExcludedStatesEnabled !== false}
+                      onCheckedChange={(checked) =>
+                        handleChange("overdueExcludedStatesEnabled", checked)
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">
+                      Exclude overdue notifications for states
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Items whose{" "}
+                      <code className="text-xs bg-muted px-1 rounded">System.State</code> matches
+                      any value below (exact name, case-insensitive) are skipped from overdue
+                      polling alerts only. Dashboard and Work Items lists are unchanged.
+                    </p>
+                  </div>
+                  <div
+                    className={
+                      data.overdueExcludedStatesEnabled === false
+                        ? "opacity-60 pointer-events-none select-none"
+                        : ""
+                    }
+                    aria-disabled={data.overdueExcludedStatesEnabled === false}
+                  >
+                    <TagInput
+                      value={
+                        Array.isArray(data.overdueExcludedStates) ? data.overdueExcludedStates : []
+                      }
+                      onChange={handleExcludedStatesChange}
+                      placeholder="e.g. Resolved"
+                      dedupeCaseInsensitive
+                    />
+                  </div>
+                  {data.overdueExcludedStatesEnabled === false && (
+                    <p className="text-xs text-muted-foreground">
+                      Turn &quot;Filter by state&quot; on to edit keywords or to exclude these
+                      states from alerts.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}

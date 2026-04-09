@@ -3,14 +3,27 @@ import { X } from "lucide-react";
 import { Badge } from "./badge";
 import { Input } from "./input";
 
-export function TagInput({ value = [], onChange, placeholder = "Add item..." }) {
+export function TagInput({
+  value = [],
+  onChange,
+  placeholder = "Add item...",
+  dedupeCaseInsensitive = false,
+}) {
   const [inputValue, setInputValue] = useState("");
+
+  const isDuplicate = (candidate) => {
+    if (!dedupeCaseInsensitive) {
+      return value.includes(candidate);
+    }
+    const lower = candidate.toLowerCase();
+    return value.some((tag) => tag.toLowerCase() === lower);
+  };
 
   const handleKeyDown = (e) => {
     if ((e.key === "Enter" || e.key === ",") && inputValue.trim()) {
       e.preventDefault();
       const cleanValue = inputValue.trim().replace(/,$/g, ""); // Remove trailing comma
-      if (cleanValue && !value.includes(cleanValue)) {
+      if (cleanValue && !isDuplicate(cleanValue)) {
         onChange([...value, cleanValue]);
       }
       setInputValue("");
