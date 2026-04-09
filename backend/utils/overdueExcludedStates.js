@@ -27,12 +27,11 @@ export function isWorkItemExcludedByState(item, excludedStatesLower) {
 
 /**
  * Whether overdue polling should apply the excluded-states filter.
- * When `overdueExcludedStatesEnabled` is false, keywords are ignored (not cleared).
- * Missing/undefined toggle is treated as enabled for backward compatibility.
+ * Keywords apply only when `overdueExcludedStatesEnabled` is explicitly true.
  * @param {object|undefined} orgPolling - org.polling
  * @returns {boolean}
  */
 export function shouldApplyExcludedStateFilter(orgPolling) {
-  if (!orgPolling || orgPolling.overdueExcludedStatesEnabled === false) return false;
+  if (!orgPolling || orgPolling.overdueExcludedStatesEnabled !== true) return false;
   return buildExcludedStatesSet(orgPolling.overdueExcludedStates).size > 0;
 }

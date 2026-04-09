@@ -44,7 +44,7 @@ const userSettingsSchema = new mongoose.Schema(
       overdueFilterEnabled: { type: Boolean, default: true },
       overdueMaxDays: { type: Number, default: 60 },
       overdueExcludedStates: { type: [String], default: [] },
-      overdueExcludedStatesEnabled: { type: Boolean, default: true },
+      overdueExcludedStatesEnabled: { type: Boolean, default: false },
     },
     updatedAt: {
       type: Date,

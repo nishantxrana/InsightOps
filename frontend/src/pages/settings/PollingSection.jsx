@@ -252,7 +252,7 @@ export default function PollingSection({ data, onChange }) {
                       </p>
                     </div>
                     <Switch
-                      checked={data.overdueExcludedStatesEnabled !== false}
+                      checked={data.overdueExcludedStatesEnabled === true}
                       onCheckedChange={(checked) =>
                         handleChange("overdueExcludedStatesEnabled", checked)
                       }
@@ -272,11 +272,11 @@ export default function PollingSection({ data, onChange }) {
                   </div>
                   <div
                     className={
-                      data.overdueExcludedStatesEnabled === false
+                      data.overdueExcludedStatesEnabled !== true
                         ? "opacity-60 pointer-events-none select-none"
                         : ""
                     }
-                    aria-disabled={data.overdueExcludedStatesEnabled === false}
+                    aria-disabled={data.overdueExcludedStatesEnabled !== true}
                   >
                     <TagInput
                       value={
@@ -287,7 +287,7 @@ export default function PollingSection({ data, onChange }) {
                       dedupeCaseInsensitive
                     />
                   </div>
-                  {data.overdueExcludedStatesEnabled === false && (
+                  {data.overdueExcludedStatesEnabled !== true && (
                     <p className="text-xs text-muted-foreground">
                       Turn &quot;Filter by state&quot; on to edit keywords or to exclude these
                       states from alerts.

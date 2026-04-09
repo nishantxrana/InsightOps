@@ -52,7 +52,7 @@ describe("overdueExcludedStates", () => {
       ).toBe(false);
     });
 
-    it("returns true when toggle is on (or omitted) and keywords exist", () => {
+    it("returns false when toggle is omitted even with keywords", () => {
       expect(
         shouldApplyExcludedStateFilter({
           overdueExcludedStates: ["Resolved"],
@@ -63,8 +63,10 @@ describe("overdueExcludedStates", () => {
           overdueExcludedStatesEnabled: true,
           overdueExcludedStates: ["Resolved"],
         })
-      ).toBe(true);
+      ).toBe(false);
     });
+
+    it("returns true only when toggle is explicitly on and keywords exist", () => {});
 
     it("returns false when no keywords", () => {
       expect(
