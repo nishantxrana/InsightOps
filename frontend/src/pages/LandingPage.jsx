@@ -186,9 +186,7 @@ export default function LandingPage() {
 
   const demoVideoUrl =
     import.meta.env.VITE_DEMO_VIDEO_URL ||
-    "https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4";
-  import.meta.env.VITE_DEMO_VIDEO_URL ||
-    "https://insightopssa.blob.core.windows.net/insightops-demo/insightops-demo.mp4";
+    "https://stteamtrackerprdcin.blob.core.windows.net/insightops/insightops-demo.mp4";
 
   // Scroll handler for header
   useEffect(() => {

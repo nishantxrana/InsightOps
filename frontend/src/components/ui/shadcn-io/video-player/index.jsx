@@ -1,4 +1,5 @@
 "use client";
+import { forwardRef } from "react";
 import {
   MediaControlBar,
   MediaController,
@@ -82,6 +83,7 @@ export const VideoPlayerLoadingIndicator = ({ className, ...props }) => (
   />
 );
 
-export const VideoPlayerContent = ({ className, ...props }) => (
-  <video className={cn("mt-0 mb-0", className)} {...props} />
-);
+export const VideoPlayerContent = forwardRef(({ className, ...props }, ref) => (
+  <video ref={ref} className={cn("mt-0 mb-0", className)} {...props} />
+));
+VideoPlayerContent.displayName = "VideoPlayerContent";

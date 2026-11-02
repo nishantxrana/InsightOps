@@ -88,7 +88,11 @@ app.use(
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         scriptSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
-        mediaSrc: ["'self'", "https://insightopssa.blob.core.windows.net"],
+        mediaSrc: [
+          "'self'",
+          "https://insightopssa.blob.core.windows.net",
+          "https://stteamtrackerprdcin.blob.core.windows.net",
+        ],
         connectSrc: [
           "'self'",
           "https://dev.azure.com",
