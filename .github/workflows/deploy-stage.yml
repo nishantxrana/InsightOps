@@ -66,6 +66,14 @@ jobs:
               {
                 "name": "JWT_SECRET",
                 "value": "${{ secrets.JWT_SECRET }}"
+              },
+              {
+                "name": "ACS_CONNECTION_STRING",
+                "value": "${{ secrets.ACS_CONNECTION_STRING }}"
+              },
+              {
+                "name": "ACS_EMAIL_FROM",
+                "value": "${{ secrets.ACS_EMAIL_FROM }}"
               }
             ]
 

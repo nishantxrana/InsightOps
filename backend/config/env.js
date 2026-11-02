@@ -59,10 +59,9 @@ const envSchema = z.object({
   WEBHOOK_SECRET: z.string().optional(),
   API_TOKEN: z.string().optional(),
 
-  // Email Service (Brevo)
-  BREVO_API_KEY: z.string().optional(),
-  FROM_EMAIL: z.string().email().optional(),
-  FROM_NAME: z.string().optional(),
+  // Email Service (Azure Communication Services)
+  ACS_CONNECTION_STRING: z.string().optional(),
+  ACS_EMAIL_FROM: z.string().email().optional(),
   EMAIL_VERIFICATION_SECRET: z.string().min(32).optional(),
   PASSWORD_RESET_SECRET: z.string().min(32).optional(),
 

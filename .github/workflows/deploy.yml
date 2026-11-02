@@ -36,6 +36,47 @@ jobs:
           mkdir -p backend/public
           cp -r frontend/dist/. backend/public/
 
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Update environment variables in Azure App Service
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          app-settings-json: |
+            [
+              {
+                "name": "NODE_ENV",
+                "value": "${{ vars.NODE_ENV }}"
+              },
+              {
+                "name": "ALLOWED_ORIGINS",
+                "value": "${{ vars.ALLOWED_ORIGINS }}"
+              },
+              {
+                "name": "ENCRYPTION_KEY",
+                "value": "${{ secrets.ENCRYPTION_KEY }}"
+              },
+              {
+                "name": "MONGODB_URI",
+                "value": "${{ secrets.MONGODB_URI }}"
+              },
+              {
+                "name": "JWT_SECRET",
+                "value": "${{ secrets.JWT_SECRET }}"
+              },
+              {
+                "name": "ACS_CONNECTION_STRING",
+                "value": "${{ secrets.ACS_CONNECTION_STRING }}"
+              },
+              {
+                "name": "ACS_EMAIL_FROM",
+                "value": "${{ secrets.ACS_EMAIL_FROM }}"
+              }
+            ]
+
       - name: Deploy backend to Azure App Service
         uses: azure/webapps-deploy@v2
         with:

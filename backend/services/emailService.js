@@ -1,25 +1,23 @@
-import * as brevo from "@getbrevo/brevo";
+import { EmailClient, KnownEmailSendStatus } from "@azure/communication-email";
 import { logger } from "../utils/logger.js";
 import { EmailLog } from "../models/EmailLog.js";
 
 class EmailService {
   constructor() {
-    const apiKey = process.env.BREVO_API_KEY;
+    const connectionString = process.env.ACS_CONNECTION_STRING;
+    const fromEmail = process.env.ACS_EMAIL_FROM;
 
-    if (!apiKey) {
-      logger.warn("BREVO_API_KEY not configured - email sending disabled");
+    if (!connectionString || !fromEmail) {
+      logger.warn(
+        "ACS_CONNECTION_STRING or ACS_EMAIL_FROM not configured - email sending disabled"
+      );
       this.enabled = false;
       return;
     }
 
-    this.apiInstance = new brevo.TransactionalEmailsApi();
-    this.apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, apiKey);
-
+    this.emailClient = new EmailClient(connectionString);
+    this.fromEmail = fromEmail;
     this.enabled = true;
-
-    // ✅ ENV-FIRST (with safe defaults)
-    this.fromEmail = process.env.FROM_EMAIL || "support@notbatman.me";
-    this.fromName = process.env.FROM_NAME || "InsightOps";
 
     // Retry configuration
     this.maxRetries = 3;
@@ -66,7 +64,7 @@ class EmailService {
       return { skipped: true };
     }
 
-    // ✅ Prevent HTML injection
+    // Prevent HTML injection
     const safeName = name && typeof name === "string" ? name.replace(/[<>]/g, "") : "there";
 
     const htmlContent = this.buildTemplate({
@@ -91,7 +89,7 @@ Do not share this code with anyone.
 If you did not request this, you can safely ignore this email.
 
 — InsightOps
-support@notbatman.me
+${this.fromEmail}
     `.trim();
 
     return this.sendEmail({
@@ -107,7 +105,7 @@ support@notbatman.me
   // Template (Minimal + Elegant)
   // ------------------------
 
-  buildTemplate({ title, intro, otp, name, accentColor }) {
+  buildTemplate({ title, intro, otp, name }) {
     return `
   <!DOCTYPE html>
   <html lang="en">
@@ -225,7 +223,7 @@ support@notbatman.me
       <div class="footer">
         <strong>InsightOps</strong><br />
         AI-powered DevOps Intelligence<br />
-        support@notbatman.me
+        ${this.fromEmail}
       </div>
     </div>
   </body>
@@ -251,33 +249,40 @@ support@notbatman.me
           });
         }
 
-        const email = new brevo.SendSmtpEmail();
-
-        email.sender = {
-          email: this.fromEmail,
-          name: this.fromName,
+        const message = {
+          senderAddress: this.fromEmail,
+          content: {
+            subject,
+            plainText: textContent,
+            html: htmlContent,
+          },
+          recipients: {
+            to: [{ address: to }],
+          },
         };
 
-        email.to = [{ email: to }];
-        email.subject = subject;
-        email.htmlContent = htmlContent;
-        email.textContent = textContent;
+        const poller = await this.emailClient.beginSend(message);
+        const result = await poller.pollUntilDone();
 
-        const result = await this.apiInstance.sendTransacEmail(email);
+        if (result.status !== KnownEmailSendStatus.Succeeded) {
+          const sendError = result.error ?? new Error(`Email send failed: ${result.status}`);
+          throw sendError;
+        }
 
-        // Success! Log to database
+        const messageId = result.id;
+
         await this.logEmail({
           email: to,
           type,
           status: "sent",
-          messageId: result.messageId,
+          messageId,
           attempts: attempt + 1,
         });
 
         logger.info("Email sent successfully", {
           to,
           subject,
-          messageId: result.messageId,
+          messageId,
           attempts: attempt + 1,
         });
 
@@ -289,6 +294,7 @@ support@notbatman.me
           to,
           type,
           error: error.message,
+          statusCode: error.statusCode,
         });
 
         // Don't retry on certain errors
@@ -320,13 +326,21 @@ support@notbatman.me
   // Helper: Check if error should not be retried
   isNonRetryableError(error) {
     const message = error.message?.toLowerCase() || "";
+    const statusCode = error.statusCode ?? error.code;
 
-    // Don't retry on invalid email, quota exceeded, etc.
+    // Retry 429 (rate limit); do not retry auth / invalid sender / forbidden
+    if (statusCode === 429) {
+      return false;
+    }
+
     return (
+      statusCode === 401 ||
+      statusCode === 403 ||
       message.includes("invalid email") ||
-      message.includes("quota exceeded") ||
+      message.includes("invalid sender") ||
       message.includes("unauthorized") ||
-      message.includes("forbidden")
+      message.includes("forbidden") ||
+      message.includes("access denied")
     );
   }
 
