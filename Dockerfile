@@ -15,9 +15,7 @@ RUN npm ci
 COPY frontend/ ./
 
 # Build frontend
-ARG VITE_CLARITY_PROJECT_ID
 ARG VITE_DEMO_VIDEO_URL
-ENV VITE_CLARITY_PROJECT_ID=$VITE_CLARITY_PROJECT_ID
 ENV VITE_DEMO_VIDEO_URL=https://stteamtrackerprdcin.blob.core.windows.net/insightops/insightops-demo.mp4
 RUN npm run build
 

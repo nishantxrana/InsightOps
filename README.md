@@ -135,7 +135,7 @@ Required secret **names** (values never belong in git): `MONGODB_URI`, `JWT_SECR
 - GitHub Actions: [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) (production) and [`deploy-stage.yml`](.github/workflows/deploy-stage.yml) (staging) build the frontend into `backend/public` and deploy to **Azure App Service**
 - Azure DevOps: [`pipelines/`](pipelines/) includes zip-style App Service pipelines and container build/push to ACR
 
-**Frontend build args (optional):** `VITE_CLARITY_PROJECT_ID`, `VITE_DEMO_VIDEO_URL` — see [`frontend/.env.example`](frontend/.env.example).
+**Frontend build args (optional):** `VITE_DEMO_VIDEO_URL` — see [`frontend/.env.example`](frontend/.env.example).
 
 ## Tech stack
 

@@ -26,7 +26,6 @@ steps:
     workingDirectory: frontend
     displayName: "Build frontend"
     env:
-      VITE_CLARITY_PROJECT_ID: $(VITE_CLARITY_PROJECT_ID)
       VITE_DEMO_VIDEO_URL: $(VITE_DEMO_VIDEO_URL)
 
   - script: |

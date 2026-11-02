@@ -28,7 +28,6 @@ jobs:
         run: npm run build
         working-directory: frontend
         env:
-          VITE_CLARITY_PROJECT_ID: ${{ secrets.VITE_CLARITY_PROJECT_ID }}
           VITE_DEMO_VIDEO_URL: ${{ vars.VITE_DEMO_VIDEO_URL }}
 
       - name: Move frontend build to backend public folder
