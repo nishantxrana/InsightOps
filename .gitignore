@@ -1,3 +1,6 @@
+# Demo video remux output (from scripts/optimize-demo-video.sh) — do not commit
+scripts/*.mp4
+
 # Dependencies
 node_modules/
 npm-debug.log*

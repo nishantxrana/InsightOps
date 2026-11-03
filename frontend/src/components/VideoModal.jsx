@@ -21,6 +21,7 @@ import {
 export default function VideoModal({ isOpen, onClose, videoUrl }) {
   const videoRef = useRef(null);
   const [hasError, setHasError] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
 
   const handleClose = useCallback(() => {
     const video = videoRef.current;
@@ -53,16 +54,40 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
     if (!isOpen || !videoUrl) return;
 
     setHasError(false);
+    setIsBuffering(true);
     const video = videoRef.current;
     if (!video) return;
 
+    const tryPlay = () => {
+      const playAttempt = video.play();
+      if (playAttempt?.catch) {
+        playAttempt.catch(() => {
+          // Autoplay may be blocked; user can press play.
+        });
+      }
+    };
+
+    // Progressive playback: start as soon as enough data is buffered (not full file)
+    const onCanPlay = () => {
+      setIsBuffering(false);
+      tryPlay();
+    };
+    const onWaiting = () => setIsBuffering(true);
+    const onPlaying = () => setIsBuffering(false);
+
+    video.addEventListener("canplay", onCanPlay);
+    video.addEventListener("waiting", onWaiting);
+    video.addEventListener("playing", onPlaying);
+
     video.currentTime = 0;
-    const playAttempt = video.play();
-    if (playAttempt?.catch) {
-      playAttempt.catch(() => {
-        // Autoplay may be blocked; user can press play.
-      });
-    }
+    // Hint the browser to start fetching media bytes immediately
+    video.load();
+
+    return () => {
+      video.removeEventListener("canplay", onCanPlay);
+      video.removeEventListener("waiting", onWaiting);
+      video.removeEventListener("playing", onPlaying);
+    };
   }, [isOpen, videoUrl]);
 
   if (!isOpen) {
@@ -108,7 +133,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
             </div>
           ) : (
             <VideoPlayer
-              className="w-full"
+              className="relative w-full"
               style={{
                 "--media-background-color": "#000",
                 "--media-primary-color": "#fff",
@@ -124,10 +149,17 @@ export default function VideoModal({ isOpen, onClose, videoUrl }) {
                 slot="media"
                 className="w-full aspect-video max-h-[80vh] bg-black"
                 playsInline
-                preload="metadata"
+                preload="auto"
                 onError={() => setHasError(true)}
               />
               <VideoPlayerLoadingIndicator />
+              {isBuffering && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
+                  <div className="rounded-md bg-black/70 px-3 py-1.5 text-sm text-white">
+                    Buffering…
+                  </div>
+                </div>
+              )}
               <VideoPlayerControlBar className="bg-black/70">
                 <VideoPlayerPlayButton />
                 <VideoPlayerSeekBackwardButton seekOffset={10} />

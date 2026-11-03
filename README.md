@@ -142,6 +142,16 @@ Empty App Setting values are treated as unset (do not leave blank ACS/email secr
 
 **Frontend build args (optional):** `VITE_DEMO_VIDEO_URL` — see [`frontend/.env.example`](frontend/.env.example).
 
+**Demo video (progressive play):** remux the public blob locally (no Azure login), then upload the output manually in Portal to overwrite the same blob:
+
+```bash
+./scripts/optimize-demo-video.sh
+# → writes scripts/insightops-demo-fast.mp4 (gitignored)
+# → Azure Portal: overwrite insightops/insightops-demo.mp4, Content-Type video/mp4
+```
+
+Same MP4 codec/quality; only file layout changes (`faststart` / moov first) so the browser can start playing before the full download.
+
 ## Tech stack
 
 - **Backend:** Node.js 22 (ESM), Express 4, Mongoose 8, JWT / bcrypt, Winston, Helmet, node-cron, Puppeteer
