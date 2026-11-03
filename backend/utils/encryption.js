@@ -17,18 +17,16 @@ export class DecryptionError extends Error {
 class SettingsEncryption {
   constructor() {
     this.algorithm = "aes-256-gcm";
-    this.keyLength = 32;
+    this.keyLength = 64; // exactly 64 hex characters (same rule as JWT_SECRET)
     this.ivLength = 16;
     this.tagLength = 16;
     this.prefix = "encrypted:AES256:";
 
-    // Get encryption key - REQUIRED, no fallback
     this.encryptionKey = this.getRequiredKey();
   }
 
   /**
-   * Get encryption key from environment - REQUIRED
-   * Application will fail to start if key is not set
+   * ENCRYPTION_KEY must be exactly 64 hex characters (same as all other app secrets).
    */
   getRequiredKey() {
     const key = env.ENCRYPTION_KEY;
@@ -36,47 +34,24 @@ class SettingsEncryption {
     if (!key) {
       const errorMessage = `
 ========================================================
-FATAL: ENCRYPTION_KEY environment variable is not set!
+FATAL: ENCRYPTION_KEY is not set!
 ========================================================
-The application cannot start without a valid encryption key.
-
-To generate a secure key, run:
+All secrets must be exactly 64 hex characters.
+Generate:
   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-
-Then set it in your environment:
-  export ENCRYPTION_KEY=<generated_key>
-
-Or add to your .env file:
-  ENCRYPTION_KEY=<generated_key>
-
-This key is required to encrypt/decrypt sensitive data like:
-  - Azure DevOps PATs
-  - AI API keys
-  - Webhook URLs
 ========================================================
 `;
       logger.error(errorMessage);
-      throw new Error(
-        "ENCRYPTION_KEY environment variable is required but not set. See logs for details."
-      );
+      throw new Error("ENCRYPTION_KEY is required but not set. See logs for details.");
     }
 
-    // Validate key length
-    if (key.length !== this.keyLength * 2) {
-      // hex string is 2x byte length
-      const errorMessage = `ENCRYPTION_KEY must be exactly ${this.keyLength * 2} hex characters (${this.keyLength} bytes). Got ${key.length} characters.`;
+    if (key.length !== this.keyLength || !/^[0-9a-fA-F]{64}$/.test(key)) {
+      const errorMessage = `ENCRYPTION_KEY must be exactly 64 hex characters. Got ${key.length} characters.`;
       logger.error(errorMessage);
       throw new Error(errorMessage);
     }
 
-    // Validate hex format
-    if (!/^[0-9a-fA-F]+$/.test(key)) {
-      const errorMessage = "ENCRYPTION_KEY must be a valid hexadecimal string.";
-      logger.error(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    logger.info("Encryption key validated successfully");
+    logger.info("ENCRYPTION_KEY validated (64 hex)");
     return Buffer.from(key, "hex");
   }
 

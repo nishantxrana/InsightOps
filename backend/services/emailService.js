@@ -4,8 +4,8 @@ import { EmailLog } from "../models/EmailLog.js";
 
 class EmailService {
   constructor() {
-    const connectionString = process.env.ACS_CONNECTION_STRING;
-    const fromEmail = process.env.ACS_EMAIL_FROM;
+    const connectionString = process.env.ACS_CONNECTION_STRING?.trim();
+    const fromEmail = process.env.ACS_EMAIL_FROM?.trim();
 
     if (!connectionString || !fromEmail) {
       logger.warn(
@@ -15,9 +15,17 @@ class EmailService {
       return;
     }
 
-    this.emailClient = new EmailClient(connectionString);
-    this.fromEmail = fromEmail;
-    this.enabled = true;
+    try {
+      this.emailClient = new EmailClient(connectionString);
+      this.fromEmail = fromEmail;
+      this.enabled = true;
+    } catch (error) {
+      logger.error("Invalid ACS_CONNECTION_STRING - email sending disabled", {
+        error: error.message,
+      });
+      this.enabled = false;
+      return;
+    }
 
     // Retry configuration
     this.maxRetries = 3;

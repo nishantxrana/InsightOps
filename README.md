@@ -107,7 +107,12 @@ InsightOps calls Azure DevOps as **read-only**. Create a PAT with these scopes f
 | **Azure DevOps PATs** | Encrypted at rest in MongoDB with `ENCRYPTION_KEY`; API responses mask the PAT                        |
 | **Auth emails**       | ACS Email OTPs for signup verification and password reset (`ACS_CONNECTION_STRING`, `ACS_EMAIL_FROM`) |
 
-Required secret **names** (values never belong in git): `MONGODB_URI`, `JWT_SECRET`, `ENCRYPTION_KEY`, `ACS_CONNECTION_STRING`, `ACS_EMAIL_FROM`, `EMAIL_VERIFICATION_SECRET`, `PASSWORD_RESET_SECRET`. Full templates: [`backend/.env.example`](backend/.env.example), [`.env.example`](.env.example), [`frontend/.env.example`](frontend/.env.example).
+**Required to boot:** `MONGODB_URI`, `JWT_SECRET`, `ENCRYPTION_KEY`.  
+**Secret format:** every secret is exactly **64 hex characters**. Generate with:
+`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`  
+**Required for auth emails (both or neither):** `ACS_CONNECTION_STRING`, `ACS_EMAIL_FROM`.  
+Full templates: [`backend/.env.example`](backend/.env.example), [`.env.example`](.env.example), [`frontend/.env.example`](frontend/.env.example).  
+Empty App Setting values are treated as unset (do not leave blank ACS/email secrets).
 
 **ACS Email setup:** Connection string from Communication Service `acs-teamtracker-prd` → **Keys**. MailFrom from Email Communication Service `acs-subdomain-email` → **AzureManagedDomain** → **MailFrom addresses**. Link the domain on `acs-teamtracker-prd` → **Email** → **Domains** before sending.
 
