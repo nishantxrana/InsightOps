@@ -244,6 +244,40 @@
   }
 }
 
+/* Landing page surface ladder — scoped so app screens stay unchanged */
+.landing {
+  --landing-canvas: #fafafa;
+  --landing-surface: #ffffff;
+  --landing-surface-hover: #f4f4f5;
+  --landing-hairline: rgba(11, 12, 14, 0.1);
+  --ring: 217.2 91.2% 59.8%;
+  background-color: var(--landing-canvas);
+  color: hsl(var(--foreground));
+}
+
+.dark .landing {
+  --landing-canvas: #0b0c0e;
+  --landing-surface: #121316;
+  --landing-surface-hover: #1a1b1f;
+  --landing-hairline: rgba(250, 250, 250, 0.1);
+  --ring: 217.2 91.2% 59.8%;
+}
+
+.landing .landing-hairline {
+  border-color: var(--landing-hairline);
+}
+
+.landing .landing-surface {
+  background-color: var(--landing-surface);
+}
+
+.landing .landing-dot-grid {
+  background-image: radial-gradient(var(--landing-hairline) 1px, transparent 1px);
+  background-size: 20px 20px;
+  mask-image: linear-gradient(to bottom, black 0%, transparent 85%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 85%);
+}
+
 /* Create overlay scrollbar like mobile */
 html {
   overflow: overlay; /* Overlay scrollbar that doesn't take space */

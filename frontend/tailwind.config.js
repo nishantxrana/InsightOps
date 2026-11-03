@@ -67,14 +67,24 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        landing: {
+          canvas: "var(--landing-canvas)",
+          surface: "var(--landing-surface)",
+          "surface-hover": "var(--landing-surface-hover)",
+          hairline: "var(--landing-hairline)",
+        },
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      maxWidth: {
+        landing: "72rem",
       },
       keyframes: {
         "accordion-down": {
