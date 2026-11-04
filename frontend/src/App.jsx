@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
@@ -23,6 +23,11 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { OrganizationProvider, useOrganization } from "./contexts/OrganizationContext";
 import { Toaster } from "./components/ui/toaster";
 import { SwitchingOverlay } from "./components/SwitchingOverlay";
+
+// DEV kit showcase — remove in step 10 (dead-code eliminated in production builds)
+const DesignKitPage = import.meta.env.DEV
+  ? React.lazy(() => import("./pages/DesignKitPage"))
+  : null;
 
 function AuthenticatedApp() {
   const { needsSetup, loading, switching, switchingTo, currentOrganization } = useOrganization();
@@ -75,12 +80,28 @@ function AuthenticatedApp() {
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-lg text-foreground">Loading...</div>
       </div>
+    );
+  }
+
+  // DEV-only kit showcase (outside Layout). Remove in step 10.
+  if (import.meta.env.DEV && DesignKitPage && location.pathname === "/__kit") {
+    return (
+      <React.Suspense
+        fallback={
+          <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+            Loading kit…
+          </div>
+        }
+      >
+        <DesignKitPage />
+      </React.Suspense>
     );
   }
 

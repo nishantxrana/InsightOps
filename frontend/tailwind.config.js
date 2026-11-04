@@ -19,6 +19,11 @@ export default {
         },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          foreground: "hsl(var(--surface-foreground))",
+          raised: "hsl(var(--surface-raised))",
+        },
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
@@ -46,6 +51,31 @@ export default {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+          muted: "hsl(var(--success-muted))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+          muted: "hsl(var(--warning-muted))",
+        },
+        danger: {
+          DEFAULT: "hsl(var(--danger))",
+          foreground: "hsl(var(--danger-foreground))",
+          muted: "hsl(var(--danger-muted))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+          muted: "hsl(var(--info-muted))",
+        },
+        neutral: {
+          DEFAULT: "hsl(var(--neutral))",
+          foreground: "hsl(var(--neutral-foreground))",
+          muted: "hsl(var(--neutral-muted))",
         },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -82,6 +112,23 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        control: "var(--radius-control)",
+        panel: "var(--radius-panel)",
+      },
+      height: {
+        "control-sm": "var(--control-sm)",
+        "control-md": "var(--control-md)",
+        "control-lg": "var(--control-lg)",
+        row: "var(--row-height)",
+        "row-compact": "var(--row-compact)",
+        "row-default": "var(--row-default)",
+        "row-comfortable": "var(--row-comfortable)",
+      },
+      minHeight: {
+        row: "var(--row-height)",
+        "row-compact": "var(--row-compact)",
+        "row-default": "var(--row-default)",
+        "row-comfortable": "var(--row-comfortable)",
       },
       maxWidth: {
         landing: "72rem",

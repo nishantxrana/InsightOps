@@ -1,0 +1,40 @@
+---
+description: Authenticated UI redesign rules (InsightOps kit)
+alwaysApply: true
+---
+
+# UI redesign rules
+
+Follow `docs/design-system.md` and the kit in `frontend/src/components/kit/`. Review at `/__kit` in DEV.
+
+## Components
+
+- Use **kit components only** for authenticated page UI. Do not invent new ad-hoc cards, status pills, filter dropdowns, or detail modals.
+- Entity detail opens in **`DetailSheet`**, never a centered modal. Do not stack sheets.
+- AI output belongs in **`AiInsightPanel`** (no sparkle emoji, no gradients).
+- Loading → kit skeletons; empty → `EmptyState`; errors → `InlineError` / `PageError` with Retry (keep page chrome for inline errors).
+
+## Tokens & visual
+
+- **Semantic tokens only** — no hex, no `dark:bg-[#…]`, no arbitrary color classes in new/shared code. Use `azure-*` scale only where landing/auth already do.
+- Color means **status only**, and always with a visible label (`StatusBadge` / status maps). Never color alone.
+- No gradients, glow, emoji, `rounded-2xl` vanity cards, or giant icon KPI tiles.
+- Calm density: Linear / Vercel / Stripe. Hairline borders, quiet surfaces.
+
+## Page structure
+
+- **Summary first** (header + stat strip), then toolbar, then table.
+- **Tables are the product**: sticky header, row hover + focus-visible, keyboard row navigation, no hover-only actions, `ResultCount`, `ActiveFilters` with Clear all.
+- Prefer `PageHeader` + `SyncButton` + `StatStrip` + `Toolbar` + `DataTable` composition.
+
+## Presentation only
+
+- Never change API calls, request headers, localStorage keys, route paths, or contracts documented in `docs/ui-inventory/`.
+- Do not redesign landing/auth chrome unless a shared primitive forces a pin (document it).
+- Leave legacy `.btn` / `.card` / `.badge-*` and unused `EmptyState.jsx` until the cleanup step.
+
+## Before finishing a UI change
+
+1. Run lint and build in `frontend`.
+2. List files created and changed.
+3. Note any deviation from kit APIs in `docs/design-system.md`.

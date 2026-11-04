@@ -402,10 +402,16 @@ export default function LandingPage() {
                 read-only access, optional AI analysis, and the signal without the tab sprawl.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Button asChild size="lg" className={AZURE_CTA}>
+                <Button asChild size="lg" className={cn("h-10", AZURE_CTA)}>
                   <Link to="/signup">Get started</Link>
                 </Button>
-                <Button type="button" variant="outline" size="lg" onClick={openDemo}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="h-10"
+                  onClick={openDemo}
+                >
                   <Play className="size-4" aria-hidden="true" />
                   View demo
                 </Button>
@@ -613,10 +619,16 @@ export default function LandingPage() {
                 Put Azure DevOps in one dashboard
               </h2>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Button asChild size="lg" className={AZURE_CTA}>
+                <Button asChild size="lg" className={cn("h-10", AZURE_CTA)}>
                   <Link to="/signup">Get started</Link>
                 </Button>
-                <Button type="button" variant="outline" size="lg" onClick={openDemo}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="h-10"
+                  onClick={openDemo}
+                >
                   <Play className="size-4" aria-hidden="true" />
                   View demo
                 </Button>

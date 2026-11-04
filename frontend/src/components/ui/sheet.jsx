@@ -72,6 +72,7 @@ const SheetFooter = ({ className, ...props }) => (
 );
 SheetFooter.displayName = "SheetFooter";
 
+/** Pass className="sr-only" for a visually hidden accessible title. */
 const SheetTitle = React.forwardRef(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
@@ -81,6 +82,7 @@ const SheetTitle = React.forwardRef(({ className, ...props }, ref) => (
 ));
 SheetTitle.displayName = SheetPrimitive.Title.displayName;
 
+/** Pass className="sr-only" for a visually hidden accessible description. */
 const SheetDescription = React.forwardRef(({ className, ...props }, ref) => (
   <SheetPrimitive.Description
     ref={ref}
