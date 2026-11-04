@@ -11,6 +11,7 @@ import Releases from "./pages/Releases";
 import PullRequests from "./pages/PullRequests";
 import NotificationHistory from "./pages/NotificationHistory";
 import LandingPage from "./pages/LandingPage";
+import AuthLayout from "./components/auth/AuthLayout";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import VerifyOTP from "./pages/VerifyOTP";
@@ -87,11 +88,13 @@ function AppContent() {
     return (
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/signin" element={<SignIn />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/verify-otp" element={<VerifyOTP />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password-otp" element={<ResetPasswordOTP />} />
+        <Route element={<AuthLayout />}>
+          <Route path="/signin" element={<SignIn />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/verify-otp" element={<VerifyOTP />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password-otp" element={<ResetPasswordOTP />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );

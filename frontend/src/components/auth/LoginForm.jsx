@@ -1,34 +1,62 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../../contexts/AuthContext";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { AuthField } from "./AuthField";
+import { FormError } from "./FormError";
+import { PasswordInput } from "./PasswordInput";
+import { AUTH_CTA, AUTH_INPUT, AUTH_LINK, validateEmail } from "./authStyles";
 
-export const LoginForm = ({ onToggleMode }) => {
+export const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
+  const validateField = (field, value) => {
+    if (field === "email") return validateEmail(value);
+    if (field === "password") return value ? "" : "Password is required";
+    return "";
+  };
+
+  const handleBlur = (field, value) => {
+    const message = validateField(field, value);
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (message) next[field] = message;
+      else delete next[field];
+      return next;
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const fieldErrors = {
+      email: validateField("email", email),
+      password: validateField("password", password),
+    };
+    const cleaned = Object.fromEntries(Object.entries(fieldErrors).filter(([, v]) => v));
+    if (Object.keys(cleaned).length) {
+      setErrors(cleaned);
+      return;
+    }
+
     setLoading(true);
     setErrors({});
 
     const result = await login(email, password);
 
     if (!result.success) {
-      // Handle validation errors from backend
       if (result.error === "Validation failed" && result.details) {
-        const fieldErrors = {};
+        const next = {};
         result.details.forEach((detail) => {
-          fieldErrors[detail.field] = detail.message;
+          next[detail.field] = detail.message;
         });
-        setErrors(fieldErrors);
+        setErrors(next);
       } else {
         setErrors({ general: result.error });
       }
@@ -38,79 +66,66 @@ export const LoginForm = ({ onToggleMode }) => {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto bg-card border-border">
-      <CardHeader>
-        <CardTitle className="text-foreground">Sign In</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className={`bg-background border-border text-foreground placeholder:text-muted-foreground ${
-                errors.email ? "border-red-500" : ""
-              }`}
-            />
-            {errors.email && (
-              <div className="flex items-center gap-1 text-red-500 text-sm mt-1">
-                <AlertCircle className="h-4 w-4" />
-                {errors.email}
-              </div>
-            )}
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      <AuthField id="email" label="Email" error={errors.email}>
+        {({ describedBy, invalid }) => (
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="you@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => handleBlur("email", email)}
+            disabled={loading}
+            aria-invalid={invalid || undefined}
+            aria-describedby={describedBy}
+            className={cn(AUTH_INPUT, invalid && "border-red-600 dark:border-red-500")}
+          />
+        )}
+      </AuthField>
 
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium text-foreground">Password</label>
-              <Link
-                to="/forgot-password"
-                className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <div className="relative">
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${
-                  errors.password ? "border-red-500" : ""
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {errors.password && (
-              <div className="flex items-center gap-1 text-red-500 text-sm mt-1">
-                <AlertCircle className="h-4 w-4" />
-                {errors.password}
-              </div>
-            )}
-          </div>
+      <AuthField
+        id="password"
+        label="Password"
+        error={errors.password}
+        labelAside={
+          <Link to="/forgot-password" className={cn("text-[14px]", AUTH_LINK)}>
+            Forgot password?
+          </Link>
+        }
+      >
+        {({ describedBy, invalid }) => (
+          <PasswordInput
+            id="password"
+            name="password"
+            autoComplete="current-password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onBlur={() => handleBlur("password", password)}
+            disabled={loading}
+            invalid={invalid}
+            describedBy={describedBy}
+          />
+        )}
+      </AuthField>
 
-          {errors.general && (
-            <div className="flex items-center gap-1 text-red-500 text-sm bg-red-50 dark:bg-red-950/20 p-3 rounded-md">
-              <AlertCircle className="h-4 w-4" />
-              {errors.general}
-            </div>
+      <div className="space-y-6 pt-1">
+        <FormError message={errors.general} />
+        <Button type="submit" disabled={loading} className={AUTH_CTA}>
+          {loading ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Signing in...
+            </>
+          ) : (
+            "Sign in"
           )}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </Button>
+      </div>
+    </form>
   );
 };
