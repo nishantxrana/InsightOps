@@ -379,6 +379,15 @@
   .landing .auth-otp-shake {
     animation: none;
   }
+
+  .theme-ripple {
+    animation: none !important;
+    display: none !important;
+  }
+
+  .theme-transitioning * {
+    transition: none !important;
+  }
 }
 
 /* Create overlay scrollbar like mobile */

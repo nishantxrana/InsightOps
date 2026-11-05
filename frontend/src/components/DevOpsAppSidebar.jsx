@@ -1,101 +1,82 @@
-import * as React from "react";
-import {
-  Home,
-  CheckSquare,
-  GitBranch,
-  Rocket,
-  GitPullRequest,
-  FileText,
-  Settings,
-  Bell,
-} from "lucide-react";
-
+import { Link, useLocation } from "react-router-dom";
 import { DevOpsNavMain } from "@/components/DevOpsNavMain";
 import { NavUser } from "@/components/nav-user";
+import OrganizationSwitcher from "@/components/OrganizationSwitcher";
+import ProjectSwitcher from "@/components/ProjectSwitcher";
+import { getNavGroups, SETTINGS_ROUTE, isRouteActive } from "@/config/routes";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
-// Azure DevOps navigation data
-const data = {
-  navMain: [
-    {
-      title: "Overview",
-      items: [
-        {
-          title: "Dashboard",
-          url: "/dashboard",
-          icon: Home,
-          isActive: true,
-        },
-      ],
-    },
-    {
-      title: "Development",
-      items: [
-        {
-          title: "Work Items",
-          url: "/work-items",
-          icon: CheckSquare,
-        },
-        {
-          title: "Pipelines",
-          url: "/pipelines",
-          icon: GitBranch,
-        },
-        {
-          title: "Releases",
-          url: "/releases",
-          icon: Rocket,
-        },
-        {
-          title: "Pull Requests",
-          url: "/pull-requests",
-          icon: GitPullRequest,
-        },
-      ],
-    },
-    {
-      title: "Operations",
-      items: [
-        {
-          title: "Notifications",
-          url: "/notifications",
-          icon: Bell,
-        },
-        {
-          title: "Logs",
-          url: "/logs",
-          icon: FileText,
-        },
-      ],
-    },
-  ],
-};
+const navGroups = getNavGroups();
 
 export function DevOpsAppSidebar({ ...props }) {
+  const location = useLocation();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const settingsActive = isRouteActive(location.pathname, SETTINGS_ROUTE.path);
+  const SettingsIcon = SETTINGS_ROUTE.icon;
+
+  const handleSettingsClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+    window.scrollTo(0, 0);
+  };
+
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <div className="flex h-16 items-center justify-center gap-2 px-4 group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 group-data-[collapsible=icon]:px-2 transition-[height,padding] ease-linear">
-          <img
-            src="/icon.svg"
-            alt="InsightOps"
-            className="h-8 w-8 flex-shrink-0 group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6 transition-[width,height] ease-linear"
-          />
-          <span className="text-lg font-semibold text-foreground group-data-[collapsible=icon]:hidden transition-opacity ease-linear">
+      <SidebarHeader className="gap-1 border-b border-sidebar-border p-2">
+        <div className="flex h-10 items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <img src="/icon.svg" alt="" className="h-6 w-6 shrink-0" />
+          <span className="truncate text-sm font-semibold text-foreground group-data-[collapsible=icon]:hidden">
             InsightOps
           </span>
         </div>
+        <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:items-center">
+          <OrganizationSwitcher />
+          <div className="group-data-[collapsible=icon]:hidden">
+            <ProjectSwitcher />
+          </div>
+        </div>
       </SidebarHeader>
       <SidebarContent>
-        <DevOpsNavMain items={data.navMain} />
+        <nav aria-label="Main">
+          <DevOpsNavMain items={navGroups} />
+        </nav>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border gap-1">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              tooltip={SETTINGS_ROUTE.label}
+              isActive={settingsActive}
+              className={cn(
+                "h-8 relative",
+                settingsActive &&
+                  "bg-muted text-foreground data-[active=true]:bg-muted before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:rounded-full before:bg-primary"
+              )}
+            >
+              <Link
+                to={SETTINGS_ROUTE.path}
+                onClick={handleSettingsClick}
+                aria-current={settingsActive ? "page" : undefined}
+              >
+                <SettingsIcon className="size-4 stroke-[1.5]" aria-hidden />
+                <span>{SETTINGS_ROUTE.label}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <NavUser />
       </SidebarFooter>
       <SidebarRail />

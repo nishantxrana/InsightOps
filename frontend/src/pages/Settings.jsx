@@ -96,10 +96,15 @@ export default function Settings() {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const pendingSectionRef = useRef(null);
 
-  // If setup mode, stay on organizations
+  // If setup mode, stay on organizations; otherwise honor ?section= deep links
   useEffect(() => {
     if (needsSetup || searchParams.get("setup") === "true") {
       setActiveSection("organizations");
+      return;
+    }
+    const section = searchParams.get("section");
+    if (section && settingsSections.some((s) => s.id === section)) {
+      setActiveSection(section);
     }
   }, [needsSetup, searchParams]);
 
