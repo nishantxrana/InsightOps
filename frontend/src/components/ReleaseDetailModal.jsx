@@ -1,186 +1,79 @@
-import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import ReactMarkdown from "react-markdown";
+import { useEffect, useMemo, useState } from "react";
+import { format, formatDistanceToNow } from "date-fns";
+import { Check, Copy, ExternalLink, Rocket } from "lucide-react";
+
 import { useAuth } from "../contexts/AuthContext";
 import { releaseService } from "../api/releaseService";
 import { buildReleaseUrl } from "../utils/azureDevOpsUrls";
-import { format, formatDistanceToNow } from "date-fns";
+import { DetailSheet } from "@/components/kit/DetailSheet";
+import { KeyValueList } from "@/components/kit/KeyValueList";
+import { StatusBadge } from "@/components/kit/StatusBadge";
+import { StatusCallout } from "@/components/kit/StatusCallout";
+import { releaseStatus } from "@/components/kit/statusMaps";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ReleaseApprovalsTab } from "./releases/ReleaseApprovalsTab";
+import { ReleasePipelineStrip } from "./releases/ReleasePipelineStrip";
+import { ReleaseTaskLogsTab } from "./releases/ReleaseTaskLogsTab";
 import {
-  CheckCircle,
-  XCircle,
-  Clock,
-  AlertCircle,
-  User,
-  Calendar,
-  Server,
-  ExternalLink,
-  X,
-  Copy,
-  Rocket,
-  FileText,
-  AlertTriangle,
-  RefreshCw,
-  UserCheck,
-  Bot,
-  Loader2,
-  ArrowRight,
-  Shield,
-} from "lucide-react";
+  envCounts,
+  getDefaultTab,
+  isFailedRelease,
+  isInProgressRelease,
+  isSucceededRelease,
+  isWaitingForApproval,
+} from "./releases/releaseDetailHelpers";
 
-const getStatusIcon = (status) => {
-  switch (status?.toLowerCase()) {
-    case "succeeded":
-      return <CheckCircle className="h-4 w-4" />;
-    case "failed":
-    case "rejected":
-      return <XCircle className="h-4 w-4" />;
-    case "canceled":
-    case "cancelled":
-      return <X className="h-4 w-4" />;
-    case "abandoned":
-      return <X className="h-4 w-4" />;
-    case "waitingforapproval":
-      return <UserCheck className="h-4 w-4" />;
-    case "inprogress":
-    case "deploying":
-      return <Clock className="h-4 w-4" />;
-    case "pending":
-    case "notstarted":
-    case "notDeployed":
-      return <AlertCircle className="h-4 w-4" />;
-    default:
-      return <AlertCircle className="h-4 w-4" />;
-  }
-};
-
-const getStatusColor = (status) => {
-  switch (status?.toLowerCase()) {
-    case "succeeded":
-      return "bg-muted text-emerald-600 dark:text-emerald-400";
-    case "failed":
-    case "rejected":
-      return "bg-muted text-red-600 dark:text-red-400";
-    case "canceled":
-    case "cancelled":
-      return "bg-muted text-muted-foreground";
-    case "abandoned":
-      return "bg-muted text-orange-600 dark:text-orange-400";
-    case "waitingforapproval":
-      return "bg-muted text-orange-600 dark:text-orange-400";
-    case "inprogress":
-    case "deploying":
-      return "bg-muted text-blue-600 dark:text-blue-400";
-    case "pending":
-    case "notstarted":
-    case "notDeployed":
-      return "bg-muted text-amber-600 dark:text-amber-400";
-    default:
-      return "bg-muted text-muted-foreground";
-  }
-};
-
-const getEnvironmentStatusColor = (status) => {
-  switch (status?.toLowerCase()) {
-    case "succeeded":
-      return "bg-green-500";
-    case "failed":
-    case "rejected":
-      return "bg-red-500";
-    case "canceled":
-    case "cancelled":
-      return "bg-gray-500";
-    case "waitingforapproval":
-      return "bg-orange-500";
-    case "inprogress":
-    case "deploying":
-      return "bg-blue-500";
-    case "pending":
-    case "notstarted":
-    case "notDeployed":
-      return "bg-yellow-500";
-    default:
-      return "bg-gray-400";
-  }
-};
-
-const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
+/**
+ * DetailSheet for a release. Keeps releaseService / Auth / ADO URL contracts.
+ */
+export default function ReleaseDetailModal({
+  release,
+  isOpen,
+  onClose,
+  list = [],
+  onNavigate,
+  triggerRef,
+}) {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
   const [approvals, setApprovals] = useState(null);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
+  const [approvalsError, setApprovalsError] = useState(null);
   const [failedLogs, setFailedLogs] = useState(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [logsError, setLogsError] = useState(null);
   const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiError, setAiError] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
+  const [activeTab, setActiveTab] = useState("approvals");
 
-  // Check if release has failed status and should show logs
-  const isFailedRelease = release?.status === "failed";
+  const failed = isFailedRelease(release);
+  const waiting = isWaitingForApproval(release);
+  const succeeded = isSucceededRelease(release);
+  const inProgress = isInProgressRelease(release);
+  const { failedEnvCount, succeededEnvCount, totalEnvCount } = envCounts(release);
 
-  // Check if release is waiting for approval
-  const isWaitingForApproval = release?.status === "waitingforapproval";
+  const listIndex = useMemo(() => {
+    if (!release || !list.length) return -1;
+    return list.findIndex((r) => r.id === release.id);
+  }, [list, release]);
 
-  // Check if release succeeded
-  const isSucceeded = release?.status === "succeeded";
+  const hasPrev = listIndex > 0;
+  const hasNext = listIndex >= 0 && listIndex < list.length - 1;
 
-  // Check if release is in progress
-  const isInProgress = release?.status === "inprogress" || release?.status === "deploying";
-
-  // Check if release failed due to approval rejection
-  const isApprovalRejected =
-    release?.status === "failed" && release?.failureReason === "approval_rejected";
-
-  // Count failed environments
-  const failedEnvCount =
-    release?.environments?.filter(
-      (env) => env.status?.toLowerCase() === "failed" || env.status?.toLowerCase() === "rejected"
-    ).length || 0;
-
-  // Count succeeded environments
-  const succeededEnvCount =
-    release?.environments?.filter((env) => env.status?.toLowerCase() === "succeeded").length || 0;
-
-  // Total environments
-  const totalEnvCount = release?.environments?.length || 0;
-
-  // Show approval details for all releases (everyone can have approvals)
-  const shouldShowApprovals = true;
-
-  // Set default active tab based on available content
-  const getDefaultTab = () => {
-    if (isFailedRelease) return "logs";
-    return "approvals"; // Default to approvals for all other releases
+  const getReleaseUrl = () => {
+    if (!release) return "#";
+    const organization = user?.organization || release.organization;
+    const project = user?.project || release.project;
+    return buildReleaseUrl(organization, project, release.id);
   };
 
-  const [activeTab, setActiveTab] = useState(getDefaultTab());
-
-  // Load failed task logs when modal opens for failed releases
-  useEffect(() => {
-    if (isOpen && release?.id) {
-      setActiveTab(getDefaultTab());
-      if (isFailedRelease) {
-        loadFailedTaskLogs();
-      }
-      if (shouldShowApprovals) {
-        loadApprovals();
-      }
-    } else if (!isOpen) {
-      // Reset state when modal closes
-      setFailedLogs(null);
-      setLogsError(null);
-      setLoadingLogs(false);
-      setApprovals(null);
-      setLoadingApprovals(false);
-      setAiAnalysis(null);
-      setLoadingAI(false);
-    }
-  }, [isOpen, isFailedRelease, shouldShowApprovals, release?.id]);
-
   const loadFailedTaskLogs = async () => {
+    if (!release?.id) return;
     try {
       setLoadingLogs(true);
       setLogsError(null);
-
       const response = await releaseService.getReleaseTaskLogs(release.id);
       if (response.success) {
         setFailedLogs(response.data);
@@ -195,845 +88,268 @@ const ReleaseDetailModal = ({ release, isOpen, onClose }) => {
   };
 
   const loadApprovals = async () => {
+    if (!release?.id) return;
     try {
       setLoadingApprovals(true);
+      setApprovalsError(null);
       const response = await releaseService.getReleaseApprovals(release.id);
       if (response.success) {
-        // Always set approvals data, even if empty
         setApprovals(response.data);
       } else {
         setApprovals(null);
+        setApprovalsError("Failed to load approvals");
       }
-    } catch {
-      // Approvals may not be available, fail silently
+    } catch (error) {
       setApprovals(null);
+      setApprovalsError(error.userMessage || "Failed to load approvals");
     } finally {
       setLoadingApprovals(false);
     }
   };
 
   const loadAIAnalysis = async () => {
+    if (!release?.id || loadingAI) return;
     try {
       setLoadingAI(true);
+      setAiError(null);
       const response = await releaseService.analyzeRelease(release.id);
       if (response.success) {
         setAiAnalysis(response.analysis);
+      } else {
+        setAiAnalysis(null);
+        setAiError("AI analysis temporarily unavailable.");
       }
     } catch (error) {
-      const message = error.userMessage || "AI analysis temporarily unavailable.";
-      setAiAnalysis(message);
+      setAiAnalysis(null);
+      setAiError(error.userMessage || "AI analysis temporarily unavailable.");
     } finally {
       setLoadingAI(false);
     }
   };
 
-  // Handle backdrop click
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
-  // Handle escape key and body scroll lock
   useEffect(() => {
-    if (isOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.overflow = "hidden";
-      document.body.style.position = "fixed";
-      document.body.style.width = "100%";
-      document.body.style.top = `-${scrollY}px`;
-
-      const handleEscape = (e) => {
-        if (e.key === "Escape") {
-          onClose();
-        }
-      };
-
-      document.addEventListener("keydown", handleEscape);
-
-      return () => {
-        document.body.style.overflow = "";
-        document.body.style.position = "";
-        document.body.style.width = "";
-        document.body.style.top = "";
-        window.scrollTo(0, scrollY);
-        document.removeEventListener("keydown", handleEscape);
-      };
+    if (isOpen && release?.id) {
+      const tab = getDefaultTab(release);
+      setActiveTab(tab);
+      setAiAnalysis(null);
+      setAiError(null);
+      setLoadingAI(false);
+      setCopied(false);
+      if (isFailedRelease(release)) {
+        loadFailedTaskLogs();
+      } else {
+        setFailedLogs(null);
+        setLogsError(null);
+      }
+      loadApprovals();
+    } else if (!isOpen) {
+      setFailedLogs(null);
+      setLogsError(null);
+      setLoadingLogs(false);
+      setApprovals(null);
+      setApprovalsError(null);
+      setLoadingApprovals(false);
+      setAiAnalysis(null);
+      setAiError(null);
+      setLoadingAI(false);
     }
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key off id + open
+  }, [isOpen, release?.id]);
 
-  const copyLink = () => {
-    const organization = user?.organization || release.organization;
-    const project = user?.project || release.project;
-    const url = buildReleaseUrl(organization, project, release.id);
-
-    if (url !== "#") {
-      navigator.clipboard.writeText(url);
+  const copyLink = async () => {
+    const url = getReleaseUrl();
+    if (url === "#") return;
+    try {
+      await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard may be unavailable
     }
   };
 
-  const getReleaseUrl = () => {
-    const organization = user?.organization || release.organization;
-    const project = user?.project || release.project;
-    return buildReleaseUrl(organization, project, release.id);
-  };
+  const callout = useMemo(() => {
+    if (!release) return null;
+    if (failed) {
+      return {
+        tone: "danger",
+        title: "Deployment Failed",
+        children:
+          failedEnvCount > 0
+            ? `${failedEnvCount} environment${failedEnvCount > 1 ? "s" : ""} failed`
+            : "Review logs and failure analysis below",
+      };
+    }
+    if (waiting) {
+      return {
+        tone: "warning",
+        title: "Waiting for Approval",
+        children: "Action required to continue deployment",
+      };
+    }
+    if (succeeded) {
+      return {
+        tone: "success",
+        title: "Deployment Succeeded",
+        children:
+          totalEnvCount > 0
+            ? `All ${totalEnvCount} environment${totalEnvCount > 1 ? "s" : ""} deployed`
+            : undefined,
+      };
+    }
+    if (inProgress) {
+      return { tone: "info", title: "Deployment In Progress" };
+    }
+    return null;
+  }, [release, failed, waiting, succeeded, inProgress, failedEnvCount, totalEnvCount]);
 
-  if (!isOpen || !release) return null;
+  if (!release) return null;
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4"
-      onClick={handleBackdropClick}
-    >
-      <div className="bg-card dark:bg-[#111111] border border-border dark:border-[#1a1a1a] rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl lg:max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Status Banners */}
-        {isFailedRelease && (
-          <div className="px-6 py-3 bg-muted border-b border-red-200 dark:border-red-800 flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
-            <span className="font-medium text-red-600 dark:text-red-400">Deployment Failed</span>
-            {failedEnvCount > 0 && (
-              <span className="text-sm text-red-600 dark:text-red-300">
-                — {failedEnvCount} environment{failedEnvCount > 1 ? "s" : ""} failed
-              </span>
-            )}
-          </div>
-        )}
+  const adoLabel = failed
+    ? "View Logs in Azure DevOps"
+    : waiting
+      ? "Approve in Azure DevOps"
+      : "Open in Azure DevOps";
 
-        {isWaitingForApproval && (
-          <div className="px-6 py-3 bg-muted border-b border-orange-200 dark:border-orange-800 flex items-center gap-2">
-            <Shield className="h-5 w-5 text-orange-500 animate-pulse" />
-            <span className="font-medium text-orange-600 dark:text-orange-400">
-              Waiting for Approval
+  return (
+    <DetailSheet
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      triggerRef={triggerRef}
+      icon={<Rocket />}
+      title={release.name || "Release"}
+      subtitle={
+        <span className="font-mono tabular-nums">
+          #{release.id}
+          {totalEnvCount > 0 ? (
+            <span className="ml-2 font-sans text-muted-foreground">
+              {succeededEnvCount}/{totalEnvCount} envs
             </span>
-            <span className="text-sm text-muted-foreground">
-              — Action required to continue deployment
-            </span>
-          </div>
-        )}
-
-        {isSucceeded && (
-          <div className="px-6 py-2 bg-emerald-100 dark:bg-emerald-950/50 border-b border-emerald-200 dark:border-emerald-800 flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
-            <CheckCircle className="h-4 w-4" />
-            <span className="font-medium text-sm">Deployment Succeeded</span>
-            {totalEnvCount > 0 && (
-              <span className="text-xs text-emerald-600 dark:text-emerald-300">
-                — All {totalEnvCount} environment{totalEnvCount > 1 ? "s" : ""} deployed
-              </span>
-            )}
-          </div>
-        )}
-
-        {isInProgress && (
-          <div className="px-6 py-2 bg-muted border-b border-border flex items-center gap-2">
-            <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
-            <span className="font-medium text-sm text-blue-600 dark:text-blue-400">
-              Deployment In Progress
-            </span>
-          </div>
-        )}
-
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border dark:border-[#1a1a1a]">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="p-2 rounded-lg bg-muted">
-              {isFailedRelease ? (
-                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-              ) : isSucceeded ? (
-                <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              ) : isWaitingForApproval ? (
-                <Shield className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              ) : (
-                <Rocket className="h-5 w-5 text-muted-foreground" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm text-muted-foreground font-mono">#{release.id}</span>
-                <span className="text-muted-foreground">•</span>
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(release.status)}`}
-                >
-                  {release.status}
-                </span>
-                {totalEnvCount > 0 && (
-                  <>
-                    <span className="text-muted-foreground">•</span>
-                    <span className="text-xs text-muted-foreground">
-                      {succeededEnvCount}/{totalEnvCount} envs
-                    </span>
-                  </>
-                )}
-              </div>
-              <h2 className="text-lg font-semibold text-foreground truncate" title={release.name}>
-                {release.name}
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 ml-4">
-            <button
-              onClick={copyLink}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
-              title="Copy release link"
-            >
-              {copied ? (
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-            </button>
-
-            <button
-              onClick={onClose}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="overflow-y-auto flex-1">
-          <div className="p-4 sm:p-6 space-y-6">
-            {/* Release Metadata Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-              {/* Created By */}
-              <div className="p-3 rounded-lg bg-muted">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                  <User className="h-3.5 w-3.5" />
-                  Created By
-                </div>
-                <p
-                  className="font-medium text-sm text-foreground truncate"
-                  title={release.createdBy?.displayName || "Unknown"}
-                >
-                  {release.createdBy?.displayName || "Unknown"}
-                </p>
-              </div>
-
-              {/* Created */}
-              <div className="p-3 rounded-lg bg-muted">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                  <Calendar className="h-3.5 w-3.5" />
-                  Created
-                </div>
-                <p className="font-medium text-sm text-foreground">
-                  {release.createdOn
-                    ? formatDistanceToNow(new Date(release.createdOn), { addSuffix: true })
-                    : "Unknown"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {release.createdOn ? format(new Date(release.createdOn), "HH:mm") : ""}
-                </p>
-              </div>
-
-              {/* Pipeline */}
-              <div className="p-3 rounded-lg bg-muted">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                  <Server className="h-3.5 w-3.5" />
-                  Pipeline
-                </div>
-                <p
-                  className="font-medium text-sm text-foreground truncate"
-                  title={release.definitionName}
-                >
-                  {release.definitionName || "Unknown"}
-                </p>
-              </div>
-
-              {/* Environments */}
-              <div
-                className={`p-3 rounded-lg bg-muted ${failedEnvCount > 0 ? "border border-red-400 dark:border-red-700" : ""}`}
-              >
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                  <Rocket className="h-3.5 w-3.5" />
-                  Environments
-                </div>
-                <p
-                  className={`font-medium text-sm ${failedEnvCount > 0 ? "text-red-700 dark:text-red-300" : "text-foreground"}`}
-                >
-                  {succeededEnvCount} / {totalEnvCount} deployed
-                </p>
-                {failedEnvCount > 0 && (
-                  <p className="text-xs text-red-600 dark:text-red-400">{failedEnvCount} failed</p>
-                )}
-              </div>
-            </div>
-
-            {/* Environment Progression */}
-            {release.environments && release.environments.length > 0 && (
-              <div>
-                <h3 className="text-lg font-medium text-foreground mb-2">Deployment Pipeline</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {succeededEnvCount === totalEnvCount
-                    ? "All environments deployed successfully"
-                    : failedEnvCount > 0
-                      ? `${failedEnvCount} of ${totalEnvCount} environment${failedEnvCount > 1 ? "s" : ""} failed`
-                      : `${succeededEnvCount} of ${totalEnvCount} environments deployed`}
-                </p>
-                <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                  {release.environments.map((env, index) => {
-                    const isFailed =
-                      env.status?.toLowerCase() === "failed" ||
-                      env.status?.toLowerCase() === "rejected";
-                    const isEnvSucceeded = env.status?.toLowerCase() === "succeeded";
-                    const isPending =
-                      env.status?.toLowerCase() === "pending" ||
-                      env.status?.toLowerCase() === "notstarted" ||
-                      env.status?.toLowerCase() === "notdeployed";
-                    const isBlocked = env.status?.toLowerCase() === "waitingforapproval";
-
-                    return (
-                      <React.Fragment key={env.id}>
-                        <div
-                          className={`flex-shrink-0 p-3 rounded-lg border-2 min-w-[140px] bg-muted ${
-                            isFailed
-                              ? "border-red-400 dark:border-red-700"
-                              : isEnvSucceeded
-                                ? "border-emerald-400 dark:border-emerald-700"
-                                : isBlocked
-                                  ? "border-orange-400 dark:border-orange-700"
-                                  : "border-border"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <div
-                              className={`w-2.5 h-2.5 rounded-full ${getEnvironmentStatusColor(env.status)} ${isFailed || isBlocked ? "animate-pulse" : ""}`}
-                            />
-                            <span
-                              className={`font-medium text-sm truncate ${
-                                isFailed
-                                  ? "text-red-700 dark:text-red-300"
-                                  : isEnvSucceeded
-                                    ? "text-emerald-700 dark:text-emerald-300"
-                                    : isBlocked
-                                      ? "text-orange-700 dark:text-orange-300"
-                                      : "text-foreground"
-                              }`}
-                            >
-                              {env.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span
-                              className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getStatusColor(env.status)}`}
-                            >
-                              {getStatusIcon(env.status)}
-                              <span className="ml-1">{env.status}</span>
-                            </span>
-                          </div>
-                          {env.deployedOn && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {formatDistanceToNow(new Date(env.deployedOn), { addSuffix: true })}
-                            </div>
-                          )}
-                        </div>
-                        {index < release.environments.length - 1 && (
-                          <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Description */}
-            {release.description && (
-              <div>
-                <h3 className="text-lg font-medium text-foreground mb-2">Description</h3>
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {release.description}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Tab Navigation - Show only if we have logs or approvals to display */}
-            {(isFailedRelease || shouldShowApprovals) && (
-              <div className="border-t border-border pt-6">
-                <div className="border-b border-border">
-                  <nav className="flex space-x-6 px-1" aria-label="Tabs">
-                    {isFailedRelease && (
-                      <button
-                        onClick={() => setActiveTab("logs")}
-                        className={`group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
-                          activeTab === "logs"
-                            ? "border-primary text-primary"
-                            : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
-                        }`}
-                        aria-current={activeTab === "logs" ? "page" : undefined}
-                      >
-                        <FileText
-                          className={`h-4 w-4 transition-colors ${activeTab === "logs" ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`}
-                        />
-                        Task Logs
-                      </button>
-                    )}
-                    {shouldShowApprovals && (
-                      <button
-                        onClick={() => setActiveTab("approvals")}
-                        className={`group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
-                          activeTab === "approvals"
-                            ? "border-primary text-primary"
-                            : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
-                        }`}
-                        aria-current={activeTab === "approvals" ? "page" : undefined}
-                      >
-                        <UserCheck
-                          className={`h-4 w-4 transition-colors ${activeTab === "approvals" ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`}
-                        />
-                        Approvals
-                      </button>
-                    )}
-                  </nav>
-                </div>
-              </div>
-            )}
-
-            {/* Tab Content - Task Logs */}
-            {activeTab === "logs" && isFailedRelease && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                    <h3 className="text-lg font-medium text-foreground">Failed Task Logs</h3>
-                  </div>
-                  {!loadingLogs && (
-                    <button
-                      onClick={loadFailedTaskLogs}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-muted hover:bg-muted/80 rounded-md transition-colors"
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      Refresh
-                    </button>
-                  )}
-                </div>
-
-                {loadingLogs && (
-                  <div className="flex items-center justify-center py-8">
-                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-muted-foreground">Loading failed task logs...</span>
-                  </div>
-                )}
-
-                {logsError && (
-                  <div className="bg-muted border border-red-300 dark:border-red-700 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                      <XCircle className="h-4 w-4" />
-                      <span className="text-sm font-medium">Error loading logs</span>
-                    </div>
-                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">{logsError}</p>
-                  </div>
-                )}
-
-                {failedLogs && !loadingLogs && (
-                  <div className="space-y-4">
-                    {failedLogs.totalFailedTasks === 0 ? (
-                      <div className="bg-muted/50 p-4 rounded-lg text-center">
-                        <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">
-                          No failed tasks found with logs
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="text-sm text-muted-foreground mb-3">
-                          Found {failedLogs.totalFailedTasks} failed task(s)
-                        </div>
-
-                        {/* AI Explanation Section - Reframed for debugging */}
-                        <details className="group" open>
-                          <summary className="flex items-center justify-between cursor-pointer bg-muted rounded-lg p-4 border border-border hover:bg-muted/80 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <Bot className="h-5 w-5 text-red-600 dark:text-red-400" />
-                              <span className="font-medium text-foreground">
-                                AI Failure Diagnosis
-                              </span>
-                              <span className="text-xs text-red-600 dark:text-red-400">
-                                {aiAnalysis ? "(loaded)" : "— identify root cause faster"}
-                              </span>
-                            </div>
-                            <svg
-                              className="h-5 w-5 text-red-600 dark:text-red-400 transition-transform group-open:rotate-180"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 9l-7 7-7-7"
-                              />
-                            </svg>
-                          </summary>
-
-                          <div className="mt-2 bg-muted rounded-lg p-4 border border-border">
-                            {loadingAI && (
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span className="text-sm">
-                                  AI is analyzing task logs and errors...
-                                </span>
-                              </div>
-                            )}
-
-                            {aiAnalysis && (
-                              <div className="prose prose-sm max-w-none text-foreground prose-strong:text-foreground prose-code:text-foreground prose-code:bg-background prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
-                                <ReactMarkdown>{aiAnalysis}</ReactMarkdown>
-                              </div>
-                            )}
-
-                            {!aiAnalysis && !loadingAI && (
-                              <div className="text-center py-2">
-                                <p className="text-sm text-red-700 dark:text-red-300 mb-3">
-                                  Get AI-powered root cause analysis, error explanations, and
-                                  suggested fixes.
-                                </p>
-                                <button
-                                  onClick={loadAIAnalysis}
-                                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
-                                >
-                                  <Bot className="h-4 w-4" />
-                                  Diagnose Failure
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </details>
-
-                        {failedLogs.failedTasks.map((task, index) => (
-                          <div
-                            key={`${task.environmentId}-${task.taskId}`}
-                            className="border border-red-300 dark:border-red-700 rounded-lg overflow-hidden"
-                          >
-                            <div className="bg-muted px-4 py-3 border-b border-red-200 dark:border-red-800">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h4 className="font-medium text-foreground">{task.taskName}</h4>
-                                  <div className="flex items-center gap-4 text-xs text-red-700 dark:text-red-300 mt-1">
-                                    <span>Environment: {task.environmentName}</span>
-                                    <span>Status: {task.status}</span>
-                                    {task.startTime && (
-                                      <span>
-                                        Started: {new Date(task.startTime).toLocaleString()}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400">
-                                  <XCircle className="h-3 w-3 mr-1" />
-                                  Failed
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="p-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm font-medium text-foreground">
-                                  Console Output
-                                </span>
-                              </div>
-
-                              {task.logContent ? (
-                                <div className="bg-gray-900 text-gray-100 p-4 rounded-md text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto">
-                                  <pre className="whitespace-pre-wrap">{task.logContent}</pre>
-                                </div>
-                              ) : (
-                                <div className="bg-muted/50 p-4 rounded-md text-center">
-                                  <p className="text-sm text-muted-foreground">
-                                    No log content available
-                                  </p>
-                                </div>
-                              )}
-
-                              {task.issues && task.issues.length > 0 && (
-                                <div className="mt-3">
-                                  <span className="text-sm font-medium text-foreground">
-                                    Issues:
-                                  </span>
-                                  <ul className="mt-1 space-y-1">
-                                    {task.issues.map((issue, issueIndex) => (
-                                      <li
-                                        key={issueIndex}
-                                        className="text-sm text-red-600 dark:text-red-400"
-                                      >
-                                        • {issue.message || issue}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tab Content - Approvals */}
-            {activeTab === "approvals" && shouldShowApprovals && (
-              <div>
-                <div className="border-t border-border pt-6">
-                  <div className="flex items-center gap-2">
-                    <UserCheck
-                      className={`h-5 w-5 ${isApprovalRejected ? "text-red-500" : "text-orange-500"}`}
-                    />
-                    <h3 className="text-lg font-medium text-foreground">
-                      {isWaitingForApproval ? "Pending Approvals" : "Approval History"}
-                    </h3>
-                  </div>
-                  {!loadingApprovals && (
-                    <button
-                      onClick={loadApprovals}
-                      className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Refresh Approvals
-                    </button>
-                  )}
-                </div>
-
-                {loadingApprovals && (
-                  <div className="flex items-center justify-center py-8">
-                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-muted-foreground">Loading approval details...</span>
-                  </div>
-                )}
-
-                {approvals && (
-                  <div className="mt-4">
-                    <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
-                      <div className="text-center p-3 bg-muted rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                          {approvals.pendingApprovals}
-                        </div>
-                        <div className="text-sm text-muted-foreground">Pending</div>
-                      </div>
-                      <div className="text-center p-3 bg-muted rounded-lg">
-                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                          {approvals.approvedCount}
-                        </div>
-                        <div className="text-sm text-muted-foreground">Approved</div>
-                      </div>
-                      <div className="text-center p-3 bg-muted rounded-lg">
-                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                          {approvals.rejectedCount}
-                        </div>
-                        <div className="text-sm text-muted-foreground">Rejected</div>
-                      </div>
-                    </div>
-
-                    {Object.entries(approvals.environmentApprovals).map(([envId, envApproval]) => {
-                      // Determine overall approval status for this environment
-                      const hasRejected = envApproval.approvals.some(
-                        (a) => a.status?.toLowerCase() === "rejected"
-                      );
-                      const hasPending = envApproval.approvals.some(
-                        (a) => a.status?.toLowerCase() === "pending"
-                      );
-                      const allApproved =
-                        envApproval.approvals.length > 0 &&
-                        envApproval.approvals.every((a) => a.status?.toLowerCase() === "approved");
-
-                      const approvalStatus = hasRejected
-                        ? "rejected"
-                        : hasPending
-                          ? "pending"
-                          : allApproved
-                            ? "approved"
-                            : "pending";
-
-                      return (
-                        <div
-                          key={envId}
-                          className="mb-6 border border-border rounded-lg overflow-hidden"
-                        >
-                          <div className="bg-muted px-4 py-3 border-b border-border">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-medium text-foreground">
-                                {envApproval.environmentName}
-                              </h4>
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-medium bg-muted ${
-                                  approvalStatus === "approved"
-                                    ? "text-emerald-600 dark:text-emerald-400"
-                                    : approvalStatus === "rejected"
-                                      ? "text-red-600 dark:text-red-400"
-                                      : "text-orange-600 dark:text-orange-400"
-                                }`}
-                              >
-                                {approvalStatus}
-                              </span>
-                            </div>
-                          </div>
-
-                          {envApproval.approvals.length > 0 ? (
-                            <div className="p-4 space-y-3">
-                              {envApproval.approvals.map((approval) => (
-                                <div
-                                  key={approval.id}
-                                  className="flex items-start gap-3 p-3 bg-background rounded border border-border"
-                                >
-                                  <div className="flex-shrink-0">
-                                    {approval.approver.imageUrl ? (
-                                      <img
-                                        src={approval.approver.imageUrl}
-                                        alt={approval.approver.displayName}
-                                        className="w-8 h-8 rounded-full"
-                                        onError={(e) => {
-                                          e.target.style.display = "none";
-                                          e.target.nextSibling.style.display = "flex";
-                                        }}
-                                      />
-                                    ) : null}
-                                    <div
-                                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-white ${
-                                        approval.approver.imageUrl ? "hidden" : "flex"
-                                      }`}
-                                      style={{
-                                        backgroundColor: `hsl(${(approval.approver.displayName.charCodeAt(0) * 137.508) % 360}, 70%, 50%)`,
-                                      }}
-                                    >
-                                      {approval.approver.displayName
-                                        .split(" ")
-                                        .map((name) => name.charAt(0))
-                                        .join("")
-                                        .substring(0, 2)
-                                        .toUpperCase()}
-                                    </div>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between">
-                                      <p className="text-sm font-medium text-foreground">
-                                        {approval.approver.displayName}
-                                      </p>
-                                      <div className="flex items-center gap-2">
-                                        <span
-                                          className={`px-2 py-1 rounded-full text-xs font-medium bg-muted ${
-                                            approval.status === "approved"
-                                              ? "text-emerald-600 dark:text-emerald-400"
-                                              : approval.status === "rejected"
-                                                ? "text-red-600 dark:text-red-400"
-                                                : "text-orange-600 dark:text-orange-400"
-                                          }`}
-                                        >
-                                          {approval.status}
-                                        </span>
-                                        {approval.status !== "pending" && (
-                                          <span className="text-xs text-muted-foreground">
-                                            {new Date(approval.modifiedOn).toLocaleString()}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      {approval.approver.uniqueName?.startsWith("vstfs:")
-                                        ? approval.approvedBy?.uniqueName ||
-                                          `Team: ${approval.approver.displayName}`
-                                        : approval.approver.uniqueName}
-                                    </p>
-                                    {approval.instructions && (
-                                      <p className="text-sm text-muted-foreground mt-2">
-                                        <strong>Instructions:</strong> {approval.instructions}
-                                      </p>
-                                    )}
-                                    {approval.comments && (
-                                      <p className="text-sm text-muted-foreground mt-2">
-                                        <strong>Comments:</strong> {approval.comments}
-                                      </p>
-                                    )}
-                                    {approval.approvedBy && (
-                                      <p className="text-sm text-muted-foreground mt-2">
-                                        <strong>
-                                          {approval.status === "approved" ? "Approved" : "Rejected"}{" "}
-                                          by:
-                                        </strong>{" "}
-                                        {approval.approvedBy.displayName}
-                                      </p>
-                                    )}
-                                    <p className="text-xs text-muted-foreground mt-2">
-                                      Created: {new Date(approval.createdOn).toLocaleString()}
-                                    </p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="p-4 text-center text-muted-foreground">
-                              No approvals required for this environment
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {approvals &&
-                  Object.keys(approvals.environmentApprovals).length === 0 &&
-                  !loadingApprovals && (
-                    <div className="mt-4 p-4 bg-muted border border-border rounded-lg">
-                      <p className="text-muted-foreground">
-                        {release.status === "succeeded"
-                          ? "Approval history is not available for completed releases. All required approvals were granted."
-                          : "No approval gates configured for this release pipeline."}
-                      </p>
-                    </div>
-                  )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer with primary CTA */}
-        <div className="flex items-center justify-between p-4 border-t border-border dark:border-[#1a1a1a] bg-muted/30">
-          <div className="text-xs text-muted-foreground">
-            Press{" "}
-            <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px]">
-              Esc
-            </kbd>{" "}
-            to close
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={copyLink}
-              className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
-            >
-              {copied ? (
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-              {copied ? "Copied!" : "Copy Link"}
-            </button>
+          ) : null}
+        </span>
+      }
+      description={`Release ${release.id}`}
+      status={<StatusBadge {...releaseStatus(release)} />}
+      onPrev={hasPrev ? () => onNavigate?.(listIndex - 1) : undefined}
+      onNext={hasNext ? () => onNavigate?.(listIndex + 1) : undefined}
+      hasPrev={hasPrev}
+      hasNext={hasNext}
+      headerActions={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={copyLink}
+            aria-label={copied ? "Copied" : "Copy link"}
+          >
+            {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
+          </Button>
+          <Button type="button" variant="ghost" size="icon" className="size-8" asChild>
             <a
               href={getReleaseUrl()}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2 text-sm rounded-lg transition-colors inline-flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+              aria-label="Open in Azure DevOps"
             >
-              <ExternalLink className="h-4 w-4" />
-              {isFailedRelease
-                ? "View Logs in Azure DevOps"
-                : isWaitingForApproval
-                  ? "Approve in Azure DevOps"
-                  : "Open in Azure DevOps"}
+              <ExternalLink className="size-4" />
             </a>
-          </div>
+          </Button>
+        </>
+      }
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={copyLink}>
+            {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+            {copied ? "Copied" : "Copy link"}
+          </Button>
+          <Button asChild>
+            <a href={getReleaseUrl()} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="size-3.5" aria-hidden="true" />
+              {adoLabel}
+            </a>
+          </Button>
         </div>
+      }
+    >
+      <div className="space-y-5">
+        {callout ? (
+          <StatusCallout tone={callout.tone} title={callout.title}>
+            {callout.children}
+          </StatusCallout>
+        ) : null}
+
+        <KeyValueList
+          columns={4}
+          items={[
+            { label: "Created By", value: release.createdBy?.displayName || "Unknown" },
+            {
+              label: "Created",
+              value: release.createdOn
+                ? formatDistanceToNow(new Date(release.createdOn), { addSuffix: true })
+                : "Unknown",
+            },
+            { label: "Pipeline", value: release.definitionName || "Unknown" },
+            {
+              label: "Environments",
+              value:
+                failedEnvCount > 0
+                  ? `${succeededEnvCount}/${totalEnvCount} · ${failedEnvCount} failed`
+                  : `${succeededEnvCount}/${totalEnvCount} deployed`,
+            },
+          ]}
+        />
+
+        {release.createdOn ? (
+          <p className="text-[11px] text-muted-foreground">
+            {format(new Date(release.createdOn), "PPpp")}
+          </p>
+        ) : null}
+
+        <ReleasePipelineStrip environments={release.environments} />
+
+        {release.description ? (
+          <section className="space-y-1.5">
+            <h3 className="text-sm font-semibold text-foreground">Description</h3>
+            <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+              {release.description}
+            </p>
+          </section>
+        ) : null}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            {failed ? <TabsTrigger value="logs">Task Logs</TabsTrigger> : null}
+            <TabsTrigger value="approvals">Approvals</TabsTrigger>
+          </TabsList>
+          {failed ? (
+            <TabsContent value="logs">
+              <ReleaseTaskLogsTab
+                failedLogs={failedLogs}
+                loadingLogs={loadingLogs}
+                logsError={logsError}
+                onRefresh={loadFailedTaskLogs}
+                aiAnalysis={aiAnalysis}
+                aiError={aiError}
+                loadingAI={loadingAI}
+                onDiagnose={loadAIAnalysis}
+              />
+            </TabsContent>
+          ) : null}
+          <TabsContent value="approvals">
+            <ReleaseApprovalsTab
+              release={release}
+              approvals={approvals}
+              loadingApprovals={loadingApprovals}
+              approvalsError={approvalsError}
+              onRefresh={loadApprovals}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
-    </div>
+    </DetailSheet>
   );
-
-  return createPortal(modalContent, document.body);
-};
-
-export default ReleaseDetailModal;
+}

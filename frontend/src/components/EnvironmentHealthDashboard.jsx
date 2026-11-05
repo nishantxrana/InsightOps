@@ -1,14 +1,6 @@
-import React, { useState } from "react";
-import {
-  Server,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  TrendingUp,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, Server } from "lucide-react";
+
 import {
   Carousel,
   CarouselContent,
@@ -16,43 +8,109 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-const getEnvironmentHealthColor = (successRate) => {
-  if (successRate >= 90)
-    return "text-green-600 bg-card dark:bg-[#111111] border-green-200 dark:border-green-800";
-  if (successRate >= 70)
-    return "text-yellow-600 bg-card dark:bg-[#111111] border-yellow-200 dark:border-yellow-800";
-  return "text-red-600 bg-card dark:bg-[#111111] border-red-200 dark:border-red-800";
-};
+function successTone(rate) {
+  if (rate >= 90) return "success";
+  if (rate >= 70) return "warning";
+  return "danger";
+}
 
-const getEnvironmentHealthIcon = (successRate) => {
-  if (successRate >= 90) return <CheckCircle className="w-5 h-5 text-green-600" />;
-  if (successRate >= 70) return <AlertTriangle className="w-5 h-5 text-yellow-600" />;
-  return <XCircle className="w-5 h-5 text-red-600" />;
-};
+function EnvCell({ name, stats }) {
+  const total = stats.total || 0;
+  const success = stats.success || 0;
+  const failed = stats.failed || 0;
+  const rate = total > 0 ? Math.round((success / total) * 100) : 0;
+  const tone = successTone(rate);
+  const successPct = total > 0 ? (success / total) * 100 : 0;
+  const failedPct = total > 0 ? (failed / total) * 100 : 0;
 
-export default function EnvironmentHealthDashboard({ environmentStats }) {
+  const rateClass =
+    tone === "success"
+      ? "text-success-foreground"
+      : tone === "warning"
+        ? "text-warning-foreground"
+        : "text-danger-foreground";
+
+  return (
+    <div className="min-w-[11rem] flex-1 rounded-panel border border-border bg-surface px-3 py-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <p className="truncate text-sm font-medium text-foreground" title={name}>
+          {name}
+        </p>
+        <span className={cn("shrink-0 text-xs font-semibold tabular-nums", rateClass)}>
+          {rate}%
+        </span>
+      </div>
+      <div
+        className="mt-2 flex h-1 w-full overflow-hidden rounded-control bg-muted"
+        role="img"
+        aria-label={`${name}: ${success} succeeded, ${failed} failed of ${total}`}
+      >
+        {successPct > 0 ? (
+          <div className="h-full bg-success" style={{ width: `${successPct}%` }} />
+        ) : null}
+        {failedPct > 0 ? (
+          <div className="h-full bg-danger" style={{ width: `${failedPct}%` }} />
+        ) : null}
+      </div>
+      <p className="mt-2 text-[11px] tabular-nums text-muted-foreground">
+        {total} total · {success} success · {failed} failed
+      </p>
+    </div>
+  );
+}
+
+export function EnvironmentHealthSkeleton({ cells = 3 }) {
+  return (
+    <div className="rounded-panel border border-border bg-surface px-3 py-3">
+      <div className="mb-3 flex items-center gap-2">
+        <Skeleton className="size-4" />
+        <Skeleton className="h-4 w-36" />
+      </div>
+      <div className="flex gap-2 overflow-hidden">
+        {Array.from({ length: cells }).map((_, i) => (
+          <div
+            key={i}
+            className="min-w-[11rem] flex-1 space-y-2 rounded-panel border border-border p-3"
+          >
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-1 w-full" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Compact collapsible strip of environment health cells.
+ * @param {{ environmentStats?: Record<string, { total: number, success: number, failed: number }>, loading?: boolean }} props
+ */
+export default function EnvironmentHealthDashboard({ environmentStats, loading = false }) {
+  const [open, setOpen] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  if (loading) {
+    return <EnvironmentHealthSkeleton />;
+  }
 
   if (!environmentStats || Object.keys(environmentStats).length === 0) {
     return (
-      <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <Server className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-          <h3 className="text-xl font-semibold text-foreground">Environment Health</h3>
-        </div>
-        <div className="text-center py-8">
-          <Server className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-          <p className="text-muted-foreground">No environment data available</p>
-        </div>
+      <div className="rounded-panel border border-border bg-surface px-3 py-4 text-center">
+        <Server className="mx-auto mb-2 size-5 text-muted-foreground" aria-hidden="true" />
+        <p className="text-sm text-muted-foreground">No environment data available</p>
       </div>
     );
   }
 
   const environments = Object.entries(environmentStats).sort(([, a], [, b]) => b.total - a.total);
   const totalEnvironments = environments.length;
-
-  const cardsPerPage = 3; // Show max 3 cards per row
+  const cardsPerPage = 4;
   const totalPages = Math.ceil(totalEnvironments / cardsPerPage);
 
   const nextSlide = () => {
@@ -69,193 +127,89 @@ export default function EnvironmentHealthDashboard({ environmentStats }) {
     });
   };
 
-  // Remove getLastDeployment function since we don't have releases data
-
   return (
-    <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Server className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-          <h3 className="text-xl font-semibold text-foreground">Environment Health</h3>
-        </div>
-        {/* Desktop pagination controls */}
-        {totalEnvironments > cardsPerPage && (
-          <div className="hidden sm:flex items-center gap-2">
-            <button
-              onClick={prevSlide}
-              className="p-2 rounded-full bg-muted hover:bg-muted/80 transition-colors"
-              disabled={currentIndex === 0}
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="rounded-panel border border-border bg-surface">
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <CollapsibleTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-2 px-2 text-foreground"
+              aria-expanded={open}
             >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="text-sm text-muted-foreground">
-              {Math.floor(currentIndex / cardsPerPage) + 1} / {totalPages}
-            </span>
-            <button
-              onClick={nextSlide}
-              className="p-2 rounded-full bg-muted hover:bg-muted/80 transition-colors"
-              disabled={currentIndex + cardsPerPage >= totalEnvironments}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </div>
+              <ChevronDown
+                className={cn("size-3.5 transition-transform", open ? "rotate-0" : "-rotate-90")}
+                aria-hidden="true"
+              />
+              <Server className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              <span className="text-sm font-medium">Environment Health</span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {totalEnvironments}
+              </span>
+            </Button>
+          </CollapsibleTrigger>
 
-      {/* Environment Cards - Mobile: Horizontal Scroll, Desktop: Grid */}
-      <div className="mb-6">
-        {/* Mobile: Shadcn Carousel */}
-        <div className="sm:hidden">
-          <Carousel
-            opts={{
-              align: "center",
-              loop: true,
-            }}
-            className="w-full max-w-full"
-          >
-            <CarouselContent className="">
-              {environments.map(([envName, stats]) => {
-                const successRate =
-                  stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
-
-                return (
-                  <CarouselItem key={envName} className="basis-full">
-                    <div className="mx-4 group relative overflow-hidden bg-gradient-to-br from-card to-card/50 dark:from-[#111111] dark:to-[#0a0a0a] p-6 rounded-xl border border-border dark:border-[#1a1a1a] shadow-sm">
-                      {/* Success Rate Badge */}
-                      <div className="absolute top-4 right-4">
-                        <div
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-muted ${
-                            successRate >= 90
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : successRate >= 70
-                                ? "text-amber-600 dark:text-amber-400"
-                                : "text-red-600 dark:text-red-400"
-                          }`}
-                        >
-                          {getEnvironmentHealthIcon(successRate)}
-                          {successRate}%
-                        </div>
-                      </div>
-
-                      {/* Environment Name */}
-                      <div className="mb-4">
-                        <h4 className="text-lg font-semibold text-foreground truncate pr-16">
-                          {envName}
-                        </h4>
-                        <p className="text-sm text-muted-foreground">Environment</p>
-                      </div>
-
-                      {/* Stats Grid */}
-                      <div className="grid grid-cols-3 gap-3 mb-4">
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-foreground">{stats.total}</div>
-                          <div className="text-xs text-muted-foreground">Total</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-green-600 dark:text-green-400">
-                            {stats.success}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Success</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-red-600 dark:text-red-400">
-                            {stats.failed}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Failed</div>
-                        </div>
-                      </div>
-                    </div>
-                  </CarouselItem>
-                );
-              })}
-            </CarouselContent>
-            <CarouselPrevious className="-left-6" />
-            <CarouselNext className="-right-6" />
-          </Carousel>
+          {open && totalEnvironments > cardsPerPage ? (
+            <div className="hidden items-center gap-1 sm:flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={prevSlide}
+                disabled={currentIndex === 0}
+                aria-label="Previous environments"
+              >
+                <ChevronLeft className="size-3.5" />
+              </Button>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {Math.floor(currentIndex / cardsPerPage) + 1} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={nextSlide}
+                disabled={currentIndex + cardsPerPage >= totalEnvironments}
+                aria-label="Next environments"
+              >
+                <ChevronRight className="size-3.5" />
+              </Button>
+            </div>
+          ) : null}
         </div>
 
-        {/* Desktop: Responsive grid with multiple breakpoints */}
-        <div className="hidden sm:block">
-          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-4">
-            {environments
-              .slice(currentIndex, currentIndex + cardsPerPage)
-              .map(([envName, stats]) => {
-                const successRate =
-                  stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
+        <CollapsibleContent>
+          <div className="border-t border-border px-3 py-3">
+            {/* Mobile carousel */}
+            <div className="sm:hidden">
+              <Carousel opts={{ align: "start", loop: true }} className="w-full">
+                <CarouselContent>
+                  {environments.map(([envName, stats]) => (
+                    <CarouselItem key={envName} className="basis-[85%]">
+                      <EnvCell name={envName} stats={stats} />
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious className="-left-2" />
+                <CarouselNext className="-right-2" />
+              </Carousel>
+            </div>
 
-                return (
-                  <div
-                    key={envName}
-                    className="min-w-[280px] max-w-[400px] mx-auto w-full group relative overflow-hidden bg-gradient-to-br from-card to-card/50 dark:from-[#111111] dark:to-[#0a0a0a] p-6 rounded-xl border border-border dark:border-[#1a1a1a] shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.02]"
-                  >
-                    {/* Success Rate Badge */}
-                    <div className="absolute top-4 right-4">
-                      <div
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-muted ${
-                          successRate >= 90
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : successRate >= 70
-                              ? "text-amber-600 dark:text-amber-400"
-                              : "text-red-600 dark:text-red-400"
-                        }`}
-                      >
-                        {getEnvironmentHealthIcon(successRate)}
-                        {successRate}%
-                      </div>
-                    </div>
-
-                    {/* Environment Name */}
-                    <div className="mb-4">
-                      <h4 className="text-lg font-semibold text-foreground truncate pr-16">
-                        {envName}
-                      </h4>
-                      <p className="text-sm text-muted-foreground">Environment</p>
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                      <div className="text-center">
-                        <div className="text-xl font-bold text-foreground">{stats.total}</div>
-                        <div className="text-xs text-muted-foreground">Total</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xl font-bold text-green-600 dark:text-green-400">
-                          {stats.success}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Success</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xl font-bold text-red-600 dark:text-red-400">
-                          {stats.failed}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Failed</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Desktop: wrap or paginate */}
+            <div className="hidden flex-wrap gap-2 sm:flex">
+              {environments
+                .slice(currentIndex, currentIndex + cardsPerPage)
+                .map(([envName, stats]) => (
+                  <EnvCell key={envName} name={envName} stats={stats} />
+                ))}
+            </div>
           </div>
-        </div>
+        </CollapsibleContent>
       </div>
-
-      {/* Overall Health Summary */}
-      <div className="pt-4 border-t border-border">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Overall Environment Health</span>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-blue-600" />
-            <span className="font-medium">
-              {(
-                Object.values(environmentStats).reduce((acc, stats) => {
-                  const rate = stats.total > 0 ? (stats.success / stats.total) * 100 : 0;
-                  return acc + rate;
-                }, 0) / Object.keys(environmentStats).length || 0
-              ).toFixed(1)}
-              % Average Success Rate
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    </Collapsible>
   );
 }
