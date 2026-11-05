@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -25,6 +25,7 @@ import { SwitchingOverlay } from "./components/SwitchingOverlay";
 
 function AuthenticatedApp() {
   const { needsSetup, loading, switching, switchingTo, currentOrganization } = useOrganization();
+  const reduceMotion = useReducedMotion();
 
   if (loading) {
     return (
@@ -51,9 +52,9 @@ function AuthenticatedApp() {
       <SwitchingOverlay isVisible={switching} switchingTo={switchingTo} />
       <motion.div
         key={currentOrganization?._id || "no-org"}
-        initial={{ opacity: 0.7 }}
+        initial={reduceMotion ? false : { opacity: 0.7 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
+        transition={reduceMotion ? { duration: 0 } : { duration: 0.3, ease: "easeOut" }}
       >
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

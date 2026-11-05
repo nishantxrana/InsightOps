@@ -87,7 +87,7 @@ function extraLogFields(log) {
 export default function Logs() {
   const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const { checkConnection } = useHealth();
-  const { density, setDensity } = useDensity();
+  const { density } = useDensity("compact");
 
   const [loading, setLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -98,10 +98,6 @@ export default function Logs() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const [expandedKeys, setExpandedKeys] = useState(() => new Set());
-
-  useEffect(() => {
-    setDensity("compact");
-  }, [setDensity]);
 
   const loadLogs = useCallback(async () => {
     try {
@@ -288,7 +284,7 @@ export default function Logs() {
   if (!currentOrganization) {
     return (
       <div className="space-y-4 md:space-y-5">
-        <PageHeader title="Logs" description="Application logs" />
+        <PageHeader title="Logs" description="Application logs. Sample log feed for demo." />
         <EmptyState
           icon={<ScrollText />}
           title="No organization selected"
@@ -317,7 +313,7 @@ export default function Logs() {
     <div className="space-y-4 md:space-y-5">
       <PageHeader
         title="Logs"
-        description="Application logs"
+        description="Application logs. Sample log feed for demo."
         status={headerStatus}
         actions={
           <>

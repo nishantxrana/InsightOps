@@ -114,3 +114,5 @@ Docs/
 
 .kiro/
 .venv*/
+# Local design-direction scratch (taste skill)
+.taste-skill/

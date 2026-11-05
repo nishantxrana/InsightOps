@@ -16,4 +16,10 @@ module.exports = {
     "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
   },
+  overrides: [
+    {
+      files: ["*.config.js", "vite.config.js", "tailwind.config.js"],
+      env: { node: true },
+    },
+  ],
 };

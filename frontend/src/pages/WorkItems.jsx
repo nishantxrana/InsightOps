@@ -27,6 +27,14 @@ import {
 
 const TAB_VALUES = new Set(["sprint", "overdue"]);
 
+const EMPTY_FILTERS = {
+  states: [],
+  assignees: [],
+  priorities: [],
+  search: "",
+  highPriority: false,
+};
+
 function normalizeTab(raw) {
   if (TAB_VALUES.has(raw)) return raw;
   return "sprint";
@@ -45,6 +53,27 @@ function readAiSummaryEnabled() {
   }
 }
 
+function chipsFromFilters(filters) {
+  const chips = [];
+  filters.states.forEach((s) => chips.push({ id: `state:${s}`, label: `State: ${s}` }));
+  filters.assignees.forEach((a) => chips.push({ id: `assignee:${a}`, label: `Assignee: ${a}` }));
+  filters.priorities.forEach((p) => chips.push({ id: `priority:${p}`, label: `Priority: ${p}` }));
+  if (filters.highPriority) chips.push({ id: "highPriority", label: "High priority (P1/P2)" });
+  if (filters.search.trim())
+    chips.push({ id: "search", label: `Search: ${filters.search.trim()}` });
+  return chips;
+}
+
+function filtersActive(filters) {
+  return (
+    filters.states.length > 0 ||
+    filters.assignees.length > 0 ||
+    filters.priorities.length > 0 ||
+    Boolean(filters.search.trim()) ||
+    filters.highPriority
+  );
+}
+
 export default function WorkItems() {
   const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const { checkConnection } = useHealth();
@@ -60,8 +89,6 @@ export default function WorkItems() {
   const [aiSummary, setAiSummary] = useState(null);
   const [overdueItems, setOverdueItems] = useState([]);
   const [aiSummaryEnabled, setAiSummaryEnabled] = useState(readAiSummaryEnabled);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [highPriority, setHighPriority] = useState(false);
   const [selectedWorkItem, setSelectedWorkItem] = useState(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
@@ -77,14 +104,75 @@ export default function WorkItems() {
   });
 
   const tab = normalizeTab(tabParam);
+
+  // Independent filter bags per tab. URL mirrors the active tab only.
+  const [sprintFilters, setSprintFilters] = useState(() =>
+    tab === "sprint"
+      ? {
+          states: stateFilter,
+          assignees: assigneeFilter,
+          priorities: priorityFilter,
+          search: "",
+          highPriority: false,
+        }
+      : { ...EMPTY_FILTERS }
+  );
+  const [overdueFilters, setOverdueFilters] = useState(() =>
+    tab === "overdue"
+      ? {
+          states: stateFilter,
+          assignees: assigneeFilter,
+          priorities: priorityFilter,
+          search: "",
+          highPriority: false,
+        }
+      : { ...EMPTY_FILTERS }
+  );
+
   const rowRefs = useRef(new Map());
   const triggerRef = useRef(null);
+  const skipUrlSync = useRef(false);
 
   useEffect(() => {
     if (tabParam && !TAB_VALUES.has(tabParam)) {
       setTabParam("sprint");
     }
   }, [tabParam, setTabParam]);
+
+  const activeFilters = tab === "overdue" ? overdueFilters : sprintFilters;
+  const setActiveFilters = tab === "overdue" ? setOverdueFilters : setSprintFilters;
+
+  // Keep URL in sync with the active tab's facet filters (search / highPriority stay local).
+  useEffect(() => {
+    if (skipUrlSync.current) {
+      skipUrlSync.current = false;
+      return;
+    }
+    const sameStates =
+      stateFilter.length === activeFilters.states.length &&
+      stateFilter.every((v, i) => v === activeFilters.states[i]);
+    const sameAssignees =
+      assigneeFilter.length === activeFilters.assignees.length &&
+      assigneeFilter.every((v, i) => v === activeFilters.assignees[i]);
+    const samePriorities =
+      priorityFilter.length === activeFilters.priorities.length &&
+      priorityFilter.every((v, i) => v === activeFilters.priorities[i]);
+
+    if (!sameStates) setStateFilter(activeFilters.states);
+    if (!sameAssignees) setAssigneeFilter(activeFilters.assignees);
+    if (!samePriorities) setPriorityFilter(activeFilters.priorities);
+  }, [
+    tab,
+    activeFilters.states,
+    activeFilters.assignees,
+    activeFilters.priorities,
+    stateFilter,
+    assigneeFilter,
+    priorityFilter,
+    setStateFilter,
+    setAssigneeFilter,
+    setPriorityFilter,
+  ]);
 
   const loadAiSummary = useCallback(async () => {
     try {
@@ -187,27 +275,58 @@ export default function WorkItems() {
     }
   };
 
+  const pushFiltersToUrl = (filters) => {
+    skipUrlSync.current = true;
+    setStateFilter(filters.states);
+    setAssigneeFilter(filters.assignees);
+    setPriorityFilter(filters.priorities);
+  };
+
+  const handleTabChange = (next) => {
+    const nextTab = normalizeTab(next);
+    if (nextTab === tab) return;
+    const nextBag = nextTab === "overdue" ? overdueFilters : sprintFilters;
+    pushFiltersToUrl(nextBag);
+    setTabParam(nextTab);
+  };
+
+  /** Jump to sprint with an explicit filter bag (StatStrip shortcuts). */
+  const showSprintWithFilters = (filters) => {
+    setSprintFilters(filters);
+    pushFiltersToUrl(filters);
+    setTabParam("sprint");
+  };
+
+  const patchActiveFilters = (patch) => {
+    setActiveFilters((prev) => ({ ...prev, ...patch }));
+  };
+
   const allSprintItems = useMemo(() => flattenSprintItems(sprintSummary), [sprintSummary]);
 
-  const filterBag = useMemo(
-    () => ({
-      states: stateFilter,
-      assignees: assigneeFilter,
-      priorities: priorityFilter,
-      search: searchTerm,
-      highPriority,
-    }),
-    [stateFilter, assigneeFilter, priorityFilter, searchTerm, highPriority]
-  );
-
   const filteredSprintItems = useMemo(
-    () => applyWorkItemFilters(allSprintItems, { ...filterBag, mode: "sprint" }),
-    [allSprintItems, filterBag]
+    () =>
+      applyWorkItemFilters(allSprintItems, {
+        states: sprintFilters.states,
+        assignees: sprintFilters.assignees,
+        priorities: sprintFilters.priorities,
+        search: sprintFilters.search,
+        highPriority: sprintFilters.highPriority,
+        mode: "sprint",
+      }),
+    [allSprintItems, sprintFilters]
   );
 
   const filteredOverdueItems = useMemo(
-    () => applyWorkItemFilters(overdueItems, { ...filterBag, mode: "overdue" }),
-    [overdueItems, filterBag]
+    () =>
+      applyWorkItemFilters(overdueItems, {
+        states: overdueFilters.states,
+        assignees: overdueFilters.assignees,
+        priorities: overdueFilters.priorities,
+        search: overdueFilters.search,
+        highPriority: overdueFilters.highPriority,
+        mode: "overdue",
+      }),
+    [overdueItems, overdueFilters]
   );
 
   const activeList = tab === "overdue" ? filteredOverdueItems : filteredSprintItems;
@@ -226,53 +345,35 @@ export default function WorkItems() {
   );
   const priorityOptions = useMemo(() => buildPriorityOptions(sourceForOptions), [sourceForOptions]);
 
-  const filtersActive =
-    stateFilter.length > 0 ||
-    assigneeFilter.length > 0 ||
-    priorityFilter.length > 0 ||
-    Boolean(searchTerm.trim()) ||
-    highPriority;
-
-  const activeChips = useMemo(() => {
-    const chips = [];
-    stateFilter.forEach((s) => chips.push({ id: `state:${s}`, label: `State: ${s}` }));
-    assigneeFilter.forEach((a) => chips.push({ id: `assignee:${a}`, label: `Assignee: ${a}` }));
-    priorityFilter.forEach((p) => chips.push({ id: `priority:${p}`, label: `Priority: ${p}` }));
-    if (highPriority) chips.push({ id: "highPriority", label: "High priority (P1/P2)" });
-    if (searchTerm.trim()) chips.push({ id: "search", label: `Search: ${searchTerm.trim()}` });
-    return chips;
-  }, [stateFilter, assigneeFilter, priorityFilter, highPriority, searchTerm]);
+  const activeChips = useMemo(() => chipsFromFilters(activeFilters), [activeFilters]);
+  const activeFiltersOn = filtersActive(activeFilters);
 
   const clearFilters = (id) => {
     if (!id) {
-      setStateFilter([]);
-      setAssigneeFilter([]);
-      setPriorityFilter([]);
-      setSearchTerm("");
-      setHighPriority(false);
+      patchActiveFilters({ ...EMPTY_FILTERS });
       return;
     }
     if (id === "search") {
-      setSearchTerm("");
+      patchActiveFilters({ search: "" });
       return;
     }
     if (id === "highPriority") {
-      setHighPriority(false);
+      patchActiveFilters({ highPriority: false });
       return;
     }
     if (id.startsWith("state:")) {
       const v = id.slice("state:".length);
-      setStateFilter(stateFilter.filter((s) => s !== v));
+      patchActiveFilters({ states: activeFilters.states.filter((s) => s !== v) });
       return;
     }
     if (id.startsWith("assignee:")) {
       const v = id.slice("assignee:".length);
-      setAssigneeFilter(assigneeFilter.filter((a) => a !== v));
+      patchActiveFilters({ assignees: activeFilters.assignees.filter((a) => a !== v) });
       return;
     }
     if (id.startsWith("priority:")) {
       const v = id.slice("priority:".length);
-      setPriorityFilter(priorityFilter.filter((p) => p !== v));
+      patchActiveFilters({ priorities: activeFilters.priorities.filter((p) => p !== v) });
     }
   };
 
@@ -341,37 +442,38 @@ export default function WorkItems() {
             value={sprintSummary?.total ?? 0}
             sub={`${sprintName} · ${progressPct}%`}
             tone="neutral"
-            onClick={() => {
-              setTabParam("sprint");
-              clearFilters();
-            }}
+            onClick={() => showSprintWithFilters({ ...EMPTY_FILTERS })}
           />
           <StatCell
             label="In Progress"
             value={sprintSummary?.active ?? 0}
             sub="Active"
             tone="info"
-            onClick={() => {
-              setTabParam("sprint");
-              setStateFilter(["Active"]);
-            }}
+            onClick={() =>
+              showSprintWithFilters({
+                ...EMPTY_FILTERS,
+                states: ["Active"],
+              })
+            }
           />
           <StatCell
             label="Completed"
             value={sprintSummary?.completed ?? 0}
             sub="Done"
             tone="success"
-            onClick={() => {
-              setTabParam("sprint");
-              setStateFilter(["Done", "Closed", "Resolved"]);
-            }}
+            onClick={() =>
+              showSprintWithFilters({
+                ...EMPTY_FILTERS,
+                states: ["Done", "Closed", "Resolved"],
+              })
+            }
           />
           <StatCell
             label="Overdue"
             value={overdueCount}
             sub={overdueCount > 0 ? "Needs attention" : "On track"}
             tone={overdueCount > 0 ? "danger" : "success"}
-            onClick={() => setTabParam("overdue")}
+            onClick={() => handleTabChange("overdue")}
           />
         </StatStrip>
       )}
@@ -396,29 +498,31 @@ export default function WorkItems() {
             },
           ]}
           value={tab}
-          onChange={setTabParam}
+          onChange={handleTabChange}
         />
 
         <WorkItemFilters
           stateOptions={stateOptions}
           assigneeOptions={assigneeOptions}
           priorityOptions={priorityOptions}
-          states={stateFilter}
-          assignees={assigneeFilter}
-          priorities={priorityFilter}
-          search={searchTerm}
-          highPriority={highPriority}
+          states={activeFilters.states}
+          assignees={activeFilters.assignees}
+          priorities={activeFilters.priorities}
+          search={activeFilters.search}
+          highPriority={activeFilters.highPriority}
           shown={activeList.length}
           total={activeTotal}
           noun={tab === "overdue" ? "overdue items" : "work items"}
           chips={activeChips}
-          onStatesChange={setStateFilter}
-          onAssigneesChange={setAssigneeFilter}
-          onPrioritiesChange={setPriorityFilter}
-          onSearchChange={setSearchTerm}
+          onStatesChange={(v) => patchActiveFilters({ states: v })}
+          onAssigneesChange={(v) => patchActiveFilters({ assignees: v })}
+          onPrioritiesChange={(v) => patchActiveFilters({ priorities: v })}
+          onSearchChange={(v) => patchActiveFilters({ search: v })}
           onHighPriorityChange={(next) => {
-            setHighPriority(next);
-            if (next) setPriorityFilter([]);
+            patchActiveFilters({
+              highPriority: next,
+              ...(next ? { priorities: [] } : {}),
+            });
           }}
           onClear={clearFilters}
         />
@@ -432,7 +536,7 @@ export default function WorkItems() {
           items={filteredSprintItems}
           loading={loadingStates.sprintSummary}
           hasSprintData={Boolean(sprintSummary) && allSprintItems.length > 0}
-          filtersActive={filtersActive}
+          filtersActive={activeFiltersOn}
           selectedId={isSheetOpen ? selectedWorkItem?.id : null}
           onOpen={openWorkItem}
           onClearFilters={() => clearFilters()}
@@ -445,7 +549,7 @@ export default function WorkItems() {
           items={filteredOverdueItems}
           loading={loadingStates.overdueItems}
           hasOverdueSource={overdueItems.length > 0}
-          filtersActive={filtersActive}
+          filtersActive={activeFiltersOn}
           selectedId={isSheetOpen ? selectedWorkItem?.id : null}
           onOpen={openWorkItem}
           onClearFilters={() => clearFilters()}
