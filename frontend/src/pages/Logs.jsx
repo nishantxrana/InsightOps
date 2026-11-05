@@ -1,111 +1,208 @@
-import React, { useState, useEffect } from "react";
-import {
-  Search,
-  Filter,
-  Download,
-  RefreshCw,
-  AlertTriangle,
-  Info,
-  XCircle,
-  AlertCircle,
-  CheckCircle,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { format, formatDistanceToNowStrict } from "date-fns";
+import { Download, ScrollText } from "lucide-react";
+
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
 import { useOrganization } from "../contexts/OrganizationContext";
-import LoadingSpinner from "../components/LoadingSpinner";
-import ErrorMessage from "../components/ErrorMessage";
-import { Checkbox } from "../components/ui/checkbox";
-import { format, formatDistanceToNow } from "date-fns";
+import { useDensity } from "@/hooks/useDensity";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CopyButton } from "@/components/ui/shadcn-io/copy-button";
+import {
+  DataCell,
+  DataHeader,
+  DataHeaderCell,
+  DataRow,
+  DataTable,
+} from "@/components/kit/DataTable";
+import { EmptyState } from "@/components/kit/EmptyState";
+import { InlineError, PageError } from "@/components/kit/InlineError";
+import { PageHeader } from "@/components/kit/PageHeader";
+import { SkeletonRows } from "@/components/kit/Skeletons";
+import { StatCell, StatStrip } from "@/components/kit/StatStrip";
+import { StatusBadge } from "@/components/kit/StatusBadge";
+import { SyncButton } from "@/components/kit/SyncButton";
+import {
+  ActiveFilters,
+  DensityToggle,
+  FacetFilter,
+  ResultCount,
+  SearchField,
+  SegmentedFilter,
+  Toolbar,
+} from "@/components/kit/Toolbar";
+import { logLevel } from "@/components/kit/statusMaps";
+import { cn } from "@/lib/utils";
+
+const LEVEL_VALUES = new Set(["all", "error", "warn", "info", "debug"]);
+const KNOWN_LOG_FIELDS = new Set(["timestamp", "level", "service", "message"]);
+
+function logRowKey(log) {
+  return `${log.timestamp ?? ""}|${log.level ?? ""}|${log.service ?? ""}|${log.message ?? ""}`;
+}
+
+function AbsoluteTime({ date, className }) {
+  const parsed = useMemo(() => {
+    const d = date instanceof Date ? date : new Date(date);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }, [date]);
+
+  if (!parsed) {
+    return <span className={cn("font-mono text-[13px] text-muted-foreground", className)}>—</span>;
+  }
+
+  let relative = "—";
+  try {
+    relative = formatDistanceToNowStrict(parsed, { addSuffix: true });
+  } catch {
+    relative = format(parsed, "PPpp");
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <time
+            dateTime={parsed.toISOString()}
+            className={cn("font-mono text-[13px] tabular-nums text-foreground", className)}
+          >
+            {format(parsed, "yyyy-MM-dd HH:mm:ss")}
+          </time>
+        </TooltipTrigger>
+        <TooltipContent>{relative}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function extraLogFields(log) {
+  return Object.entries(log || {}).filter(([key, value]) => {
+    if (KNOWN_LOG_FIELDS.has(key)) return false;
+    return value != null && value !== "";
+  });
+}
 
 export default function Logs() {
   const { currentOrganization, currentProject, clearSwitching } = useOrganization();
+  const { checkConnection } = useHealth();
+  const { density, setDensity } = useDensity();
+
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState(null);
   const [logs, setLogs] = useState([]);
-  const [filteredLogs, setFilteredLogs] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [levelFilter, setLevelFilter] = useState("all");
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const { checkConnection } = useHealth();
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [expandedKeys, setExpandedKeys] = useState(() => new Set());
+
+  useEffect(() => {
+    setDensity("compact");
+  }, [setDensity]);
+
+  const loadLogs = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await apiService.getLogs({ limit: 100 });
+      setLogs(Array.isArray(data?.logs) ? data.logs : []);
+      setHasLoadedOnce(true);
+      setLastSyncedAt(new Date());
+    } catch (err) {
+      // Keep stale rows visible after the first successful load.
+      setError(err.userMessage || "Failed to load logs. Please try again.");
+    } finally {
+      setLoading(false);
+      clearSwitching();
+    }
+  }, [clearSwitching]);
 
   useEffect(() => {
     if (currentOrganization) {
       loadLogs();
+    } else {
+      setLoading(false);
+      clearSwitching();
     }
+    // Remount-style refetch when org/project changes (auto-refresh resets with remount).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
   }, [currentOrganization, currentProject]);
+
+  useEffect(() => {
+    if (!autoRefresh || !currentOrganization) return undefined;
+    const interval = setInterval(() => {
+      loadLogs();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, currentOrganization, loadLogs]);
 
   const handleSync = async () => {
     await Promise.all([checkConnection(), loadLogs()]);
   };
 
-  useEffect(() => {
-    let interval;
-    if (autoRefresh) {
-      interval = setInterval(loadLogs, 5000); // Refresh every 5 seconds
+  const counts = useMemo(() => {
+    let errors = 0;
+    let warnings = 0;
+    let info = 0;
+    let debug = 0;
+    for (const log of logs) {
+      const level = String(log?.level || "").toLowerCase();
+      if (level === "error") errors += 1;
+      else if (level === "warn" || level === "warning") warnings += 1;
+      else if (level === "info") info += 1;
+      else if (level === "debug") debug += 1;
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [autoRefresh]);
+    return { errors, warnings, info, debug, total: logs.length };
+  }, [logs]);
 
-  useEffect(() => {
-    filterLogs();
+  const filteredLogs = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return logs.filter((log) => {
+      const level = String(log?.level || "").toLowerCase();
+      if (levelFilter !== "all" && level !== levelFilter) return false;
+      if (!q) return true;
+      const message = String(log?.message || "").toLowerCase();
+      const service = String(log?.service || "").toLowerCase();
+      return message.includes(q) || service.includes(q);
+    });
   }, [logs, searchTerm, levelFilter]);
 
-  const loadLogs = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await apiService.getLogs({ limit: 100 });
-      setLogs(data.logs || []);
-    } catch (err) {
-      setError(err.userMessage || "Failed to load logs. Please try again.");
-    } finally {
-      setLoading(false);
-      clearSwitching(); // Clear switching overlay
-    }
+  const setLevel = (value) => {
+    const next = LEVEL_VALUES.has(value) ? value : "all";
+    setLevelFilter(next);
   };
 
-  const filterLogs = () => {
-    let filtered = logs;
-
-    // Filter by level
-    if (levelFilter !== "all") {
-      filtered = filtered.filter((log) => log.level === levelFilter);
+  const clearFilters = (id) => {
+    if (!id) {
+      setLevelFilter("all");
+      setSearchTerm("");
+      return;
     }
-
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (log) =>
-          log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          log.service?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    setFilteredLogs(filtered);
+    if (id === "level") setLevelFilter("all");
+    if (id === "search") setSearchTerm("");
   };
 
-  const getLevelBadgeClass = (level) => {
-    switch (level) {
-      case "error":
-        return "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400";
-      case "warn":
-        return "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-amber-600 dark:text-amber-400";
-      case "info":
-        return "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400";
-      case "debug":
-        return "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground";
-      default:
-        return "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground";
-    }
-  };
+  const activeChips = [];
+  if (levelFilter !== "all") {
+    const labels = { error: "Error", warn: "Warning", info: "Info", debug: "Debug" };
+    activeChips.push({ id: "level", label: labels[levelFilter] || levelFilter });
+  }
+  if (searchTerm.trim()) {
+    activeChips.push({ id: "search", label: `Search: ${searchTerm.trim()}` });
+  }
 
   const exportLogs = () => {
     const csvContent = [
       ["Timestamp", "Level", "Service", "Message"],
-      ...filteredLogs.map((log) => [log.timestamp, log.level, log.service || "", log.message]),
+      ...filteredLogs.map((log) => [
+        log.timestamp ?? "",
+        log.level ?? "",
+        log.service || "",
+        log.message ?? "",
+      ]),
     ]
       .map((row) => row.map((cell) => `"${cell}"`).join(","))
       .join("\n");
@@ -119,616 +216,315 @@ export default function Logs() {
     window.URL.revokeObjectURL(url);
   };
 
-  if (loading && logs.length === 0) {
-    return <LoadingSpinner />;
+  const toggleExpanded = (key) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const headerStatus = (() => {
+    if (loading && !hasLoadedOnce) return null;
+    if (!hasLoadedOnce || logs.length === 0) return null;
+    if (counts.errors > 0) {
+      return (
+        <StatusBadge
+          tone="danger"
+          label={`${counts.errors} error${counts.errors === 1 ? "" : "s"}`}
+        />
+      );
+    }
+    if (counts.warnings > 0) {
+      return (
+        <StatusBadge
+          tone="warning"
+          label={`${counts.warnings} warning${counts.warnings === 1 ? "" : "s"}`}
+        />
+      );
+    }
+    return <StatusBadge tone="success" label="Clean" />;
+  })();
+
+  const levelFacetOptions = [
+    { value: "error", label: "Error", count: counts.errors },
+    { value: "warn", label: "Warning", count: counts.warnings },
+    { value: "info", label: "Info", count: counts.info },
+    { value: "debug", label: "Debug", count: counts.debug },
+  ];
+
+  const segmentOptions = [
+    { value: "all", label: "All", count: counts.total },
+    { value: "error", label: "Errors", count: counts.errors },
+    { value: "warn", label: "Warnings", count: counts.warnings },
+    { value: "info", label: "Info", count: counts.info },
+    { value: "debug", label: "Debug", count: counts.debug },
+  ];
+
+  const rowPad = density === "compact" ? "py-1.5" : density === "comfortable" ? "py-3" : "py-2";
+  const isRefreshing = loading && hasLoadedOnce;
+  const showPageError = Boolean(error && !hasLoadedOnce && logs.length === 0);
+  const showInlineError = Boolean(error) && !showPageError;
+  const filtersActive = activeChips.length > 0;
+  const searchActive = Boolean(searchTerm.trim());
+
+  const emptyTitle = (() => {
+    if (logs.length === 0 && !filtersActive) return "No logs available";
+    if (levelFilter === "error" && !searchActive) return "No errors found";
+    return "No matching logs";
+  })();
+
+  const emptyDescription = (() => {
+    if (logs.length === 0 && !filtersActive) {
+      return "Logs will appear here as events occur.";
+    }
+    if (levelFilter === "error" && !searchActive) {
+      return "No error-level entries in the current set.";
+    }
+    return "Try adjusting your search or filters.";
+  })();
+
+  if (!currentOrganization) {
+    return (
+      <div className="space-y-4 md:space-y-5">
+        <PageHeader title="Logs" description="Application logs" />
+        <EmptyState
+          icon={<ScrollText />}
+          title="No organization selected"
+          description="Select or set up an organization to view application logs."
+        />
+      </div>
+    );
   }
 
-  if (error && logs.length === 0) {
-    return <ErrorMessage message={error} onRetry={loadLogs} />;
-  }
+  const emptyState = (
+    <EmptyState
+      icon={<ScrollText />}
+      title={emptyTitle}
+      description={emptyDescription}
+      action={
+        filtersActive ? (
+          <Button type="button" variant="outline" size="sm" onClick={() => clearFilters()}>
+            Clear filters
+          </Button>
+        ) : null
+      }
+    />
+  );
 
   return (
-    <div className="space-y-6">
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200px 0; }
-          100% { background-position: calc(200px + 100%) 0; }
-        }
-        .animate-slide-up {
-          animation: slideUp 0.6s ease-out;
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.4s ease-out;
-        }
-        .shimmer {
-          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-          background-size: 200px 100%;
-          animation: shimmer 1.5s infinite;
-        }
-        .card-hover {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .card-hover:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-      `}</style>
-
-      {/* Header with Refresh Button - Always visible */}
-      <div className="animate-slide-up">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-foreground tracking-tight">Logs</h1>
-              {/* Quick health indicator */}
-              {!loading &&
-                logs.length > 0 &&
-                (logs.filter((log) => log.level === "error").length > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                    <span className="text-red-600 dark:text-red-400">
-                      {logs.filter((log) => log.level === "error").length} error
-                      {logs.filter((log) => log.level === "error").length !== 1 ? "s" : ""}
-                    </span>
-                  </span>
-                ) : logs.filter((log) => log.level === "warn").length > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                    <span className="text-amber-600 dark:text-amber-400">
-                      {logs.filter((log) => log.level === "warn").length} warning
-                      {logs.filter((log) => log.level === "warn").length !== 1 ? "s" : ""}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    Clean
-                  </span>
-                ))}
-            </div>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              {!loading && logs.length > 0
-                ? `${logs.length} log entries • Last ${logs.length > 0 ? formatDistanceToNow(new Date(logs[0]?.timestamp || Date.now())) : ""}`
-                : "Real-time application logs and webhook activity"}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center space-x-2">
-              <Checkbox id="auto-refresh" checked={autoRefresh} onCheckedChange={setAutoRefresh} />
-              <label htmlFor="auto-refresh" className="text-sm text-foreground cursor-pointer">
+    <div className="space-y-4 md:space-y-5">
+      <PageHeader
+        title="Logs"
+        description="Application logs"
+        status={headerStatus}
+        actions={
+          <>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="auto-refresh"
+                checked={autoRefresh}
+                onCheckedChange={(checked) => setAutoRefresh(Boolean(checked))}
+              />
+              <label htmlFor="auto-refresh" className="cursor-pointer text-sm text-foreground">
                 Auto-refresh
               </label>
             </div>
-            <button
-              onClick={handleSync}
-              disabled={loading}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
+            <div className="flex items-center gap-2">
+              <SyncButton onSync={handleSync} isSyncing={loading} lastSyncedAt={lastSyncedAt} />
+              {isRefreshing ? (
+                <span className="text-xs text-muted-foreground" aria-live="polite">
+                  Refreshing…
+                </span>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={exportLogs}
+              disabled={filteredLogs.length === 0 || (loading && !hasLoadedOnce)}
             >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${loading ? "animate-spin" : "group-hover:rotate-180"} transition-transform duration-300`}
-              />
-              Sync
-            </button>
+              <Download className="size-3.5" aria-hidden="true" />
+              Export
+            </Button>
+          </>
+        }
+      />
+
+      <StatStrip loading={loading && !hasLoadedOnce}>
+        <StatCell
+          label="Total Logs"
+          value={counts.total}
+          sub="All levels"
+          tone="neutral"
+          onClick={() => setLevel("all")}
+        />
+        <StatCell
+          label="Errors"
+          value={counts.errors}
+          sub={counts.errors > 0 ? "Show errors only" : "Clear"}
+          tone={counts.errors > 0 ? "danger" : "neutral"}
+          onClick={() => setLevel("error")}
+        />
+        <StatCell
+          label="Warnings"
+          value={counts.warnings}
+          sub={counts.warnings > 0 ? "Show warnings only" : "Clear"}
+          tone={counts.warnings > 0 ? "warning" : "neutral"}
+          onClick={() => setLevel("warn")}
+        />
+        <StatCell
+          label="Info"
+          value={counts.info}
+          sub="Informational"
+          tone="info"
+          onClick={() => setLevel("info")}
+        />
+      </StatStrip>
+
+      <div className="space-y-2">
+        <Toolbar className="lg:flex-nowrap">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <SearchField
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search logs by message or service..."
+              className="sm:max-w-sm"
+            />
+            <FacetFilter
+              label="Level"
+              options={levelFacetOptions}
+              value={levelFilter === "all" ? "" : levelFilter}
+              onChange={(v) => setLevel(v || "all")}
+            />
+            <SegmentedFilter
+              className="h-auto max-w-full flex-wrap"
+              options={segmentOptions}
+              value={levelFilter}
+              onChange={setLevel}
+            />
           </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total Logs */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-          {loading ? (
-            <div className="space-y-3">
-              <div className="h-4 bg-muted animate-pulse rounded w-16"></div>
-              <div className="h-8 bg-muted animate-pulse rounded w-12"></div>
-              <div className="h-2 bg-muted animate-pulse rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="mb-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-2xl font-bold text-foreground">{logs.length}</div>
-                  <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                    Total
-                  </span>
-                </div>
-                <div className="text-sm text-muted-foreground">Total Logs</div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Errors - ALARMING when > 0 */}
-        {(() => {
-          const errorCount = logs.filter((log) => log.level === "error").length;
-          return (
-            <div
-              className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-                errorCount > 0
-                  ? "border-red-300 dark:border-red-800 ring-1 ring-red-200 dark:ring-red-900"
-                  : "border-border dark:border-[#1a1a1a]"
-              }`}
-            >
-              {loading ? (
-                <div className="space-y-3">
-                  <div className="h-4 bg-muted animate-pulse rounded w-16"></div>
-                  <div className="h-8 bg-muted animate-pulse rounded w-12"></div>
-                  <div className="h-2 bg-muted animate-pulse rounded w-full"></div>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <XCircle
-                          className={`h-5 w-5 ${errorCount > 0 ? "text-red-500 animate-pulse" : "text-muted-foreground"}`}
-                        />
-                        <div
-                          className={`text-2xl font-bold ${errorCount > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
-                        >
-                          {errorCount}
-                        </div>
-                      </div>
-                      <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                          errorCount > 0
-                            ? "text-red-600 dark:text-red-400"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {errorCount > 0 ? "Critical" : "Clear"}
-                      </span>
-                    </div>
-                    <div className="text-sm text-muted-foreground">Errors</div>
-                  </div>
-                  {errorCount > 0 && (
-                    <button
-                      onClick={() => setLevelFilter("error")}
-                      className="text-xs text-red-600 dark:text-red-400 hover:underline font-medium"
-                    >
-                      → Show errors only
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* Warnings */}
-        {(() => {
-          const warnCount = logs.filter((log) => log.level === "warn").length;
-          return (
-            <div
-              className={`card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border shadow-sm ${
-                warnCount > 0
-                  ? "border-amber-200 dark:border-amber-900"
-                  : "border-border dark:border-[#1a1a1a]"
-              }`}
-            >
-              {loading ? (
-                <div className="space-y-3">
-                  <div className="h-4 bg-muted animate-pulse rounded w-16"></div>
-                  <div className="h-8 bg-muted animate-pulse rounded w-12"></div>
-                  <div className="h-2 bg-muted animate-pulse rounded w-full"></div>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle
-                          className={`h-5 w-5 ${warnCount > 0 ? "text-amber-500" : "text-muted-foreground"}`}
-                        />
-                        <div
-                          className={`text-2xl font-bold ${warnCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
-                        >
-                          {warnCount}
-                        </div>
-                      </div>
-                      <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                          warnCount > 0
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {warnCount > 0 ? "Warning" : "Clear"}
-                      </span>
-                    </div>
-                    <div className="text-sm text-muted-foreground">Warnings</div>
-                  </div>
-                  {warnCount > 0 && (
-                    <button
-                      onClick={() => setLevelFilter("warn")}
-                      className="text-xs text-amber-600 dark:text-amber-400 hover:underline font-medium"
-                    >
-                      → Show warnings only
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* Info */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-          {loading ? (
-            <div className="space-y-3">
-              <div className="h-4 bg-muted animate-pulse rounded w-16"></div>
-              <div className="h-8 bg-muted animate-pulse rounded w-12"></div>
-              <div className="h-2 bg-muted animate-pulse rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="mb-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {logs.filter((log) => log.level === "info").length}
-                  </div>
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full">
-                    Info
-                  </span>
-                </div>
-                <div className="text-sm text-muted-foreground">Info Logs</div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-        <div className="flex flex-col gap-4">
-          {/* Search and main controls */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search logs by message or service..."
-                  className="w-full pl-10 pr-4 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground placeholder:text-muted-foreground"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <select
-                  className="px-3 py-2 border border-border dark:border-[#1a1a1a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-background text-foreground"
-                  value={levelFilter}
-                  onChange={(e) => setLevelFilter(e.target.value)}
-                >
-                  <option value="all">All Levels</option>
-                  <option value="error">Error</option>
-                  <option value="warn">Warning</option>
-                  <option value="info">Info</option>
-                  <option value="debug">Debug</option>
-                </select>
-              </div>
-              <button
-                onClick={exportLogs}
-                className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
-              >
-                <Download className="h-4 w-4" />
-                <span>Export</span>
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <DensityToggle />
+            <ResultCount shown={filteredLogs.length} total={logs.length} noun="logs" />
           </div>
-
-          {/* Quick filter buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground mr-1">Quick filter:</span>
-            <button
-              onClick={() => setLevelFilter("all")}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                levelFilter === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              All ({logs.length})
-            </button>
-            <button
-              onClick={() => setLevelFilter("error")}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1 ${
-                levelFilter === "error"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted hover:bg-muted/80"
-              } ${levelFilter !== "error" && logs.filter((l) => l.level === "error").length > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
-            >
-              <XCircle className="h-3 w-3" />
-              Errors ({logs.filter((l) => l.level === "error").length})
-            </button>
-            <button
-              onClick={() => setLevelFilter("warn")}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1 ${
-                levelFilter === "warn"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted hover:bg-muted/80"
-              } ${levelFilter !== "warn" && logs.filter((l) => l.level === "warn").length > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
-            >
-              <AlertTriangle className="h-3 w-3" />
-              Warnings ({logs.filter((l) => l.level === "warn").length})
-            </button>
-            <button
-              onClick={() => setLevelFilter("info")}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1 ${
-                levelFilter === "info"
-                  ? "bg-blue-500 text-white"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              <Info className="h-3 w-3" />
-              Info ({logs.filter((l) => l.level === "info").length})
-            </button>
-
-            {/* Active filter indicator */}
-            {(levelFilter !== "all" || searchTerm) && (
-              <button
-                onClick={() => {
-                  setLevelFilter("all");
-                  setSearchTerm("");
-                }}
-                className="px-3 py-1.5 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-        </div>
+        </Toolbar>
+        <ActiveFilters chips={activeChips} onClear={clearFilters} />
       </div>
 
-      {/* Logs Table - Desktop */}
-      <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm hidden md:block">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-border dark:divide-[#1a1a1a]">
-            <thead className="bg-muted">
-              <tr>
-                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Timestamp
-                </th>
-                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Level
-                </th>
-                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Service
-                </th>
-                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Message
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-card dark:bg-[#111111] divide-y divide-border dark:divide-[#1a1a1a]">
-              {filteredLogs.length > 0 ? (
-                filteredLogs.map((log, index) => {
-                  const isError = log.level === "error";
-                  const isWarn = log.level === "warn";
+      {showInlineError ? <InlineError message={error} onRetry={loadLogs} /> : null}
 
-                  // Get human-readable time
-                  const getTimeAgo = () => {
-                    try {
-                      return formatDistanceToNow(new Date(log.timestamp), { addSuffix: true });
-                    } catch {
-                      return format(new Date(log.timestamp), "MMM dd, HH:mm:ss");
-                    }
-                  };
+      {showPageError ? (
+        <PageError message={error} onRetry={loadLogs} />
+      ) : loading && !hasLoadedOnce ? (
+        <SkeletonRows rows={8} columns={4} />
+      ) : filteredLogs.length === 0 ? (
+        emptyState
+      ) : (
+        <DataTable maxHeight="min(60vh, 720px)" className="min-h-[12rem]">
+          <DataHeader className="hidden md:flex">
+            <DataHeaderCell className="max-w-[11rem] flex-none basis-44">Timestamp</DataHeaderCell>
+            <DataHeaderCell className="max-w-[6rem] flex-none basis-24">Level</DataHeaderCell>
+            <DataHeaderCell className="max-w-[8rem] flex-none basis-32">Service</DataHeaderCell>
+            <DataHeaderCell className="min-w-0 flex-[2]">Message</DataHeaderCell>
+          </DataHeader>
 
-                  return (
-                    <tr
-                      key={index}
-                      className={`hover:bg-muted/50 transition-colors ${
-                        isError
-                          ? "border-l-2 border-l-red-500"
-                          : isWarn
-                            ? "border-l-2 border-l-amber-500"
-                            : ""
-                      }`}
-                    >
-                      <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-sm">
-                        <div className="flex flex-col">
-                          <span
-                            className={`font-medium ${isError ? "text-red-700 dark:text-red-300" : isWarn ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}
-                          >
-                            {getTimeAgo()}
-                          </span>
-                          <span
-                            className="text-xs text-muted-foreground"
-                            title={new Date(log.timestamp).toLocaleString()}
-                          >
-                            {format(new Date(log.timestamp), "HH:mm:ss")}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
-                        <span
-                          className={`${getLevelBadgeClass(log.level)} ${isError ? "ring-1 ring-red-300 dark:ring-red-700" : ""}`}
-                        >
-                          {isError && <XCircle className="h-3 w-3 mr-1" />}
-                          {isWarn && <AlertTriangle className="h-3 w-3 mr-1" />}
-                          {log.level === "info" && <Info className="h-3 w-3 mr-1" />}
-                          {log.level.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                          {log.service || "system"}
-                        </span>
-                      </td>
-                      <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm">
-                        <div
-                          className={`max-w-md lg:max-w-lg truncate ${isError ? "text-red-800 dark:text-red-200 font-medium" : isWarn ? "text-amber-800 dark:text-amber-200" : "text-foreground"}`}
-                          title={log.message}
-                        >
-                          {log.message}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      {levelFilter === "error" ? (
-                        <>
-                          <CheckCircle className="h-12 w-12 text-emerald-500/30 mb-4" />
-                          <h3 className="text-lg font-medium text-foreground mb-1">
-                            No errors found
-                          </h3>
-                          <p className="text-muted-foreground text-sm">
-                            All systems running smoothly
-                          </p>
-                        </>
-                      ) : searchTerm || levelFilter !== "all" ? (
-                        <>
-                          <Search className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                          <h3 className="text-lg font-medium text-foreground mb-1">
-                            No matching logs
-                          </h3>
-                          <p className="text-muted-foreground text-sm">
-                            Try adjusting your search or filters
-                          </p>
-                          <button
-                            onClick={() => {
-                              setSearchTerm("");
-                              setLevelFilter("all");
-                            }}
-                            className="mt-4 text-sm text-primary hover:underline"
-                          >
-                            Clear filters
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <Info className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                          <h3 className="text-lg font-medium text-foreground mb-1">
-                            No logs available
-                          </h3>
-                          <p className="text-muted-foreground text-sm">
-                            Logs will appear here as events occur
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Logs Cards - Mobile */}
-      <div className="md:hidden space-y-2">
-        {filteredLogs.length > 0 ? (
-          filteredLogs.map((log, index) => {
-            const isError = log.level === "error";
-            const isWarn = log.level === "warn";
-
-            const getTimeAgo = () => {
-              try {
-                return formatDistanceToNow(new Date(log.timestamp), { addSuffix: true });
-              } catch {
-                return format(new Date(log.timestamp), "MMM dd, HH:mm:ss");
-              }
-            };
+          {filteredLogs.map((log) => {
+            const key = logRowKey(log);
+            const expanded = expandedKeys.has(key);
+            const level = log?.level;
+            const message = log?.message != null && log.message !== "" ? String(log.message) : "—";
+            const service = log?.service || "system";
+            const extras = extraLogFields(log);
 
             return (
-              <div
-                key={index}
-                className={`bg-card dark:bg-[#111111] rounded-lg border border-border dark:border-[#1a1a1a] p-3 ${
-                  isError
-                    ? "border-l-2 border-l-red-500"
-                    : isWarn
-                      ? "border-l-2 border-l-amber-500"
-                      : ""
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span
-                    className={`${getLevelBadgeClass(log.level)} ${isError ? "ring-1 ring-red-300 dark:ring-red-700" : ""}`}
-                  >
-                    {isError && <XCircle className="h-3 w-3 mr-1" />}
-                    {isWarn && <AlertTriangle className="h-3 w-3 mr-1" />}
-                    {log.level === "info" && <Info className="h-3 w-3 mr-1" />}
-                    {log.level.toUpperCase()}
-                  </span>
-                  <div className="text-right">
-                    <div
-                      className={`text-xs font-medium ${isError ? "text-red-700 dark:text-red-300" : isWarn ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}
-                    >
-                      {getTimeAgo()}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {format(new Date(log.timestamp), "HH:mm:ss")}
-                    </div>
-                  </div>
-                </div>
-                <p
-                  className={`text-sm break-words ${isError ? "text-red-800 dark:text-red-200 font-medium" : isWarn ? "text-amber-800 dark:text-amber-200" : "text-foreground"}`}
+              <div key={key} className="border-b border-border last:border-b-0">
+                <DataRow
+                  selected={expanded}
+                  aria-expanded={expanded}
+                  onClick={() => toggleExpanded(key)}
+                  className={cn(
+                    "h-auto items-stretch border-b-0 md:items-center",
+                    "flex-col gap-2 md:flex-row md:gap-3",
+                    rowPad
+                  )}
                 >
-                  {log.message}
-                </p>
-                {log.service && (
-                  <div className="mt-2 pt-2 border-t border-border">
-                    <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                      {log.service}
+                  {/* Mobile stacked */}
+                  <div className="flex w-full min-w-0 flex-col gap-2 md:hidden">
+                    <div className="flex items-start justify-between gap-2">
+                      <StatusBadge {...logLevel(level)} />
+                      <AbsoluteTime date={log.timestamp} className="text-xs" />
+                    </div>
+                    <p
+                      className={cn(
+                        "font-mono text-[13px] text-foreground",
+                        !expanded && "truncate"
+                      )}
+                    >
+                      {message}
+                    </p>
+                    <span className="inline-flex w-fit rounded-control bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                      {service}
                     </span>
                   </div>
-                )}
+
+                  {/* Desktop */}
+                  <DataCell className="hidden max-w-[11rem] flex-none basis-44 md:block">
+                    <AbsoluteTime date={log.timestamp} />
+                  </DataCell>
+                  <DataCell className="hidden max-w-[6rem] flex-none basis-24 md:block">
+                    <StatusBadge {...logLevel(level)} />
+                  </DataCell>
+                  <DataCell className="hidden max-w-[8rem] flex-none basis-32 md:block">
+                    <span className="inline-flex max-w-full truncate rounded-control bg-muted px-1.5 py-0.5 font-mono text-[12px] text-muted-foreground">
+                      {service}
+                    </span>
+                  </DataCell>
+                  <DataCell
+                    className={cn(
+                      "hidden min-w-0 flex-[2] md:block",
+                      expanded && "whitespace-normal"
+                    )}
+                    mono
+                  >
+                    <span className={cn(!expanded && "block truncate")}>{message}</span>
+                  </DataCell>
+                </DataRow>
+
+                {expanded ? (
+                  <div className="space-y-2 border-t border-border bg-muted/30 px-3 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <pre className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[13px] text-foreground">
+                        {message}
+                      </pre>
+                      <CopyButton
+                        content={message === "—" ? "" : message}
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                      />
+                    </div>
+                    {extras.length > 0 ? (
+                      <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                        {extras.map(([field, value]) => (
+                          <div key={field} className="flex min-w-0 gap-2">
+                            <dt className="shrink-0 font-medium text-foreground">{field}</dt>
+                            <dd className="min-w-0 truncate font-mono">
+                              {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             );
-          })
-        ) : (
-          <div className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm p-8 text-center">
-            {levelFilter === "error" ? (
-              <>
-                <CheckCircle className="h-10 w-10 text-emerald-500/30 mx-auto mb-3" />
-                <h3 className="text-base font-medium text-foreground mb-1">No errors found</h3>
-                <p className="text-muted-foreground text-sm">All systems running smoothly</p>
-              </>
-            ) : searchTerm || levelFilter !== "all" ? (
-              <>
-                <Search className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                <h3 className="text-base font-medium text-foreground mb-1">No matching logs</h3>
-                <p className="text-muted-foreground text-sm">
-                  Try adjusting your search or filters
-                </p>
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setLevelFilter("all");
-                  }}
-                  className="mt-3 text-sm text-primary hover:underline"
-                >
-                  Clear filters
-                </button>
-              </>
-            ) : (
-              <>
-                <Info className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                <h3 className="text-base font-medium text-foreground mb-1">No logs available</h3>
-                <p className="text-muted-foreground text-sm">
-                  Logs will appear here as events occur
-                </p>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+          })}
+        </DataTable>
+      )}
     </div>
   );
 }
