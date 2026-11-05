@@ -1,98 +1,148 @@
-import React, { useState, useEffect } from "react";
-import {
-  GitBranch,
-  CheckCircle,
-  XCircle,
-  Clock,
-  User,
-  Calendar,
-  ExternalLink,
-  Pause,
-  AlertCircle,
-  TrendingUp,
-  Timer,
-  Building,
-  RefreshCw,
-  Filter,
-} from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Building2, ExternalLink, XCircle } from "lucide-react";
+
 import { apiService } from "../api/apiService";
 import { useHealth } from "../contexts/HealthContext";
 import { useOrganization } from "../contexts/OrganizationContext";
-import ErrorMessage from "../components/ErrorMessage";
-import FilterDropdown from "../components/FilterDropdown";
 import BuildDetailModal from "../components/BuildDetailModal";
-import { format, formatDistanceToNow } from "date-fns";
+import { useSearchParamState } from "@/hooks/useSearchParamState";
+import { useDensity } from "@/hooks/useDensity";
+import { Button } from "@/components/ui/button";
+import {
+  DataCell,
+  DataHeader,
+  DataHeaderCell,
+  DataRow,
+  DataTable,
+  TimeAgo,
+} from "@/components/kit/DataTable";
+import { EmptyState } from "@/components/kit/EmptyState";
+import { InlineError, PageError } from "@/components/kit/InlineError";
+import { PageHeader } from "@/components/kit/PageHeader";
+import { SkeletonRows } from "@/components/kit/Skeletons";
+import { StatCell, StatStrip } from "@/components/kit/StatStrip";
+import { StatusBadge } from "@/components/kit/StatusBadge";
+import { SyncButton } from "@/components/kit/SyncButton";
+import {
+  ActiveFilters,
+  DensityToggle,
+  FacetFilter,
+  ResultCount,
+  SegmentedFilter,
+  Toolbar,
+} from "@/components/kit/Toolbar";
+import { buildStatus } from "@/components/kit/statusMaps";
+import { cn } from "@/lib/utils";
+
+const STATUS_VALUES = new Set([
+  "all",
+  "succeeded",
+  "failed",
+  "inProgress",
+  "canceled",
+  "partiallySucceeded",
+]);
+
+const LIMIT_OPTIONS = [
+  { value: "10", label: "10 builds" },
+  { value: "20", label: "20 builds" },
+  { value: "30", label: "30 builds" },
+  { value: "50", label: "50 builds" },
+];
+
+/** Map URL status (Dashboard deep-link) → internal filter value. */
+function normalizeStatus(raw) {
+  if (raw === "running") return "inProgress";
+  if (STATUS_VALUES.has(raw)) return raw;
+  return "all";
+}
+
+/** Map internal filter → URL status param. */
+function statusToUrl(filter) {
+  if (filter === "inProgress") return "running";
+  return filter;
+}
+
+function formatDuration(startTime, finishTime) {
+  if (!startTime) return "—";
+  const start = new Date(startTime);
+  const end = finishTime ? new Date(finishTime) : new Date();
+  const durationMs = end - start;
+  if (durationMs < 60000) return `${Math.round(durationMs / 1000)}s`;
+  if (durationMs < 3600000) return `${Math.round(durationMs / 60000)}m`;
+  const hours = Math.floor(durationMs / 3600000);
+  const minutes = Math.round((durationMs % 3600000) / 60000);
+  return `${hours}h ${minutes}m`;
+}
+
+function branchName(ref) {
+  return (ref || "").replace("refs/heads/", "") || "—";
+}
+
+function repoName(build) {
+  return build.repository?.name || build.definition?.name || "Unknown";
+}
+
+function getBuildPriority(build) {
+  if (build.status === "inProgress") return 0;
+  if (build.result === "failed") return 1;
+  if (build.result === "partiallySucceeded") return 2;
+  if (build.result === "canceled") return 3;
+  return 4;
+}
+
+function healthLabel(successRate) {
+  if (successRate < 70) return "Needs attention";
+  if (successRate < 90) return "Fair";
+  return "Healthy";
+}
 
 export default function Pipelines() {
   const { currentOrganization, currentProject, clearSwitching } = useOrganization();
+  const { checkConnection } = useHealth();
+  const { density } = useDensity();
+
   const [loading, setLoading] = useState(true);
-  const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState(null);
   const [builds, setBuilds] = useState([]);
-  const [filteredBuilds, setFilteredBuilds] = useState([]);
   const [selectedBuild, setSelectedBuild] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     succeeded: 0,
     failed: 0,
     inProgress: 0,
+    partiallySucceeded: 0,
+    canceled: 0,
   });
-
-  // Filter states
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [buildLimit, setBuildLimit] = useState(20);
-  const [repositoryFilter, setRepositoryFilter] = useState("all");
   const [repositories, setRepositories] = useState([]);
-  const { checkConnection } = useHealth();
+  const [buildLimit, setBuildLimit] = useState(20);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  // Filter and sort builds - failures first for operational clarity
-  useEffect(() => {
-    let filtered = builds;
+  const [statusParam, setStatusParam] = useSearchParamState("status", "all");
+  const [repositoryFilter, setRepositoryFilter] = useSearchParamState("repository", "all");
 
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((build) => {
-        if (statusFilter === "succeeded") return build.result === "succeeded";
-        if (statusFilter === "failed") return build.result === "failed";
-        if (statusFilter === "inProgress") return build.status === "inProgress";
-        if (statusFilter === "canceled") return build.result === "canceled";
-        return true;
-      });
-    }
+  const statusFilter = normalizeStatus(statusParam);
 
-    // Sort by operational priority: in-progress first, then failures, then others
-    const sorted = [...filtered].sort((a, b) => {
-      const getPriority = (build) => {
-        if (build.status === "inProgress") return 0; // In-progress first
-        if (build.result === "failed") return 1; // Failures second
-        if (build.result === "partiallySucceeded") return 2;
-        if (build.result === "canceled") return 3;
-        return 4; // Succeeded last
-      };
-
-      const priorityDiff = getPriority(a) - getPriority(b);
-      if (priorityDiff !== 0) return priorityDiff;
-
-      // Within same priority, sort by time (most recent first)
-      return new Date(b.startTime || 0) - new Date(a.startTime || 0);
-    });
-
-    setFilteredBuilds(sorted);
-  }, [builds, statusFilter]);
+  const rowRefs = useRef(new Map());
+  const triggerRef = useRef(null);
 
   useEffect(() => {
-    if (currentOrganization) {
-      loadPipelinesData();
+    if (statusParam === "running") return;
+    if (statusParam && !STATUS_VALUES.has(statusParam) && statusParam !== "running") {
+      setStatusParam("all");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildLimit, repositoryFilter, currentOrganization, currentProject]);
+  }, [statusParam, setStatusParam]);
 
-  const handleSync = async () => {
-    await Promise.all([checkConnection(), loadPipelinesData()]);
-  };
+  const setStatusFilter = useCallback(
+    (next) => {
+      setStatusParam(statusToUrl(normalizeStatus(next)));
+    },
+    [setStatusParam]
+  );
 
-  const loadPipelinesData = async () => {
+  const loadPipelinesData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -101,678 +151,447 @@ export default function Pipelines() {
       const buildsList = buildsData?.value || [];
       setBuilds(buildsList);
 
-      // Extract unique repositories for filter dropdown
-      const uniqueRepos = [
-        ...new Set(
-          buildsList.map((build) => build.repository?.name || build.definition?.name || "Unknown")
-        ),
-      ]
+      const uniqueRepos = [...new Set(buildsList.map((build) => repoName(build)))]
         .filter(Boolean)
         .sort();
       setRepositories(uniqueRepos);
 
-      // Calculate stats
-      const newStats = {
+      setStats({
         total: buildsList.length,
         succeeded: buildsList.filter((b) => b.result === "succeeded").length,
         failed: buildsList.filter((b) => b.result === "failed").length,
         inProgress: buildsList.filter((b) => b.status === "inProgress").length,
-      };
-      setStats(newStats);
+        partiallySucceeded: buildsList.filter((b) => b.result === "partiallySucceeded").length,
+        canceled: buildsList.filter((b) => b.result === "canceled").length,
+      });
+      setLastSyncedAt(new Date());
+      setHasLoadedOnce(true);
       setLoading(false);
-      setInitialLoad(false);
-      clearSwitching(); // Clear switching overlay
+      clearSwitching();
     } catch (err) {
       setError(
         err.userMessage || "Failed to load pipelines. Please check your Azure DevOps configuration."
       );
       setLoading(false);
-      clearSwitching(); // Clear switching overlay on error
-      // Don't set initialLoad to false on error so error page shows
+      clearSwitching();
     }
+  }, [buildLimit, repositoryFilter, clearSwitching]);
+
+  useEffect(() => {
+    if (currentOrganization) {
+      loadPipelinesData();
+    }
+  }, [currentOrganization, currentProject, loadPipelinesData]);
+
+  const handleSync = async () => {
+    await Promise.all([checkConnection(), loadPipelinesData()]);
   };
 
-  const getBuildStatusIcon = (result, status) => {
-    if (status === "inProgress") {
-      return <Building className="h-5 w-5 text-blue-500 dark:text-blue-400 animate-pulse" />;
+  const filteredBuilds = useMemo(() => {
+    let filtered = builds;
+
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((build) => {
+        if (statusFilter === "succeeded") return build.result === "succeeded";
+        if (statusFilter === "failed") return build.result === "failed";
+        if (statusFilter === "inProgress") return build.status === "inProgress";
+        if (statusFilter === "canceled") return build.result === "canceled";
+        if (statusFilter === "partiallySucceeded") return build.result === "partiallySucceeded";
+        return true;
+      });
     }
-    switch (result) {
-      case "succeeded":
-        return <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />;
-      case "failed":
-        return <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
-      case "canceled":
-        return <Pause className="h-5 w-5 text-muted-foreground" />;
-      case "partiallySucceeded":
-        return <AlertCircle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />;
-      default:
-        return <Clock className="h-5 w-5 text-muted-foreground" />;
-    }
+
+    return [...filtered].sort((a, b) => {
+      const priorityDiff = getBuildPriority(a) - getBuildPriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+      return new Date(b.startTime || 0) - new Date(a.startTime || 0);
+    });
+  }, [builds, statusFilter]);
+
+  const openBuild = (build, index) => {
+    const el = rowRefs.current.get(index);
+    if (el) triggerRef.current = el;
+    setSelectedBuild(build);
+    setIsSheetOpen(true);
   };
 
-  const getBuildStatusBadge = (result, status) => {
-    // Neutral bg, colored text/icon only
-    if (status === "inProgress") {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400">
-          <Building className="h-3 w-3" /> In Progress
-        </span>
-      );
-    }
-    switch (result) {
-      case "succeeded":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-emerald-600 dark:text-emerald-400">
-            <CheckCircle className="h-3 w-3" /> Succeeded
-          </span>
-        );
-      case "failed":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400">
-            <XCircle className="h-3 w-3" /> Failed
-          </span>
-        );
-      case "canceled":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-            <Pause className="h-3 w-3" /> Canceled
-          </span>
-        );
-      case "partiallySucceeded":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-amber-600 dark:text-amber-400">
-            <AlertCircle className="h-3 w-3" /> Partial
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-            <Clock className="h-3 w-3" /> {status || "Unknown"}
-          </span>
-        );
-    }
+  const closeSheet = () => {
+    setIsSheetOpen(false);
+    setSelectedBuild(null);
   };
 
-  const formatDuration = (startTime, finishTime) => {
-    if (!startTime) return "N/A";
-    const start = new Date(startTime);
-    const end = finishTime ? new Date(finishTime) : new Date();
-    const durationMs = end - start;
-    if (durationMs < 60000) return `${Math.round(durationMs / 1000)}s`;
-    if (durationMs < 3600000) return `${Math.round(durationMs / 60000)}m`;
-    const hours = Math.floor(durationMs / 3600000);
-    const minutes = Math.round((durationMs % 3600000) / 60000);
-    return `${hours}h ${minutes}m`;
+  const navigateSheet = (nextIndex) => {
+    const build = filteredBuilds[nextIndex];
+    if (!build) return;
+    const el = rowRefs.current.get(nextIndex);
+    if (el) triggerRef.current = el;
+    setSelectedBuild(build);
   };
 
-  if (error && initialLoad) {
-    return <ErrorMessage message={error} onRetry={loadPipelinesData} />;
+  const clearFilters = (id) => {
+    if (!id) {
+      setStatusFilter("all");
+      setRepositoryFilter("all");
+      setBuildLimit(20);
+      return;
+    }
+    if (id === "status") setStatusFilter("all");
+    if (id === "repository") setRepositoryFilter("all");
+    if (id === "limit") setBuildLimit(20);
+  };
+
+  const statusLabels = {
+    succeeded: "Succeeded",
+    failed: "Failed",
+    inProgress: "In Progress",
+    canceled: "Canceled",
+    partiallySucceeded: "Partially Succeeded",
+  };
+
+  const activeChips = [];
+  if (statusFilter !== "all") {
+    activeChips.push({ id: "status", label: statusLabels[statusFilter] || statusFilter });
+  }
+  if (repositoryFilter && repositoryFilter !== "all") {
+    activeChips.push({ id: "repository", label: repositoryFilter });
+  }
+  if (buildLimit !== 20) {
+    activeChips.push({ id: "limit", label: `${buildLimit} builds` });
   }
 
-  const refreshIconClass =
-    "w-3.5 h-3.5 transition-transform duration-300 " +
-    (loading ? "animate-spin" : "group-hover:rotate-180");
+  const successRate = stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 100) : 0;
+  const barSucceeded = stats.succeeded;
+  const barFailed = stats.failed;
+  const barRunning = stats.inProgress;
+  const barTotal = Math.max(stats.total, 1);
+
+  const headerStatus = (() => {
+    if (loading && !hasLoadedOnce) return null;
+    if (stats.total === 0) return null;
+    if (stats.failed > 0) {
+      return <StatusBadge tone="danger" label={`${stats.failed} failed`} />;
+    }
+    if (stats.inProgress > 0) {
+      return <StatusBadge tone="info" label={`${stats.inProgress} running`} />;
+    }
+    return <StatusBadge tone="success" label="All passing" />;
+  })();
+
+  const statusOptions = [
+    { value: "all", label: "All", count: builds.length },
+    { value: "succeeded", label: "Succeeded", count: stats.succeeded },
+    { value: "failed", label: "Failed", count: stats.failed },
+    { value: "inProgress", label: "In Progress", count: stats.inProgress },
+    { value: "canceled", label: "Canceled", count: stats.canceled },
+    {
+      value: "partiallySucceeded",
+      label: "Partial",
+      count: stats.partiallySucceeded,
+    },
+  ];
+
+  const repoOptions = [
+    { value: "all", label: "All repositories" },
+    ...repositories.map((repo) => ({ value: repo, label: repo })),
+  ];
+
+  const rowPad = density === "compact" ? "py-1.5" : density === "comfortable" ? "py-3" : "py-2";
+
+  const showPageError = error && !hasLoadedOnce && builds.length === 0;
+  const showInlineError = Boolean(error) && !showPageError;
+  const filtersActive = activeChips.length > 0;
 
   return (
-    <div className="space-y-6">
-      <style>{`
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200px 0; }
-          100% { background-position: calc(200px + 100%) 0; }
-        }
-        .animate-slide-up {
-          animation: slideUp 0.6s ease-out;
-        }
-        .shimmer {
-          background: linear-gradient(90deg, 
-            hsl(var(--muted)) 25%, 
-            hsl(var(--muted) / 0.5) 50%, 
-            hsl(var(--muted)) 75%
-          );
-          background-size: 200px 100%;
-          animation: shimmer 1.5s infinite;
-        }
-        .card-hover {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .card-hover:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
-            0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-        
-        /* Custom Scrollbar - Refined */
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(148, 163, 184, 0.4);
-          border-radius: 6px;
-          transition: all 0.2s ease;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(148, 163, 184, 0.7);
-        }
-        .custom-scrollbar {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
-        }
-      `}</style>
+    <div className="space-y-4 md:space-y-5">
+      <PageHeader
+        title="Pipelines"
+        description="Recent builds and failure analysis"
+        status={headerStatus}
+        actions={<SyncButton onSync={handleSync} isSyncing={loading} lastSyncedAt={lastSyncedAt} />}
+      />
 
-      <div className={initialLoad ? "animate-slide-up" : ""}>
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-foreground tracking-tight">Pipelines</h1>
-              {/* Quick health indicator - neutral bg, colored text/icon */}
-              {!loading &&
-                (stats.failed > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
-                    <XCircle className="h-3 w-3 text-red-500" />
-                    <span className="text-red-600 dark:text-red-400">{stats.failed} failed</span>
-                  </span>
-                ) : stats.inProgress > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
-                    <Building className="h-3 w-3 text-blue-500" />
-                    <span className="text-blue-600 dark:text-blue-400">
-                      {stats.inProgress} running
-                    </span>
-                  </span>
-                ) : stats.total > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
-                    All passing
-                  </span>
-                ) : null)}
+      <div className="space-y-2">
+        <StatStrip loading={loading && !hasLoadedOnce}>
+          <StatCell
+            label="Succeeded"
+            value={stats.succeeded}
+            sub={
+              stats.total > 0
+                ? `${Math.round((stats.succeeded / stats.total) * 100)}% of builds`
+                : "No builds"
+            }
+            tone="success"
+            onClick={() => setStatusFilter("succeeded")}
+          />
+          <StatCell
+            label="Failed Builds"
+            value={stats.failed}
+            sub={stats.failed > 0 ? "Check logs" : "Healthy"}
+            tone={stats.failed > 0 ? "danger" : "success"}
+            onClick={() => setStatusFilter("failed")}
+          />
+          <StatCell
+            label="In Progress"
+            value={stats.inProgress}
+            sub={stats.inProgress > 0 ? "Running now" : "Idle"}
+            tone="info"
+            onClick={() => setStatusFilter("inProgress")}
+          />
+        </StatStrip>
+
+        {!(loading && !hasLoadedOnce) && stats.total > 0 ? (
+          <div className="space-y-1.5 px-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{healthLabel(successRate)}</span>
+                <span className="mx-1.5 text-border">·</span>
+                {successRate}% succeeded
+              </p>
+              <p className="text-xs tabular-nums text-muted-foreground">
+                {barSucceeded} succeeded ({Math.round((barSucceeded / barTotal) * 100)}%)
+                <span className="mx-1.5">·</span>
+                {barFailed} failed ({Math.round((barFailed / barTotal) * 100)}%)
+                <span className="mx-1.5">·</span>
+                {barRunning} running ({Math.round((barRunning / barTotal) * 100)}%)
+              </p>
             </div>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              {!loading && stats.failed > 0
-                ? `${stats.failed} build${stats.failed > 1 ? "s" : ""} need attention`
-                : "Recent build and deployment status"}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSync}
-              disabled={loading}
-              className="group flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
+            <div
+              className="flex h-1.5 w-full overflow-hidden rounded-control bg-muted"
+              role="img"
+              aria-label={`Build health: ${barSucceeded} succeeded, ${barFailed} failed, ${barRunning} running`}
             >
-              <RefreshCw className={refreshIconClass} />
-              Sync
-            </button>
+              {barSucceeded > 0 ? (
+                <div
+                  className="h-full bg-success"
+                  style={{ width: `${(barSucceeded / barTotal) * 100}%` }}
+                />
+              ) : null}
+              {barFailed > 0 ? (
+                <div
+                  className="h-full bg-danger"
+                  style={{ width: `${(barFailed / barTotal) * 100}%` }}
+                />
+              ) : null}
+              {barRunning > 0 ? (
+                <div
+                  className="h-full bg-info"
+                  style={{ width: `${(barRunning / barTotal) * 100}%` }}
+                />
+              ) : null}
+              {barSucceeded + barFailed + barRunning < stats.total ? (
+                <div
+                  className="h-full bg-muted-foreground/30"
+                  style={{
+                    width: `${((stats.total - barSucceeded - barFailed - barRunning) / barTotal) * 100}%`,
+                  }}
+                />
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
-      {loading ? (
-        <div
-          className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 animate-fade-in"
-          style={{ animationDelay: "0.1s" }}
-        >
-          {Array.from({ length: 4 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-pulse"
-              style={{ animationDelay: `${idx * 0.1}s` }}
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-5 h-5 shimmer rounded" />
-                  <div className="w-12 h-4 shimmer rounded-full" />
-                </div>
-                <div className="w-8 h-8 shimmer rounded mb-0.5" />
-                <div className="w-20 h-3 shimmer rounded" />
-                <div className="w-16 h-3 shimmer rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="space-y-2">
+        <Toolbar className="lg:flex-nowrap">
+          <div className="flex w-full min-w-0 flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
+            <FacetFilter
+              label="Repository"
+              options={repoOptions}
+              value={repositoryFilter === "all" ? "" : repositoryFilter}
+              onChange={(v) => setRepositoryFilter(v || "all")}
+            />
+            <SegmentedFilter
+              className="h-auto max-w-full flex-wrap"
+              options={statusOptions}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
+            {stats.failed > 0 && statusFilter !== "failed" ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-danger-foreground"
+                onClick={() => setStatusFilter("failed")}
+              >
+                <XCircle className="size-3.5" aria-hidden="true" />
+                Show failures
+              </Button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <FacetFilter
+              label="Count"
+              options={LIMIT_OPTIONS}
+              value={String(buildLimit)}
+              onChange={(v) => {
+                const n = Number(v);
+                if ([10, 20, 30, 50].includes(n)) setBuildLimit(n);
+              }}
+            />
+            <DensityToggle />
+            <ResultCount shown={filteredBuilds.length} total={builds.length} noun="builds" />
+          </div>
+        </Toolbar>
+        <ActiveFilters chips={activeChips} onClear={clearFilters} />
+      </div>
+
+      {showInlineError ? <InlineError message={error} onRetry={loadPipelinesData} /> : null}
+
+      {showPageError ? (
+        <PageError message={error} onRetry={loadPipelinesData} />
+      ) : loading && !hasLoadedOnce ? (
+        <SkeletonRows rows={6} columns={4} />
+      ) : filteredBuilds.length === 0 ? (
+        <EmptyState
+          icon={<Building2 />}
+          title={
+            filtersActive || statusFilter !== "all"
+              ? "No builds match your filters"
+              : "No builds found"
+          }
+          description={
+            filtersActive || statusFilter !== "all"
+              ? "Clear filters to see all recent builds."
+              : "No recent builds found. Check your Azure DevOps configuration or trigger a build."
+          }
+          action={
+            filtersActive || statusFilter !== "all" ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => clearFilters()}>
+                Clear filters
+              </Button>
+            ) : null
+          }
+        />
       ) : (
-        <div
-          className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 animate-fade-in"
-          style={{ animationDelay: "0.1s" }}
-        >
-          {/* Succeeded Card - neutral */}
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <CheckCircle className="h-5 w-5 text-emerald-500" />
-              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                Passed
-              </span>
-            </div>
-            <div className="mb-3">
-              <div className="text-2xl font-bold text-foreground mb-0.5">{stats.succeeded}</div>
-              <div className="text-sm text-muted-foreground">Succeeded</div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {stats.total > 0
-                ? `${Math.round((stats.succeeded / stats.total) * 100)}% of ${stats.total} builds`
-                : "No builds"}
-            </div>
-          </div>
+        <DataTable maxHeight="min(55vh, 640px)" className="min-h-[12rem]">
+          <DataHeader className="hidden md:flex">
+            <DataHeaderCell className="max-w-[7rem] flex-none basis-28">Status</DataHeaderCell>
+            <DataHeaderCell className="min-w-0 flex-[2]">Pipeline</DataHeaderCell>
+            <DataHeaderCell className="min-w-0">Repository</DataHeaderCell>
+            <DataHeaderCell className="min-w-0">Triggered by</DataHeaderCell>
+            <DataHeaderCell className="max-w-[5rem] flex-none basis-20" align="right">
+              Duration
+            </DataHeaderCell>
+            <DataHeaderCell className="max-w-[7rem] flex-none basis-28" align="right">
+              Started
+            </DataHeaderCell>
+          </DataHeader>
 
-          {/* Failed Card - neutral with colored icon/text only */}
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <XCircle
-                className={`h-5 w-5 ${stats.failed > 0 ? "text-red-500" : "text-muted-foreground"}`}
-              />
-              <span
-                className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                  stats.failed > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
-                }`}
-              >
-                {stats.failed > 0 ? `${stats.failed} failed` : "Healthy"}
-              </span>
-            </div>
-            <div className="mb-3">
-              <div
-                className={`text-2xl font-bold mb-0.5 ${stats.failed > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}
-              >
-                {stats.failed}
-              </div>
-              <div className="text-sm text-muted-foreground">Failed Builds</div>
-            </div>
-            <div
-              className={`text-xs ${stats.failed > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
-            >
-              {stats.failed > 0 ? "Check logs for failures" : "All builds passing"}
-            </div>
-          </div>
+          {filteredBuilds.map((build, index) => {
+            const selected = selectedBuild?.id === build.id && isSheetOpen;
+            const defName = build.definition?.name || "Unknown";
+            const branch = branchName(build.sourceBranch);
+            const repo = repoName(build);
+            const triggeredBy = build.requestedBy?.displayName || "Unknown";
+            const duration = formatDuration(build.startTime, build.finishTime);
+            const adoUrl = build._links?.web?.href;
 
-          {/* In Progress Card - neutral */}
-          <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <Building
-                className={`h-5 w-5 ${stats.inProgress > 0 ? "text-blue-500" : "text-muted-foreground"}`}
-              />
-              <span
-                className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                  stats.inProgress > 0
-                    ? "text-blue-600 dark:text-blue-400"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {stats.inProgress > 0 ? "Running" : "Idle"}
-              </span>
-            </div>
-            <div className="mb-3">
-              <div
-                className={`text-2xl font-bold mb-0.5 ${stats.inProgress > 0 ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}
-              >
-                {stats.inProgress}
-              </div>
-              <div className="text-sm text-muted-foreground">In Progress</div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {stats.inProgress > 0 ? "Builds running now" : "No active builds"}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Recent Builds - Show skeleton while loading */}
-      {loading ? (
-        <div
-          className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
-          style={{ animationDelay: "0.2s" }}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-5 h-5 shimmer rounded animate-pulse"></div>
-              <div className="h-6 shimmer rounded w-32 animate-pulse"></div>
-            </div>
-            <div className="h-5 shimmer rounded-full w-20 animate-pulse"></div>
-          </div>
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                className="bg-muted border border-border rounded-lg p-4 animate-pulse"
-                style={{ animationDelay: `${0.3 + index * 0.1}s` }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 shimmer rounded-full"></div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="h-4 shimmer rounded w-32"></div>
-                      <div className="h-4 shimmer rounded w-16"></div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="h-3 shimmer rounded w-20"></div>
-                      <div className="h-3 shimmer rounded w-16"></div>
-                      <div className="h-3 shimmer rounded w-12"></div>
-                      <div className="h-3 shimmer rounded w-24"></div>
-                    </div>
-                  </div>
-                  <div className="h-6 shimmer rounded-full w-16"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div
-          className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
-          style={{ animationDelay: "0.2s" }}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <Building className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <h3 className="text-xl font-semibold text-foreground">Recent Builds</h3>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <FilterDropdown
-                options={[
-                  { value: 10, label: "10 builds" },
-                  { value: 20, label: "20 builds" },
-                  { value: 30, label: "30 builds" },
-                  { value: 40, label: "40 builds" },
-                  { value: 50, label: "50 builds" },
-                ]}
-                value={buildLimit}
-                onChange={setBuildLimit}
-                icon={Building}
-                placeholder="20 builds"
-                minWidth="100px"
-              />
-              <FilterDropdown
-                options={[
-                  { value: "all", label: "All Repositories" },
-                  ...repositories.map((repo) => ({ value: repo, label: repo })),
-                ]}
-                value={repositoryFilter}
-                onChange={setRepositoryFilter}
-                icon={GitBranch}
-                placeholder="All Repositories"
-                minWidth="150px"
-              />
-              <FilterDropdown
-                options={[
-                  { value: "all", label: "All Status" },
-                  { value: "succeeded", label: "Succeeded" },
-                  { value: "failed", label: "Failed" },
-                  { value: "inProgress", label: "In Progress" },
-                  { value: "canceled", label: "Canceled" },
-                ]}
-                value={statusFilter}
-                onChange={setStatusFilter}
-                icon={Filter}
-                placeholder="All Status"
-                minWidth="120px"
-              />
-
-              {/* Quick filter for failures */}
-              {stats.failed > 0 && statusFilter !== "failed" && (
-                <button
-                  onClick={() => setStatusFilter("failed")}
-                  className="text-xs text-red-600 dark:text-red-400 hover:bg-muted px-2.5 py-1.5 rounded-full transition-colors flex items-center gap-1 bg-muted"
-                  title="Show only failed builds"
-                >
-                  <XCircle className="w-3 h-3" />
-                  Show failures
-                </button>
-              )}
-
-              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                {filteredBuilds.length} builds
-              </span>
-            </div>
-          </div>
-
-          <ScrollArea className="h-[45vh] border border-border dark:border-[#1a1a1a] rounded-lg bg-card dark:bg-[#111111]">
-            {filteredBuilds.length > 0 ? (
-              <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-                {filteredBuilds.map((build) => {
-                  const isFailed = build.result === "failed";
-                  const isInProgress = build.status === "inProgress";
-
-                  return (
-                    <div
-                      key={build.id}
-                      className={`px-6 py-4 hover:bg-muted/50 transition-colors group cursor-pointer ${
-                        isFailed
-                          ? "border-l-2 border-l-red-500"
-                          : isInProgress
-                            ? "border-l-2 border-l-blue-500"
-                            : ""
-                      }`}
-                      onClick={() => {
-                        setSelectedBuild(build);
-                        setIsModalOpen(true);
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-5">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          {getBuildStatusIcon(build.result, build.status)}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-sm font-medium text-foreground truncate">
-                                {build.definition?.name || "Unknown"}
-                              </h4>
-                              <span className="text-xs text-muted-foreground font-mono">
-                                #{build.buildNumber}
-                              </span>
-                              {build._links?.web?.href && (
-                                <a
-                                  href={build._links.web.href}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
-                                  title="Open in Azure DevOps"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <ExternalLink className="h-3 w-3" />
-                                </a>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground whitespace-nowrap">
-                              <span className="flex items-center gap-1 shrink-0">
-                                <GitBranch className="h-3 w-3 shrink-0" />
-                                <span className="truncate max-w-[120px]">
-                                  {build.sourceBranch?.replace("refs/heads/", "") || "N/A"}
-                                </span>
-                              </span>
-                              <span className="flex items-center gap-1 shrink-0">
-                                <User className="h-3 w-3 shrink-0" />
-                                <span className="truncate max-w-[100px]">
-                                  {build.requestedBy?.displayName || "Unknown"}
-                                </span>
-                              </span>
-                              <span className="flex items-center gap-1 shrink-0">
-                                <Timer className="h-3 w-3 shrink-0" />
-                                {formatDuration(build.startTime, build.finishTime)}
-                              </span>
-                              <span
-                                className="flex items-center gap-1 shrink-0"
-                                title={
-                                  build.startTime
-                                    ? format(new Date(build.startTime), "MMM d, yyyy HH:mm")
-                                    : "N/A"
-                                }
-                              >
-                                <Clock className="h-3 w-3 shrink-0" />
-                                {build.startTime
-                                  ? formatDistanceToNow(new Date(build.startTime), {
-                                      addSuffix: true,
-                                    })
-                                  : "N/A"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        {getBuildStatusBadge(build.result, build.status)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <Building className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                <p>{statusFilter !== "all" ? "No builds match your filter" : "No builds found"}</p>
-                {statusFilter !== "all" && (
-                  <button
-                    onClick={() => setStatusFilter("all")}
-                    className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
-                  >
-                    Clear filter to see all builds
-                  </button>
+            return (
+              <DataRow
+                key={build.id}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(index, el);
+                  else rowRefs.current.delete(index);
+                }}
+                selected={selected}
+                onClick={() => openBuild(build, index)}
+                className={cn(
+                  "h-auto items-stretch md:items-center",
+                  "flex-col gap-2 md:flex-row md:gap-3",
+                  rowPad
                 )}
-              </div>
-            )}
-          </ScrollArea>
-        </div>
+              >
+                {/* Mobile stacked */}
+                <div className="flex w-full min-w-0 flex-col gap-2 md:hidden">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-0.5 text-left">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm font-medium text-foreground">
+                          {defName}
+                        </span>
+                        <span className="shrink-0 font-mono text-[13px] tabular-nums text-muted-foreground">
+                          #{build.buildNumber}
+                        </span>
+                        {adoUrl ? (
+                          <a
+                            href={adoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            aria-label="Open in Azure DevOps"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="size-3.5" aria-hidden="true" />
+                          </a>
+                        ) : null}
+                      </div>
+                      <p className="truncate font-mono text-[12px] text-muted-foreground">
+                        {branch}
+                      </p>
+                    </div>
+                    <StatusBadge {...buildStatus(build)} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="truncate max-w-[10rem]">{repo}</span>
+                    <span className="truncate max-w-[8rem]">{triggeredBy}</span>
+                    <span className="tabular-nums">{duration}</span>
+                    {build.startTime ? <TimeAgo date={build.startTime} /> : null}
+                  </div>
+                </div>
+
+                {/* Desktop columns */}
+                <DataCell className="hidden max-w-[7rem] flex-none basis-28 md:block">
+                  <StatusBadge {...buildStatus(build)} />
+                </DataCell>
+                <DataCell className="hidden min-w-0 flex-[2] md:block">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-medium text-foreground">{defName}</span>
+                    <span className="shrink-0 font-mono text-[13px] tabular-nums text-muted-foreground">
+                      #{build.buildNumber}
+                    </span>
+                    {adoUrl ? (
+                      <a
+                        href={adoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        aria-label="Open in Azure DevOps"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="size-3.5" aria-hidden="true" />
+                      </a>
+                    ) : null}
+                  </div>
+                  <p className="truncate font-mono text-[12px] text-muted-foreground">{branch}</p>
+                </DataCell>
+                <DataCell className="hidden truncate md:block">{repo}</DataCell>
+                <DataCell className="hidden truncate md:block">{triggeredBy}</DataCell>
+                <DataCell
+                  className="hidden max-w-[5rem] flex-none basis-20 md:block"
+                  tabular
+                  align="right"
+                >
+                  {duration}
+                </DataCell>
+                <DataCell className="hidden max-w-[7rem] flex-none basis-28 md:block" align="right">
+                  {build.startTime ? <TimeAgo date={build.startTime} /> : "—"}
+                </DataCell>
+              </DataRow>
+            );
+          })}
+        </DataTable>
       )}
 
-      {/* Build Success Rate - Show skeleton while loading */}
-      {loading ? (
-        <div
-          className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
-          style={{ animationDelay: "0.3s" }}
-        >
-          <div className="flex items-center justify-between mb-4 animate-pulse">
-            <div className="flex items-center gap-3">
-              <div className="w-5 h-5 shimmer rounded"></div>
-              <div className="h-5 shimmer rounded w-32"></div>
-            </div>
-            <div className="h-8 shimmer rounded w-12"></div>
-          </div>
-          <div className="mb-4">
-            <div className="w-full shimmer rounded-full h-2 animate-pulse"></div>
-          </div>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="text-center animate-pulse">
-                <div className="h-5 sm:h-6 shimmer rounded w-8 mx-auto mb-1"></div>
-                <div className="h-3 shimmer rounded w-14 sm:w-16 mx-auto"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        builds.length > 0 &&
-        (() => {
-          const successRate =
-            stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 100) : 0;
-          // Health-based color: red < 70%, yellow 70-90%, green > 90%
-          const isHealthy = successRate >= 90;
-          const isWarning = successRate >= 70 && successRate < 90;
-          const isCritical = successRate < 70;
-
-          const rateColor = isCritical
-            ? "text-red-600 dark:text-red-400"
-            : isWarning
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-emerald-600 dark:text-emerald-400";
-
-          const barColor = isCritical
-            ? "from-red-500 to-red-600"
-            : isWarning
-              ? "from-amber-500 to-amber-600"
-              : "from-emerald-500 to-emerald-600";
-
-          const iconColor = isCritical
-            ? "text-red-600 dark:text-red-400"
-            : isWarning
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-emerald-600 dark:text-emerald-400";
-
-          return (
-            <div
-              className="bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
-              style={{ animationDelay: "0.3s" }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <TrendingUp className={`h-5 w-5 ${iconColor}`} />
-                  <h3 className="text-lg font-semibold text-foreground">Build Health</h3>
-                  <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                      isCritical
-                        ? "text-red-600 dark:text-red-400"
-                        : isWarning
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-muted-foreground"
-                    }`}
-                  >
-                    {isCritical ? "Needs attention" : isWarning ? "Fair" : "Healthy"}
-                  </span>
-                </div>
-                <div className={`text-2xl font-bold ${rateColor}`}>{successRate}%</div>
-              </div>
-
-              <div className="mb-4">
-                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                  <div
-                    className={`bg-gradient-to-r ${barColor} h-2 rounded-full transition-all duration-1000 ease-out`}
-                    style={{
-                      width: `${successRate}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <div className="text-center">
-                  <div className="text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                    {stats.succeeded}
-                  </div>
-                  <div className="text-[10px] sm:text-xs text-muted-foreground">Succeeded</div>
-                </div>
-                <div className="text-center">
-                  <div
-                    className={`text-base sm:text-lg font-bold ${stats.failed > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
-                  >
-                    {stats.failed}
-                  </div>
-                  <div className="text-[10px] sm:text-xs text-muted-foreground">Failed</div>
-                </div>
-                <div className="text-center">
-                  <div
-                    className={`text-base sm:text-lg font-bold ${stats.inProgress > 0 ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}`}
-                  >
-                    {stats.inProgress}
-                  </div>
-                  <div className="text-[10px] sm:text-xs text-muted-foreground">Running</div>
-                </div>
-              </div>
-            </div>
-          );
-        })()
-      )}
-
-      {builds.length === 0 && !loading && (
-        <div className="card text-center py-12">
-          <GitBranch className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No Builds Found</h3>
-          <p className="text-muted-foreground">
-            No recent builds found. Check your Azure DevOps configuration or trigger a build.
-          </p>
-        </div>
-      )}
-
-      {/* Build Detail Modal */}
       <BuildDetailModal
         build={selectedBuild}
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedBuild(null);
-        }}
+        isOpen={isSheetOpen}
+        onClose={closeSheet}
+        list={filteredBuilds}
+        onNavigate={navigateSheet}
+        triggerRef={triggerRef}
       />
     </div>
   );
