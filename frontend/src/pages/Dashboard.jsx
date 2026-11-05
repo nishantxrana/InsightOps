@@ -354,7 +354,7 @@ export default function Dashboard() {
                 )}
                 {stats.workItems.overdue > 0 && (
                   <Link
-                    to="/work-items"
+                    to="/work-items?tab=overdue"
                     className="group flex items-center gap-3 p-3 bg-muted/50 rounded-xl border border-border hover:bg-muted transition-colors cursor-pointer flex-1 min-w-[200px]"
                   >
                     <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
@@ -400,7 +400,10 @@ export default function Dashboard() {
         style={{ animationDelay: "0.1s" }}
       >
         {/* Work Items */}
-        <Link to="/work-items" className="block">
+        <Link
+          to={stats.workItems.overdue > 0 ? "/work-items?tab=overdue" : "/work-items"}
+          className="block"
+        >
           <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm cursor-pointer">
             {loadingStates.workItems ? (
               <div className="space-y-3">
