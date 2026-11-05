@@ -45,9 +45,10 @@ export function TagInput({
             <button
               type="button"
               onClick={() => removeTag(tag)}
-              className="ml-1 hover:bg-muted rounded-full"
+              className="ml-1 rounded-full hover:bg-muted"
+              aria-label={`Remove ${tag}`}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3 w-3" aria-hidden />
             </button>
           </Badge>
         ))}

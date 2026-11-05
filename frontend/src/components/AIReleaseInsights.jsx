@@ -43,7 +43,7 @@ const AIReleaseInsights = ({ enabled = false, onToggle }) => {
   };
 
   return (
-    <div className="bg-card dark:bg-[#111111] p-6 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in">
+    <div className="rounded-panel border border-border bg-surface p-6 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Brain className="h-5 w-5 text-purple-600 dark:text-purple-400" />

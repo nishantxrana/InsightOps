@@ -1,15 +1,10 @@
-import React, { useCallback } from "react";
-import { Bell } from "lucide-react";
+import { useCallback } from "react";
 import { Switch } from "../../components/ui/switch";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
+import { StatusBadge } from "@/components/kit/StatusBadge";
+import { SettingsSectionHeader } from "@/components/kit/SettingsSectionHeader";
+import { SettingsPanel } from "@/components/kit/SettingsPanel";
+import { SettingRow } from "@/components/kit/SettingRow";
 
 export default function NotificationsSection({ data, onChange }) {
   const handleChange = useCallback(
@@ -20,39 +15,41 @@ export default function NotificationsSection({ data, onChange }) {
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-green-600" />
-          Notifications
-        </CardTitle>
-        <CardDescription>Configure notification settings for Azure DevOps events</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <Label htmlFor="notifications-enabled">Enable notifications</Label>
-            <p className="text-xs text-muted-foreground mt-1">
-              Get notified about build failures, idle PRs, and overdue work items
-            </p>
-          </div>
-          <Switch
-            id="notifications-enabled"
-            checked={data.enabled}
-            onCheckedChange={(checked) => handleChange("enabled", checked)}
-          />
-        </div>
+    <div className="space-y-4">
+      <SettingsSectionHeader
+        title="Notifications"
+        description="Configure notification settings for Azure DevOps events"
+      />
 
-        <div
-          className={`space-y-4 p-4 border rounded-lg ${!data.enabled ? "opacity-50 pointer-events-none" : ""}`}
+      <SettingsPanel>
+        <SettingRow
+          id="notifications-enabled"
+          htmlFor="notifications-enabled"
+          label="Enable notifications"
+          description="Get notified about build failures, idle PRs, and overdue work items"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="gchat-enabled">Google Chat</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Send notifications to a Google Chat space
-              </p>
-            </div>
+          <div className="flex justify-end">
+            <Switch
+              id="notifications-enabled"
+              checked={data.enabled}
+              onCheckedChange={(checked) => handleChange("enabled", checked)}
+            />
+          </div>
+        </SettingRow>
+      </SettingsPanel>
+
+      <SettingsPanel
+        title="Google Chat"
+        description="Send notifications to a Google Chat space"
+        className={!data.enabled ? "opacity-50 pointer-events-none" : undefined}
+      >
+        <SettingRow
+          id="gchat-enabled"
+          htmlFor="gchat-enabled"
+          label="Enable Google Chat"
+          description="Deliver alerts to the webhook below"
+        >
+          <div className="flex justify-end">
             <Switch
               id="gchat-enabled"
               checked={data.googleChatEnabled}
@@ -60,46 +57,51 @@ export default function NotificationsSection({ data, onChange }) {
               disabled={!data.enabled}
             />
           </div>
-          {data.googleChatEnabled && (
-            <div className="space-y-2">
-              <Input
-                placeholder="https://chat.googleapis.com/v1/spaces/..."
-                value={data.googleChatWebhookUrl}
-                onChange={(e) => handleChange("googleChatWebhookUrl", e.target.value)}
-                disabled={!data.enabled}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                <a
-                  href="https://developers.google.com/chat/how-tos/webhooks"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  How to create a webhook →
-                </a>
-              </p>
-            </div>
-          )}
-        </div>
+        </SettingRow>
 
-        {/* Collapsed Coming Soon section */}
-        <details className="group">
-          <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
-            More integrations coming soon...
-          </summary>
-          <div className="mt-3 space-y-3 opacity-50">
-            <div className="flex items-center justify-between p-3 border rounded-lg">
-              <Label className="text-muted-foreground">Microsoft Teams</Label>
-              <Switch disabled />
-            </div>
-            <div className="flex items-center justify-between p-3 border rounded-lg">
-              <Label className="text-muted-foreground">Slack</Label>
-              <Switch disabled />
-            </div>
+        {data.googleChatEnabled ? (
+          <SettingRow
+            id="gchat-url"
+            htmlFor="gchat-webhook-url"
+            label="Webhook URL"
+            description={
+              <a
+                href="https://developers.google.com/chat/how-tos/webhooks"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                How to create a webhook →
+              </a>
+            }
+            align="start"
+          >
+            <Input
+              id="gchat-webhook-url"
+              placeholder="https://chat.googleapis.com/v1/spaces/..."
+              value={data.googleChatWebhookUrl}
+              onChange={(e) => handleChange("googleChatWebhookUrl", e.target.value)}
+              disabled={!data.enabled}
+              className="font-mono text-sm"
+            />
+          </SettingRow>
+        ) : null}
+      </SettingsPanel>
+
+      <SettingsPanel title="More integrations">
+        <SettingRow id="teams-coming-soon" label="Microsoft Teams" description="Not available yet">
+          <div className="flex items-center justify-end gap-2">
+            <StatusBadge tone="neutral" label="Coming soon" />
+            <Switch disabled aria-label="Microsoft Teams (coming soon)" />
           </div>
-        </details>
-      </CardContent>
-    </Card>
+        </SettingRow>
+        <SettingRow id="slack-coming-soon" label="Slack" description="Not available yet">
+          <div className="flex items-center justify-end gap-2">
+            <StatusBadge tone="neutral" label="Coming soon" />
+            <Switch disabled aria-label="Slack (coming soon)" />
+          </div>
+        </SettingRow>
+      </SettingsPanel>
+    </div>
   );
 }

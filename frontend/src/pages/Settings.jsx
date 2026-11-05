@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Save, Building2, Bot, Bell, Webhook, Clock, Shield, Menu } from "lucide-react";
-import axios from "axios";
+import { Menu } from "lucide-react";
 import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Sheet, SheetContent, SheetTrigger } from "../components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../components/ui/sheet";
 import { useToast } from "../hooks/use-toast";
 import { useOrganization } from "../contexts/OrganizationContext";
-import LoadingSpinner from "../components/LoadingSpinner";
+import { PageHeader } from "@/components/kit/PageHeader";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,24 +24,15 @@ import {
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 
-// Import section components
 import OrganizationsSection from "./settings/OrganizationsSection";
 import AIConfigSection from "./settings/AIConfigSection";
 import NotificationsSection from "./settings/NotificationsSection";
 import WebhooksSection from "./settings/WebhooksSection";
 import PollingSection from "./settings/PollingSection";
 import SecuritySection from "./settings/SecuritySection";
+import { SettingsNav } from "./settings/SettingsNav";
+import { SETTINGS_SECTIONS } from "./settings/constants";
 
-const settingsSections = [
-  { id: "organizations", name: "Organizations", icon: Building2 },
-  { id: "ai", name: "AI Configuration", icon: Bot },
-  { id: "notifications", name: "Notifications", icon: Bell },
-  { id: "webhooks", name: "Webhook URLs", icon: Webhook },
-  { id: "polling", name: "Polling", icon: Clock },
-  { id: "security", name: "Security", icon: Shield },
-];
-
-// Default settings structure for current organization
 const getDefaultSettings = () => ({
   ai: {
     provider: "gemini",
@@ -78,37 +74,67 @@ const getDefaultSettings = () => ({
 
 export default function Settings() {
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentOrganization, currentProject, updateOrganization, needsSetup, clearSwitching } =
     useOrganization();
 
   const [activeSection, setActiveSection] = useState("organizations");
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const [openAddOrg, setOpenAddOrg] = useState(false);
 
-  // Per-tab settings state
   const [tabSettings, setTabSettings] = useState(getDefaultSettings());
   const [originalTabSettings, setOriginalTabSettings] = useState(getDefaultSettings());
 
-  // Unsaved changes dialog
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const pendingSectionRef = useRef(null);
 
-  // If setup mode, stay on organizations; otherwise honor ?section= deep links
+  const syncSectionToUrl = useCallback(
+    (sectionId) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (next.get("setup") === "true") {
+            next.delete("section");
+          } else {
+            next.set("section", sectionId);
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
+  // Setup mode / deep links / add-org action
   useEffect(() => {
     if (needsSetup || searchParams.get("setup") === "true") {
       setActiveSection("organizations");
       return;
     }
+
     const section = searchParams.get("section");
-    if (section && settingsSections.some((s) => s.id === section)) {
+    if (section && SETTINGS_SECTIONS.some((s) => s.id === section)) {
       setActiveSection(section);
     }
-  }, [needsSetup, searchParams]);
 
-  // Load settings when organization changes
+    if (searchParams.get("action") === "add-org") {
+      setActiveSection("organizations");
+      setOpenAddOrg(true);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("action");
+          if (!next.get("setup")) next.set("section", "organizations");
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  }, [needsSetup, searchParams, setSearchParams]);
+
   useEffect(() => {
     if (!currentOrganization) return;
 
@@ -140,13 +166,12 @@ export default function Settings() {
 
       setTabSettings(loaded);
       setOriginalTabSettings(JSON.parse(JSON.stringify(loaded)));
-      clearSwitching(); // Clear switching overlay after settings load
+      clearSwitching();
     };
 
     loadOrgSettings();
-  }, [currentOrganization, currentProject]);
+  }, [currentOrganization, currentProject, clearSwitching]);
 
-  // Check if current tab has changes
   const hasCurrentTabChanges = useCallback(() => {
     if (activeSection === "organizations" || activeSection === "webhooks") return false;
     return (
@@ -155,7 +180,15 @@ export default function Settings() {
     );
   }, [tabSettings, originalTabSettings, activeSection]);
 
-  // Handle section change with unsaved changes check
+  const applySectionChange = useCallback(
+    (newSection) => {
+      setActiveSection(newSection);
+      setValidationErrors({});
+      syncSectionToUrl(newSection);
+    },
+    [syncSectionToUrl]
+  );
+
   const handleSectionChange = useCallback(
     (newSection) => {
       if (newSection === activeSection) return;
@@ -164,14 +197,12 @@ export default function Settings() {
         pendingSectionRef.current = newSection;
         setShowUnsavedDialog(true);
       } else {
-        setActiveSection(newSection);
-        setValidationErrors({});
+        applySectionChange(newSection);
       }
     },
-    [activeSection, hasCurrentTabChanges]
+    [activeSection, hasCurrentTabChanges, applySectionChange]
   );
 
-  // Discard changes and switch section
   const handleDiscardChanges = useCallback(() => {
     setTabSettings((prev) => ({
       ...prev,
@@ -180,17 +211,23 @@ export default function Settings() {
     setShowUnsavedDialog(false);
     setValidationErrors({});
     if (pendingSectionRef.current) {
-      setActiveSection(pendingSectionRef.current);
+      applySectionChange(pendingSectionRef.current);
       pendingSectionRef.current = null;
     }
+  }, [activeSection, originalTabSettings, applySectionChange]);
+
+  const handleDiscardOnly = useCallback(() => {
+    setTabSettings((prev) => ({
+      ...prev,
+      [activeSection]: JSON.parse(JSON.stringify(originalTabSettings[activeSection])),
+    }));
+    setValidationErrors({});
   }, [activeSection, originalTabSettings]);
 
-  // Update tab data
   const updateTabData = useCallback((sectionId, newData) => {
     setTabSettings((prev) => ({ ...prev, [sectionId]: newData }));
   }, []);
 
-  // Save current tab settings to organization
   const handleSave = async () => {
     if (!currentOrganization) {
       toast({ title: "Error", description: "No organization selected", variant: "destructive" });
@@ -248,7 +285,7 @@ export default function Settings() {
         }));
         toast({
           title: "Settings Saved",
-          description: `${settingsSections.find((s) => s.id === activeSection)?.name} settings saved!`,
+          description: `${SETTINGS_SECTIONS.find((s) => s.id === activeSection)?.name} settings saved!`,
         });
       } else {
         toast({ title: "Save Failed", description: result.error, variant: "destructive" });
@@ -260,67 +297,40 @@ export default function Settings() {
     }
   };
 
-  // Sidebar component
-  const Sidebar = ({ className = "", onSelect }) => (
-    <div className={`space-y-2 ${className}`}>
-      {settingsSections.map((section) => {
-        const Icon = section.icon;
-        const hasChanges =
-          activeSection !== "organizations" &&
-          activeSection !== "webhooks" &&
-          section.id !== "organizations" &&
-          section.id !== "webhooks" &&
-          JSON.stringify(tabSettings[section.id]) !==
-            JSON.stringify(originalTabSettings[section.id]);
-
-        return (
-          <button
-            key={section.id}
-            onClick={() => (onSelect ? onSelect(section.id) : handleSectionChange(section.id))}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg transition-colors ${
-              activeSection === section.id
-                ? "bg-primary text-primary-foreground"
-                : "hover:bg-muted text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            <span className="text-sm font-medium flex-1">{section.name}</span>
-            {hasChanges && (
-              <span className="w-2 h-2 rounded-full bg-orange-500" title="Unsaved changes" />
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  // Show setup message if no organization
   if (needsSetup) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-            Welcome to InsightOps
-          </h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            Let's set up your first Azure DevOps organization
-          </p>
-        </div>
+        <PageHeader
+          title="Welcome to InsightOps"
+          description="Let's set up your first Azure DevOps organization"
+        />
         <OrganizationsSection />
       </div>
     );
   }
 
+  const showSaveBar =
+    activeSection !== "organizations" && activeSection !== "webhooks" && hasCurrentTabChanges();
+
+  const navProps = {
+    activeSection,
+    tabSettings,
+    originalTabSettings,
+    onSelect: (id) => {
+      handleSectionChange(id);
+      setSheetOpen(false);
+    },
+  };
+
   return (
     <>
-      {/* Unsaved Changes Dialog - outside space-y container to not affect layout */}
       <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
             <AlertDialogDescription>
               You have unsaved changes in{" "}
-              {settingsSections.find((s) => s.id === activeSection)?.name}. Do you want to discard
+              {SETTINGS_SECTIONS.find((s) => s.id === activeSection)?.name}. Do you want to discard
               them?
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -343,71 +353,51 @@ export default function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-4">
-              <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="icon" className="md:hidden">
-                    <Menu className="h-4 w-4" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-64">
-                  <div className="py-4">
-                    <h2 className="text-lg font-semibold mb-4">Settings</h2>
-                    <Sidebar
-                      onSelect={(id) => {
-                        handleSectionChange(id);
-                        setSheetOpen(false);
-                      }}
-                    />
-                  </div>
-                </SheetContent>
-              </Sheet>
-
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground tracking-tight">Settings</h1>
-                <p className="text-muted-foreground text-sm mt-0.5">
-                  {currentOrganization
-                    ? `Managing: ${currentOrganization.name}`
-                    : "Configure your settings"}
-                </p>
-              </div>
-            </div>
-
-            {activeSection !== "organizations" && activeSection !== "webhooks" && (
-              <Button
-                onClick={handleSave}
-                disabled={saving || !hasCurrentTabChanges()}
-                className="group relative overflow-hidden bg-foreground hover:bg-foreground/90 text-background"
-              >
-                <Save className={`h-4 w-4 mr-2 ${saving ? "animate-spin" : ""}`} />
-                {saving ? "Saving..." : "Save Settings"}
+      <div className={showSaveBar ? "pb-20" : undefined}>
+        <div className="mb-6 flex items-start gap-3">
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="mt-0.5 shrink-0 md:hidden">
+                <Menu className="h-4 w-4" />
+                <span className="sr-only">Open settings sections</span>
               </Button>
-            )}
-          </div>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64">
+              <SheetHeader className="text-left">
+                <SheetTitle>Settings</SheetTitle>
+                <SheetDescription>Choose a section to configure</SheetDescription>
+              </SheetHeader>
+              <div className="mt-4">
+                <SettingsNav {...navProps} />
+              </div>
+            </SheetContent>
+          </Sheet>
+
+          <PageHeader
+            className="flex-1"
+            title="Settings"
+            description={
+              currentOrganization
+                ? `Managing: ${currentOrganization.name}`
+                : "Configure your settings"
+            }
+          />
         </div>
 
-        {/* Main Layout */}
-        <div className="flex flex-1 gap-6">
-          {/* Desktop Sidebar */}
-          <div className="hidden md:block w-64 flex-shrink-0">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Configuration</CardTitle>
-                <CardDescription>Choose a section to configure</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Sidebar />
-              </CardContent>
-            </Card>
-          </div>
+        <div className="flex flex-1 gap-8">
+          <aside className="hidden w-56 shrink-0 md:block">
+            <div className="sticky top-6">
+              <SettingsNav {...navProps} />
+            </div>
+          </aside>
 
-          {/* Content Area */}
-          <div className="flex-1">
-            {activeSection === "organizations" && <OrganizationsSection />}
+          <div className="min-w-0 max-w-[720px] flex-1">
+            {activeSection === "organizations" && (
+              <OrganizationsSection
+                openAddRequested={openAddOrg}
+                onOpenAddHandled={() => setOpenAddOrg(false)}
+              />
+            )}
             {activeSection === "ai" && (
               <AIConfigSection
                 data={tabSettings.ai}
@@ -437,6 +427,22 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      {showSaveBar ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-3 md:px-6">
+            <p className="text-sm text-muted-foreground">Unsaved changes</p>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={handleDiscardOnly} disabled={saving}>
+                Discard
+              </Button>
+              <Button type="button" onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

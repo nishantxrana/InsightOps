@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from "react";
-import { Bot, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import axios from "axios";
 import {
   Select,
@@ -10,16 +10,53 @@ import {
   SelectGroup,
 } from "../../components/ui/select";
 import { Button } from "../../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
 import { useToast } from "../../hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { SettingsSectionHeader } from "@/components/kit/SettingsSectionHeader";
+import { SettingsPanel } from "@/components/kit/SettingsPanel";
+import { SettingRow } from "@/components/kit/SettingRow";
+import { StatusCallout } from "@/components/kit/StatusCallout";
+
+const PROVIDERS = [
+  {
+    id: "openai",
+    label: "OpenAI",
+    blurb: "Best for: Code analysis, detailed explanations.",
+    keyField: "openaiApiKey",
+    keyId: "openaiKey",
+    placeholder: "sk-...",
+    docsHref: "https://platform.openai.com/api-keys",
+  },
+  {
+    id: "groq",
+    label: "Groq",
+    blurb: "Best for: Fast responses, high throughput. Free tier available.",
+    keyField: "groqApiKey",
+    keyId: "groqKey",
+    placeholder: "gsk_...",
+    docsHref: "https://console.groq.com/keys",
+  },
+  {
+    id: "gemini",
+    label: "Google Gemini",
+    blurb: "Best for: Cost-effective, good general purpose. Generous free tier.",
+    keyField: "geminiApiKey",
+    keyId: "geminiKey",
+    placeholder: "AIza...",
+    docsHref: "https://aistudio.google.com/apikey",
+  },
+];
+
+function hasConfiguredKey(data) {
+  const key =
+    data.provider === "openai"
+      ? data.openaiApiKey
+      : data.provider === "groq"
+        ? data.groqApiKey
+        : data.geminiApiKey;
+  return Boolean(key && key.trim());
+}
 
 export default function AIConfigSection({ data, onChange, errors }) {
   const { toast } = useToast();
@@ -36,8 +73,7 @@ export default function AIConfigSection({ data, onChange, errors }) {
 
   const handleProviderChange = useCallback(
     (newProvider) => {
-      const currentProvider = data.provider;
-      if (currentProvider !== newProvider) {
+      if (data.provider !== newProvider) {
         onChange({ ...data, provider: newProvider, model: "" });
         setModels([]);
       }
@@ -69,147 +105,118 @@ export default function AIConfigSection({ data, onChange, errors }) {
     }
   }, [loadingModels, data.provider, toast]);
 
+  const activeProvider = PROVIDERS.find((p) => p.id === data.provider) || PROVIDERS[2];
+  const configured = hasConfiguredKey(data);
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-purple-600" />
-          AI Configuration
-        </CardTitle>
-        <CardDescription>Configure your AI provider and model settings</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="provider">AI Provider</Label>
-          <Select value={data.provider} onValueChange={handleProviderChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select AI provider..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="groq">Groq</SelectItem>
-                <SelectItem value="gemini">Google Gemini</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+    <div className="space-y-4">
+      <SettingsSectionHeader
+        title="AI Configuration"
+        description="Configure your AI provider and model settings"
+      />
+
+      {!configured ? (
+        <StatusCallout tone="warning" title="No API key configured">
+          Select a provider and enter an API key to enable AI insights across the app.
+        </StatusCallout>
+      ) : null}
+
+      <div>
+        <p id="ai-provider-label" className="mb-2 text-sm font-medium text-foreground">
+          AI Provider
+        </p>
+        <div
+          role="radiogroup"
+          aria-labelledby="ai-provider-label"
+          className="grid gap-2 sm:grid-cols-3"
+        >
+          {PROVIDERS.map((provider) => {
+            const selected = data.provider === provider.id;
+            return (
+              <button
+                key={provider.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => handleProviderChange(provider.id)}
+                className={cn(
+                  "rounded-panel border px-3 py-3 text-left transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  selected
+                    ? "border-foreground bg-muted"
+                    : "border-border bg-surface hover:bg-muted/50"
+                )}
+              >
+                <div className="text-sm font-medium text-foreground">{provider.label}</div>
+                <p className="mt-1 text-xs text-muted-foreground">{provider.blurb}</p>
+              </button>
+            );
+          })}
         </div>
+      </div>
 
-        {data.provider === "openai" && (
-          <div className="space-y-2">
-            <Label htmlFor="openaiKey">OpenAI API Key</Label>
-            <div className="relative">
-              <Input
-                id="openaiKey"
-                type={showSecrets.openai ? "text" : "password"}
-                placeholder="sk-..."
-                value={data.openaiApiKey}
-                onChange={(e) => handleChange("openaiApiKey", e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => toggleSecretVisibility("openai")}
-              >
-                {showSecrets.openai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Best for: Code analysis, detailed explanations.{" "}
+      <SettingsPanel>
+        <SettingRow
+          id="ai-api-key"
+          htmlFor={activeProvider.keyId}
+          label={`${activeProvider.label} API Key`}
+          description={
+            <>
+              {activeProvider.blurb}{" "}
               <a
-                href="https://platform.openai.com/api-keys"
+                href={activeProvider.docsHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
                 Get API key →
               </a>
-            </p>
+            </>
+          }
+          align="start"
+        >
+          <div className="relative">
+            <Input
+              id={activeProvider.keyId}
+              type={showSecrets[activeProvider.id] ? "text" : "password"}
+              placeholder={activeProvider.placeholder}
+              value={data[activeProvider.keyField] || ""}
+              onChange={(e) => handleChange(activeProvider.keyField, e.target.value)}
+              className="pr-10"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-0 top-0 h-full w-9"
+              onClick={() => toggleSecretVisibility(activeProvider.id)}
+              aria-label={showSecrets[activeProvider.id] ? "Hide API key" : "Show API key"}
+            >
+              {showSecrets[activeProvider.id] ? (
+                <EyeOff className="h-4 w-4" aria-hidden />
+              ) : (
+                <Eye className="h-4 w-4" aria-hidden />
+              )}
+            </Button>
           </div>
-        )}
+        </SettingRow>
 
-        {data.provider === "groq" && (
-          <div className="space-y-2">
-            <Label htmlFor="groqKey">Groq API Key</Label>
-            <div className="relative">
-              <Input
-                id="groqKey"
-                type={showSecrets.groq ? "text" : "password"}
-                placeholder="gsk_..."
-                value={data.groqApiKey}
-                onChange={(e) => handleChange("groqApiKey", e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => toggleSecretVisibility("groq")}
-              >
-                {showSecrets.groq ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Best for: Fast responses, high throughput. Free tier available.{" "}
-              <a
-                href="https://console.groq.com/keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                Get API key →
-              </a>
-            </p>
-          </div>
-        )}
-
-        {data.provider === "gemini" && (
-          <div className="space-y-2">
-            <Label htmlFor="geminiKey">Gemini API Key</Label>
-            <div className="relative">
-              <Input
-                id="geminiKey"
-                type={showSecrets.gemini ? "text" : "password"}
-                placeholder="AIza..."
-                value={data.geminiApiKey}
-                onChange={(e) => handleChange("geminiApiKey", e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => toggleSecretVisibility("gemini")}
-              >
-                {showSecrets.gemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Best for: Cost-effective, good general purpose. Generous free tier.{" "}
-              <a
-                href="https://aistudio.google.com/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                Get API key →
-              </a>
-            </p>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Label htmlFor="model">Model</Label>
+        <SettingRow
+          id="ai-model"
+          htmlFor="ai-model-select"
+          label="Model"
+          error={errors?.aiModel}
+          description="Load models after entering an API key, then choose one."
+          align="start"
+        >
           <div className="flex gap-2">
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <Select
                 value={data.model}
                 onValueChange={(value) => handleChange("model", value)}
                 disabled={!data.provider}
               >
-                <SelectTrigger>
+                <SelectTrigger id="ai-model-select">
                   <SelectValue
                     placeholder={
                       !data.provider
@@ -217,7 +224,7 @@ export default function AIConfigSection({ data, onChange, errors }) {
                         : loadingModels
                           ? "Loading models..."
                           : models.length === 0
-                            ? "Click ↻ to load models"
+                            ? "Click refresh to load models"
                             : "Select a model"
                     }
                   />
@@ -231,7 +238,7 @@ export default function AIConfigSection({ data, onChange, errors }) {
                     )}
                     {!loadingModels && models.length === 0 && data.provider && (
                       <SelectItem value="no-models" disabled>
-                        Enter API key and click ↻
+                        Enter API key and click refresh
                       </SelectItem>
                     )}
                     {models.map((model) => (
@@ -246,17 +253,17 @@ export default function AIConfigSection({ data, onChange, errors }) {
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
+              className="h-9 w-9 shrink-0"
               onClick={fetchModels}
               disabled={!data.provider || loadingModels}
-              className="px-3"
+              aria-label="Refresh models"
             >
-              <RefreshCw className={`h-4 w-4 ${loadingModels ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${loadingModels ? "animate-spin" : ""}`} aria-hidden />
             </Button>
           </div>
-          {errors?.aiModel && <p className="text-sm text-red-600">{errors.aiModel}</p>}
-        </div>
-      </CardContent>
-    </Card>
+        </SettingRow>
+      </SettingsPanel>
+    </div>
   );
 }

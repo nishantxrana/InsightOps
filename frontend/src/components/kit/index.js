@@ -1,4 +1,4 @@
-/** Kit barrel — prefer concrete imports in production pages; fine for /__kit. */
+/** Kit barrel — prefer concrete imports in production pages. */
 export { PageHeader } from "./PageHeader";
 export { SyncButton } from "./SyncButton";
 export { StatStrip, StatCell } from "./StatStrip";
@@ -32,3 +32,6 @@ export { AiInsightPanel } from "./AiInsightPanel";
 export { EmptyState } from "./EmptyState";
 export { InlineError, PageError } from "./InlineError";
 export { SkeletonStatStrip, SkeletonRows, SkeletonPanel } from "./Skeletons";
+export { SettingRow } from "./SettingRow";
+export { SettingsPanel } from "./SettingsPanel";
+export { SettingsSectionHeader } from "./SettingsSectionHeader";

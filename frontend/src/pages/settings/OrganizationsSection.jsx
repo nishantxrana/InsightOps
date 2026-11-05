@@ -1,24 +1,7 @@
-import React, { useState } from "react";
-import {
-  Building2,
-  Plus,
-  Trash2,
-  Check,
-  ExternalLink,
-  TestTube,
-  Pencil,
-  Star,
-  Filter,
-} from "lucide-react";
+import { useState, useEffect } from "react";
+import { Building2, Plus, Trash2, Check, TestTube, Pencil, Star, Filter } from "lucide-react";
 import { useOrganization } from "../../contexts/OrganizationContext";
 import { Button } from "../../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
@@ -49,6 +32,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../components/ui/alert-dialog";
+import { EmptyState } from "@/components/kit/EmptyState";
+import { StatusBadge } from "@/components/kit/StatusBadge";
+import { SettingsSectionHeader } from "@/components/kit/SettingsSectionHeader";
+import { SettingsPanel } from "@/components/kit/SettingsPanel";
 
 const emptyOrg = {
   name: "",
@@ -66,7 +53,7 @@ const emptyOrg = {
   },
 };
 
-export default function OrganizationsSection() {
+export default function OrganizationsSection({ openAddRequested = false, onOpenAddHandled }) {
   const {
     organizations,
     currentOrganization,
@@ -90,6 +77,14 @@ export default function OrganizationsSection() {
   const [projects, setProjects] = useState([]);
   const [fetchingProjects, setFetchingProjects] = useState(false);
 
+  useEffect(() => {
+    if (openAddRequested) {
+      handleAdd();
+      onOpenAddHandled?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open only when parent requests
+  }, [openAddRequested]);
+
   const validateForm = () => {
     const newErrors = {};
     if (!formData.name?.trim()) newErrors.name = "Name is required";
@@ -108,6 +103,7 @@ export default function OrganizationsSection() {
     setErrors({});
     setTestResult(null);
     setProjects([]);
+    setSelectedOrg(null);
     setShowAddDialog(true);
   };
 
@@ -149,13 +145,10 @@ export default function OrganizationsSection() {
     setTestResult(null);
 
     try {
-      // For new orgs or when PAT is provided, test directly
-      // For existing orgs with masked PAT, use the saved credentials
       if (selectedOrg && formData.azureDevOps.pat === "********") {
         const result = await testConnection(selectedOrg._id);
         setTestResult(result);
       } else {
-        // Test with provided credentials via a direct API call
         const response = await fetch("/api/settings/test-connection", {
           method: "POST",
           headers: {
@@ -165,7 +158,7 @@ export default function OrganizationsSection() {
           body: JSON.stringify({
             organization: formData.azureDevOps.organization,
             project: formData.azureDevOps.project,
-            pat: formData.azureDevOps.pat, // Use 'pat' field name consistently
+            pat: formData.azureDevOps.pat,
             baseUrl: formData.azureDevOps.baseUrl,
           }),
         });
@@ -185,7 +178,6 @@ export default function OrganizationsSection() {
       return;
     }
 
-    // For new orgs, require PAT to be entered
     if (!selectedOrg && !formData.azureDevOps.pat) {
       setErrors((prev) => ({ ...prev, pat: "Enter PAT to fetch projects" }));
       return;
@@ -198,7 +190,6 @@ export default function OrganizationsSection() {
     try {
       let result;
 
-      // If editing existing org with masked PAT, use saved credentials
       if (selectedOrg && formData.azureDevOps.pat === "********") {
         const response = await fetch(`/api/organizations/${selectedOrg._id}/projects`, {
           method: "POST",
@@ -209,7 +200,6 @@ export default function OrganizationsSection() {
         });
         result = await response.json();
       } else {
-        // For new orgs or when PAT is changed, use provided credentials
         const response = await fetch("/api/settings/projects", {
           method: "POST",
           headers: {
@@ -284,7 +274,6 @@ export default function OrganizationsSection() {
         },
       };
 
-      // Only include PAT if changed
       if (formData.azureDevOps.pat !== "********") {
         updates.azureDevOps.pat = formData.azureDevOps.pat;
       }
@@ -317,20 +306,25 @@ export default function OrganizationsSection() {
   const formContent = (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
-        <Label htmlFor="name">Display Name</Label>
+        <Label htmlFor="org-display-name">Display Name</Label>
         <Input
-          id="name"
+          id="org-display-name"
           placeholder="My Azure DevOps Org"
           value={formData.name}
           onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+          aria-describedby={errors.name ? "org-display-name-error" : undefined}
         />
-        {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+        {errors.name && (
+          <p id="org-display-name-error" className="text-sm text-danger-foreground" role="alert">
+            {errors.name}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="organization">Azure DevOps Organization</Label>
+        <Label htmlFor="org-ado-organization">Azure DevOps Organization</Label>
         <Input
-          id="organization"
+          id="org-ado-organization"
           placeholder="myorg"
           value={formData.azureDevOps.organization}
           onChange={(e) =>
@@ -339,14 +333,23 @@ export default function OrganizationsSection() {
               azureDevOps: { ...prev.azureDevOps, organization: e.target.value },
             }))
           }
+          aria-describedby={errors.organization ? "org-ado-organization-error" : undefined}
         />
-        {errors.organization && <p className="text-sm text-destructive">{errors.organization}</p>}
+        {errors.organization && (
+          <p
+            id="org-ado-organization-error"
+            className="text-sm text-danger-foreground"
+            role="alert"
+          >
+            {errors.organization}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="pat">Personal Access Token (PAT)</Label>
+        <Label htmlFor="org-pat">Personal Access Token (PAT)</Label>
         <Input
-          id="pat"
+          id="org-pat"
           type="password"
           placeholder="Enter PAT"
           value={formData.azureDevOps.pat}
@@ -356,8 +359,9 @@ export default function OrganizationsSection() {
               azureDevOps: { ...prev.azureDevOps, pat: e.target.value },
             }))
           }
+          aria-describedby="org-pat-help"
         />
-        <p className="text-xs text-muted-foreground">
+        <p id="org-pat-help" className="text-xs text-muted-foreground">
           Required scopes:{" "}
           <span className="font-medium">
             Work Items (Read), Build (Read), Code (Read), Release (Read)
@@ -372,14 +376,18 @@ export default function OrganizationsSection() {
             Create a PAT →
           </a>
         </p>
-        {errors.pat && <p className="text-sm text-destructive">{errors.pat}</p>}
+        {errors.pat && (
+          <p className="text-sm text-danger-foreground" role="alert">
+            {errors.pat}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="project">
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="org-project">
             Default Project
-            <span className="ml-2 text-xs text-muted-foreground font-normal">
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
               (used when no project selected in header)
             </span>
           </Label>
@@ -393,7 +401,7 @@ export default function OrganizationsSection() {
               !formData.azureDevOps.organization ||
               (!selectedOrg && !formData.azureDevOps.pat)
             }
-            className="h-6 text-xs"
+            className="h-8 text-xs"
           >
             {fetchingProjects ? "Fetching..." : "Fetch Projects"}
           </Button>
@@ -408,7 +416,7 @@ export default function OrganizationsSection() {
               }))
             }
           >
-            <SelectTrigger>
+            <SelectTrigger id="org-project">
               <SelectValue placeholder="Select a project" />
             </SelectTrigger>
             <SelectContent className="max-h-60">
@@ -421,7 +429,7 @@ export default function OrganizationsSection() {
           </Select>
         ) : (
           <Input
-            id="project"
+            id="org-project"
             placeholder="MyProject"
             value={formData.azureDevOps.project}
             onChange={(e) =>
@@ -432,22 +440,29 @@ export default function OrganizationsSection() {
             }
           />
         )}
-        {errors.project && <p className="text-sm text-destructive">{errors.project}</p>}
+        {errors.project && (
+          <p className="text-sm text-danger-foreground" role="alert">
+            {errors.project}
+          </p>
+        )}
       </div>
 
-      {/* Production Filters Section */}
-      <div className="space-y-4 pt-4 border-t">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 border-t border-border pt-4">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <Label className="text-base font-semibold flex items-center gap-2">
-              <Filter className="h-4 w-4" />
+            <Label
+              htmlFor="org-prod-filters"
+              className="flex items-center gap-2 text-sm font-semibold"
+            >
+              <Filter className="h-4 w-4" aria-hidden />
               Production Filters
             </Label>
-            <p className="text-sm text-muted-foreground mt-1">
-              Define what constitutes "production" for reports and notifications
+            <p className="mt-1 text-sm text-muted-foreground">
+              Define what constitutes &quot;production&quot; for reports and notifications
             </p>
           </div>
           <Switch
+            id="org-prod-filters"
             checked={formData.productionFilters?.enabled || false}
             onCheckedChange={(checked) =>
               setFormData({
@@ -462,8 +477,7 @@ export default function OrganizationsSection() {
         </div>
 
         {formData.productionFilters?.enabled && (
-          <div className="space-y-4 pl-4 border-l-2 border-muted">
-            {/* Branch Patterns */}
+          <div className="space-y-4 border-l-2 border-border pl-4">
             <div className="space-y-2">
               <Label>Production Branches</Label>
               <p className="text-xs text-muted-foreground">
@@ -472,7 +486,7 @@ export default function OrganizationsSection() {
                   Pull Requests
                 </Badge>
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Exact match or wildcards. Examples: main, master, release/*, *prod*
               </p>
               <TagInput
@@ -490,7 +504,6 @@ export default function OrganizationsSection() {
               />
             </div>
 
-            {/* Environment Patterns */}
             <div className="space-y-2">
               <Label>Production Environments</Label>
               <p className="text-xs text-muted-foreground">
@@ -499,7 +512,7 @@ export default function OrganizationsSection() {
                   Releases
                 </Badge>
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Exact match or wildcards. Examples: Production, E3, Prod-*, *prod*
               </p>
               <TagInput
@@ -517,7 +530,6 @@ export default function OrganizationsSection() {
               />
             </div>
 
-            {/* Build Definition Patterns */}
             <div className="space-y-2">
               <Label>Production Build Definitions</Label>
               <p className="text-xs text-muted-foreground">
@@ -526,7 +538,7 @@ export default function OrganizationsSection() {
                   Builds
                 </Badge>
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Exact match or wildcards. Examples: e3, Prod-*, *production*
               </p>
               <TagInput
@@ -544,10 +556,9 @@ export default function OrganizationsSection() {
               />
             </div>
 
-            {/* Help Text */}
-            <div className="bg-muted/50 p-3 rounded-md text-xs text-muted-foreground space-y-1">
-              <p className="font-semibold">How filters work:</p>
-              <ul className="list-disc list-inside space-y-1 ml-2">
+            <div className="rounded-control bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-semibold text-foreground">How filters work:</p>
+              <ul className="ml-2 list-inside list-disc space-y-1">
                 <li>
                   <strong>Builds:</strong> Filtered by definition name only (branch ignored)
                 </li>
@@ -575,116 +586,126 @@ export default function OrganizationsSection() {
           onClick={handleTestConnection}
           disabled={testing}
         >
-          <TestTube className="h-4 w-4 mr-2" />
+          <TestTube className="mr-2 h-4 w-4" aria-hidden />
           {testing ? "Testing..." : "Test Connection"}
         </Button>
 
         {testResult && (
-          <span className={`text-sm ${testResult.success ? "text-green-600" : "text-destructive"}`}>
-            {testResult.success ? "✓ Connected!" : testResult.error}
+          <span
+            className={`text-sm ${testResult.success ? "text-success-foreground" : "text-danger-foreground"}`}
+            role="status"
+          >
+            {testResult.success ? "Connected" : testResult.error}
           </span>
         )}
       </div>
 
-      {errors.submit && <p className="text-sm text-destructive">{errors.submit}</p>}
+      {errors.submit && (
+        <p className="text-sm text-danger-foreground" role="alert">
+          {errors.submit}
+        </p>
+      )}
     </div>
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Organizations
-            </CardTitle>
-            <CardDescription>Manage your Azure DevOps organizations</CardDescription>
-          </div>
-          <Button onClick={handleAdd}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Organization
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {organizations.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No organizations configured</p>
-            <p className="text-sm">Add your first Azure DevOps organization to get started</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {organizations.map((org) => (
+    <div>
+      <SettingsSectionHeader
+        title="Organizations"
+        description="Manage your Azure DevOps organizations"
+        actions={
+          organizations.length > 0 ? (
+            <Button onClick={handleAdd} size="sm">
+              <Plus className="mr-2 h-4 w-4" aria-hidden />
+              Add Organization
+            </Button>
+          ) : null
+        }
+      />
+
+      {organizations.length === 0 ? (
+        <EmptyState
+          icon={<Building2 />}
+          title="No organizations configured"
+          description="Add your first Azure DevOps organization to get started"
+          action={
+            <Button onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" aria-hidden />
+              Add Organization
+            </Button>
+          }
+        />
+      ) : (
+        <SettingsPanel className="px-0">
+          {organizations.map((org) => {
+            const isActive = currentOrganization?._id === org._id;
+            return (
               <div
                 key={org._id}
-                className={`flex items-center justify-between p-4 rounded-lg border ${
-                  currentOrganization?._id === org._id
-                    ? "border-primary bg-primary/5"
-                    : "border-border"
-                }`}
+                className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex items-center gap-3">
-                  <Building2 className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{org.name}</span>
-                      {org.isDefault && (
-                        <Badge variant="secondary" className="text-xs">
-                          Default
-                        </Badge>
-                      )}
-                      {currentOrganization?._id === org._id && (
-                        <Badge variant="default" className="text-xs">
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {org.azureDevOps?.organization}/{org.azureDevOps?.project}
-                    </div>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-sm font-medium text-foreground">{org.name}</span>
+                    {org.isDefault ? <StatusBadge tone="neutral" label="Default" /> : null}
+                    {isActive ? <StatusBadge tone="info" label="Active" /> : null}
                   </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {org.azureDevOps?.organization}
+                    {org.azureDevOps?.project ? ` / ${org.azureDevOps.project}` : ""}
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {currentOrganization?._id !== org._id && (
-                    <Button variant="outline" size="sm" onClick={() => switchOrganization(org._id)}>
-                      <Check className="h-4 w-4 mr-1" />
+                <div className="flex shrink-0 flex-wrap items-center gap-1">
+                  {!isActive ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => switchOrganization(org._id)}
+                      aria-label={`Switch to ${org.name}`}
+                    >
+                      <Check className="mr-1 h-4 w-4" aria-hidden />
                       Switch
                     </Button>
-                  )}
-                  {!org.isDefault && (
+                  ) : null}
+                  {!org.isDefault ? (
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      className="h-9 w-9"
                       onClick={() => handleSetDefault(org)}
-                      title="Set as default"
+                      aria-label={`Set ${org.name} as default`}
                     >
-                      <Star className="h-4 w-4" />
+                      <Star className="h-4 w-4" aria-hidden />
                     </Button>
-                  )}
-                  <Button variant="ghost" size="sm" onClick={() => handleEdit(org)}>
-                    <Pencil className="h-4 w-4" />
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => handleEdit(org)}
+                    aria-label={`Edit ${org.name}`}
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden />
                   </Button>
-                  {organizations.length > 1 && (
+                  {organizations.length > 1 ? (
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      className="h-9 w-9 text-danger-foreground hover:text-danger-foreground"
                       onClick={() => handleDelete(org)}
-                      className="text-destructive hover:text-destructive"
+                      aria-label={`Delete ${org.name}`}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" aria-hidden />
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
+            );
+          })}
+        </SettingsPanel>
+      )}
 
-      {/* Add Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -703,7 +724,6 @@ export default function OrganizationsSection() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -716,13 +736,12 @@ export default function OrganizationsSection() {
               Cancel
             </Button>
             <Button onClick={handleSaveEdit} disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
+              {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -730,7 +749,7 @@ export default function OrganizationsSection() {
             <AlertDialogDescription className="space-y-2">
               <p>
                 Are you sure you want to delete{" "}
-                <span className="font-semibold">"{selectedOrg?.name}"</span>?
+                <span className="font-semibold">&quot;{selectedOrg?.name}&quot;</span>?
               </p>
               <p className="text-sm text-muted-foreground">
                 This will permanently remove all settings, notification history, and polling
@@ -749,6 +768,6 @@ export default function OrganizationsSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   );
 }

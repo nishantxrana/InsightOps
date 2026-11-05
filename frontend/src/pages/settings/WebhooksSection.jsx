@@ -1,162 +1,140 @@
-import React, { useState, useEffect } from "react";
-import { Webhook, Building2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { CopyButton } from "../../components/ui/shadcn-io/copy-button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
-import { Badge } from "../../components/ui/badge";
+import { StatusBadge } from "@/components/kit/StatusBadge";
+import { SettingsSectionHeader } from "@/components/kit/SettingsSectionHeader";
+import { SettingsPanel } from "@/components/kit/SettingsPanel";
+import { SettingRow } from "@/components/kit/SettingRow";
+import { StatusCallout } from "@/components/kit/StatusCallout";
+import { InlineError } from "@/components/kit/InlineError";
+import { SkeletonPanel } from "@/components/kit/Skeletons";
+
+const WEBHOOK_ROWS = [
+  {
+    key: "buildCompleted",
+    label: "Build Completed",
+    description: "Triggers when a build pipeline finishes (success or failure)",
+  },
+  {
+    key: "pullRequestCreated",
+    label: "Pull Request Created",
+    description: "Triggers when a new pull request is opened",
+  },
+  {
+    key: "workItemCreated",
+    label: "Work Item Created",
+    description: "Triggers when a bug, task, or user story is created",
+  },
+  {
+    key: "workItemUpdated",
+    label: "Work Item Updated",
+    description: "Triggers when a work item's state or fields change",
+  },
+  {
+    key: "releaseDeployment",
+    label: "Release Deployment",
+    description: "Triggers when a release deployment completes",
+  },
+];
 
 export default function WebhooksSection() {
   const [webhookUrls, setWebhookUrls] = useState({});
   const [organizationName, setOrganizationName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const loadWebhookUrls = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const currentOrgId = localStorage.getItem("currentOrganizationId");
-        const headers = { Authorization: `Bearer ${token}` };
-        if (currentOrgId) headers["X-Organization-ID"] = currentOrgId;
+  const loadWebhookUrls = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem("token");
+      const currentOrgId = localStorage.getItem("currentOrganizationId");
+      const headers = { Authorization: `Bearer ${token}` };
+      if (currentOrgId) headers["X-Organization-ID"] = currentOrgId;
 
-        const response = await axios.get("/api/webhooks/urls", { headers });
-        if (response.data.success) {
-          setWebhookUrls(response.data.webhookUrls);
-          setOrganizationName(response.data.organizationName || "");
-        }
-      } catch {
-        // Webhook URLs are non-critical on initial load
+      const response = await axios.get("/api/webhooks/urls", { headers });
+      if (response.data.success) {
+        setWebhookUrls(response.data.webhookUrls || {});
+        setOrganizationName(response.data.organizationName || "");
+      } else {
+        setError(response.data.error || "Failed to load webhook URLs");
+        setWebhookUrls({});
       }
-    };
-    loadWebhookUrls();
+    } catch (err) {
+      setError(
+        err.userMessage || err.response?.data?.error || err.message || "Failed to load webhook URLs"
+      );
+      setWebhookUrls({});
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    loadWebhookUrls();
+  }, [loadWebhookUrls]);
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Webhook className="h-5 w-5 text-orange-600" />
-              Azure DevOps Webhook URLs
-            </CardTitle>
-            <CardDescription>
-              Copy these URLs to configure webhooks in your Azure DevOps project settings.
-            </CardDescription>
-          </div>
-          {organizationName && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              <Building2 className="h-3 w-3" />
-              {organizationName}
-            </Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Instructions first for visibility */}
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-            Quick Setup:
-          </h4>
-          <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside mb-3">
-            <li>Copy a webhook URL below</li>
-            <li>Go to Azure DevOps → Project Settings → Service Hooks</li>
-            <li>Create a new "Web Hooks" subscription</li>
-            <li>Select the event type and paste the URL</li>
-          </ol>
-          <a
-            href="https://dev.azure.com/_settings/serviceHooks"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-blue-700 dark:text-blue-300 hover:underline font-medium"
-          >
-            Open Azure DevOps Service Hooks →
-          </a>
-        </div>
+    <div className="space-y-4">
+      <SettingsSectionHeader
+        title="Azure DevOps Webhook URLs"
+        description="Copy these URLs to configure webhooks in your Azure DevOps project settings."
+        actions={organizationName ? <StatusBadge tone="neutral" label={organizationName} /> : null}
+      />
 
-        <div className="space-y-3">
-          <div>
-            <Label className="text-sm font-medium mb-1.5 block">Build Completed</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Triggers when a build pipeline finishes (success or failure)
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.buildCompleted || "Loading..."}
-                className="font-mono text-xs bg-muted"
-              />
-              <CopyButton content={webhookUrls.buildCompleted} variant="outline" />
-            </div>
-          </div>
+      <StatusCallout tone="info" title="Quick Setup">
+        <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs">
+          <li>Copy a webhook URL below</li>
+          <li>Go to Azure DevOps → Project Settings → Service Hooks</li>
+          <li>Create a new &quot;Web Hooks&quot; subscription</li>
+          <li>Select the event type and paste the URL</li>
+        </ol>
+        <a
+          href="https://dev.azure.com/_settings/serviceHooks"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
+        >
+          Open Azure DevOps Service Hooks →
+        </a>
+      </StatusCallout>
 
-          <div>
-            <Label className="text-sm font-medium mb-1.5 block">Pull Request Created</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Triggers when a new pull request is opened
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.pullRequestCreated || "Loading..."}
-                className="font-mono text-xs bg-muted"
-              />
-              <CopyButton content={webhookUrls.pullRequestCreated} variant="outline" />
-            </div>
-          </div>
+      {loading ? <SkeletonPanel /> : null}
 
-          <div>
-            <Label className="text-sm font-medium mb-1.5 block">Work Item Created</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Triggers when a bug, task, or user story is created
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.workItemCreated || "Loading..."}
-                className="font-mono text-xs bg-muted"
-              />
-              <CopyButton content={webhookUrls.workItemCreated} variant="outline" />
-            </div>
-          </div>
+      {!loading && error ? <InlineError message={error} onRetry={loadWebhookUrls} /> : null}
 
-          <div>
-            <Label className="text-sm font-medium mb-1.5 block">Work Item Updated</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Triggers when a work item's state or fields change
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.workItemUpdated || "Loading..."}
-                className="font-mono text-xs bg-muted"
-              />
-              <CopyButton content={webhookUrls.workItemUpdated} variant="outline" />
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-1.5 block">Release Deployment</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Triggers when a release deployment completes
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={webhookUrls.releaseDeployment || "Loading..."}
-                className="font-mono text-xs bg-muted"
-              />
-              <CopyButton content={webhookUrls.releaseDeployment} variant="outline" />
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      {!loading && !error ? (
+        <SettingsPanel>
+          {WEBHOOK_ROWS.map((row) => {
+            const url = webhookUrls[row.key] || "";
+            return (
+              <SettingRow
+                key={row.key}
+                id={`webhook-${row.key}`}
+                htmlFor={`webhook-input-${row.key}`}
+                label={row.label}
+                description={row.description}
+                align="start"
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    id={`webhook-input-${row.key}`}
+                    readOnly
+                    value={url}
+                    className="font-mono text-xs bg-muted"
+                  />
+                  <CopyButton
+                    content={url}
+                    variant="outline"
+                    aria-label={`Copy ${row.label} URL`}
+                  />
+                </div>
+              </SettingRow>
+            );
+          })}
+        </SettingsPanel>
+      ) : null}
+    </div>
   );
 }
