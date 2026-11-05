@@ -1,139 +1,144 @@
-import React from "react";
 import { Rocket } from "lucide-react";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, Cell, XAxis, YAxis, CartesianGrid } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Skeleton } from "@/components/ui/skeleton";
+
+function SectionShell({ children }) {
+  return <div className="rounded-panel border border-border bg-surface p-4">{children}</div>;
+}
+
+function SectionTitle() {
+  return (
+    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+      <Rocket className="size-4 text-muted-foreground" aria-hidden="true" />
+      Releases
+    </h3>
+  );
+}
 
 export default function ReleasesSection({ data }) {
-  // Skeleton loading state
   if (!data) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Rocket className="h-4 w-4" />
-          Releases
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
+      <SectionShell>
+        <SectionTitle />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
             <div key={i} className="space-y-2">
-              <div className="h-8 w-16 bg-muted-foreground/20 rounded animate-pulse" />
-              <div className="h-3 w-20 bg-muted-foreground/20 rounded animate-pulse" />
+              <Skeleton className="h-7 w-12" />
+              <Skeleton className="h-3 w-16" />
             </div>
           ))}
         </div>
-        <div className="mt-3 pt-3 border-t border-border space-y-2">
-          <div className="h-4 w-full bg-muted-foreground/20 rounded animate-pulse" />
-          <div className="h-4 w-2/3 bg-muted-foreground/20 rounded animate-pulse" />
-          <div className="h-4 w-1/2 bg-muted-foreground/20 rounded animate-pulse" />
-        </div>
-      </div>
+      </SectionShell>
     );
   }
 
-  // Error state
   if (data?.error) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Rocket className="h-4 w-4" />
-          Releases
-        </h3>
-        <p className="text-sm text-destructive">{data.error}</p>
-      </div>
+      <SectionShell>
+        <SectionTitle />
+        <p className="text-sm text-danger-foreground">{data.error}</p>
+      </SectionShell>
     );
   }
 
-  // Empty state
   if (data.totalReleases === 0) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Rocket className="h-4 w-4" />
-          Releases
-        </h3>
+      <SectionShell>
+        <SectionTitle />
         <p className="text-sm text-muted-foreground">
           No releases found in the selected date range.
         </p>
-      </div>
+      </SectionShell>
     );
   }
 
-  // Prepare chart data
   const chartData = [
-    { name: "Succeeded", value: data.succeeded, fill: "hsl(142 76% 60%)" },
-    { name: "Failed", value: data.failed, fill: "hsl(0 84% 70%)" },
-    { name: "Others", value: data.others || 0, fill: "hsl(25 95% 65%)" },
+    { name: "Succeeded", value: data.succeeded, fill: "hsl(var(--chart-3))" },
+    { name: "Failed", value: data.failed, fill: "hsl(var(--chart-5))" },
+    { name: "Others", value: data.others || 0, fill: "hsl(var(--chart-4))" },
   ].filter((item) => item.value > 0);
 
   const chartConfig = {
     value: { label: "Releases" },
+    Succeeded: { label: "Succeeded", color: "hsl(var(--chart-3))" },
+    Failed: { label: "Failed", color: "hsl(var(--chart-5))" },
+    Others: { label: "Others", color: "hsl(var(--chart-4))" },
   };
 
-  // Data loaded state
   return (
-    <div className="bg-card rounded-lg border border-border p-4 flex flex-col sm:flex-row gap-6">
-      {/* Left: Content - 2/3 width */}
-      <div className="flex-[2] space-y-3">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Rocket className="h-4 w-4" />
-          Releases
-        </h3>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-2xl font-bold text-foreground">{data.totalReleases}</p>
-            <p className="text-xs text-muted-foreground">Total Releases</p>
+    <SectionShell>
+      <div className="flex flex-col gap-6 sm:flex-row">
+        <div className="flex-[2] space-y-3">
+          <SectionTitle />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="min-w-0">
+              <p className="text-2xl font-semibold tabular-nums text-foreground">
+                {data.totalReleases}
+              </p>
+              <p className="text-xs text-muted-foreground">Total releases</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-semibold tabular-nums text-success-foreground">
+                {data.succeeded}
+              </p>
+              <p className="text-xs text-muted-foreground">Succeeded</p>
+            </div>
+            <div className="min-w-0">
+              <p
+                className={`text-xl font-semibold tabular-nums ${
+                  data.failed > 0 ? "text-danger-foreground" : "text-foreground"
+                }`}
+              >
+                {data.failed}
+              </p>
+              <p className="text-xs text-muted-foreground">Failed</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-semibold tabular-nums text-muted-foreground">
+                {data.others || 0}
+              </p>
+              <p className="text-xs text-muted-foreground">Others</p>
+            </div>
           </div>
 
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-green-600 dark:text-green-400">
-              {data.succeeded}
-            </p>
-            <p className="text-xs text-muted-foreground">Succeeded</p>
-          </div>
-
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.failed}</p>
-            <p className="text-xs text-muted-foreground">Failed</p>
-          </div>
-
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-orange-600 dark:text-orange-400">
-              {data.others || 0}
-            </p>
-            <p className="text-xs text-muted-foreground">Others</p>
+          <div className="border-t border-border pt-3 text-xs text-muted-foreground">
+            Success rate:{" "}
+            <span className="font-medium tabular-nums text-foreground">{data.successRate}%</span>
+            {" · "}
+            Failed environments:{" "}
+            <span className="font-medium tabular-nums text-foreground">
+              {data.failedEnvironments}
+            </span>
           </div>
         </div>
 
-        <div className="pt-3 border-t border-border text-xs text-muted-foreground">
-          Success Rate: {data.successRate}% • Failed Environments: {data.failedEnvironments}
-        </div>
+        {chartData.length > 0 ? (
+          <div className="hidden flex-[1] items-center justify-center sm:flex">
+            <ChartContainer config={chartConfig} className="h-[160px] w-full">
+              <BarChart accessibilityLayer data={chartData} layout="vertical" margin={{ left: 10 }}>
+                <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeOpacity={0.6} />
+                <XAxis type="number" dataKey="value" hide />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  width={80}
+                />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                <Bar dataKey="value" radius={2} maxBarSize={18}>
+                  {chartData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+          </div>
+        ) : null}
       </div>
-
-      {/* Right: Horizontal Bar Chart - 1/3 width */}
-      {chartData.length > 0 && (
-        <div className="flex-[1] hidden sm:flex items-center justify-center">
-          <ChartContainer config={chartConfig} className="h-[160px] w-full">
-            <BarChart accessibilityLayer data={chartData} layout="vertical" margin={{ left: 10 }}>
-              <XAxis type="number" dataKey="value" hide />
-              <YAxis
-                dataKey="name"
-                type="category"
-                tickLine={false}
-                tickMargin={10}
-                axisLine={false}
-                tick={{ fontSize: 11 }}
-                width={80}
-              />
-              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-              <Bar dataKey="value" fill="hsl(var(--chart-1))" radius={5}>
-                {chartData.map((entry, index) => (
-                  <Bar key={`bar-${index}`} dataKey="value" fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ChartContainer>
-        </div>
-      )}
-    </div>
+    </SectionShell>
   );
 }

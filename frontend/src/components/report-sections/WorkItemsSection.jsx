@@ -1,76 +1,66 @@
-import React from "react";
 import { CheckSquare } from "lucide-react";
 import { Pie, PieChart, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Color palette for work item states
 const CHART_COLORS = [
-  "hsl(221 83% 65%)", // blue
-  "hsl(280 65% 60%)", // purple
-  "hsl(25 95% 65%)", // orange
-  "hsl(340 75% 65%)", // pink
-  "hsl(190 70% 60%)", // cyan
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "hsl(var(--chart-1))",
 ];
 
+function SectionShell({ children }) {
+  return <div className="rounded-panel border border-border bg-surface p-4">{children}</div>;
+}
+
+function SectionTitle() {
+  return (
+    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+      <CheckSquare className="size-4 text-muted-foreground" aria-hidden="true" />
+      Work Items
+    </h3>
+  );
+}
+
 export default function WorkItemsSection({ data }) {
-  // Skeleton loading state
   if (!data) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <CheckSquare className="h-4 w-4" />
-          Work Items
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
+      <SectionShell>
+        <SectionTitle />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          {[0, 1, 2].map((i) => (
             <div key={i} className="space-y-2">
-              <div className="h-8 w-16 bg-muted-foreground/20 rounded animate-pulse" />
-              <div className="h-3 w-20 bg-muted-foreground/20 rounded animate-pulse" />
+              <Skeleton className="h-7 w-12" />
+              <Skeleton className="h-3 w-20" />
             </div>
           ))}
         </div>
-        <div className="mt-3 pt-3 border-t border-border space-y-2">
-          {[...Array(5)].map((_, i) => (
-            <div
-              key={i}
-              className="h-4 bg-muted-foreground/20 rounded animate-pulse"
-              style={{ width: `${100 - i * 15}%` }}
-            />
-          ))}
-        </div>
-      </div>
+      </SectionShell>
     );
   }
 
-  // Error state
   if (data?.error) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <CheckSquare className="h-4 w-4" />
-          Work Items
-        </h3>
-        <p className="text-sm text-destructive">{data.error}</p>
-      </div>
+      <SectionShell>
+        <SectionTitle />
+        <p className="text-sm text-danger-foreground">{data.error}</p>
+      </SectionShell>
     );
   }
 
-  // Empty state
   if (data.created === 0 && data.overdue === 0) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <CheckSquare className="h-4 w-4" />
-          Work Items
-        </h3>
+      <SectionShell>
+        <SectionTitle />
         <p className="text-sm text-muted-foreground">
           No work items found in the selected date range.
         </p>
-      </div>
+      </SectionShell>
     );
   }
 
-  // Prepare chart data (top 5 states only)
   const chartData = data.stateDistribution
     ? Object.entries(data.stateDistribution)
         .sort(([, a], [, b]) => b - a)
@@ -84,83 +74,78 @@ export default function WorkItemsSection({ data }) {
 
   const chartConfig = {
     value: { label: "Work Items" },
+    ...Object.fromEntries(
+      chartData.map((entry) => [entry.name, { label: entry.name, color: entry.fill }])
+    ),
   };
 
-  // Data loaded state
   return (
-    <div className="bg-card rounded-lg border border-border p-4 flex flex-col sm:flex-row gap-6">
-      {/* Left: Content - 2/3 width */}
-      <div className="flex-[2] space-y-3">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <CheckSquare className="h-4 w-4" />
-          Work Items
-        </h3>
-
-        {/* State Distribution Table */}
-        <div className="space-y-3">
+    <SectionShell>
+      <div className="flex flex-col gap-6 sm:flex-row">
+        <div className="flex-[2] space-y-3">
+          <SectionTitle />
           <div className="grid grid-cols-2 gap-4">
-            <div className="min-w-0 text-center sm:text-left">
-              <p className="text-2xl font-bold text-foreground">{data.created}</p>
-              <p className="text-xs text-muted-foreground">Total Created</p>
+            <div className="min-w-0">
+              <p className="text-2xl font-semibold tabular-nums text-foreground">{data.created}</p>
+              <p className="text-xs text-muted-foreground">Total created</p>
             </div>
-
-            <div className="min-w-0 text-center sm:text-left">
-              <p className="text-xl font-semibold text-red-600 dark:text-red-400">
+            <div className="min-w-0">
+              <p
+                className={`text-xl font-semibold tabular-nums ${
+                  data.overdue > 0 ? "text-danger-foreground" : "text-foreground"
+                }`}
+              >
                 {data.overdue || 0}
               </p>
               <p className="text-xs text-muted-foreground">Overdue</p>
             </div>
           </div>
 
-          {/* State breakdown */}
-          <div className="pt-3 border-t border-border">
-            <p className="text-xs font-medium text-muted-foreground mb-2">State Breakdown:</p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {data.stateDistribution &&
-                Object.entries(data.stateDistribution)
+          {data.stateDistribution ? (
+            <div className="border-t border-border pt-3">
+              <p className="mb-2 text-xs text-muted-foreground">State breakdown</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {Object.entries(data.stateDistribution)
                   .sort((a, b) => a[0].localeCompare(b[0]))
                   .map(([state, count]) => (
                     <div
                       key={state}
-                      className="flex justify-between items-center py-1 px-2 rounded bg-muted/50"
+                      className="flex items-center justify-between rounded-control bg-muted/50 px-2 py-1"
                     >
-                      <span className="text-muted-foreground truncate">{state}</span>
-                      <span className="font-semibold text-foreground ml-2">{count}</span>
+                      <span className="truncate text-muted-foreground">{state}</span>
+                      <span className="ml-2 font-semibold tabular-nums text-foreground">
+                        {count}
+                      </span>
                     </div>
                   ))}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
-        {chartData.length > 0 && (
-          <div className="pt-3 border-t border-border text-xs text-muted-foreground hidden sm:block">
-            Chart shows top 5 work item states by count
+        {chartData.length > 0 ? (
+          <div className="hidden flex-[1] items-center justify-center sm:flex">
+            <ChartContainer config={chartConfig} className="h-[180px] w-[180px]">
+              <PieChart>
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  strokeWidth={1}
+                >
+                  {chartData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} stroke="hsl(var(--background))" />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
           </div>
-        )}
+        ) : null}
       </div>
-
-      {/* Right: Pie Chart - 1/3 width */}
-      {chartData.length > 0 && (
-        <div className="flex-[1] hidden sm:flex items-center justify-center">
-          <ChartContainer config={chartConfig} className="h-[180px] w-[180px]">
-            <PieChart>
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ChartContainer>
-        </div>
-      )}
-    </div>
+    </SectionShell>
   );
 }

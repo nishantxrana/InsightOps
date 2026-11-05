@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, ChevronDown, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Calendar as CalendarIcon, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,7 +17,7 @@ const TIME_RANGES = [
   { label: "Custom", value: "custom", hours: null },
 ];
 
-export default function TimeRangeSelector({ value, onChange }) {
+export default function TimeRangeSelector({ value, onChange, disabled = false }) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
@@ -31,7 +31,20 @@ export default function TimeRangeSelector({ value, onChange }) {
     setEndDate(value?.to || null);
   }, [value]);
 
+  useEffect(() => {
+    if (disabled) {
+      setIsOpen(false);
+      setShowCustom(false);
+    }
+  }, [disabled]);
+
+  const handleOpenChange = (open) => {
+    if (disabled) return;
+    setIsOpen(open);
+  };
+
   const handleRangeSelect = (range) => {
+    if (disabled) return;
     if (range.value === "custom") {
       setShowCustom(true);
       setSelectingStart(true);
@@ -83,10 +96,12 @@ export default function TimeRangeSelector({ value, onChange }) {
   if (isMobile) {
     return (
       <div className="flex items-center gap-2">
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <Popover open={isOpen} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
+              disabled={disabled}
+              aria-disabled={disabled}
               className="justify-between min-w-[140px] bg-background rounded-full touch-manipulation"
             >
               <span className="text-sm">{getCurrentLabel()}</span>
@@ -177,10 +192,12 @@ export default function TimeRangeSelector({ value, onChange }) {
   // Desktop: Use Popovers
   return (
     <div className="flex items-center gap-2">
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
+            disabled={disabled}
+            aria-disabled={disabled}
             className="justify-between min-w-[140px] bg-background rounded-full"
           >
             <span className="text-sm">{getCurrentLabel()}</span>

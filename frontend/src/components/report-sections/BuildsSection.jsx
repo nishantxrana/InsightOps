@@ -1,142 +1,143 @@
-import React from "react";
 import { GitBranch, Clock } from "lucide-react";
 import { Pie, PieChart, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Skeleton } from "@/components/ui/skeleton";
+
+function SectionShell({ children }) {
+  return <div className="rounded-panel border border-border bg-surface p-4">{children}</div>;
+}
+
+function SectionTitle() {
+  return (
+    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+      <GitBranch className="size-4 text-muted-foreground" aria-hidden="true" />
+      Builds
+    </h3>
+  );
+}
 
 export default function BuildsSection({ data }) {
-  // Skeleton loading state
   if (!data) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <GitBranch className="h-4 w-4" />
-          Builds
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
+      <SectionShell>
+        <SectionTitle />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
             <div key={i} className="space-y-2">
-              <div className="h-8 w-16 bg-muted-foreground/20 rounded animate-pulse" />
-              <div className="h-3 w-20 bg-muted-foreground/20 rounded animate-pulse" />
+              <Skeleton className="h-7 w-12" />
+              <Skeleton className="h-3 w-16" />
             </div>
           ))}
         </div>
-        <div className="mt-3 pt-3 border-t border-border">
-          <div className="h-6 w-full bg-muted-foreground/20 rounded animate-pulse" />
-        </div>
-      </div>
+      </SectionShell>
     );
   }
 
-  // Error state
   if (data?.error) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <GitBranch className="h-4 w-4" />
-          Builds
-        </h3>
-        <p className="text-sm text-destructive">{data.error}</p>
-      </div>
+      <SectionShell>
+        <SectionTitle />
+        <p className="text-sm text-danger-foreground">{data.error}</p>
+      </SectionShell>
     );
   }
 
-  // Empty state
   if (data.totalBuilds === 0) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <GitBranch className="h-4 w-4" />
-          Builds
-        </h3>
+      <SectionShell>
+        <SectionTitle />
         <p className="text-sm text-muted-foreground">No builds found in the selected date range.</p>
-      </div>
+      </SectionShell>
     );
   }
 
-  const successRate = 100 - data.failureRate;
-
-  // Prepare chart data
   const chartData = [
-    { name: "Succeeded", value: data.succeeded, fill: "hsl(142 76% 60%)" },
-    { name: "Failed", value: data.failed, fill: "hsl(0 84% 70%)" },
-    { name: "Others", value: data.others || 0, fill: "hsl(25 95% 65%)" },
+    { name: "Succeeded", value: data.succeeded, fill: "hsl(var(--chart-3))", key: "succeeded" },
+    { name: "Failed", value: data.failed, fill: "hsl(var(--chart-5))", key: "failed" },
+    { name: "Others", value: data.others || 0, fill: "hsl(var(--chart-4))", key: "others" },
   ].filter((item) => item.value > 0);
 
   const chartConfig = {
-    value: { label: "Builds" },
+    succeeded: { label: "Succeeded", color: "hsl(var(--chart-3))" },
+    failed: { label: "Failed", color: "hsl(var(--chart-5))" },
+    others: { label: "Others", color: "hsl(var(--chart-4))" },
   };
 
-  // Data loaded state
   return (
-    <div className="bg-card rounded-lg border border-border p-4 flex flex-col sm:flex-row gap-6">
-      {/* Left: Content - 2/3 width */}
-      <div className="flex-[2] space-y-3">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <GitBranch className="h-4 w-4" />
-          Builds
-        </h3>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-2xl font-bold text-foreground">{data.totalBuilds}</p>
-            <p className="text-xs text-muted-foreground">Total Builds</p>
-          </div>
-
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-green-600 dark:text-green-400">
-              {data.succeeded}
-            </p>
-            <p className="text-xs text-muted-foreground">Succeeded</p>
-          </div>
-
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-red-600 dark:text-red-400">{data.failed}</p>
-            <p className="text-xs text-muted-foreground">Failed</p>
-          </div>
-
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="text-xl font-semibold text-orange-600 dark:text-orange-400">
-              {data.others || 0}
-            </p>
-            <p className="text-xs text-muted-foreground">Others</p>
-          </div>
-        </div>
-
-        <div className="pt-3 border-t border-border text-xs text-muted-foreground">
-          {data.avgDuration > 0 && (
-            <>
-              <Clock className="h-3 w-3 inline mr-1" />
-              Avg Duration:{" "}
-              <span className="font-medium text-foreground">{data.avgDuration} min</span>
-              {" • "}
-            </>
-          )}
-          Failure Rate: <span className="font-medium text-foreground">{data.failureRate}%</span>
-        </div>
-      </div>
-
-      {/* Right: Pie Chart - 1/3 width */}
-      {chartData.length > 0 && (
-        <div className="flex-[1] hidden sm:flex items-center justify-center">
-          <ChartContainer config={chartConfig} className="h-[180px] w-[180px]">
-            <PieChart>
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
+    <SectionShell>
+      <div className="flex flex-col gap-6 sm:flex-row">
+        <div className="flex-[2] space-y-3">
+          <SectionTitle />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="min-w-0">
+              <p className="text-2xl font-semibold tabular-nums text-foreground">
+                {data.totalBuilds}
+              </p>
+              <p className="text-xs text-muted-foreground">Total builds</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-semibold tabular-nums text-success-foreground">
+                {data.succeeded}
+              </p>
+              <p className="text-xs text-muted-foreground">Succeeded</p>
+            </div>
+            <div className="min-w-0">
+              <p
+                className={`text-xl font-semibold tabular-nums ${
+                  data.failed > 0 ? "text-danger-foreground" : "text-foreground"
+                }`}
               >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ChartContainer>
+                {data.failed}
+              </p>
+              <p className="text-xs text-muted-foreground">Failed</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-semibold tabular-nums text-muted-foreground">
+                {data.others || 0}
+              </p>
+              <p className="text-xs text-muted-foreground">Others</p>
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-3 text-xs text-muted-foreground">
+            {data.avgDuration > 0 ? (
+              <>
+                <Clock className="mr-1 inline size-3" aria-hidden="true" />
+                Avg duration:{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {data.avgDuration} min
+                </span>
+                {" · "}
+              </>
+            ) : null}
+            Failure rate:{" "}
+            <span className="font-medium tabular-nums text-foreground">{data.failureRate}%</span>
+          </div>
         </div>
-      )}
-    </div>
+
+        {chartData.length > 0 ? (
+          <div className="hidden flex-[1] items-center justify-center sm:flex">
+            <ChartContainer config={chartConfig} className="h-[180px] w-[180px]">
+              <PieChart>
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  strokeWidth={1}
+                >
+                  {chartData.map((entry) => (
+                    <Cell key={entry.key} fill={entry.fill} stroke="hsl(var(--background))" />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+          </div>
+        ) : null}
+      </div>
+    </SectionShell>
   );
 }

@@ -1,18 +1,33 @@
-import React, { useState } from "react";
-import { FileText, ChevronDown, ChevronUp, Loader2, Info, Filter } from "lucide-react";
+import { useState } from "react";
+import { FileText, ChevronDown, ChevronUp, Loader2, Filter } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import TimeRangeSelector from "./TimeRangeSelector";
-import ErrorMessage from "./ErrorMessage";
+import { InlineError } from "@/components/kit/InlineError";
 import PullRequestsSection from "./report-sections/PullRequestsSection";
 import PRDiscussionSection from "./report-sections/PRDiscussionSection";
 import BuildsSection from "./report-sections/BuildsSection";
 import ReleasesSection from "./report-sections/ReleasesSection";
 import WorkItemsSection from "./report-sections/WorkItemsSection";
+
+const REPORT_INCLUDES = [
+  "Pull Requests",
+  "PR Discussion Health",
+  "Builds",
+  "Releases",
+  "Work Items",
+];
+
+const SECTION_LABELS = {
+  workItems: "Work items",
+  builds: "Builds",
+  releases: "Releases",
+  pullRequests: "Pull requests",
+  prDiscussion: "PR Discussion Health",
+};
 
 export default function DevOpsActivityReport() {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,6 +35,7 @@ export default function DevOpsActivityReport() {
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState(null);
   const [productionOnly, setProductionOnly] = useState(false);
+  const [liveMessage, setLiveMessage] = useState("");
   const [dateRange, setDateRange] = useState(() => {
     const to = new Date();
     const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -30,6 +46,7 @@ export default function DevOpsActivityReport() {
     setLoading(true);
     setError(null);
     setReportData(null);
+    setLiveMessage("Generating report…");
 
     try {
       const token = localStorage.getItem("token");
@@ -59,9 +76,13 @@ export default function DevOpsActivityReport() {
       const reportSections = {};
       let buffer = "";
 
-      while (true) {
+      let streaming = true;
+      while (streaming) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          streaming = false;
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n\n");
@@ -77,8 +98,8 @@ export default function DevOpsActivityReport() {
           const data = JSON.parse(dataStr);
 
           if (eventType === "section") {
-            const { name, data: sectionData, error } = data;
-            reportSections[name] = error ? { error } : sectionData;
+            const { name, data: sectionData, error: sectionError } = data;
+            reportSections[name] = sectionError ? { error: sectionError } : sectionData;
 
             setReportData({
               pullRequests: reportSections.pullRequests || null,
@@ -88,15 +109,20 @@ export default function DevOpsActivityReport() {
               workItems: reportSections.workItems || null,
               meta: { generatedAt: new Date().toISOString() },
             });
+
+            const label = SECTION_LABELS[name] || name;
+            setLiveMessage(`${label} section loaded`);
           } else if (eventType === "complete") {
             setReportData((prev) => ({
               ...prev,
               meta: { generatedAt: data.generatedAt, durationMs: data.duration },
             }));
             setLoading(false);
+            setLiveMessage("Report generation complete");
           } else if (eventType === "error") {
             setError(data.error || "Failed to generate report");
             setLoading(false);
+            setLiveMessage("");
           }
         }
       }
@@ -104,6 +130,7 @@ export default function DevOpsActivityReport() {
       console.error("Activity report error:", err);
       setError(err.userMessage || err.message || "Failed to generate report");
       setLoading(false);
+      setLiveMessage("");
     }
   };
 
@@ -130,7 +157,7 @@ export default function DevOpsActivityReport() {
         body: JSON.stringify({
           startDate: dateRange.from.toISOString(),
           endDate: dateRange.to.toISOString(),
-          reportData: reportData, // Pass existing data
+          reportData: reportData,
           productionOnly: productionOnly,
         }),
       });
@@ -141,7 +168,6 @@ export default function DevOpsActivityReport() {
 
       const blob = await response.blob();
 
-      // Extract filename from Content-Disposition header if available
       const contentDisposition = response.headers.get("Content-Disposition");
       let filename = `devops-report-${dateRange.from.toISOString().split("T")[0]}-to-${dateRange.to.toISOString().split("T")[0]}.pdf`;
 
@@ -168,152 +194,119 @@ export default function DevOpsActivityReport() {
   };
 
   return (
-    <div
-      className={`bg-card rounded-lg border transition-colors ${
-        reportData ? "border-border" : "border-border/50 bg-muted/30"
-      }`}
-    >
+    <div className="rounded-panel border border-border bg-surface">
+      <span className="sr-only" aria-live="polite">
+        {liveMessage}
+      </span>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger className="w-full">
-          <div className="flex items-center justify-between p-4 hover:bg-accent/50 transition-colors">
-            <div className="flex items-center gap-3">
-              <FileText className="h-5 w-5 text-primary" />
-              <div className="text-left">
-                <h2 className="text-base font-semibold text-foreground">DevOps Activity Report</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Comprehensive analytics across PRs, builds, releases, and work items
+        <CollapsibleTrigger className="w-full rounded-panel focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50">
+            <div className="flex min-w-0 items-center gap-3">
+              <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-foreground">DevOps Activity Report</h2>
+                <p className="text-xs text-muted-foreground">
+                  On-demand analytics across PRs, builds, releases, and work items
                 </p>
               </div>
             </div>
             {isOpen ? (
-              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             ) : (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             )}
           </div>
         </CollapsibleTrigger>
 
         <CollapsibleContent>
-          <div className="px-4 pb-4 space-y-4 pt-4">
-            {/* Info Alert - Why manual generation */}
-            {!reportData && !loading && (
-              <div className="flex items-center gap-3 rounded-lg border border-muted bg-muted/50 p-3">
-                <Info className="h-4 w-4 text-muted-foreground shrink-0" />
-                <p className="text-xs text-muted-foreground">
-                  This report aggregates data from multiple sources and may take 10-30 seconds to
-                  generate. Select a date range and click "Generate Report" to begin.
-                </p>
-              </div>
-            )}
-
-            {/* Controls */}
-            <div className="flex flex-col gap-3 pt-2">
-              {/* Production Filter Toggle */}
-              <div className="flex items-center space-x-2 p-2 bg-muted/50 rounded-md">
+          <div className="space-y-4 border-t border-border px-4 py-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <Switch
                   id="production-only"
                   checked={productionOnly}
                   onCheckedChange={setProductionOnly}
                   disabled={loading}
                 />
-                <Label htmlFor="production-only" className="cursor-pointer flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Production Only Report
+                <Label htmlFor="production-only" className="cursor-pointer text-sm">
+                  Production Only
                 </Label>
-                {productionOnly && (
-                  <Badge variant="secondary" className="ml-2">
-                    <Filter className="w-3 h-3 mr-1" />
+                {productionOnly ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Filter className="size-3" aria-hidden="true" />
                     Filtered
                   </Badge>
-                )}
+                ) : null}
               </div>
 
-              {/* Date Range and Buttons */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    Date Range:
-                  </span>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Date range</span>
                   <TimeRangeSelector value={dateRange} onChange={setDateRange} disabled={loading} />
                 </div>
-                <div className="flex gap-2 sm:gap-3">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={handleGenerateReport}
                     disabled={loading}
-                    className="gap-2 flex-1 sm:flex-none"
+                    className="gap-2"
                     size="sm"
                   >
-                    {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {loading ? "Generating…" : "Generate Report"}
+                    {loading ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    ) : null}
+                    {loading ? "Generating..." : "Generate Report"}
                   </Button>
-                  {reportData && (
-                    <Button
-                      onClick={handleExportPDF}
-                      disabled={loading}
-                      variant="outline"
-                      className="gap-2 flex-1 sm:flex-none"
-                      size="sm"
-                    >
-                      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Export PDF
-                    </Button>
-                  )}
+                  <Button
+                    onClick={handleExportPDF}
+                    disabled={loading || !reportData}
+                    variant="outline"
+                    className="gap-2"
+                    size="sm"
+                  >
+                    Export PDF
+                  </Button>
                 </div>
               </div>
             </div>
 
-            {/* Error Display */}
-            {error && <ErrorMessage message={error} onRetry={handleGenerateReport} />}
+            {error ? <InlineError message={error} onRetry={handleGenerateReport} /> : null}
 
-            {/* Preview Outline (dormant state) */}
-            {!reportData && !loading && !error && (
-              <div className="space-y-3 mt-6">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Report will include:
-                </p>
-                <div className="grid gap-3">
-                  {[
-                    {
-                      title: "Pull Requests",
-                      desc: "Total PRs, status breakdown, completion time",
-                    },
-                    {
-                      title: "PR Discussion Health",
-                      desc: "Threads, comments, resolution metrics",
-                    },
-                    { title: "Builds", desc: "Total builds, success rate, average duration" },
-                    { title: "Releases", desc: "Deployments, success rate, environment status" },
-                    { title: "Work Items", desc: "Created, completed, overdue items" },
-                  ].map((section) => (
-                    <div
-                      key={section.title}
-                      className="p-3 rounded-md border border-dashed border-muted-foreground/20 bg-muted/20"
-                    >
-                      <p className="text-sm font-medium text-muted-foreground">{section.title}</p>
-                      <p className="text-xs text-muted-foreground/70 mt-0.5">{section.desc}</p>
-                    </div>
+            {!reportData && !loading && !error ? (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Report includes</p>
+                <ul className="space-y-1 text-sm text-foreground">
+                  {REPORT_INCLUDES.map((item) => (
+                    <li key={item} className="flex items-center gap-2">
+                      <span
+                        className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      {item}
+                    </li>
                   ))}
-                </div>
+                </ul>
+                <p className="pt-1 text-xs text-muted-foreground">
+                  Aggregates multiple sources and may take 10–30 seconds.
+                </p>
               </div>
-            )}
+            ) : null}
 
-            {/* Report Results */}
             {(reportData || loading) && (
-              <div className="space-y-3 mt-6">
+              <div className="space-y-3">
                 <WorkItemsSection data={reportData?.workItems} />
                 <BuildsSection data={reportData?.builds} />
                 <ReleasesSection data={reportData?.releases} />
                 <PullRequestsSection data={reportData?.pullRequests} />
                 <PRDiscussionSection data={reportData?.prDiscussion} />
 
-                {/* Report Metadata */}
-                {reportData?.meta && (
-                  <div className="text-xs text-muted-foreground text-right pt-2 border-t">
+                {reportData?.meta ? (
+                  <div className="border-t border-border pt-2 text-right text-xs text-muted-foreground">
                     Generated {new Date(reportData.meta.generatedAt).toLocaleString()}
-                    {reportData.meta.durationMs &&
-                      ` • ${(reportData.meta.durationMs / 1000).toFixed(1)}s`}
+                    {reportData.meta.durationMs
+                      ? ` · ${(reportData.meta.durationMs / 1000).toFixed(1)}s`
+                      : null}
                   </div>
-                )}
+                ) : null}
               </div>
             )}
           </div>
