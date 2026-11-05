@@ -466,6 +466,8 @@ class PDFService {
     try {
       logger.info("[PDFService] Launching Puppeteer browser...", { environment: "development" });
 
+      // Avoid --single-process/--no-zygote: on Windows Chromium crashes during
+      // Page.printToPDF ("Target closed"). Multi-process is stable for PDF gen.
       const launchOptions = {
         headless: true,
         args: [
@@ -474,8 +476,6 @@ class PDFService {
           "--disable-dev-shm-usage",
           "--disable-accelerated-2d-canvas",
           "--no-first-run",
-          "--no-zygote",
-          "--single-process",
           "--disable-gpu",
         ],
       };
