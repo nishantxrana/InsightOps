@@ -9,11 +9,13 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
+  CommandShortcut,
 } from "@/components/ui/command";
 import { APP_ROUTES, SETTINGS_SECTIONS } from "@/config/routes";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useSidebar } from "@/components/ui/sidebar";
+import { isApplePlatform } from "@/lib/platform";
 
 export function CommandPalette({ open, onOpenChange }) {
   const navigate = useNavigate();
@@ -22,6 +24,11 @@ export function CommandPalette({ open, onOpenChange }) {
   const { organizations, currentOrganization, currentProject, switchOrganization, switchProject } =
     useOrganization();
   const [projects, setProjects] = useState([]);
+  const [modKey, setModKey] = useState("Ctrl");
+
+  useEffect(() => {
+    setModKey(isApplePlatform() ? "⌘" : "Ctrl");
+  }, []);
 
   useEffect(() => {
     if (!open || !currentOrganization) {
@@ -59,9 +66,18 @@ export function CommandPalette({ open, onOpenChange }) {
     [onOpenChange]
   );
 
+  const sidebarHint = isApplePlatform() || modKey === "⌘" ? "⌘B" : "Ctrl B";
+
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Search navigation, settings, actions…" />
+      <CommandInput
+        placeholder="Type a command or search..."
+        endSlot={
+          <kbd className="pointer-events-none hidden h-5 shrink-0 items-center rounded bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:inline-flex">
+            Esc
+          </kbd>
+        }
+      />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
 
@@ -76,6 +92,7 @@ export function CommandPalette({ open, onOpenChange }) {
               >
                 <Icon />
                 <span>{route.label}</span>
+                <CommandShortcut>Page</CommandShortcut>
               </CommandItem>
             );
           })}
@@ -89,6 +106,7 @@ export function CommandPalette({ open, onOpenChange }) {
               >
                 <Icon />
                 <span>Settings · {section.label}</span>
+                <CommandShortcut>Page</CommandShortcut>
               </CommandItem>
             );
           })}
@@ -137,6 +155,7 @@ export function CommandPalette({ open, onOpenChange }) {
           <CommandItem value="Toggle sidebar" onSelect={() => run(() => toggleSidebar())}>
             <PanelLeft />
             <span>Toggle sidebar</span>
+            <CommandShortcut>{sidebarHint}</CommandShortcut>
           </CommandItem>
           <CommandItem
             value="Sync this page"
@@ -151,6 +170,22 @@ export function CommandPalette({ open, onOpenChange }) {
           </CommandItem>
         </CommandGroup>
       </CommandList>
+
+      <div className="flex h-9 items-center gap-3 border-t border-border px-3 text-[11px] text-muted-foreground">
+        <span>
+          <kbd className="rounded bg-muted px-1 font-mono">↑</kbd>
+          <kbd className="ml-0.5 rounded bg-muted px-1 font-mono">↓</kbd>
+          <span className="ml-1">navigate</span>
+        </span>
+        <span>
+          <kbd className="rounded bg-muted px-1 font-mono">↵</kbd>
+          <span className="ml-1">open</span>
+        </span>
+        <span>
+          <kbd className="rounded bg-muted px-1 font-mono">Esc</kbd>
+          <span className="ml-1">close</span>
+        </span>
+      </div>
     </CommandDialog>
   );
 }

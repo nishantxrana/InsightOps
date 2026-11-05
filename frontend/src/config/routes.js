@@ -14,7 +14,7 @@ import {
   Shield,
 } from "lucide-react";
 
-/** @typedef {{ path: string, label: string, group: string | null, icon: import('lucide-react').LucideIcon }} AppRoute */
+/** @typedef {{ path: string, label: string, group: string | null, icon: import('lucide-react').LucideIcon, nav?: boolean }} AppRoute */
 
 /** @type {AppRoute[]} */
 export const APP_ROUTES = [
@@ -25,15 +25,15 @@ export const APP_ROUTES = [
   { path: "/pull-requests", label: "Pull Requests", group: "Development", icon: GitPullRequest },
   { path: "/notifications", label: "Notifications", group: "Operations", icon: Bell },
   { path: "/logs", label: "Logs", group: "Operations", icon: FileText },
-  { path: "/settings", label: "Settings", group: null, icon: Settings },
+  { path: "/settings", label: "Settings", group: null, icon: Settings, nav: false },
 ];
 
 export const NAV_GROUP_ORDER = ["Overview", "Development", "Operations"];
 
 /** Routes shown in the sidebar main nav (excludes Settings). */
-export const NAV_ROUTES = APP_ROUTES.filter((r) => r.group != null);
+export const NAV_ROUTES = APP_ROUTES.filter((r) => r.nav !== false && r.group != null);
 
-/** Settings footer route. */
+/** Settings route (breadcrumbs / command palette; not shown in sidebar). */
 export const SETTINGS_ROUTE = APP_ROUTES.find((r) => r.path === "/settings");
 
 /** Grouped nav items for the sidebar. */
