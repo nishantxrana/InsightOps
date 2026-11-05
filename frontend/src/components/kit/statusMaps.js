@@ -24,6 +24,18 @@ export function buildStatus(build) {
   return result("neutral", "Unknown");
 }
 
+/**
+ * Azure DevOps reviewer vote → badge props.
+ * ADO: 10 approve, 5 approve with suggestions, 0 none, -5 waiting/needs work, -10 reject.
+ * @param {number|undefined|null} vote
+ */
+export function prVoteStatus(vote) {
+  if (typeof vote === "number" && vote > 0) return result("success", "Approved");
+  if (vote === -10) return result("danger", "Rejected");
+  if (typeof vote === "number" && vote < 0) return result("danger", "Needs work");
+  return result("warning", "Waiting");
+}
+
 /** @param {{ status?: string }} pr */
 export function prStatus(pr) {
   if (!pr?.status) return result("neutral", "Unknown");

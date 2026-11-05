@@ -247,7 +247,7 @@ export function DensityToggle({ className }) {
 export function ResultCount({ shown, total, noun = "results", className }) {
   return (
     <p className={cn("text-xs text-muted-foreground tabular-nums", className)}>
-      Showing {shown} of {total} {noun}
+      {shown} of {total} {noun}
     </p>
   );
 }

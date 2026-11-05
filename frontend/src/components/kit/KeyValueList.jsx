@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 /**
  * @param {{
  *   items: Array<{ label: string, value: React.ReactNode, mono?: boolean }>,
- *   columns?: 1 | 2 | 3,
+ *   columns?: 1 | 2 | 3 | 4,
  *   className?: string,
  * }} props
  */
@@ -13,7 +13,9 @@ export function KeyValueList({ items = [], columns = 2, className }) {
       ? "grid-cols-1"
       : columns === 3
         ? "grid-cols-1 sm:grid-cols-3"
-        : "grid-cols-1 sm:grid-cols-2";
+        : columns === 4
+          ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+          : "grid-cols-1 sm:grid-cols-2";
 
   return (
     <dl className={cn("grid gap-x-6 gap-y-3", colClass, className)}>

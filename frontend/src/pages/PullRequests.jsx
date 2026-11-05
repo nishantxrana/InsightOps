@@ -1,33 +1,88 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  GitPullRequest,
-  User,
-  Clock,
-  GitBranch,
-  Eye,
-  ExternalLink,
-  Building,
-  FolderGit2,
-  Calendar,
-  Activity,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
-  Download,
-} from "lucide-react";
+import { Download, ExternalLink, GitPullRequest } from "lucide-react";
+import { format } from "date-fns";
+
 import { apiService } from "../api/apiService";
 import { useOrganization } from "../contexts/OrganizationContext";
 import { useHealth } from "../contexts/HealthContext";
-import LoadingSpinner from "../components/LoadingSpinner";
-import ErrorMessage from "../components/ErrorMessage";
 import PullRequestDetailModal from "../components/PullRequestDetailModal";
 import TimeRangeSelector from "../components/TimeRangeSelector";
-import { format, formatDistanceToNow } from "date-fns";
+import { useSearchParamState } from "@/hooks/useSearchParamState";
+import { useDensity } from "@/hooks/useDensity";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { AvatarStack } from "@/components/kit/AvatarStack";
+import { DataRow, DataTable, TimeAgo } from "@/components/kit/DataTable";
+import { EmptyState } from "@/components/kit/EmptyState";
+import { InlineError } from "@/components/kit/InlineError";
+import { PageHeader } from "@/components/kit/PageHeader";
+import { SkeletonRows } from "@/components/kit/Skeletons";
+import { StatCell, StatStrip } from "@/components/kit/StatStrip";
+import { StatusBadge } from "@/components/kit/StatusBadge";
+import { SyncButton } from "@/components/kit/SyncButton";
+import {
+  ActiveFilters,
+  DensityToggle,
+  ResultCount,
+  SearchField,
+  SegmentedFilter,
+  SortSelect,
+  Toolbar,
+} from "@/components/kit/Toolbar";
+import { prStatus } from "@/components/kit/statusMaps";
+import { cn } from "@/lib/utils";
+
+const FILTER_VALUES = new Set(["all", "in-review", "no-reviewers", "conflicts", "stale"]);
+
+function normalizeFilter(raw) {
+  if (raw === "idle") return "stale";
+  if (FILTER_VALUES.has(raw)) return raw;
+  return "all";
+}
+
+function mergeStatusBadge(mergeStatus) {
+  const merge = (mergeStatus || "").toLowerCase();
+  if (merge === "succeeded") return { tone: "success", label: "Ready" };
+  if (merge === "conflicts") return { tone: "danger", label: "Conflicts" };
+  if (merge === "queued") return { tone: "info", label: "Queued" };
+  return { tone: "warning", label: "Pending" };
+}
+
+function branchName(ref) {
+  return (ref || "").replace("refs/heads/", "");
+}
+
+function projectRepoLabel(pr) {
+  const project = pr.repository?.project?.name || "";
+  const repo = pr.repository?.name || "";
+  if (!project && !repo) return "—";
+  if (project && repo && project.toLowerCase() === repo.toLowerCase()) return project;
+  if (project && repo) return `${project} · ${repo}`;
+  return project || repo;
+}
+
+function activityDate(pr) {
+  return pr.lastMergeCommit?.committer?.date || pr.creationDate || null;
+}
+
+function matchesSearch(pr, q) {
+  if (!q) return true;
+  const hay = [
+    pr.title,
+    String(pr.pullRequestId ?? ""),
+    pr.createdBy?.displayName,
+    pr.createdBy?.uniqueName,
+    branchName(pr.sourceRefName),
+    branchName(pr.targetRefName),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(q);
+}
 
 export default function PullRequests() {
-  const [initialLoading, setInitialLoading] = useState(true);
   const [loadingStates, setLoadingStates] = useState({
     pullRequests: true,
     idlePRs: true,
@@ -36,10 +91,11 @@ export default function PullRequests() {
   const [error, setError] = useState(null);
   const [pullRequests, setPullRequests] = useState([]);
   const [idlePRs, setIdlePRs] = useState([]);
-  const [filter, setFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
+  const [filterParam, setFilterParam] = useSearchParamState("filter", "all");
+  const [sortBy, setSortBy] = useSearchParamState("sort", "newest");
+  const [search, setSearch] = useState("");
   const [timeRange, setTimeRange] = useState({
-    from: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+    from: new Date(Date.now() - 24 * 60 * 60 * 1000),
     to: new Date(),
     label: "1 Day",
     value: "1d",
@@ -52,23 +108,29 @@ export default function PullRequests() {
     conflicts: 0,
   });
   const [selectedPR, setSelectedPR] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const { checkConnection } = useHealth();
   const { currentOrganization, currentProject, clearSwitching } = useOrganization();
+  const { density } = useDensity();
+  const parentRef = useRef(null);
+  const rowRefs = useRef(new Map());
+  const triggerRef = useRef(null);
+
+  const filter = normalizeFilter(filterParam);
 
   useEffect(() => {
-    if (currentOrganization) {
-      loadPullRequestsData();
+    if (
+      filterParam === "idle" ||
+      (filterParam && !FILTER_VALUES.has(filterParam) && filterParam !== "idle")
+    ) {
+      if (filterParam === "idle") setFilterParam("stale");
+      else if (!FILTER_VALUES.has(filterParam)) setFilterParam("all");
     }
-  }, [timeRange, currentOrganization, currentProject]); // Reload when time range, org, or project changes
+  }, [filterParam, setFilterParam]);
 
-  const handleSync = async () => {
-    await Promise.all([checkConnection(), loadPullRequestsData()]);
-  };
-
-  const loadPullRequestsData = async () => {
+  const loadPullRequestsData = useCallback(async () => {
     try {
-      setInitialLoading(true);
       setError(null);
       setLoadingStates({
         pullRequests: true,
@@ -76,11 +138,9 @@ export default function PullRequests() {
         stats: true,
       });
 
-      let prsList = []; // Declare here so it's accessible in idle PR section
+      let prsList = [];
 
-      // Load pull requests with time filter
       try {
-        // Calculate days from timeRange
         const days = Math.ceil((timeRange.to - timeRange.from) / (1000 * 60 * 60 * 24));
 
         const response = await fetch(`/api/pull-requests/by-date?days=${days}`, {
@@ -98,7 +158,6 @@ export default function PullRequests() {
         prsList = prsData.value || [];
         setPullRequests(prsList);
 
-        // Calculate stats
         const newStats = {
           total: prsList.length,
           active: prsList.filter(
@@ -112,26 +171,26 @@ export default function PullRequests() {
         };
         setStats((prev) => ({ ...prev, ...newStats }));
         setLoadingStates((prev) => ({ ...prev, pullRequests: false, stats: false }));
-        // Don't set initialLoading false here - wait for all APIs or error
       } catch (err) {
         setPullRequests([]);
         setStats({ total: 0, active: 0, unassigned: 0, idle: 0, conflicts: 0 });
-        setLoadingStates((prev) => ({ ...prev, pullRequests: false, stats: false }));
+        setLoadingStates((prev) => ({
+          ...prev,
+          pullRequests: false,
+          stats: false,
+          idlePRs: false,
+        }));
         setError(
           err.userMessage ||
             "Failed to load pull requests. Please check your Azure DevOps configuration."
         );
-        setInitialLoading(false);
-        clearSwitching(); // Clear switching overlay on error
+        clearSwitching();
         return;
       }
 
-      // Load idle PRs separately
       try {
         const idleData = await apiService.getIdlePullRequests();
         const idleList = idleData.value || [];
-
-        // Filter idle PRs to only include ones in the time-filtered PR list
         const prIds = new Set(prsList.map((pr) => pr.pullRequestId));
         const filteredIdlePRs = idleList.filter((idlePR) => prIds.has(idlePR.pullRequestId));
 
@@ -139,15 +198,13 @@ export default function PullRequests() {
         setStats((prev) => ({ ...prev, idle: filteredIdlePRs.length }));
         setLoadingStates((prev) => ({ ...prev, idlePRs: false }));
       } catch {
-        // Idle PRs are secondary, fail silently
         setIdlePRs([]);
         setStats((prev) => ({ ...prev, idle: 0 }));
         setLoadingStates((prev) => ({ ...prev, idlePRs: false }));
       }
 
-      // Set initialLoading false only after all APIs complete successfully
-      setInitialLoading(false);
-      clearSwitching(); // Clear switching overlay after data loads
+      setLastSyncedAt(new Date());
+      clearSwitching();
     } catch (err) {
       setError(
         err.userMessage ||
@@ -161,174 +218,93 @@ export default function PullRequests() {
         idlePRs: false,
         stats: false,
       });
-      setInitialLoading(false);
-      clearSwitching(); // Clear switching overlay on error
+      clearSwitching();
     }
-  };
+  }, [timeRange, clearSwitching]);
 
-  const getStatusBadge = (status) => {
-    // Neutral bg, colored text/icon
-    switch (status) {
-      case "active":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400">
-            <Activity className="h-3 w-3" />
-            Active
-          </span>
-        );
-      case "completed":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="h-3 w-3" />
-            Completed
-          </span>
-        );
-      case "abandoned":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-            <XCircle className="h-3 w-3" />
-            Abandoned
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-            <AlertCircle className="h-3 w-3" />
-            {status}
-          </span>
-        );
+  useEffect(() => {
+    if (currentOrganization) {
+      loadPullRequestsData();
     }
+  }, [timeRange, currentOrganization, currentProject, loadPullRequestsData]);
+
+  const handleSync = async () => {
+    await Promise.all([checkConnection(), loadPullRequestsData()]);
   };
 
-  const getMergeStatusBadge = (mergeStatus) => {
-    // Neutral bg, colored text/icon
-    switch (mergeStatus) {
-      case "succeeded":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="h-3 w-3" />
-            Ready
-          </span>
-        );
-      case "conflicts":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-red-600 dark:text-red-400">
-            <AlertCircle className="h-3 w-3" />
-            Conflicts
-          </span>
-        );
-      case "queued":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-blue-600 dark:text-blue-400">
-            <Clock className="h-3 w-3" />
-            Queued
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-            <AlertCircle className="h-3 w-3" />
-            {mergeStatus || "Pending"}
-          </span>
-        );
-    }
-  };
+  const idleIdSet = useMemo(() => new Set(idlePRs.map((p) => p.pullRequestId)), [idlePRs]);
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "active":
-        return <GitPullRequest className="h-5 w-5 text-blue-500 dark:text-blue-400" />;
-      case "completed":
-        return <GitPullRequest className="h-5 w-5 text-green-500 dark:text-green-400" />;
-      case "abandoned":
-        return <GitPullRequest className="h-5 w-5 text-muted-foreground" />;
-      default:
-        return <GitPullRequest className="h-5 w-5 text-muted-foreground" />;
-    }
-  };
+  const getPRPriority = useCallback(
+    (pr) => {
+      const isUnassigned = pr.status === "active" && (!pr.reviewers || pr.reviewers.length === 0);
+      const hasConflicts = pr.mergeStatus === "conflicts";
+      const isIdle = idleIdSet.has(pr.pullRequestId);
 
-  const getLastActivityTime = (pr) => {
-    const lastCommitDate = pr.lastMergeCommit?.committer?.date;
-    const creationDate = pr.creationDate;
-    const lastActivity = lastCommitDate || creationDate;
+      if (hasConflicts) return 0;
+      if (isUnassigned) return 1;
+      if (isIdle) return 2;
+      if (pr.status === "active") return 3;
+      return 4;
+    },
+    [idleIdSet]
+  );
 
-    if (lastActivity) {
-      return formatDistanceToNow(new Date(lastActivity), { addSuffix: true });
-    }
-    return "Unknown";
-  };
+  const filteredPRs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let filtered = pullRequests.filter((pr) => matchesSearch(pr, q));
 
-  // Helper to check if PR has problems
-  const getPRPriority = (pr) => {
-    const isUnassigned = pr.status === "active" && (!pr.reviewers || pr.reviewers.length === 0);
-    const hasConflicts = pr.mergeStatus === "conflicts";
-    const isIdle = idlePRs.some((idle) => idle.pullRequestId === pr.pullRequestId);
-
-    if (hasConflicts) return 0; // Conflicts first - merge blocked!
-    if (isUnassigned) return 1; // Unassigned second - blocked waiting
-    if (isIdle) return 2; // Idle third - needs attention
-    if (pr.status === "active") return 3; // Active PRs
-    return 4; // Completed/abandoned last
-  };
-
-  // Filter and sort PRs - problems first for operational clarity
-  const getFilteredAndSortedPRs = () => {
-    let filtered = [...pullRequests];
-
-    // Apply filter
     switch (filter) {
-      case "under-review":
+      case "in-review":
         filtered = filtered.filter(
           (pr) => pr.status === "active" && pr.reviewers && pr.reviewers.length > 0
         );
         break;
-      case "unassigned":
+      case "no-reviewers":
         filtered = filtered.filter(
           (pr) => pr.status === "active" && (!pr.reviewers || pr.reviewers.length === 0)
         );
         break;
-      case "idle":
-        filtered = filtered.filter((pr) =>
-          idlePRs.some((idle) => idle.pullRequestId === pr.pullRequestId)
-        );
+      case "stale":
+        filtered = filtered.filter((pr) => idleIdSet.has(pr.pullRequestId));
         break;
       case "conflicts":
         filtered = filtered.filter((pr) => pr.mergeStatus === "conflicts");
         break;
-      case "all":
       default:
-        // No filter
         break;
     }
 
-    // Sort by priority first (problems first), then by user-selected sort
-    const sorted = [...filtered].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const priorityDiff = getPRPriority(a) - getPRPriority(b);
       if (priorityDiff !== 0) return priorityDiff;
 
-      // Within same priority, apply user sort
       switch (sortBy) {
         case "oldest":
           return new Date(a.creationDate) - new Date(b.creationDate);
         case "title":
-          return a.title.localeCompare(b.title);
+          return (a.title || "").localeCompare(b.title || "");
         case "newest":
         default:
           return new Date(b.creationDate) - new Date(a.creationDate);
       }
     });
+  }, [pullRequests, filter, sortBy, search, idleIdSet, getPRPriority]);
 
-    return sorted;
-  };
+  const estimateSize = density === "compact" ? 56 : density === "comfortable" ? 72 : 64;
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredPRs.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => estimateSize,
+    overscan: 5,
+  });
+
+  const isLoading = loadingStates.pullRequests;
+  const isSyncing = Object.values(loadingStates).some(Boolean);
 
   const handleExportCSV = () => {
-    const prsToExport = getFilteredAndSortedPRs();
+    if (filteredPRs.length === 0) return;
 
-    if (prsToExport.length === 0) {
-      return;
-    }
-
-    // CSV headers
     const headers = [
       "ID",
       "Title",
@@ -343,8 +319,7 @@ export default function PullRequests() {
       "URL",
     ];
 
-    // CSV rows
-    const rows = prsToExport.map((pr) => {
+    const rows = filteredPRs.map((pr) => {
       const reviewers =
         pr.reviewers?.map((r) => r.displayName || r.uniqueName).join("; ") || "None";
       const createdDate = pr.creationDate
@@ -354,11 +329,11 @@ export default function PullRequests() {
 
       return [
         pr.pullRequestId || "",
-        (pr.title || "").replace(/"/g, '""'), // Escape quotes
+        (pr.title || "").replace(/"/g, '""'),
         pr.status || "",
         pr.repository?.name || "",
-        (pr.sourceRefName || "").replace("refs/heads/", ""),
-        (pr.targetRefName || "").replace("refs/heads/", ""),
+        branchName(pr.sourceRefName),
+        branchName(pr.targetRefName),
         pr.createdBy?.displayName || pr.createdBy?.uniqueName || "",
         createdDate,
         reviewers.replace(/"/g, '""'),
@@ -369,10 +344,7 @@ export default function PullRequests() {
         .join(",");
     });
 
-    // Combine headers and rows
     const csv = [headers.map((h) => `"${h}"`).join(","), ...rows].join("\n");
-
-    // Download
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -387,671 +359,320 @@ export default function PullRequests() {
     URL.revokeObjectURL(url);
   };
 
-  const filteredPRs = getFilteredAndSortedPRs();
+  const openPR = (pr, index) => {
+    const el = rowRefs.current.get(index);
+    if (el) triggerRef.current = el;
+    setSelectedPR(pr);
+    setIsSheetOpen(true);
+  };
 
-  // Virtual scrolling setup (must be after filteredPRs)
-  const parentRef = useRef(null);
-  const rowVirtualizer = useVirtualizer({
-    count: filteredPRs.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 120,
-    overscan: 5,
-  });
+  const closeSheet = () => {
+    setIsSheetOpen(false);
+    setSelectedPR(null);
+  };
 
-  if (error && initialLoading) {
-    return <ErrorMessage message={error} onRetry={loadPullRequestsData} />;
+  const navigateSheet = (nextIndex) => {
+    const pr = filteredPRs[nextIndex];
+    if (!pr) return;
+    const el = rowRefs.current.get(nextIndex);
+    if (el) triggerRef.current = el;
+    setSelectedPR(pr);
+  };
+
+  const clearFilters = (id) => {
+    if (!id) {
+      setFilterParam("all");
+      setSearch("");
+      setSortBy("newest");
+      return;
+    }
+    if (id === "filter") setFilterParam("all");
+    if (id === "search") setSearch("");
+    if (id === "sort") setSortBy("newest");
+  };
+
+  const activeChips = [];
+  if (filter !== "all") {
+    const labels = {
+      "in-review": "In Review",
+      "no-reviewers": "No Reviewers",
+      conflicts: "Conflicts",
+      stale: "Stale (48h+)",
+    };
+    activeChips.push({ id: "filter", label: labels[filter] || filter });
+  }
+  if (search.trim()) {
+    activeChips.push({ id: "search", label: `Search: ${search.trim()}` });
+  }
+  if (sortBy && sortBy !== "newest") {
+    activeChips.push({
+      id: "sort",
+      label: sortBy === "oldest" ? "Oldest" : "A–Z",
+    });
   }
 
+  const headerStatus = (() => {
+    if (isLoading || stats.total === 0) return null;
+    if (stats.unassigned > 0) {
+      return <StatusBadge tone="danger" label={`${stats.unassigned} need reviewers`} />;
+    }
+    if (stats.idle > 0) {
+      return <StatusBadge tone="warning" label={`${stats.idle} stale`} />;
+    }
+    return <StatusBadge tone="success" label="All clear" />;
+  })();
+
+  const segmentOptions = [
+    { value: "all", label: "All", count: pullRequests.length },
+    { value: "in-review", label: "In Review", count: stats.active },
+    { value: "no-reviewers", label: "No Reviewers", count: stats.unassigned },
+    { value: "conflicts", label: "Conflicts", count: stats.conflicts },
+    { value: "stale", label: "Stale (48h+)", count: stats.idle },
+  ];
+
   return (
-    <div className="space-y-6">
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200px 0; }
-          100% { background-position: calc(200px + 100%) 0; }
-        }
-        .animate-slide-up {
-          animation: slideUp 0.6s ease-out;
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.4s ease-out;
-        }
-        .shimmer {
-          background: linear-gradient(90deg, 
-            hsl(var(--muted)) 25%, 
-            hsl(var(--muted) / 0.5) 50%, 
-            hsl(var(--muted)) 75%
-          );
-          background-size: 200px 100%;
-          animation: shimmer 1.5s infinite;
-        }
-        .card-hover {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .card-hover:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-        
-        /* Custom Scrollbar - Refined */
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(148, 163, 184, 0.4);
-          border-radius: 6px;
-          transition: all 0.2s ease;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(148, 163, 184, 0.7);
-        }
-        .custom-scrollbar {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
-        }
-      `}</style>
-
-      {/* Header */}
-      <div className="animate-slide-up">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-                Pull Requests
-              </h1>
-              {/* Quick health indicator - neutral bg, colored text/icon */}
-              {!loadingStates.stats &&
-                (stats.unassigned > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
-                    <User className="h-3 w-3 text-orange-500" />
-                    <span className="text-orange-600 dark:text-orange-400">
-                      {stats.unassigned} need reviewers
-                    </span>
-                  </span>
-                ) : stats.idle > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
-                    <Clock className="h-3 w-3 text-amber-500" />
-                    <span className="text-amber-600 dark:text-amber-400">{stats.idle} stale</span>
-                  </span>
-                ) : stats.active > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted">
-                    <Activity className="h-3 w-3 text-blue-500" />
-                    <span className="text-blue-600 dark:text-blue-400">
-                      {stats.active} in review
-                    </span>
-                  </span>
-                ) : stats.total > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
-                    All clear
-                  </span>
-                ) : null)}
-            </div>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              {!loadingStates.stats && stats.unassigned > 0
-                ? `${stats.unassigned} PR${stats.unassigned > 1 ? "s" : ""} waiting for reviewer assignment`
-                : "Active pull requests and review status"}
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+    <div className="space-y-4 md:space-y-5">
+      <PageHeader
+        title="Pull Requests"
+        description="Active pull requests and review status"
+        status={headerStatus}
+        actions={
+          <>
             <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={handleSync}
-                disabled={Object.values(loadingStates).some((loading) => loading)}
-                className="flex-1 sm:flex-none group flex items-center justify-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:bg-primary/90 disabled:opacity-60 transition-all duration-200"
-              >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${Object.values(loadingStates).some((loading) => loading) ? "animate-spin" : "group-hover:rotate-180"} transition-transform duration-300`}
-                />
-                <span>Sync</span>
-              </button>
-              <button
-                onClick={handleExportCSV}
-                disabled={
-                  filteredPRs.length === 0 ||
-                  Object.values(loadingStates).some((loading) => loading)
-                }
-                className="flex-1 sm:flex-none group flex items-center justify-center gap-2 px-4 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-sm font-medium rounded-full disabled:opacity-60 transition-all duration-200"
-              >
-                <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform duration-200" />
-                <span>Export</span>
-              </button>
-            </div>
+            <SyncButton onSync={handleSync} isSyncing={isSyncing} lastSyncedAt={lastSyncedAt} />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={filteredPRs.length === 0 || isSyncing}
+            >
+              <Download className="size-3.5" aria-hidden="true" />
+              Export
+            </Button>
+          </>
+        }
+      />
+
+      <StatStrip loading={loadingStates.stats}>
+        <StatCell
+          label="Total"
+          value={stats.total}
+          sub="Pull requests"
+          tone="neutral"
+          onClick={() => setFilterParam("all")}
+        />
+        <StatCell
+          label="In Review"
+          value={stats.active}
+          sub="With reviewers"
+          tone="info"
+          onClick={() => setFilterParam("in-review")}
+        />
+        <StatCell
+          label="No Reviewers"
+          value={stats.unassigned}
+          sub="All PRs have reviewers"
+          tone={stats.unassigned > 0 ? "danger" : "success"}
+          onClick={() => setFilterParam("no-reviewers")}
+        />
+        <StatCell
+          label="Idle 48h+"
+          value={stats.idle}
+          sub="Within selected range"
+          tone={stats.idle > 0 ? "warning" : "neutral"}
+          onClick={() => setFilterParam("stale")}
+        />
+      </StatStrip>
+
+      <div className="space-y-2">
+        <Toolbar className="lg:flex-nowrap">
+          <div className="flex w-full min-w-0 flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
+            <SegmentedFilter
+              className="h-auto max-w-full flex-wrap"
+              options={segmentOptions}
+              value={filter}
+              onChange={setFilterParam}
+            />
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              placeholder="Search title, id, author, branch…"
+            />
           </div>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div
-        className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 animate-fade-in"
-        style={{ animationDelay: "0.1s" }}
-      >
-        {/* Total PRs - neutral */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-          {loadingStates.stats ? (
-            <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <GitPullRequest className="h-5 w-5 text-blue-500" />
-                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                  Total
-                </span>
-              </div>
-              <div className="mb-3">
-                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.total}</div>
-                <div className="text-sm text-muted-foreground">Pull Requests</div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Active PRs - neutral */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-          {loadingStates.stats ? (
-            <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <Activity className="h-5 w-5 text-emerald-500" />
-                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                  In Review
-                </span>
-              </div>
-              <div className="mb-3">
-                <div className="text-2xl font-bold text-foreground mb-0.5">{stats.active}</div>
-                <div className="text-sm text-muted-foreground">Under Review</div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Unassigned PRs - neutral with colored icon/text */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-          {loadingStates.stats ? (
-            <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <User
-                  className={`h-5 w-5 ${stats.unassigned > 0 ? "text-orange-500" : "text-muted-foreground"}`}
-                />
-                <span
-                  className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                    stats.unassigned > 0
-                      ? "text-orange-600 dark:text-orange-400"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {stats.unassigned > 0 ? `${stats.unassigned} unassigned` : "Clear"}
-                </span>
-              </div>
-              <div className="mb-3">
-                <div
-                  className={`text-2xl font-bold mb-0.5 ${stats.unassigned > 0 ? "text-orange-600 dark:text-orange-400" : "text-foreground"}`}
-                >
-                  {stats.unassigned}
-                </div>
-                <div className="text-sm text-muted-foreground">No Reviewers</div>
-              </div>
-              <div
-                className={`text-xs ${stats.unassigned > 0 ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"}`}
-              >
-                {stats.unassigned > 0 ? "Assign reviewers to unblock" : "All PRs have reviewers"}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Idle PRs - neutral with colored icon/text */}
-        <div className="card-hover bg-card dark:bg-[#111111] p-5 rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm">
-          {loadingStates.idlePRs ? (
-            <div className="space-y-3">
-              <div className="shimmer h-4 rounded w-16"></div>
-              <div className="shimmer h-8 rounded w-12"></div>
-              <div className="shimmer h-2 rounded w-full"></div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <Clock
-                  className={`h-5 w-5 ${stats.idle > 0 ? "text-amber-500" : "text-muted-foreground"}`}
-                />
-                <span
-                  className={`text-xs font-medium px-2 py-0.5 rounded-full bg-muted ${
-                    stats.idle > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
-                  }`}
-                >
-                  {stats.idle > 0 ? `${stats.idle} stale` : "Fresh"}
-                </span>
-              </div>
-              <div className="mb-3">
-                <div
-                  className={`text-2xl font-bold mb-0.5 ${stats.idle > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}
-                >
-                  {stats.idle}
-                </div>
-                <div className="text-sm text-muted-foreground">Idle 48h+</div>
-              </div>
-              <div
-                className={`text-xs ${stats.idle > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
-              >
-                {stats.idle > 0 ? "Need review attention" : "No stale PRs"}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Filter and Sort Controls */}
-      <div
-        className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
-        style={{ animationDelay: "0.25s" }}
-      >
-        <div className="p-4 space-y-4 lg:space-y-0 lg:flex lg:items-center lg:justify-between">
-          {/* Filter Section */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <span className="text-sm font-medium text-foreground flex items-center gap-2">
-              <svg
-                className="w-4 h-4 text-blue-500 dark:text-blue-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                />
-              </svg>
-              Filter
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: "all", label: "All", count: pullRequests.length },
-                { value: "under-review", label: "In Review", count: stats.active },
-                {
-                  value: "unassigned",
-                  label: "No Reviewers",
-                  count: stats.unassigned,
-                  isWarning: stats.unassigned > 0,
-                },
-                {
-                  value: "conflicts",
-                  label: "Conflicts",
-                  count: stats.conflicts,
-                  isDanger: stats.conflicts > 0,
-                },
-                {
-                  value: "idle",
-                  label: "Stale (48h+)",
-                  count: stats.idle,
-                  isWarning: stats.idle > 0,
-                },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setFilter(option.value)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
-                    filter === option.value
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                  }`}
-                >
-                  <span
-                    className={
-                      filter !== option.value && option.isDanger && option.count > 0
-                        ? "text-red-600 dark:text-red-400"
-                        : filter !== option.value && option.isWarning && option.count > 0
-                          ? "text-orange-600 dark:text-orange-400"
-                          : ""
-                    }
-                  >
-                    {option.label}
-                  </span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
-                      filter === option.value
-                        ? "bg-white/20 text-white"
-                        : option.isDanger && option.count > 0
-                          ? "text-red-600 dark:text-red-400 bg-background"
-                          : option.isWarning && option.count > 0
-                            ? "text-orange-600 dark:text-orange-400 bg-background"
-                            : "bg-background text-muted-foreground"
-                    }`}
-                  >
-                    {option.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="hidden lg:block w-px h-8 bg-border dark:bg-[#1a1a1a]"></div>
-
-          {/* Sort Section */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <span className="text-sm font-medium text-foreground flex items-center gap-2">
-              <svg
-                className="w-4 h-4 text-purple-500 dark:text-purple-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-                />
-              </svg>
-              Sort
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {[
+          <div className="flex flex-wrap items-center gap-2">
+            <SortSelect
+              value={
+                sortBy === "title" || sortBy === "oldest" || sortBy === "newest" ? sortBy : "newest"
+              }
+              onChange={setSortBy}
+              options={[
                 { value: "newest", label: "Newest" },
                 { value: "oldest", label: "Oldest" },
-                { value: "title", label: "A-Z" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setSortBy(option.value)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
-                    sortBy === option.value
-                      ? "bg-purple-500 text-white shadow-md"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+                { value: "title", label: "A–Z" },
+              ]}
+            />
+            <DensityToggle />
+            <ResultCount
+              shown={filteredPRs.length}
+              total={pullRequests.length}
+              noun="pull requests"
+            />
           </div>
-        </div>
+        </Toolbar>
+        <ActiveFilters chips={activeChips} onClear={clearFilters} />
       </div>
 
-      {/* Pull Requests List */}
-      <div
-        className="bg-card dark:bg-[#111111] rounded-2xl border border-border dark:border-[#1a1a1a] shadow-sm animate-fade-in"
-        style={{ animationDelay: "0.3s" }}
-      >
-        <div className="flex items-center justify-between px-5 py-5 border-b border-border dark:border-[#1a1a1a]">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-muted">
-              <GitPullRequest className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-foreground">All Pull Requests</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {filter === "all" ? "Showing all pull requests" : `Filtered results`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-muted text-foreground">
-              {filteredPRs.length} of {pullRequests.length}
-            </span>
-            {filteredPRs.length !== pullRequests.length && (
-              <button
-                onClick={() => setFilter("all")}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium transition-colors"
-              >
+      {error ? <InlineError message={error} onRetry={loadPullRequestsData} /> : null}
+
+      {isLoading ? (
+        <SkeletonRows rows={6} columns={3} />
+      ) : !error && filteredPRs.length === 0 ? (
+        <EmptyState
+          icon={<GitPullRequest />}
+          title="No pull requests found"
+          description="Widen the date range or clear filters to see more results."
+          action={
+            activeChips.length > 0 ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => clearFilters()}>
                 Clear filters
-              </button>
-            )}
+              </Button>
+            ) : null
+          }
+        />
+      ) : !error ? (
+        <DataTable scrollRef={parentRef} maxHeight="min(55vh, 640px)" className="min-h-[12rem]">
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const pr = filteredPRs[virtualRow.index];
+              const isUnassigned =
+                pr.status === "active" && (!pr.reviewers || pr.reviewers.length === 0);
+              const isIdle = idleIdSet.has(pr.pullRequestId);
+              const at = activityDate(pr);
+              const source = branchName(pr.sourceRefName);
+              const target = branchName(pr.targetRefName);
+              const scope = projectRepoLabel(pr);
+              const selected = selectedPR?.pullRequestId === pr.pullRequestId && isSheetOpen;
+
+              return (
+                <DataRow
+                  key={virtualRow.key}
+                  as="div"
+                  data-index={virtualRow.index}
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(virtualRow.index, el);
+                    else rowRefs.current.delete(virtualRow.index);
+                    rowVirtualizer.measureElement(el);
+                  }}
+                  selected={selected}
+                  onClick={() => openPR(pr, virtualRow.index)}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className={cn(
+                    "h-auto min-h-[56px] items-stretch py-2 sm:min-h-[64px]",
+                    "flex-col gap-2 sm:flex-row sm:items-center sm:gap-3"
+                  )}
+                >
+                  <div className="min-w-0 flex-1 space-y-1 text-left">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 font-mono text-[13px] tabular-nums text-muted-foreground">
+                            #{pr.pullRequestId}
+                          </span>
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="truncate text-sm font-medium text-foreground">
+                                  {pr.title}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-sm">{pr.title}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          {pr.webUrl ? (
+                            <a
+                              href={pr.webUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                              aria-label="Open in Azure DevOps"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink className="size-3.5" aria-hidden="true" />
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span className="truncate max-w-[10rem]">
+                        {pr.createdBy?.displayName || "Unknown"}
+                      </span>
+                      <span className="max-w-[14rem] truncate font-mono text-[12px]">
+                        {source} → {target}
+                      </span>
+                      {at ? <TimeAgo date={at} /> : null}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 sm:hidden">
+                      <StatusBadge {...prStatus(pr)} />
+                      <StatusBadge {...mergeStatusBadge(pr.mergeStatus)} />
+                      {isUnassigned ? <StatusBadge tone="danger" label="No reviewers" /> : null}
+                      {isIdle ? <StatusBadge tone="warning" label="Stale" /> : null}
+                    </div>
+                  </div>
+
+                  <div className="hidden shrink-0 flex-wrap items-center justify-end gap-1.5 sm:flex">
+                    <StatusBadge {...prStatus(pr)} />
+                    <StatusBadge {...mergeStatusBadge(pr.mergeStatus)} />
+                    {isUnassigned ? <StatusBadge tone="danger" label="No reviewers" /> : null}
+                    {isIdle ? <StatusBadge tone="warning" label="Stale" /> : null}
+                    <AvatarStack people={pr.reviewers || []} max={3} />
+                    <span className="max-w-[9rem] truncate text-xs text-muted-foreground">
+                      {scope}
+                    </span>
+                    <span className="tabular-nums text-xs text-muted-foreground">
+                      {pr.creationDate ? format(new Date(pr.creationDate), "MMM d") : "—"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 sm:hidden">
+                    <AvatarStack people={pr.reviewers || []} max={3} />
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="max-w-[8rem] truncate">{scope}</span>
+                      <span className="tabular-nums">
+                        {pr.creationDate ? format(new Date(pr.creationDate), "MMM d") : "—"}
+                      </span>
+                    </div>
+                  </div>
+                </DataRow>
+              );
+            })}
           </div>
-        </div>
-        <div
-          ref={parentRef}
-          className="h-[55vh] overflow-auto custom-scrollbar"
-          style={{
-            contain: "strict",
-          }}
-        >
-          {loadingStates.pullRequests ? (
-            <div className="divide-y divide-border dark:divide-[#1a1a1a]">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="px-6 py-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center flex-1 min-w-0">
-                      <div className="shimmer w-5 h-5 rounded"></div>
-                      <div className="ml-2 flex-1 min-w-0">
-                        <div className="shimmer h-4 rounded w-3/4 mb-1"></div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                      <div className="shimmer h-6 rounded-full w-16"></div>
-                      <div className="shimmer h-6 rounded-full w-16"></div>
-                    </div>
-                  </div>
-                  <div className="ml-7">
-                    <div className="flex items-center gap-4 mb-2">
-                      <div className="shimmer h-3 rounded w-20"></div>
-                      <div className="shimmer h-3 rounded w-16"></div>
-                      <div className="shimmer h-3 rounded w-24"></div>
-                    </div>
-                    <div className="shimmer h-3 rounded w-1/2 mb-2"></div>
-                    <div className="flex items-center gap-3">
-                      <div className="shimmer h-3 rounded w-16"></div>
-                      <div className="shimmer h-3 rounded w-20"></div>
-                      <div className="shimmer h-3 rounded w-12"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : filteredPRs.length > 0 ? (
-            <div
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const pr = filteredPRs[virtualRow.index];
-                const isUnassigned =
-                  pr.status === "active" && (!pr.reviewers || pr.reviewers.length === 0);
-                const hasConflicts = pr.mergeStatus === "conflicts";
-                const isIdle = idlePRs.some((idle) => idle.pullRequestId === pr.pullRequestId);
+        </DataTable>
+      ) : null}
 
-                return (
-                  <div
-                    key={virtualRow.key}
-                    data-index={virtualRow.index}
-                    ref={rowVirtualizer.measureElement}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                    className={`px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer border-b border-border dark:border-[#1a1a1a] ${
-                      hasConflicts
-                        ? "border-l-2 border-l-red-500"
-                        : isUnassigned
-                          ? "border-l-2 border-l-orange-500"
-                          : isIdle
-                            ? "border-l-2 border-l-amber-500"
-                            : ""
-                    }`}
-                    onClick={() => {
-                      setSelectedPR(pr);
-                      setIsModalOpen(true);
-                    }}
-                  >
-                    {/* Header Row */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center flex-1 min-w-0">
-                        {getStatusIcon(pr.status)}
-                        <div className="ml-2 flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-medium text-foreground truncate">
-                              #{pr.pullRequestId}: {pr.title}
-                            </h4>
-                            {pr.webUrl && (
-                              <a
-                                href={pr.webUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-shrink-0 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-                                title="Open in Azure DevOps"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                        {/* Problem indicators */}
-                        {isUnassigned && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-orange-600 dark:text-orange-400">
-                            <User className="h-3 w-3" />
-                            No reviewers
-                          </span>
-                        )}
-                        {isIdle && !isUnassigned && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-amber-600 dark:text-amber-400">
-                            <Clock className="h-3 w-3" />
-                            Stale
-                          </span>
-                        )}
-                        {getStatusBadge(pr.status)}
-                        {getMergeStatusBadge(pr.mergeStatus)}
-                      </div>
-                    </div>
-
-                    {/* All content aligned with title - no indentation */}
-                    <div className="ml-7">
-                      {/* Compact Info Row */}
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
-                        <div className="flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          <span className="truncate max-w-24">
-                            {pr.createdBy?.displayName || "Unknown"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          <span>{getLastActivityTime(pr)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <GitBranch className="h-3 w-3" />
-                          <span className="font-mono truncate max-w-32">
-                            {pr.sourceRefName?.replace("refs/heads/", "")} →{" "}
-                            {pr.targetRefName?.replace("refs/heads/", "")}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Reviewers - Clear section with label */}
-                      {pr.reviewers && pr.reviewers.length > 0 && (
-                        <div className="mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-foreground bg-muted px-2 py-1 rounded">
-                              Reviewers
-                            </span>
-                            <div className="flex flex-wrap gap-1">
-                              {pr.reviewers.slice(0, 3).map((reviewer, index) => (
-                                <span
-                                  key={index}
-                                  className="inline-block px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
-                                >
-                                  {reviewer.displayName}
-                                </span>
-                              ))}
-                              {pr.reviewers.length > 3 && (
-                                <span className="text-xs text-muted-foreground px-2 py-1">
-                                  +{pr.reviewers.length - 3} more
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Description - Only show if present */}
-                      {pr.description && (
-                        <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
-                          {pr.description}
-                        </p>
-                      )}
-
-                      {/* Project Info */}
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground/70">
-                        <div className="flex items-center gap-1">
-                          <Building className="h-3 w-3" />
-                          <span className="truncate">
-                            {pr.repository?.project?.name || "Unknown"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <FolderGit2 className="h-3 w-3" />
-                          <span className="truncate">{pr.repository?.name || "Unknown"}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>{format(new Date(pr.creationDate), "MMM d")}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="px-6 py-12 text-center text-muted-foreground">
-              No pull requests found
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* No Data State */}
-      {pullRequests.length === 0 && (
-        <div className="bg-card dark:bg-[#111111] p-6 rounded-lg border border-border dark:border-[#1a1a1a] shadow-sm text-center py-12">
-          <GitPullRequest className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No Pull Requests Found</h3>
-          <p className="text-muted-foreground">
-            No pull requests found. Check your Azure DevOps configuration or create a pull request.
-          </p>
-        </div>
-      )}
-
-      {/* Pull Request Detail Modal */}
       <PullRequestDetailModal
         pullRequest={selectedPR}
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedPR(null);
-        }}
+        isOpen={isSheetOpen}
+        onClose={closeSheet}
+        list={filteredPRs}
+        onNavigate={navigateSheet}
+        triggerRef={triggerRef}
       />
     </div>
   );

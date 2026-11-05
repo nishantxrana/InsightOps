@@ -7,11 +7,20 @@ import { cn } from "@/lib/utils";
 
 /**
  * Sticky header + scrollable body container.
- * @param {{ children: React.ReactNode, className?: string, maxHeight?: string }} props
+ * Pass `scrollRef` so `@tanstack/react-virtual` can use this element as
+ * `getScrollElement` (parentRef / absolute rows / data-index contract).
+ *
+ * @param {{
+ *   children: React.ReactNode,
+ *   className?: string,
+ *   maxHeight?: string,
+ *   scrollRef?: React.Ref<HTMLDivElement>,
+ * }} props
  */
-export function DataTable({ children, className, maxHeight = "min(60vh, 560px)" }) {
+export function DataTable({ children, className, maxHeight = "min(60vh, 560px)", scrollRef }) {
   return (
     <div
+      ref={scrollRef}
       className={cn(
         "relative overflow-auto rounded-panel border border-border bg-surface",
         className

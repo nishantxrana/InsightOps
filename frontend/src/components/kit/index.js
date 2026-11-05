@@ -7,6 +7,7 @@ export {
   buildStatus,
   prStatus,
   prReviewState,
+  prVoteStatus,
   releaseStatus,
   workItemState,
   logLevel,
@@ -23,6 +24,7 @@ export {
   ActiveFilters,
 } from "./Toolbar";
 export { DataTable, DataHeader, DataHeaderCell, DataRow, DataCell, TimeAgo } from "./DataTable";
+export { AvatarStack } from "./AvatarStack";
 export { DetailSheet } from "./DetailSheet";
 export { StatusCallout } from "./StatusCallout";
 export { KeyValueList } from "./KeyValueList";
