@@ -19,12 +19,41 @@ const organizationSchema = new mongoose.Schema(
       baseUrl: { type: String, default: "https://dev.azure.com" },
     },
     ai: {
-      provider: { type: String, enum: ["openai", "groq", "gemini"], default: "gemini" },
+      provider: {
+        type: String,
+        enum: ["openai", "groq", "gemini", "azure"],
+        default: "gemini",
+      },
       model: { type: String, default: "gemini-2.0-flash" },
       apiKeys: {
         openai: String,
         groq: String,
         gemini: String,
+        azure: String,
+      },
+      azure: {
+        endpoint: { type: String, default: "" },
+        apiStyle: {
+          type: String,
+          enum: ["auto", "responses", "chat"],
+          default: "auto",
+        },
+      },
+      enabled: { type: Boolean, default: true },
+      useInNotifications: { type: Boolean, default: true },
+      keyLast4: {
+        openai: String,
+        groq: String,
+        gemini: String,
+        azure: String,
+      },
+      lastTest: {
+        at: Date,
+        ok: Boolean,
+        provider: String,
+        model: String,
+        latencyMs: Number,
+        errorCode: String,
       },
     },
     notifications: {

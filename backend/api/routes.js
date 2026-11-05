@@ -15,7 +15,7 @@ import {
   getAIConfig,
 } from "../utils/organizationSettings.js";
 import { organizationService } from "../services/organizationService.js";
-import { AI_MODELS, getModelsForProvider, getDefaultModel } from "../config/aiModels.js";
+import { getModelsForProvider, getDefaultModel } from "../config/aiModels.js";
 import { filterActiveWorkItems, filterCompletedWorkItems } from "../utils/workItemStates.js";
 import { userPollingManager } from "../polling/userPollingManager.js";
 import { validateRequest } from "../middleware/validation.js";
@@ -24,6 +24,10 @@ import { AzureDevOpsReleaseClient } from "../devops/releaseClient.js";
 import { azureDevOpsCache } from "../cache/AzureDevOpsCache.js";
 import { CACHE_TTL } from "../config/cache.js";
 import emergencyRoutes from "./emergency.js";
+import { normalizeAiError, redactSecrets } from "../ai/errors.js";
+import { normalizeAzureEndpoint } from "../ai/azureEndpoint.js";
+import { aiTestRateLimiter } from "../middleware/aiTestRateLimiter.js";
+import { AIClient } from "../ai/aiService.js";
 
 const router = express.Router();
 
@@ -1180,6 +1184,11 @@ router.get("/ai/providers", (req, res) => {
       { value: "openai", label: "OpenAI", description: "GPT models from OpenAI" },
       { value: "groq", label: "Groq", description: "Fast inference with open models" },
       { value: "gemini", label: "Google Gemini", description: "Google's latest AI models" },
+      {
+        value: "azure",
+        label: "Azure AI Foundry",
+        description: "Microsoft Foundry / Azure OpenAI deployments",
+      },
     ];
 
     res.json({
@@ -1187,7 +1196,7 @@ router.get("/ai/providers", (req, res) => {
       providers,
     });
   } catch (error) {
-    logger.error("Error fetching AI providers:", error);
+    logger.error("Error fetching AI providers:", redactSecrets(error?.message || error));
     res.status(500).json({
       success: false,
       error: "Failed to fetch AI providers",
@@ -1198,49 +1207,67 @@ router.get("/ai/providers", (req, res) => {
 router.get("/ai/models/:provider", async (req, res) => {
   try {
     const { provider } = req.params;
+
+    if (provider === "azure") {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Azure AI Foundry has no model list. Enter your deployment name from the Foundry portal.",
+        code: "NO_MODEL_LIST",
+      });
+    }
+
     const org = await getOrganizationSettings(req);
 
     let models = [];
     let apiKey = null;
+    let source = "static";
+    let warning;
 
-    // Get API key from organization settings
     if (org?.ai?.apiKeys) {
-      if (provider === "openai") {
-        apiKey = org.ai.apiKeys.openai;
-      } else if (provider === "groq") {
-        apiKey = org.ai.apiKeys.groq;
-      } else if (provider === "gemini") {
-        apiKey = org.ai.apiKeys.gemini;
-      }
+      if (provider === "openai") apiKey = org.ai.apiKeys.openai;
+      else if (provider === "groq") apiKey = org.ai.apiKeys.groq;
+      else if (provider === "gemini") apiKey = org.ai.apiKeys.gemini;
     }
 
-    if (provider === "openai" && apiKey) {
-      const { default: OpenAI } = await import("openai");
-      const openai = new OpenAI({ apiKey });
-      const response = await openai.models.list();
-      models = response.data
-        .filter((model) => model.id.includes("gpt"))
-        .map((model) => ({
+    try {
+      if (provider === "openai" && apiKey) {
+        const { default: OpenAI } = await import("openai");
+        const openai = new OpenAI({
+          apiKey,
+          timeout: 45000,
+          maxRetries: 1,
+        });
+        const response = await openai.models.list();
+        models = response.data
+          .filter((model) => model.id.includes("gpt"))
+          .map((model) => ({
+            value: model.id,
+            label: model.id.toUpperCase(),
+            description: `OpenAI ${model.id}`,
+          }));
+        source = "live";
+      } else if (provider === "groq" && apiKey) {
+        const { default: Groq } = await import("groq-sdk");
+        const groq = new Groq({ apiKey, timeout: 45000, maxRetries: 1 });
+        const response = await groq.models.list();
+        models = response.data.map((model) => ({
           value: model.id,
-          label: model.id.toUpperCase(),
-          description: `OpenAI ${model.id}`,
+          label: model.id,
+          description: `Groq ${model.id}`,
         }));
-    } else if (provider === "groq" && apiKey) {
-      const { default: Groq } = await import("groq-sdk");
-      const groq = new Groq({ apiKey });
-      const response = await groq.models.list();
-      models = response.data.map((model) => ({
-        value: model.id,
-        label: model.id,
-        description: `Groq ${model.id}`,
-      }));
-    } else if (provider === "gemini" && apiKey) {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-      );
-      if (response.ok) {
+        source = "live";
+      } else if (provider === "gemini" && apiKey) {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+        );
+        if (!response.ok) {
+          throw Object.assign(new Error("Failed to list Gemini models"), {
+            status: response.status,
+          });
+        }
         const data = await response.json();
-        models = data.models
+        models = (data.models || [])
           .filter((model) => {
             const supportedMethods = model.supportedGenerationMethods || [];
             const modelId = model.name.replace("models/", "");
@@ -1255,10 +1282,20 @@ router.get("/ai/models/:provider", async (req, res) => {
             label: model.displayName || model.name.replace("models/", ""),
             description: model.description || `Google ${model.name.replace("models/", "")}`,
           }));
+        source = "live";
+      } else {
+        models = getModelsForProvider(provider);
+        source = "static";
       }
-    } else {
-      // Fallback to static models
+    } catch (liveError) {
+      logger.error(
+        "Error fetching live AI models:",
+        redactSecrets(liveError?.message || String(liveError))
+      );
       models = getModelsForProvider(provider);
+      source = "static";
+      const normalized = normalizeAiError(liveError, { provider });
+      warning = { code: normalized.code, message: normalized.message, hint: normalized.hint };
     }
 
     const defaultModel = getDefaultModel(provider);
@@ -1267,6 +1304,7 @@ router.get("/ai/models/:provider", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: `No models available for provider: ${provider}`,
+        ...(warning ? { warning } : {}),
       });
     }
 
@@ -1275,18 +1313,267 @@ router.get("/ai/models/:provider", async (req, res) => {
       provider,
       models,
       defaultModel,
-      source: apiKey ? "live" : "static",
+      source,
+      ...(warning ? { warning } : {}),
     });
   } catch (error) {
-    logger.error("Error fetching AI models:", error);
-    // Fallback to static models on error
+    logger.error("Error fetching AI models:", redactSecrets(error?.message || error));
     const models = getModelsForProvider(req.params.provider);
+    const warning = normalizeAiError(error, { provider: req.params.provider });
     res.json({
       success: true,
       provider: req.params.provider,
       models,
       defaultModel: getDefaultModel(req.params.provider),
       source: "static",
+      warning: { code: warning.code, message: warning.message, hint: warning.hint },
+    });
+  }
+});
+
+router.get("/ai/status", async (req, res) => {
+  try {
+    const org = await getOrganizationSettings(req);
+    const sanitized = org ? organizationService.sanitizeOrganization({ ...org }) : null;
+    // Re-mask: getOrganizationSettings returns decrypted keys; sanitize for response
+    const ai = sanitized?.ai || {};
+    const configured = hasAIConfig(org);
+    const enabled = org?.ai?.enabled !== false;
+
+    const payload = {
+      enabled,
+      configured,
+      provider: org?.ai?.provider || null,
+      model: org?.ai?.model || null,
+      useInNotifications: org?.ai?.useInNotifications !== false,
+      keyStatus: ai.keyStatus || {
+        openai: { saved: false },
+        groq: { saved: false },
+        gemini: { saved: false },
+        azure: { saved: false },
+      },
+    };
+
+    if (org?.ai?.provider === "azure" || org?.ai?.azure?.endpoint) {
+      let endpointHost;
+      if (org.ai.azure?.endpoint) {
+        const n = normalizeAzureEndpoint(org.ai.azure.endpoint);
+        endpointHost = n.ok ? n.host : undefined;
+      }
+      payload.azure = {
+        ...(endpointHost ? { endpointHost } : {}),
+        apiStyle: org.ai.azure?.apiStyle || "auto",
+      };
+    }
+
+    if (org?.ai?.lastTest?.at) {
+      payload.lastTest = {
+        at: org.ai.lastTest.at,
+        ok: org.ai.lastTest.ok,
+        provider: org.ai.lastTest.provider,
+        model: org.ai.lastTest.model,
+        latencyMs: org.ai.lastTest.latencyMs,
+        errorCode: org.ai.lastTest.errorCode,
+      };
+    }
+
+    res.json(payload);
+  } catch (error) {
+    logger.error("Error fetching AI status:", redactSecrets(error?.message || error));
+    res.status(500).json({
+      error: "Failed to fetch AI status",
+    });
+  }
+});
+
+router.post("/ai/test", aiTestRateLimiter, async (req, res) => {
+  try {
+    const { provider, model, apiKey, azure } = req.body || {};
+    const allowed = ["openai", "groq", "gemini", "azure"];
+    if (!provider || !allowed.includes(provider)) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "UNKNOWN",
+          message: "A valid AI provider is required.",
+          hint: "Choose openai, groq, gemini, or azure.",
+        },
+      });
+    }
+    if (!model || !String(model).trim()) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "UNKNOWN",
+          message: provider === "azure" ? "Deployment name is required." : "Model is required.",
+          hint:
+            provider === "azure"
+              ? "Use the deployment name from Foundry, not the base model name."
+              : "Select or enter a model id.",
+        },
+      });
+    }
+
+    const org = await getOrganizationSettings(req);
+    if (!org) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "UNKNOWN",
+          message: "Organization context required.",
+          hint: "Select an organization and try again.",
+        },
+      });
+    }
+
+    const savedKeys = org.ai?.apiKeys || {};
+    const resolvedKey =
+      apiKey && String(apiKey).trim() && apiKey !== "********"
+        ? String(apiKey).trim()
+        : savedKeys[provider];
+
+    if (!resolvedKey) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "AUTH_FAILED",
+          message: "No API key available for this provider.",
+          hint: "Enter an API key or save one in Settings first.",
+        },
+      });
+    }
+
+    let azureEndpoint = azure?.endpoint || org.ai?.azure?.endpoint;
+    let azureApiStyle = azure?.apiStyle || org.ai?.azure?.apiStyle || "auto";
+
+    if (provider === "azure") {
+      const normalized = normalizeAzureEndpoint(azureEndpoint);
+      if (!normalized.ok) {
+        const errPayload = {
+          ok: false,
+          provider,
+          model,
+          latencyMs: 0,
+          error: {
+            code: "INVALID_ENDPOINT",
+            message: "The Azure endpoint is invalid.",
+            hint: normalized.reason || "Check the endpoint URL.",
+          },
+        };
+        await organizationService.updateAiLastTest(org._id, req.user._id, {
+          at: new Date(),
+          ok: false,
+          provider,
+          model,
+          latencyMs: 0,
+          errorCode: "INVALID_ENDPOINT",
+        });
+        return res.status(400).json(errPayload);
+      }
+      azureEndpoint = normalized.baseUrl;
+    }
+
+    // Connectivity test only: for Azure "auto", use Chat Completions so we do not
+    // wait on a Responses probe (Foundry often accepts the request then thinks for
+    // a long time on reasoning deployments — that looked like a 504 TIMEOUT).
+    const effectiveAzureStyle =
+      provider === "azure"
+        ? azureApiStyle === "responses" || azureApiStyle === "chat"
+          ? azureApiStyle
+          : "chat"
+        : undefined;
+
+    const clientConfig = {
+      provider,
+      model: String(model).trim(),
+      openaiApiKey: provider === "openai" ? resolvedKey : undefined,
+      groqApiKey: provider === "groq" ? resolvedKey : undefined,
+      geminiApiKey: provider === "gemini" ? resolvedKey : undefined,
+      azureApiKey: provider === "azure" ? resolvedKey : undefined,
+      azureEndpoint: provider === "azure" ? azureEndpoint : undefined,
+      azureApiStyle: effectiveAzureStyle,
+      timeoutMs: provider === "azure" ? 60000 : 20000,
+      maxRetries: 0,
+    };
+
+    const started = Date.now();
+    try {
+      const client = new AIClient(clientConfig);
+      // Reasoning deployments spend completion budget on thinking; keep headroom.
+      const testMaxTokens = provider === "azure" ? 256 : 32;
+      const result = await client.generateCompletionWithMeta(
+        [
+          {
+            role: "user",
+            content: 'Reply with exactly the word "OK" and nothing else.',
+          },
+        ],
+        {
+          model: clientConfig.model,
+          max_tokens: testMaxTokens,
+          temperature: 0,
+          // Prefer minimal reasoning on GPT-5-class deployments when supported
+          reasoning_effort: provider === "azure" ? "minimal" : undefined,
+        }
+      );
+
+      const latencyMs = result.meta?.latencyMs ?? Date.now() - started;
+      await organizationService.updateAiLastTest(org._id, req.user._id, {
+        at: new Date(),
+        ok: true,
+        provider,
+        model: clientConfig.model,
+        latencyMs,
+      });
+
+      return res.json({
+        ok: true,
+        provider,
+        model: clientConfig.model,
+        latencyMs,
+        ...(result.meta?.apiStyleUsed ? { apiStyleUsed: result.meta.apiStyleUsed } : {}),
+        reply: result.text?.slice(0, 200),
+      });
+    } catch (callError) {
+      const latencyMs = Date.now() - started;
+      const normalized = normalizeAiError(callError, { provider });
+      logger.error("AI test connection failed:", {
+        provider,
+        code: normalized.code,
+        message: redactSecrets(callError?.message || ""),
+      });
+      await organizationService.updateAiLastTest(org._id, req.user._id, {
+        at: new Date(),
+        ok: false,
+        provider,
+        model: String(model).trim(),
+        latencyMs,
+        errorCode: normalized.code,
+      });
+      return res
+        .status(normalized.httpStatus >= 400 ? Math.min(normalized.httpStatus, 599) : 400)
+        .json({
+          ok: false,
+          provider,
+          model: String(model).trim(),
+          latencyMs,
+          error: {
+            code: normalized.code,
+            message: normalized.message,
+            hint: normalized.hint,
+          },
+        });
+    }
+  } catch (error) {
+    logger.error("AI test endpoint error:", redactSecrets(error?.message || error));
+    const normalized = normalizeAiError(error, { provider: req.body?.provider });
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: normalized.code,
+        message: normalized.message,
+        hint: normalized.hint,
+      },
     });
   }
 });
@@ -1302,6 +1589,7 @@ router.get("/ai/config", async (req, res) => {
       hasOpenAIKey: !!org?.ai?.apiKeys?.openai,
       hasGroqKey: !!org?.ai?.apiKeys?.groq,
       hasGeminiKey: !!org?.ai?.apiKeys?.gemini,
+      hasAzureKey: !!org?.ai?.apiKeys?.azure,
     };
 
     res.json({
@@ -1309,7 +1597,7 @@ router.get("/ai/config", async (req, res) => {
       config: safeConfig,
     });
   } catch (error) {
-    logger.error("Error fetching AI config:", error);
+    logger.error("Error fetching AI config:", redactSecrets(error?.message || error));
     res.status(500).json({
       success: false,
       error: "Failed to fetch AI configuration",

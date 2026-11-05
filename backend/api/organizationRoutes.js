@@ -102,6 +102,14 @@ router.put("/:id", async (req, res) => {
     if (error.message === "Organization not found") {
       return res.status(404).json({ error: error.message });
     }
+    // Validation / endpoint errors from AI settings updates
+    if (
+      error.message &&
+      (/invalid|required|endpoint|provider|AI settings/i.test(error.message) ||
+        error.message.includes("must"))
+    ) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: "Failed to update organization" });
   }
 });

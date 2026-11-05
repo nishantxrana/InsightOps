@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import axios from "axios";
 import { Menu } from "lucide-react";
 import { Button } from "../components/ui/button";
 import {
@@ -32,6 +33,9 @@ import PollingSection from "./settings/PollingSection";
 import SecuritySection from "./settings/SecuritySection";
 import { SettingsNav } from "./settings/SettingsNav";
 import { SETTINGS_SECTIONS } from "./settings/constants";
+import { previewAzureEndpoint } from "./settings/azureEndpointPreview";
+
+const AI_MASK = "********";
 
 const getDefaultSettings = () => ({
   ai: {
@@ -39,7 +43,14 @@ const getDefaultSettings = () => ({
     openaiApiKey: "",
     groqApiKey: "",
     geminiApiKey: "",
+    azureApiKey: "",
     model: "gemini-2.0-flash",
+    azure: { endpoint: "", apiStyle: "auto" },
+    enabled: true,
+    useInNotifications: true,
+    clearKeys: [],
+    keyStatus: null,
+    lastTest: null,
   },
   notifications: {
     teamsWebhookUrl: "",
@@ -86,9 +97,23 @@ export default function Settings() {
 
   const [tabSettings, setTabSettings] = useState(getDefaultSettings());
   const [originalTabSettings, setOriginalTabSettings] = useState(getDefaultSettings());
+  const [aiStatus, setAiStatus] = useState(null);
 
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const pendingSectionRef = useRef(null);
+
+  const fetchAiStatus = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const currentOrgId = localStorage.getItem("currentOrganizationId");
+      const headers = { Authorization: `Bearer ${token}` };
+      if (currentOrgId) headers["X-Organization-ID"] = currentOrgId;
+      const response = await axios.get("/api/ai/status", { headers });
+      setAiStatus(response.data);
+    } catch {
+      setAiStatus(null);
+    }
+  }, []);
 
   const syncSectionToUrl = useCallback(
     (sectionId) => {
@@ -147,6 +172,16 @@ export default function Settings() {
           openaiApiKey: org.ai?.apiKeys?.openai || "",
           groqApiKey: org.ai?.apiKeys?.groq || "",
           geminiApiKey: org.ai?.apiKeys?.gemini || "",
+          azureApiKey: org.ai?.apiKeys?.azure || "",
+          azure: {
+            endpoint: org.ai?.azure?.endpoint || "",
+            apiStyle: org.ai?.azure?.apiStyle || "auto",
+          },
+          enabled: org.ai?.enabled !== false,
+          useInNotifications: org.ai?.useInNotifications !== false,
+          clearKeys: [],
+          keyStatus: org.ai?.keyStatus || null,
+          lastTest: org.ai?.lastTest || null,
         },
         notifications: {
           enabled: org.notifications?.enabled !== undefined ? org.notifications.enabled : true,
@@ -171,6 +206,12 @@ export default function Settings() {
 
     loadOrgSettings();
   }, [currentOrganization, currentProject, clearSwitching]);
+
+  useEffect(() => {
+    if (activeSection === "ai" && currentOrganization) {
+      fetchAiStatus();
+    }
+  }, [activeSection, currentOrganization, fetchAiStatus]);
 
   const hasCurrentTabChanges = useCallback(() => {
     if (activeSection === "organizations" || activeSection === "webhooks") return false;
@@ -228,6 +269,62 @@ export default function Settings() {
     setTabSettings((prev) => ({ ...prev, [sectionId]: newData }));
   }, []);
 
+  const validateAiSettings = useCallback(
+    (data, field) => {
+      const nextErrors = { ...(field ? validationErrors : {}) };
+      const checkModel = !field || field === "aiModel";
+      const checkKey = !field || field === "aiApiKey";
+      const checkEndpoint = !field || field === "aiAzureEndpoint";
+
+      if (checkModel) {
+        if (!data.model?.trim()) {
+          nextErrors.aiModel =
+            data.provider === "azure" ? "Deployment name is required" : "Model is required";
+        } else {
+          delete nextErrors.aiModel;
+        }
+      }
+
+      if (checkKey) {
+        const keyField =
+          data.provider === "openai"
+            ? "openaiApiKey"
+            : data.provider === "groq"
+              ? "groqApiKey"
+              : data.provider === "azure"
+                ? "azureApiKey"
+                : "geminiApiKey";
+        const keyVal = data[keyField] || "";
+        const saved =
+          aiStatus?.keyStatus?.[data.provider]?.saved || data.keyStatus?.[data.provider]?.saved;
+        const clearing = (data.clearKeys || []).includes(data.provider);
+        const hasSavedOrTyped =
+          (keyVal && keyVal !== AI_MASK) ||
+          (saved && !clearing && (keyVal === AI_MASK || keyVal === ""));
+        if (!hasSavedOrTyped) {
+          nextErrors.aiApiKey = "API key is required";
+        } else {
+          delete nextErrors.aiApiKey;
+        }
+      }
+
+      if (checkEndpoint && data.provider === "azure") {
+        const preview = previewAzureEndpoint(data.azure?.endpoint || "");
+        if (!preview.ok) {
+          nextErrors.aiAzureEndpoint = preview.reason || "Valid Azure endpoint is required";
+        } else {
+          delete nextErrors.aiAzureEndpoint;
+        }
+      } else if (checkEndpoint) {
+        delete nextErrors.aiAzureEndpoint;
+      }
+
+      setValidationErrors(nextErrors);
+      return nextErrors;
+    },
+    [validationErrors, aiStatus]
+  );
+
   const handleSave = async () => {
     if (!currentOrganization) {
       toast({ title: "Error", description: "No organization selected", variant: "destructive" });
@@ -245,17 +342,52 @@ export default function Settings() {
       let updates = {};
 
       if (activeSection === "ai") {
-        updates.ai = {
-          provider: data.provider,
-          model: data.model,
-        };
+        const errs = validateAiSettings(data);
+        if (errs.aiModel || errs.aiApiKey || errs.aiAzureEndpoint) {
+          toast({
+            title: "Validation failed",
+            description: "Fix the highlighted AI settings before saving.",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+
+        const original = originalTabSettings.ai;
+        updates.ai = {};
+        if (data.provider !== original.provider) updates.ai.provider = data.provider;
+        if (data.model !== original.model) updates.ai.model = data.model;
+        if (data.enabled !== original.enabled) updates.ai.enabled = data.enabled;
+        if (data.useInNotifications !== original.useInNotifications) {
+          updates.ai.useInNotifications = data.useInNotifications;
+        }
+
+        const azureChanged =
+          data.azure?.endpoint !== original.azure?.endpoint ||
+          data.azure?.apiStyle !== original.azure?.apiStyle;
+        if (azureChanged || data.provider === "azure") {
+          updates.ai.azure = {
+            endpoint: data.azure?.endpoint || "",
+            apiStyle: data.azure?.apiStyle || "auto",
+          };
+        }
+
+        // Always send provider/model when anything AI changed so server stays consistent
+        updates.ai.provider = data.provider;
+        updates.ai.model = data.model;
+        updates.ai.enabled = data.enabled;
+        updates.ai.useInNotifications = data.useInNotifications;
+
         const apiKeys = {};
-        if (data.openaiApiKey && data.openaiApiKey !== "********")
-          apiKeys.openai = data.openaiApiKey;
-        if (data.groqApiKey && data.groqApiKey !== "********") apiKeys.groq = data.groqApiKey;
-        if (data.geminiApiKey && data.geminiApiKey !== "********")
-          apiKeys.gemini = data.geminiApiKey;
+        if (data.openaiApiKey && data.openaiApiKey !== AI_MASK) apiKeys.openai = data.openaiApiKey;
+        if (data.groqApiKey && data.groqApiKey !== AI_MASK) apiKeys.groq = data.groqApiKey;
+        if (data.geminiApiKey && data.geminiApiKey !== AI_MASK) apiKeys.gemini = data.geminiApiKey;
+        if (data.azureApiKey && data.azureApiKey !== AI_MASK) apiKeys.azure = data.azureApiKey;
         if (Object.keys(apiKeys).length > 0) updates.ai.apiKeys = apiKeys;
+
+        if (Array.isArray(data.clearKeys) && data.clearKeys.length > 0) {
+          updates.ai.clearKeys = data.clearKeys;
+        }
       }
 
       if (activeSection === "notifications") {
@@ -279,10 +411,61 @@ export default function Settings() {
       const result = await updateOrganization(currentOrganization._id, updates);
 
       if (result.success) {
-        setOriginalTabSettings((prev) => ({
-          ...prev,
-          [activeSection]: JSON.parse(JSON.stringify(tabSettings[activeSection])),
-        }));
+        if (activeSection === "ai") {
+          const cleared = {
+            ...tabSettings.ai,
+            clearKeys: [],
+            openaiApiKey:
+              tabSettings.ai.openaiApiKey && tabSettings.ai.openaiApiKey !== AI_MASK
+                ? AI_MASK
+                : (data.clearKeys || []).includes("openai")
+                  ? ""
+                  : tabSettings.ai.openaiApiKey,
+            groqApiKey:
+              tabSettings.ai.groqApiKey && tabSettings.ai.groqApiKey !== AI_MASK
+                ? AI_MASK
+                : (data.clearKeys || []).includes("groq")
+                  ? ""
+                  : tabSettings.ai.groqApiKey,
+            geminiApiKey:
+              tabSettings.ai.geminiApiKey && tabSettings.ai.geminiApiKey !== AI_MASK
+                ? AI_MASK
+                : (data.clearKeys || []).includes("gemini")
+                  ? ""
+                  : tabSettings.ai.geminiApiKey,
+            azureApiKey:
+              tabSettings.ai.azureApiKey && tabSettings.ai.azureApiKey !== AI_MASK
+                ? AI_MASK
+                : (data.clearKeys || []).includes("azure")
+                  ? ""
+                  : tabSettings.ai.azureApiKey,
+          };
+          // Prefer server organization payload when present
+          const orgAi = result.organization?.ai;
+          if (orgAi) {
+            cleared.keyStatus = orgAi.keyStatus || cleared.keyStatus;
+            cleared.openaiApiKey = orgAi.apiKeys?.openai || "";
+            cleared.groqApiKey = orgAi.apiKeys?.groq || "";
+            cleared.geminiApiKey = orgAi.apiKeys?.gemini || "";
+            cleared.azureApiKey = orgAi.apiKeys?.azure || "";
+            cleared.azure = {
+              endpoint: orgAi.azure?.endpoint || "",
+              apiStyle: orgAi.azure?.apiStyle || "auto",
+            };
+          }
+          setTabSettings((prev) => ({ ...prev, ai: cleared }));
+          setOriginalTabSettings((prev) => ({
+            ...prev,
+            ai: JSON.parse(JSON.stringify(cleared)),
+          }));
+          setValidationErrors({});
+          fetchAiStatus();
+        } else {
+          setOriginalTabSettings((prev) => ({
+            ...prev,
+            [activeSection]: JSON.parse(JSON.stringify(tabSettings[activeSection])),
+          }));
+        }
         toast({
           title: "Settings Saved",
           description: `${SETTINGS_SECTIONS.find((s) => s.id === activeSection)?.name} settings saved!`,
@@ -401,8 +584,11 @@ export default function Settings() {
             {activeSection === "ai" && (
               <AIConfigSection
                 data={tabSettings.ai}
-                onChange={(data) => updateTabData("ai", data)}
+                onChange={(next) => updateTabData("ai", next)}
                 errors={validationErrors}
+                onValidateField={(field) => validateAiSettings(tabSettings.ai, field)}
+                aiStatus={aiStatus}
+                onStatusRefresh={fetchAiStatus}
               />
             )}
             {activeSection === "notifications" && (

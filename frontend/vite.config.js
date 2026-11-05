@@ -18,9 +18,12 @@ export default defineConfig({
         target: "http://localhost:3001",
         changeOrigin: true,
         secure: false,
+        // AI test / Foundry calls can exceed the default proxy idle timeout
+        timeout: 90000,
+        proxyTimeout: 90000,
       },
     },
-    allowedHosts: ["sure-ant-informally.ngrok-free.app"],
+    allowedHosts: ["data-safari-ivory.ngrok-free.dev"],
   },
   build: {
     outDir: "dist",

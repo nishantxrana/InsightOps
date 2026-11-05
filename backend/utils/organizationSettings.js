@@ -58,12 +58,22 @@ export function hasAzureDevOpsConfig(org) {
 }
 
 /**
- * Check if organization has AI configuration
+ * Check if organization has AI configuration (credentials present).
+ * Does not consider ai.enabled — gating by enabled is Prompt 2.
  */
 export function hasAIConfig(org) {
   if (!org?.ai?.provider) return false;
   const provider = org.ai.provider;
-  return !!org.ai.apiKeys?.[provider];
+  const key = org.ai.apiKeys?.[provider];
+  if (!key) return false;
+
+  if (provider === "azure") {
+    const endpoint = org.ai.azure?.endpoint;
+    const deployment = org.ai.model;
+    return Boolean(endpoint && String(endpoint).trim() && deployment && String(deployment).trim());
+  }
+
+  return true;
 }
 
 /**
@@ -88,6 +98,14 @@ export function getAIConfig(org) {
     provider: org.ai.provider,
     model: org.ai.model,
     apiKeys: org.ai.apiKeys,
+    azure: org.ai.azure
+      ? {
+          endpoint: org.ai.azure.endpoint || "",
+          apiStyle: org.ai.azure.apiStyle || "auto",
+        }
+      : undefined,
+    enabled: org.ai.enabled !== false,
+    useInNotifications: org.ai.useInNotifications !== false,
   };
 }
 

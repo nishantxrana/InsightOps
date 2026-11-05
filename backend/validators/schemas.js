@@ -20,6 +20,35 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required").max(100),
 });
 
+const AI_PROVIDERS = ["openai", "groq", "gemini", "azure"];
+
+/** Reusable AI settings update payload (org PUT + deprecated settings route). */
+export const aiConfigUpdateSchema = z.object({
+  provider: z
+    .enum(AI_PROVIDERS, {
+      errorMap: () => ({ message: "Invalid AI provider" }),
+    })
+    .optional(),
+  model: z.string().min(1).max(200).optional(),
+  apiKeys: z
+    .object({
+      openai: z.string().max(500).optional(),
+      groq: z.string().max(500).optional(),
+      gemini: z.string().max(500).optional(),
+      azure: z.string().max(500).optional(),
+    })
+    .optional(),
+  azure: z
+    .object({
+      endpoint: z.string().max(500).optional(),
+      apiStyle: z.enum(["auto", "responses", "chat"]).optional(),
+    })
+    .optional(),
+  enabled: z.boolean().optional(),
+  useInNotifications: z.boolean().optional(),
+  clearKeys: z.array(z.enum(AI_PROVIDERS)).optional(),
+});
+
 // Settings schemas
 export const settingsSchema = z.object({
   azureDevOps: z
@@ -34,21 +63,7 @@ export const settingsSchema = z.object({
       baseUrl: z.string().url("Invalid URL format"),
     })
     .optional(),
-  ai: z
-    .object({
-      provider: z.enum(["openai", "groq", "gemini"], {
-        errorMap: () => ({ message: "Invalid AI provider" }),
-      }),
-      model: z.string().min(1).max(100),
-      apiKeys: z
-        .object({
-          openai: z.string().max(200).optional(),
-          groq: z.string().max(200).optional(),
-          gemini: z.string().max(200).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
+  ai: aiConfigUpdateSchema.optional(),
   notifications: z
     .object({
       enabled: z.boolean().optional(),

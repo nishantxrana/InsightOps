@@ -4,93 +4,334 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "../utils/logger.js";
 import { configLoader } from "../config/settings.js";
 import { metrics } from "../observability/metrics.js";
+import { normalizeAzureEndpoint } from "./azureEndpoint.js";
+import { isResponsesUnsupportedError, isUnsupportedParameterError } from "./errors.js";
+
+const SDK_TIMEOUT_MS = 45000;
+const SDK_MAX_RETRIES = 1;
+/** Short probe for Azure apiStyle=auto Responses attempt before Chat fallback. */
+const AZURE_RESPONSES_PROBE_MS = 12000;
+const AZURE_STYLE_CACHE_TTL_MS = 60 * 60 * 1000;
+
+/** In-memory apiStyle decisions: key = host::deployment → { style, expiresAt } */
+const azureApiStyleCache = new Map();
+
+function azureStyleCacheKey(host, deployment) {
+  return `${host}::${deployment}`;
+}
+
+function getCachedAzureStyle(host, deployment) {
+  const key = azureStyleCacheKey(host, deployment);
+  const entry = azureApiStyleCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    azureApiStyleCache.delete(key);
+    return null;
+  }
+  return entry.style;
+}
+
+function setCachedAzureStyle(host, deployment, style) {
+  azureApiStyleCache.set(azureStyleCacheKey(host, deployment), {
+    style,
+    expiresAt: Date.now() + AZURE_STYLE_CACHE_TTL_MS,
+  });
+}
+
+/** Test helper — clears the in-memory Azure apiStyle cache. */
+export function clearAzureApiStyleCache() {
+  azureApiStyleCache.clear();
+}
+
+function messagesToResponsesInput(messages) {
+  return (messages || []).map((m) => ({
+    role: m.role === "system" ? "system" : m.role === "assistant" ? "assistant" : "user",
+    content: m.content,
+  }));
+}
 
 /**
  * AI Client - Isolated instance for a specific organization/user
  * NOT shared across requests - created fresh per request context
  */
-class AIClient {
+export class AIClient {
   constructor(config) {
     this.config = config;
     this.client = null;
+    this.azureHost = null;
     this._initialize();
   }
 
   _initialize() {
-    const { provider, openaiApiKey, groqApiKey, geminiApiKey } = this.config;
+    const { provider, openaiApiKey, groqApiKey, geminiApiKey, azureApiKey, azureEndpoint } =
+      this.config;
+    const timeout = this.config.timeoutMs ?? SDK_TIMEOUT_MS;
+    const maxRetries = this.config.maxRetries ?? SDK_MAX_RETRIES;
 
     if (provider === "openai") {
       if (!openaiApiKey) {
         throw new Error("OpenAI API key is required when using OpenAI provider");
       }
-      this.client = new OpenAI({ apiKey: openaiApiKey });
+      this.client = new OpenAI({
+        apiKey: openaiApiKey,
+        timeout,
+        maxRetries,
+      });
     } else if (provider === "groq") {
       if (!groqApiKey) {
         throw new Error("Groq API key is required when using Groq provider");
       }
-      this.client = new Groq({ apiKey: groqApiKey });
+      this.client = new Groq({
+        apiKey: groqApiKey,
+        timeout,
+        maxRetries,
+      });
     } else if (provider === "gemini") {
       if (!geminiApiKey) {
         throw new Error("Gemini API key is required when using Gemini provider");
       }
+      // @google/generative-ai does not accept timeout/maxRetries on the client
       this.client = new GoogleGenerativeAI(geminiApiKey);
+    } else if (provider === "azure") {
+      if (!azureApiKey) {
+        throw new Error("Azure API key is required when using Azure provider");
+      }
+      const normalized = normalizeAzureEndpoint(azureEndpoint);
+      if (!normalized.ok) {
+        const err = new Error(normalized.reason || "Invalid Azure endpoint");
+        err.code = "invalid_endpoint";
+        throw err;
+      }
+      this.azureHost = normalized.host;
+      this.client = new OpenAI({
+        apiKey: azureApiKey,
+        baseURL: normalized.baseUrl,
+        timeout,
+        maxRetries,
+      });
     } else {
       throw new Error(`Unsupported AI provider: ${provider}`);
     }
   }
 
   async generateCompletion(messages, options = {}) {
+    const result = await this.generateCompletionWithMeta(messages, options);
+    return result.text;
+  }
+
+  /**
+   * @returns {Promise<{ text: string, meta: { provider: string, model: string, apiStyleUsed?: string, latencyMs: number, usage?: object } }>}
+   */
+  async generateCompletionWithMeta(messages, options = {}) {
+    const started = Date.now();
     const defaultOptions = {
       model: this.config.model,
       max_tokens: 500,
       temperature: 0.3,
     };
-
     const completionOptions = { ...defaultOptions, ...options };
+    const provider = this.config.provider;
 
-    if (this.config.provider === "openai") {
+    let text;
+    let apiStyleUsed;
+    let usage;
+
+    if (provider === "openai") {
       const response = await this.client.chat.completions.create({
         ...completionOptions,
         messages,
       });
-      const content = response?.choices?.[0]?.message?.content;
-      if (!content || content.trim() === "") {
+      text = response?.choices?.[0]?.message?.content;
+      usage = response?.usage;
+      if (!text || text.trim() === "") {
         throw new Error("OpenAI returned empty response");
       }
-      return content;
-    } else if (this.config.provider === "groq") {
+    } else if (provider === "groq") {
       const response = await this.client.chat.completions.create({
         ...completionOptions,
         messages,
       });
-      const content = response?.choices?.[0]?.message?.content;
-      if (!content || content.trim() === "") {
+      text = response?.choices?.[0]?.message?.content;
+      usage = response?.usage;
+      if (!text || text.trim() === "") {
         throw new Error("Groq returned empty response");
       }
-      return content;
-    } else if (this.config.provider === "gemini") {
+    } else if (provider === "gemini") {
       const model = this.client.getGenerativeModel({ model: completionOptions.model });
-
       const systemMessage = messages.find((m) => m.role === "system");
       const userMessage = messages.find((m) => m.role === "user");
-
       let prompt = "";
-      if (systemMessage) {
-        prompt += `${systemMessage.content}\n\n`;
-      }
-      if (userMessage) {
-        prompt += userMessage.content;
-      }
-
+      if (systemMessage) prompt += `${systemMessage.content}\n\n`;
+      if (userMessage) prompt += userMessage.content;
       const result = await model.generateContent(prompt);
-      const content = result?.response?.text();
-      if (!content || content.trim() === "") {
+      text = result?.response?.text();
+      if (!text || text.trim() === "") {
         throw new Error("Gemini returned empty response");
       }
-      return content;
+    } else if (provider === "azure") {
+      const azureResult = await this._generateAzure(messages, completionOptions);
+      text = azureResult.text;
+      apiStyleUsed = azureResult.apiStyleUsed;
+      usage = azureResult.usage;
+    } else {
+      throw new Error(`Unsupported AI provider: ${provider}`);
     }
 
-    throw new Error(`Unsupported AI provider: ${this.config.provider}`);
+    return {
+      text,
+      meta: {
+        provider,
+        model: completionOptions.model,
+        ...(apiStyleUsed ? { apiStyleUsed } : {}),
+        latencyMs: Date.now() - started,
+        ...(usage ? { usage } : {}),
+      },
+    };
+  }
+
+  async _generateAzure(messages, completionOptions) {
+    const deployment = completionOptions.model;
+    const apiStyle = this.config.azureApiStyle || "auto";
+    const host = this.azureHost || "unknown";
+
+    let style = apiStyle;
+    if (apiStyle === "auto") {
+      style = getCachedAzureStyle(host, deployment) || "responses";
+    }
+
+    if (style === "responses" || (apiStyle === "auto" && style === "responses")) {
+      try {
+        // In auto mode, don't wait the full SDK timeout on Responses — many
+        // deployments need Chat Completions and would otherwise stall ~45–90s.
+        const result =
+          apiStyle === "auto"
+            ? await this._withTimeout(
+                this._azureResponses(messages, completionOptions),
+                this.config.azureResponsesProbeMs ?? AZURE_RESPONSES_PROBE_MS,
+                "Azure Responses probe timed out"
+              )
+            : await this._azureResponses(messages, completionOptions);
+        if (apiStyle === "auto") setCachedAzureStyle(host, deployment, "responses");
+        return { ...result, apiStyleUsed: "responses" };
+      } catch (err) {
+        if (apiStyle === "auto" && this._shouldFallbackToChat(err)) {
+          logger.info("Azure Responses unavailable; falling back to Chat Completions", {
+            host,
+            deployment,
+            reason: err?.code || err?.message?.slice?.(0, 120),
+          });
+          const result = await this._azureChat(messages, completionOptions);
+          setCachedAzureStyle(host, deployment, "chat");
+          return { ...result, apiStyleUsed: "chat" };
+        }
+        throw err;
+      }
+    }
+
+    const result = await this._azureChat(messages, completionOptions);
+    if (apiStyle === "auto") setCachedAzureStyle(host, deployment, "chat");
+    return { ...result, apiStyleUsed: "chat" };
+  }
+
+  _shouldFallbackToChat(err) {
+    if (isResponsesUnsupportedError(err)) return true;
+    const msg = String(err?.message || "");
+    if (err?.code === "ETIMEDOUT" || err?.code === "ABORT_ERR" || err?.name === "AbortError") {
+      return true;
+    }
+    if (/timed out|timeout|empty response/i.test(msg)) return true;
+    // 404/400 on the responses route often means the deployment only supports chat
+    const status = err?.status || err?.statusCode;
+    if (status === 404) return true;
+    return false;
+  }
+
+  _withTimeout(promise, ms, message) {
+    let timer;
+    return Promise.race([
+      promise.finally(() => clearTimeout(timer)),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const err = new Error(message || "Request timed out");
+          err.code = "ETIMEDOUT";
+          reject(err);
+        }, ms);
+      }),
+    ]);
+  }
+
+  async _azureResponses(messages, completionOptions) {
+    const body = {
+      model: completionOptions.model,
+      input: messagesToResponsesInput(messages),
+      max_output_tokens: completionOptions.max_tokens,
+    };
+    if (completionOptions.reasoning_effort) {
+      body.reasoning = { effort: completionOptions.reasoning_effort };
+    }
+    const response = await this.client.responses.create(body);
+    const text = response?.output_text;
+    if (!text || String(text).trim() === "") {
+      // Reasoning models may spend the token budget on thinking; treat as
+      // fallback-worthy in auto rather than a hard failure after a long wait.
+      const err = new Error("Azure Responses returned empty response");
+      err.code = "empty_response";
+      throw err;
+    }
+    return { text, usage: response?.usage };
+  }
+
+  async _azureChat(messages, completionOptions) {
+    const base = {
+      model: completionOptions.model,
+      messages,
+      max_completion_tokens: completionOptions.max_tokens,
+    };
+    if (completionOptions.reasoning_effort) {
+      base.reasoning_effort = completionOptions.reasoning_effort;
+    }
+
+    try {
+      const response = await this.client.chat.completions.create(base);
+      const text = response?.choices?.[0]?.message?.content;
+      if (!text || text.trim() === "") {
+        throw new Error("Azure Chat Completions returned empty response");
+      }
+      return { text, usage: response?.usage };
+    } catch (err) {
+      if (isUnsupportedParameterError(err)) {
+        // Retry without the unsupported field(s): try max_tokens, drop reasoning_effort
+        const retryBody = {
+          model: completionOptions.model,
+          messages,
+          max_tokens: completionOptions.max_tokens,
+        };
+        try {
+          const response = await this.client.chat.completions.create(retryBody);
+          const text = response?.choices?.[0]?.message?.content;
+          if (!text || text.trim() === "") {
+            throw new Error("Azure Chat Completions returned empty response");
+          }
+          return { text, usage: response?.usage };
+        } catch (retryErr) {
+          // Last attempt: max_completion_tokens only (no reasoning_effort)
+          if (isUnsupportedParameterError(retryErr)) {
+            const response = await this.client.chat.completions.create({
+              model: completionOptions.model,
+              messages,
+              max_completion_tokens: completionOptions.max_tokens,
+            });
+            const text = response?.choices?.[0]?.message?.content;
+            if (!text || text.trim() === "") {
+              throw new Error("Azure Chat Completions returned empty response");
+            }
+            return { text, usage: response?.usage };
+          }
+          throw retryErr;
+        }
+      }
+      throw err;
+    }
   }
 }
 
@@ -130,6 +371,9 @@ class AIService {
       openaiApiKey: settings.ai.apiKeys?.openai,
       groqApiKey: settings.ai.apiKeys?.groq,
       geminiApiKey: settings.ai.apiKeys?.gemini,
+      azureApiKey: settings.ai.apiKeys?.azure,
+      azureEndpoint: settings.ai.azure?.endpoint,
+      azureApiStyle: settings.ai.azure?.apiStyle || "auto",
     };
 
     return new AIClient(config);
@@ -159,6 +403,9 @@ class AIService {
       openaiApiKey: userSettings.ai.apiKeys?.openai,
       groqApiKey: userSettings.ai.apiKeys?.groq,
       geminiApiKey: userSettings.ai.apiKeys?.gemini,
+      azureApiKey: userSettings.ai.apiKeys?.azure,
+      azureEndpoint: userSettings.ai.azure?.endpoint,
+      azureApiStyle: userSettings.ai.azure?.apiStyle || "auto",
     };
 
     this._legacyClient = new AIClient(config);
@@ -203,6 +450,33 @@ class AIService {
 
   get config() {
     return this._legacyClient?.config || {};
+  }
+
+  /**
+   * Generate AI completion with metadata (provider, latency, usage).
+   * For org-isolated calls, pass orgSettings to create fresh client.
+   */
+  async generateCompletionWithMeta(messages, options = {}, orgSettings = null) {
+    const startTime = Date.now();
+    const provider = orgSettings?.ai?.provider || this.config?.provider || "unknown";
+
+    try {
+      let client;
+      if (orgSettings) {
+        client = this.createClientFromSettings(orgSettings);
+      } else {
+        client = this._getClient();
+      }
+
+      const result = await client.generateCompletionWithMeta(messages, options);
+      const durationMs = Date.now() - startTime;
+      metrics.recordAICall(provider, true, durationMs);
+      return result;
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      metrics.recordAICall(provider, false, durationMs);
+      throw error;
+    }
   }
 
   /**

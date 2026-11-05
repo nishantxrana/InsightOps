@@ -3,6 +3,30 @@ import { PollingJob } from "../models/PollingJob.js";
 import { encrypt, decrypt } from "../utils/encryption.js";
 import { logger } from "../utils/logger.js";
 import axios from "axios";
+import { aiConfigUpdateSchema } from "../validators/schemas.js";
+import { normalizeAzureEndpoint } from "../ai/azureEndpoint.js";
+
+const AI_KEY_PROVIDERS = ["openai", "groq", "gemini", "azure"];
+const MASK = "********";
+
+function buildKeyStatus(ai) {
+  const keyStatus = {};
+  for (const provider of AI_KEY_PROVIDERS) {
+    const saved = Boolean(ai?.apiKeys?.[provider]);
+    const entry = { saved };
+    const last4 = ai?.keyLast4?.[provider];
+    if (saved && last4 && String(last4).length <= 4) {
+      entry.last4 = String(last4);
+    }
+    keyStatus[provider] = entry;
+  }
+  return keyStatus;
+}
+
+function last4FromPlaintext(key) {
+  if (!key || typeof key !== "string" || key.length < 12) return undefined;
+  return key.slice(-4);
+}
 
 class OrganizationService {
   /**
@@ -70,7 +94,7 @@ class OrganizationService {
     }
 
     if (org.ai?.apiKeys) {
-      for (const provider of ["openai", "groq", "gemini"]) {
+      for (const provider of AI_KEY_PROVIDERS) {
         if (org.ai.apiKeys[provider]) {
           const decryptedKey = decrypt(org.ai.apiKeys[provider]);
 
@@ -176,18 +200,76 @@ class OrganizationService {
     }
 
     if (data.ai) {
-      if (data.ai.apiKeys) {
-        for (const provider of ["openai", "groq", "gemini"]) {
-          if (data.ai.apiKeys[provider] && data.ai.apiKeys[provider] !== "********") {
-            data.ai.apiKeys[provider] = encrypt(data.ai.apiKeys[provider]);
-          } else {
-            delete data.ai.apiKeys[provider];
+      const parsed = aiConfigUpdateSchema.safeParse(data.ai);
+      if (!parsed.success) {
+        const msg = parsed.error.errors?.[0]?.message || "Invalid AI settings";
+        throw new Error(msg);
+      }
+      const aiUpdate = parsed.data;
+
+      if (!org.ai) org.ai = {};
+      if (!org.ai.apiKeys) org.ai.apiKeys = {};
+      if (!org.ai.keyLast4) org.ai.keyLast4 = {};
+
+      if (Array.isArray(aiUpdate.clearKeys)) {
+        for (const provider of aiUpdate.clearKeys) {
+          if (org.ai.apiKeys && Object.prototype.hasOwnProperty.call(org.ai.apiKeys, provider)) {
+            delete org.ai.apiKeys[provider];
+          }
+          if (org.ai.keyLast4 && Object.prototype.hasOwnProperty.call(org.ai.keyLast4, provider)) {
+            delete org.ai.keyLast4[provider];
           }
         }
-        org.ai.apiKeys = { ...org.ai.apiKeys, ...data.ai.apiKeys };
+        org.markModified("ai.apiKeys");
+        org.markModified("ai.keyLast4");
       }
-      if (data.ai.provider) org.ai.provider = data.ai.provider;
-      if (data.ai.model) org.ai.model = data.ai.model;
+
+      if (aiUpdate.apiKeys) {
+        for (const provider of AI_KEY_PROVIDERS) {
+          const raw = aiUpdate.apiKeys[provider];
+          if (!raw || raw === MASK || raw.trim() === "") {
+            continue;
+          }
+          const last4 = last4FromPlaintext(raw);
+          org.ai.apiKeys[provider] = encrypt(raw);
+          if (last4) {
+            org.ai.keyLast4[provider] = last4;
+          } else {
+            org.ai.keyLast4[provider] = undefined;
+          }
+        }
+        org.markModified("ai.apiKeys");
+        org.markModified("ai.keyLast4");
+      }
+
+      if (aiUpdate.provider) org.ai.provider = aiUpdate.provider;
+      if (aiUpdate.model !== undefined) org.ai.model = aiUpdate.model;
+
+      if (aiUpdate.azure) {
+        if (!org.ai.azure) org.ai.azure = {};
+        if (aiUpdate.azure.endpoint !== undefined) {
+          const trimmed = String(aiUpdate.azure.endpoint || "").trim();
+          if (!trimmed) {
+            org.ai.azure.endpoint = "";
+          } else {
+            const normalized = normalizeAzureEndpoint(trimmed);
+            if (!normalized.ok) {
+              throw new Error(normalized.reason || "Invalid Azure endpoint");
+            }
+            // Store the normalized base URL so callers can reuse it
+            org.ai.azure.endpoint = normalized.baseUrl;
+          }
+        }
+        if (aiUpdate.azure.apiStyle) {
+          org.ai.azure.apiStyle = aiUpdate.azure.apiStyle;
+        }
+        org.markModified("ai.azure");
+      }
+
+      if (aiUpdate.enabled !== undefined) org.ai.enabled = aiUpdate.enabled;
+      if (aiUpdate.useInNotifications !== undefined) {
+        org.ai.useInNotifications = aiUpdate.useInNotifications;
+      }
     }
 
     if (data.notifications) {
@@ -478,7 +560,7 @@ class OrganizationService {
 
     if (result.ai?.apiKeys) {
       result.ai = { ...result.ai, apiKeys: { ...result.ai.apiKeys } };
-      for (const provider of ["openai", "groq", "gemini"]) {
+      for (const provider of AI_KEY_PROVIDERS) {
         if (result.ai.apiKeys[provider]) {
           result.ai.apiKeys[provider] = encrypt(result.ai.apiKeys[provider]);
         }
@@ -489,24 +571,49 @@ class OrganizationService {
   }
 
   /**
+   * Persist non-secret lastTest result from AI test connection.
+   */
+  async updateAiLastTest(organizationId, userId, lastTest) {
+    const org = await Organization.findOne({ _id: organizationId, userId, isActive: true });
+    if (!org) return null;
+    if (!org.ai) org.ai = {};
+    org.ai.lastTest = {
+      at: lastTest.at || new Date(),
+      ok: Boolean(lastTest.ok),
+      provider: lastTest.provider || "",
+      model: lastTest.model || "",
+      latencyMs: lastTest.latencyMs ?? undefined,
+      errorCode: lastTest.errorCode || undefined,
+    };
+    org.markModified("ai.lastTest");
+    await org.save();
+    return this.sanitizeOrganization(org.toObject());
+  }
+
+  /**
    * Remove sensitive data for API responses
    */
   sanitizeOrganization(org) {
     const sanitized = { ...org };
 
     if (sanitized.azureDevOps?.pat) {
-      sanitized.azureDevOps = { ...sanitized.azureDevOps, pat: "********" };
+      sanitized.azureDevOps = { ...sanitized.azureDevOps, pat: MASK };
     }
 
-    if (sanitized.ai?.apiKeys) {
+    if (sanitized.ai) {
+      const apiKeys = sanitized.ai.apiKeys || {};
       sanitized.ai = {
         ...sanitized.ai,
         apiKeys: {
-          openai: sanitized.ai.apiKeys.openai ? "********" : "",
-          groq: sanitized.ai.apiKeys.groq ? "********" : "",
-          gemini: sanitized.ai.apiKeys.gemini ? "********" : "",
+          openai: apiKeys.openai ? MASK : "",
+          groq: apiKeys.groq ? MASK : "",
+          gemini: apiKeys.gemini ? MASK : "",
+          azure: apiKeys.azure ? MASK : "",
         },
+        keyStatus: buildKeyStatus(sanitized.ai),
       };
+      // Never expose raw keyLast4 map separately in a confusing way — keyStatus is enough
+      delete sanitized.ai.keyLast4;
     }
 
     return sanitized;
