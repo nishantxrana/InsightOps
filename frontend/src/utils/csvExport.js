@@ -1,6 +1,7 @@
 /**
  * CSV Export Utility
- * Converts notification data to CSV format and triggers download
+ * Converts notification data to CSV format and triggers download.
+ * Returns `{ ok, error? }` — callers show toasts; never alerts.
  */
 
 /**
@@ -9,7 +10,6 @@
 const escapeCSVField = (field) => {
   if (field === null || field === undefined) return "";
   const str = String(field);
-  // If field contains comma, quote, or newline, wrap in quotes and escape existing quotes
   if (str.includes(",") || str.includes('"') || str.includes("\n")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
@@ -45,13 +45,13 @@ const downloadCSV = (csvContent, filename) => {
 
 /**
  * Export Idle PRs to CSV
+ * @returns {{ ok: boolean, error?: string }}
  */
 export const exportIdlePRsToCSV = (notification) => {
   const pullRequests = notification.metadata?.pullRequests || [];
 
   if (pullRequests.length === 0) {
-    alert("No pull requests to export");
-    return;
+    return { ok: false, error: "No pull requests to export" };
   }
 
   const headers = [
@@ -74,17 +74,18 @@ export const exportIdlePRsToCSV = (notification) => {
   const filename = `idle-prs-${timestamp}.csv`;
 
   downloadCSV(csv, filename);
+  return { ok: true };
 };
 
 /**
  * Export Overdue Work Items to CSV
+ * @returns {{ ok: boolean, error?: string }}
  */
 export const exportOverdueItemsToCSV = (notification) => {
   const items = notification.metadata?.items || [];
 
   if (items.length === 0) {
-    alert("No overdue items to export");
-    return;
+    return { ok: false, error: "No overdue items to export" };
   }
 
   const headers = [
@@ -113,17 +114,22 @@ export const exportOverdueItemsToCSV = (notification) => {
   const filename = `overdue-items-${timestamp}.csv`;
 
   downloadCSV(csv, filename);
+  return { ok: true };
 };
 
 /**
- * Generic export function - detects notification type and exports accordingly
+ * Generic export — detects notification type and exports accordingly.
+ * @returns {{ ok: boolean, error?: string }}
  */
 export const exportNotificationToCSV = (notification) => {
   if (notification.type === "idle-pr") {
-    exportIdlePRsToCSV(notification);
-  } else if (notification.type === "overdue") {
-    exportOverdueItemsToCSV(notification);
-  } else {
-    alert(`Export not supported for notification type: ${notification.type}`);
+    return exportIdlePRsToCSV(notification);
   }
+  if (notification.type === "overdue") {
+    return exportOverdueItemsToCSV(notification);
+  }
+  return {
+    ok: false,
+    error: `Export not supported for notification type: ${notification.type}`,
+  };
 };
