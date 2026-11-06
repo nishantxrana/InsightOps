@@ -59,7 +59,7 @@ export function hasAzureDevOpsConfig(org) {
 
 /**
  * Check if organization has AI configuration (credentials present).
- * Does not consider ai.enabled — gating by enabled is Prompt 2.
+ * Does not consider ai.enabled — use assertAiAvailable for full gating.
  */
 export function hasAIConfig(org) {
   if (!org?.ai?.provider) return false;

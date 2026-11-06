@@ -81,6 +81,7 @@ const HINTS = {
     "The prompt was blocked by the provider content filter. Adjust the input and retry.",
   TIMEOUT: "The provider did not respond in time. Try again, or check network connectivity.",
   PROVIDER_UNAVAILABLE: "The provider appears temporarily unavailable. Try again shortly.",
+  EMPTY_RESPONSE: "Try again, or switch model/deployment in Settings → AI.",
   UNKNOWN: "Check your provider settings and try again.",
 };
 
@@ -95,6 +96,7 @@ const MESSAGES = {
   CONTENT_FILTERED: "The request was blocked by a content filter.",
   TIMEOUT: "The request timed out.",
   PROVIDER_UNAVAILABLE: "The AI provider is temporarily unavailable.",
+  EMPTY_RESPONSE: "The AI provider returned an empty response.",
   UNKNOWN: "The AI request failed.",
 };
 
@@ -119,7 +121,10 @@ export function normalizeAiError(err, ctx = {}) {
   let httpStatus = typeof status === "number" ? status : 500;
   let retryAfterSeconds;
 
-  if (providerCode === "content_filter" || /content[_ ]?filter/i.test(rawMessage)) {
+  if (err?.aiCode === "EMPTY_RESPONSE" || providerCode === "empty_response") {
+    code = "EMPTY_RESPONSE";
+    httpStatus = 502;
+  } else if (providerCode === "content_filter" || /content[_ ]?filter/i.test(rawMessage)) {
     code = "CONTENT_FILTERED";
     httpStatus = 400;
   } else if (isTimeout(err, rawMessage)) {

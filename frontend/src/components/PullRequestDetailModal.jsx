@@ -11,6 +11,13 @@ import { StatusBadge } from "@/components/kit/StatusBadge";
 import { StatusCallout } from "@/components/kit/StatusCallout";
 import { prStatus, prVoteStatus } from "@/components/kit/statusMaps";
 import { Button } from "@/components/ui/button";
+import {
+  aiDisabledInfo,
+  aiErrorText,
+  formatAiMetaLine,
+  isAiGeneratable,
+  mapAiAvailabilityToPanel,
+} from "@/lib/aiInsight";
 
 function getPRUrl(pr) {
   return pr?.webUrl || pr?.url || "#";
@@ -34,9 +41,12 @@ export default function PullRequestDetailModal({
   list = [],
   onNavigate,
   triggerRef,
+  aiStatus = null,
 }) {
   const [aiExplanation, setAiExplanation] = useState(null);
+  const [aiMeta, setAiMeta] = useState(null);
   const [aiError, setAiError] = useState(null);
+  const [aiAvailability, setAiAvailability] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -131,18 +141,50 @@ export default function PullRequestDetailModal({
     approvedReviewers.length,
   ]);
 
-  const aiState = loadingAI ? "loading" : aiError ? "error" : aiExplanation ? "ready" : "idle";
+  const orgGate = aiDisabledInfo(aiStatus);
+  const availabilityPanel = mapAiAvailabilityToPanel(aiAvailability);
+  let aiState = "idle";
+  let disabledReason;
+  let settingsHref;
+  if (orgGate) {
+    aiState = "disabled";
+    disabledReason = orgGate.reason;
+    settingsHref = orgGate.href;
+  } else if (availabilityPanel) {
+    aiState = availabilityPanel.state;
+    disabledReason = availabilityPanel.disabledReason;
+    settingsHref = availabilityPanel.settingsHref;
+  } else if (loadingAI) {
+    aiState = "loading";
+  } else if (aiError) {
+    aiState = "error";
+  } else if (aiExplanation) {
+    aiState = "ready";
+  }
 
-  const loadAIExplanation = async () => {
-    if (!pullRequest || loadingAI) return;
+  const canGenerate = isAiGeneratable(aiStatus) && !orgGate;
+
+  const loadAIExplanation = async ({ refresh = false } = {}) => {
+    if (!pullRequest || loadingAI || !canGenerate) return;
     setLoadingAI(true);
     setAiError(null);
+    setAiAvailability(null);
     try {
-      const response = await apiService.explainPullRequest(pullRequest.pullRequestId);
+      const response = await apiService.explainPullRequest(pullRequest.pullRequestId, {
+        refresh,
+      });
+      if (response.status === "not_configured" || response.status === "disabled") {
+        setAiAvailability(response);
+        setAiExplanation(null);
+        setAiMeta(null);
+        return;
+      }
       setAiExplanation(response.explanation);
+      setAiMeta(response.meta || null);
     } catch (error) {
       setAiExplanation(null);
-      setAiError(error.userMessage || "AI explanation temporarily unavailable.");
+      setAiMeta(null);
+      setAiError(aiErrorText(error));
     } finally {
       setLoadingAI(false);
     }
@@ -161,7 +203,9 @@ export default function PullRequestDetailModal({
   useEffect(() => {
     if (isOpen && pullRequest) {
       setAiExplanation(null);
+      setAiMeta(null);
       setAiError(null);
+      setAiAvailability(null);
       setLoadingAI(false);
       setCopied(false);
     }
@@ -294,12 +338,15 @@ export default function PullRequestDetailModal({
         ) : null}
 
         <AiInsightPanel
-          title="Summarize Changes"
+          title="Summarize changes"
+          provider={formatAiMetaLine(aiMeta)}
           state={aiState}
           markdown={aiExplanation || undefined}
           errorText={aiError || undefined}
-          onGenerate={loadAIExplanation}
-          onRegenerate={loadAIExplanation}
+          disabledReason={disabledReason}
+          settingsHref={settingsHref}
+          onGenerate={canGenerate ? () => loadAIExplanation({ refresh: false }) : undefined}
+          onRegenerate={canGenerate ? () => loadAIExplanation({ refresh: true }) : undefined}
         />
 
         <div className="space-y-2">

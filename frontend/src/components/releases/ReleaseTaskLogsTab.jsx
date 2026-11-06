@@ -4,6 +4,7 @@ import { AiInsightPanel } from "@/components/kit/AiInsightPanel";
 import { InlineError } from "@/components/kit/InlineError";
 import { StatusBadge } from "@/components/kit/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { formatAiMetaLine } from "@/lib/aiInsight";
 
 /**
  * Failed task logs + Diagnose Failure via AiInsightPanel.
@@ -14,11 +15,32 @@ export function ReleaseTaskLogsTab({
   logsError,
   onRefresh,
   aiAnalysis,
+  aiMeta,
   aiError,
   loadingAI,
   onDiagnose,
+  onRegenerate,
+  orgGate = null,
+  availabilityPanel = null,
 }) {
-  const aiState = loadingAI ? "loading" : aiError ? "error" : aiAnalysis ? "ready" : "idle";
+  let aiState = "idle";
+  let disabledReason;
+  let settingsHref;
+  if (orgGate) {
+    aiState = "disabled";
+    disabledReason = orgGate.reason;
+    settingsHref = orgGate.href;
+  } else if (availabilityPanel) {
+    aiState = availabilityPanel.state;
+    disabledReason = availabilityPanel.disabledReason;
+    settingsHref = availabilityPanel.settingsHref;
+  } else if (loadingAI) {
+    aiState = "loading";
+  } else if (aiError) {
+    aiState = "error";
+  } else if (aiAnalysis) {
+    aiState = "ready";
+  }
 
   return (
     <div className="space-y-4">
@@ -54,12 +76,15 @@ export function ReleaseTaskLogsTab({
             </p>
 
             <AiInsightPanel
-              title="Diagnose Failure"
+              title="Diagnose failure"
+              provider={formatAiMetaLine(aiMeta)}
               state={aiState}
               markdown={aiAnalysis || undefined}
               errorText={aiError || undefined}
+              disabledReason={disabledReason}
+              settingsHref={settingsHref}
               onGenerate={onDiagnose}
-              onRegenerate={onDiagnose}
+              onRegenerate={onRegenerate || onDiagnose}
             />
 
             {failedLogs.failedTasks.map((task) => (

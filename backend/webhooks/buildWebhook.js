@@ -129,14 +129,23 @@ class BuildWebhook extends BaseWebhook {
             client.getBuildLogs(buildId),
           ]);
 
-          // Generate AI summary if user has AI configured
-          if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys?.[userSettings.ai.provider]) {
-            try {
-              aiService.initializeWithUserSettings(userSettings);
-              aiSummary = await aiService.summarizeBuildFailure(resource, timeline, logs, client);
-            } catch (error) {
-              logger.warn("Failed to generate AI summary:", error);
+          // Generate AI summary when enabled for notifications
+          try {
+            const { assertAiAvailable } = await import("../ai/guard.js");
+            const { isSoftAiFailure } = await import("../ai/aiService.js");
+            const availability = assertAiAvailable(orgWithCredentials, "webhook_build");
+            const useInNotifications = orgWithCredentials?.ai?.useInNotifications !== false;
+            if (availability.ok && useInNotifications) {
+              aiSummary = await aiService.summarizeBuildFailure(resource, timeline, logs, client, {
+                ai: availability.config,
+              });
+              if (isSoftAiFailure(aiSummary)) {
+                aiSummary = null;
+              }
             }
+          } catch (error) {
+            logger.warn("Failed to generate AI summary:", error?.message || error);
+            aiSummary = null;
           }
 
           message = markdownFormatter.formatBuildFailed(

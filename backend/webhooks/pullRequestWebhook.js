@@ -108,15 +108,24 @@ class PullRequestWebhook extends BaseWebhook {
         });
       }
 
-      // Generate AI summary if configured
+      // Generate AI summary when enabled for notifications
       let aiSummary = null;
-      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys?.[userSettings.ai.provider]) {
-        try {
-          aiService.initializeWithUserSettings(userSettings);
-          aiSummary = await aiService.summarizePullRequest(resource);
-        } catch (error) {
-          logger.warn("Failed to generate AI summary:", error);
+      try {
+        const { assertAiAvailable } = await import("../ai/guard.js");
+        const { isSoftAiFailure } = await import("../ai/aiService.js");
+        const availability = assertAiAvailable(orgWithCredentials, "webhook_pr");
+        const useInNotifications = orgWithCredentials?.ai?.useInNotifications !== false;
+        if (availability.ok && useInNotifications) {
+          aiSummary = await aiService.summarizePullRequest(resource, {
+            ai: availability.config,
+          });
+          if (isSoftAiFailure(aiSummary)) {
+            aiSummary = null;
+          }
         }
+      } catch (error) {
+        logger.warn("Failed to generate AI summary:", error?.message || error);
+        aiSummary = null;
       }
 
       // Format notification card with user config

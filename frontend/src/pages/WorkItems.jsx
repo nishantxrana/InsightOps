@@ -5,6 +5,7 @@ import { useOrganization } from "../contexts/OrganizationContext";
 import { useHealth } from "../contexts/HealthContext";
 import WorkItemDetailModal from "../components/WorkItemDetailModal";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
+import { useAiStatus } from "@/hooks/useAiStatus";
 import { InlineError, PageError } from "@/components/kit/InlineError";
 import { PageHeader } from "@/components/kit/PageHeader";
 import { SkeletonStatStrip } from "@/components/kit/Skeletons";
@@ -76,6 +77,7 @@ function filtersActive(filters) {
 
 export default function WorkItems() {
   const { currentOrganization, currentProject, clearSwitching } = useOrganization();
+  const { aiStatus } = useAiStatus();
   const { checkConnection } = useHealth();
 
   const [loadingStates, setLoadingStates] = useState({
@@ -174,10 +176,10 @@ export default function WorkItems() {
     setPriorityFilter,
   ]);
 
-  const loadAiSummary = useCallback(async () => {
+  const loadAiSummary = useCallback(async ({ refresh = false } = {}) => {
     try {
       setLoadingStates((prev) => ({ ...prev, aiSummary: true }));
-      const aiData = await apiService.getAISummary();
+      const aiData = await apiService.getAISummary({ refresh });
       setAiSummary(aiData);
     } catch (err) {
       setAiSummary({
@@ -483,7 +485,8 @@ export default function WorkItems() {
         onEnabledChange={toggleAiSummary}
         loading={loadingStates.aiSummary}
         summary={aiSummary}
-        onRetry={loadAiSummary}
+        onRetry={() => loadAiSummary({ refresh: true })}
+        aiStatus={aiStatus}
       />
 
       <div className="space-y-2">
@@ -564,6 +567,7 @@ export default function WorkItems() {
         list={activeList}
         onNavigate={navigateSheet}
         triggerRef={triggerRef}
+        aiStatus={aiStatus}
       />
     </div>
   );

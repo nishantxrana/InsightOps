@@ -131,8 +131,18 @@ class LightweightAgent {
 
     const aiAnalysis = await this.aiAnalyze(task);
 
-    // Cache the AI analysis
-    cacheManager.set("analysis", cacheKey, aiAnalysis, 3600); // 1 hour
+    // Never cache soft failure / empty AI strings as successful analysis
+    const solutionText = aiAnalysis?.solution || aiAnalysis?.analysis || "";
+    const looksSoftFail =
+      typeof solutionText === "string" &&
+      (/unable to generate|not available - please configure|AI analysis not available/i.test(
+        solutionText
+      ) ||
+        solutionText.length < 10);
+
+    if (!looksSoftFail) {
+      cacheManager.set("analysis", cacheKey, aiAnalysis, 3600); // 1 hour
+    }
     return aiAnalysis;
   }
 

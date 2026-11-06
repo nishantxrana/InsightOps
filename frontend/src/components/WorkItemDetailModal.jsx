@@ -10,6 +10,13 @@ import { StatusBadge } from "@/components/kit/StatusBadge";
 import { StatusCallout } from "@/components/kit/StatusCallout";
 import { workItemState } from "@/components/kit/statusMaps";
 import { Button } from "@/components/ui/button";
+import {
+  aiDisabledInfo,
+  aiErrorText,
+  formatAiMetaLine,
+  isAiGeneratable,
+  mapAiAvailabilityToPanel,
+} from "@/lib/aiInsight";
 import { DescriptionHtml } from "@/pages/work-items/DescriptionHtml";
 import { WorkItemTypeIcon } from "@/pages/work-items/WorkItemTypeIcon";
 import {
@@ -31,9 +38,12 @@ export default function WorkItemDetailModal({
   list = [],
   onNavigate,
   triggerRef,
+  aiStatus = null,
 }) {
   const [aiExplanation, setAiExplanation] = useState(null);
+  const [aiMeta, setAiMeta] = useState(null);
   const [aiError, setAiError] = useState(null);
+  const [aiAvailability, setAiAvailability] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -74,18 +84,48 @@ export default function WorkItemDetailModal({
   const hasPrev = listIndex > 0;
   const hasNext = listIndex >= 0 && listIndex < list.length - 1;
 
-  const aiState = loadingAI ? "loading" : aiError ? "error" : aiExplanation ? "ready" : "idle";
+  const orgGate = aiDisabledInfo(aiStatus);
+  const availabilityPanel = mapAiAvailabilityToPanel(aiAvailability);
+  let aiState = "idle";
+  let disabledReason;
+  let settingsHref;
+  if (orgGate) {
+    aiState = "disabled";
+    disabledReason = orgGate.reason;
+    settingsHref = orgGate.href;
+  } else if (availabilityPanel) {
+    aiState = availabilityPanel.state;
+    disabledReason = availabilityPanel.disabledReason;
+    settingsHref = availabilityPanel.settingsHref;
+  } else if (loadingAI) {
+    aiState = "loading";
+  } else if (aiError) {
+    aiState = "error";
+  } else if (aiExplanation) {
+    aiState = "ready";
+  }
 
-  const loadAIExplanation = async () => {
-    if (!workItem || loadingAI) return;
+  const canGenerate = isAiGeneratable(aiStatus) && !orgGate;
+
+  const loadAIExplanation = async ({ refresh = false } = {}) => {
+    if (!workItem || loadingAI || !canGenerate) return;
     setLoadingAI(true);
     setAiError(null);
+    setAiAvailability(null);
     try {
-      const response = await apiService.explainWorkItem(workItem.id);
+      const response = await apiService.explainWorkItem(workItem.id, { refresh });
+      if (response.status === "not_configured" || response.status === "disabled") {
+        setAiAvailability(response);
+        setAiExplanation(null);
+        setAiMeta(null);
+        return;
+      }
       setAiExplanation(response.explanation);
+      setAiMeta(response.meta || null);
     } catch (error) {
       setAiExplanation(null);
-      setAiError(error.userMessage || "AI explanation temporarily unavailable.");
+      setAiMeta(null);
+      setAiError(aiErrorText(error));
     } finally {
       setLoadingAI(false);
     }
@@ -104,7 +144,9 @@ export default function WorkItemDetailModal({
   useEffect(() => {
     if (isOpen && workItem) {
       setAiExplanation(null);
+      setAiMeta(null);
       setAiError(null);
+      setAiAvailability(null);
       setLoadingAI(false);
       setCopied(false);
     }
@@ -199,12 +241,15 @@ export default function WorkItemDetailModal({
         ) : null}
 
         <AiInsightPanel
-          title="Generate AI Insights"
+          title="AI insight"
+          provider={formatAiMetaLine(aiMeta)}
           state={aiState}
           markdown={aiExplanation || undefined}
           errorText={aiError || undefined}
-          onGenerate={loadAIExplanation}
-          onRegenerate={loadAIExplanation}
+          disabledReason={disabledReason}
+          settingsHref={settingsHref}
+          onGenerate={canGenerate ? () => loadAIExplanation({ refresh: false }) : undefined}
+          onRegenerate={canGenerate ? () => loadAIExplanation({ refresh: true }) : undefined}
         />
 
         <div className="space-y-2">

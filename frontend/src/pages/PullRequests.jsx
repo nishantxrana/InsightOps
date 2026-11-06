@@ -10,6 +10,7 @@ import PullRequestDetailModal from "../components/PullRequestDetailModal";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useDensity } from "@/hooks/useDensity";
+import { useAiStatus } from "@/hooks/useAiStatus";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AvatarStack } from "@/components/kit/AvatarStack";
@@ -83,6 +84,7 @@ function matchesSearch(pr, q) {
 }
 
 export default function PullRequests() {
+  const { aiStatus } = useAiStatus();
   const [loadingStates, setLoadingStates] = useState({
     pullRequests: true,
     idlePRs: true,
@@ -673,6 +675,7 @@ export default function PullRequests() {
         list={filteredPRs}
         onNavigate={navigateSheet}
         triggerRef={triggerRef}
+        aiStatus={aiStatus}
       />
     </div>
   );

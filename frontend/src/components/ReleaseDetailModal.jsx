@@ -23,6 +23,12 @@ import {
   isSucceededRelease,
   isWaitingForApproval,
 } from "./releases/releaseDetailHelpers";
+import {
+  aiDisabledInfo,
+  aiErrorText,
+  isAiGeneratable,
+  mapAiAvailabilityToPanel,
+} from "@/lib/aiInsight";
 
 /**
  * DetailSheet for a release. Keeps releaseService / Auth / ADO URL contracts.
@@ -34,6 +40,7 @@ export default function ReleaseDetailModal({
   list = [],
   onNavigate,
   triggerRef,
+  aiStatus = null,
 }) {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
@@ -44,7 +51,9 @@ export default function ReleaseDetailModal({
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [logsError, setLogsError] = useState(null);
   const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiMeta, setAiMeta] = useState(null);
   const [aiError, setAiError] = useState(null);
+  const [aiAvailability, setAiAvailability] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [activeTab, setActiveTab] = useState("approvals");
 
@@ -107,21 +116,35 @@ export default function ReleaseDetailModal({
     }
   };
 
-  const loadAIAnalysis = async () => {
-    if (!release?.id || loadingAI) return;
+  const orgGate = aiDisabledInfo(aiStatus);
+  const availabilityPanel = mapAiAvailabilityToPanel(aiAvailability);
+  const canGenerate = isAiGeneratable(aiStatus) && !orgGate;
+
+  const loadAIAnalysis = async ({ refresh = false } = {}) => {
+    if (!release?.id || loadingAI || !canGenerate) return;
     try {
       setLoadingAI(true);
       setAiError(null);
-      const response = await releaseService.analyzeRelease(release.id);
+      setAiAvailability(null);
+      const response = await releaseService.analyzeRelease(release.id, { refresh });
+      if (response.status === "not_configured" || response.status === "disabled") {
+        setAiAvailability(response);
+        setAiAnalysis(null);
+        setAiMeta(null);
+        return;
+      }
       if (response.success) {
         setAiAnalysis(response.analysis);
+        setAiMeta(response.meta || null);
       } else {
         setAiAnalysis(null);
-        setAiError("AI analysis temporarily unavailable.");
+        setAiMeta(null);
+        setAiError(response.message || "AI analysis temporarily unavailable.");
       }
     } catch (error) {
       setAiAnalysis(null);
-      setAiError(error.userMessage || "AI analysis temporarily unavailable.");
+      setAiMeta(null);
+      setAiError(aiErrorText(error));
     } finally {
       setLoadingAI(false);
     }
@@ -333,9 +356,13 @@ export default function ReleaseDetailModal({
                 logsError={logsError}
                 onRefresh={loadFailedTaskLogs}
                 aiAnalysis={aiAnalysis}
+                aiMeta={aiMeta}
                 aiError={aiError}
                 loadingAI={loadingAI}
-                onDiagnose={loadAIAnalysis}
+                onDiagnose={canGenerate ? () => loadAIAnalysis({ refresh: false }) : undefined}
+                onRegenerate={canGenerate ? () => loadAIAnalysis({ refresh: true }) : undefined}
+                orgGate={orgGate}
+                availabilityPanel={availabilityPanel}
               />
             </TabsContent>
           ) : null}

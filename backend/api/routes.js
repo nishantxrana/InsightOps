@@ -27,7 +27,43 @@ import emergencyRoutes from "./emergency.js";
 import { normalizeAiError, redactSecrets } from "../ai/errors.js";
 import { normalizeAzureEndpoint } from "../ai/azureEndpoint.js";
 import { aiTestRateLimiter } from "../middleware/aiTestRateLimiter.js";
+import { aiFeatureRateLimiter } from "../middleware/aiFeatureRateLimiter.js";
 import { AIClient } from "../ai/aiService.js";
+import { assertAiAvailable } from "../ai/guard.js";
+import { sendAiError } from "../ai/http.js";
+import { runInFlight } from "../ai/inflight.js";
+import {
+  AI_CACHE_TTL,
+  buildAnalyzeCacheKey,
+  pullRequestExplainCacheKey,
+  releaseAnalyzeCacheKey,
+  sprintSummaryCacheKey,
+  workItemExplainCacheKey,
+} from "../ai/cacheKeys.js";
+import { ADO_DATA_RULE, wrapAdoContent } from "../ai/promptSafety.js";
+
+function wantsAiRefresh(req) {
+  const v = req.query?.refresh;
+  return v === "1" || v === "true";
+}
+
+function buildAiMeta(meta, { cached = false, generatedAt } = {}) {
+  return {
+    provider: meta?.provider,
+    model: meta?.model,
+    ...(meta?.apiStyleUsed ? { apiStyleUsed: meta.apiStyleUsed } : {}),
+    cached,
+    generatedAt: generatedAt || new Date().toISOString(),
+    ...(meta?.latencyMs != null ? { latencyMs: meta.latencyMs } : {}),
+  };
+}
+
+function unavailableAiResponse(availability) {
+  return {
+    status: availability.status,
+    message: availability.message,
+  };
+}
 
 const router = express.Router();
 
@@ -437,17 +473,12 @@ router.get("/work-items/sprint-summary", async (req, res) => {
 });
 
 // New endpoint for AI summary
-router.get("/work-items/ai-summary", async (req, res) => {
+router.get("/work-items/ai-summary", aiFeatureRateLimiter, async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
-
-    // Check AI configuration
-    if (!hasAIConfig(org)) {
-      return res.json({
-        summary:
-          "AI analysis not available - please configure AI provider in organization settings.",
-        status: "not_configured",
-      });
+    const availability = assertAiAvailable(org, "sprint_summary");
+    if (!availability.ok) {
+      return res.json(unavailableAiResponse(availability));
     }
 
     if (!hasAzureDevOpsConfig(org)) {
@@ -457,8 +488,8 @@ router.get("/work-items/ai-summary", async (req, res) => {
     const orgId = org._id?.toString();
     const projectName = org.azureDevOps?.project;
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
+    const orgAi = { ai: availability.config };
 
-    // Use cache-first pattern (same cache as dashboard/sprint-summary)
     let allWorkItems = azureDevOpsCache.getSprintWorkItems(orgId, projectName);
 
     if (!allWorkItems) {
@@ -469,54 +500,72 @@ router.get("/work-items/ai-summary", async (req, res) => {
     }
 
     if (!allWorkItems.value || allWorkItems.value.length === 0) {
-      return res.json({ summary: "No work items found in current sprint." });
+      return res.json({ summary: "No work items found in current sprint.", status: "completed" });
     }
 
-    // Check if dataset is too large for real-time processing
     if (allWorkItems.value.length > 100) {
       return res.json({
         summary: `Sprint contains ${allWorkItems.value.length} items. AI analysis is disabled for large datasets to maintain performance. Consider breaking into smaller sprints.`,
         status: "disabled_large_dataset",
+        message: `Sprint contains ${allWorkItems.value.length} items. AI analysis is limited to 100 items.`,
       });
     }
 
-    // Initialize AI service with organization settings
-    aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
-
-    // Check cache first (cache by sprint + item count + last update)
     const { cacheManager } = await import("../cache/CacheManager.js");
     const itemIds = allWorkItems.value
       .map((i) => i.id)
       .sort()
       .join(",");
-    const cacheKey = `sprint_summary_${org._id}_${itemIds.substring(0, 50)}_${allWorkItems.value.length}`;
-    const cached = cacheManager.get("ai", cacheKey);
+    const cacheKey = sprintSummaryCacheKey(
+      org._id,
+      itemIds.substring(0, 50),
+      allWorkItems.value.length
+    );
+    const refresh = wantsAiRefresh(req);
+    const cached = !refresh ? cacheManager.get("ai", cacheKey) : null;
 
-    if (cached) {
+    if (cached?.text) {
       logger.info("Sprint summary cache hit", { itemCount: allWorkItems.value.length });
-      return res.json({ summary: cached, status: "completed", cached: true });
+      return res.json({
+        summary: cached.text,
+        status: "completed",
+        cached: true,
+        meta: buildAiMeta(cached.meta, { cached: true, generatedAt: cached.generatedAt }),
+      });
     }
 
-    const summary = await aiService.summarizeSprintWorkItems(allWorkItems.value);
+    const result = await runInFlight(cacheKey, () =>
+      aiService.summarizeSprintWorkItemsWithMeta(allWorkItems.value, orgAi)
+    );
 
-    // Cache for 30 minutes
-    cacheManager.set("ai", cacheKey, summary, 1800);
+    const generatedAt = new Date().toISOString();
+    cacheManager.set(
+      "ai",
+      cacheKey,
+      { text: result.text, meta: result.meta, generatedAt },
+      AI_CACHE_TTL.sprintSummary
+    );
 
-    res.json({ summary, status: "completed", cached: false });
-  } catch (error) {
-    logger.error("Error generating AI summary:", error);
-    res.status(500).json({
-      error: "Failed to generate AI summary",
-      details: error.message,
-      status: "error",
+    res.json({
+      summary: result.text,
+      status: "completed",
+      cached: false,
+      meta: buildAiMeta(result.meta, { cached: false, generatedAt }),
     });
+  } catch (error) {
+    logger.error("Error generating AI summary:", redactSecrets(error?.message || error));
+    return sendAiError(res, error, { provider: req.organization?.ai?.provider });
   }
 });
 
 // Work item AI explanation endpoint
-router.get("/work-items/:id/explain", async (req, res) => {
+router.get("/work-items/:id/explain", aiFeatureRateLimiter, async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
+    const availability = assertAiAvailable(org, "work_item_explain");
+    if (!availability.ok) {
+      return res.json(unavailableAiResponse(availability));
+    }
 
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: "Azure DevOps configuration required" });
@@ -524,8 +573,8 @@ router.get("/work-items/:id/explain", async (req, res) => {
 
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const workItemId = req.params.id;
+    const orgAi = { ai: availability.config };
 
-    // Get work item details
     const workItem = await client.getWorkItems([workItemId]);
 
     if (!workItem.value || workItem.value.length === 0) {
@@ -537,40 +586,44 @@ router.get("/work-items/:id/explain", async (req, res) => {
 
     const item = workItem.value[0];
 
-    // Check cache first
     const { cacheManager } = await import("../cache/CacheManager.js");
-    const cacheKey = `workitem_explain_${org._id}_${workItemId}_${item.rev}`;
-    const cached = cacheManager.get("ai", cacheKey);
+    const cacheKey = workItemExplainCacheKey(org._id, workItemId, item.rev);
+    const refresh = wantsAiRefresh(req);
+    const cached = !refresh ? cacheManager.get("ai", cacheKey) : null;
 
-    if (cached) {
+    if (cached?.text) {
       logger.info("Work item explanation cache hit", { workItemId });
       return res.json({
-        workItemId: workItemId,
-        explanation: cached,
+        workItemId,
+        explanation: cached.text,
         status: "completed",
         cached: true,
+        meta: buildAiMeta(cached.meta, { cached: true, generatedAt: cached.generatedAt }),
       });
     }
 
-    // Use dedicated AI method for detailed work item explanation
-    const explanation = await aiService.explainWorkItem(item, { ai: getAIConfig(org) });
+    const result = await runInFlight(cacheKey, () =>
+      aiService.explainWorkItemWithMeta(item, orgAi)
+    );
 
-    // Cache for 1 hour
-    cacheManager.set("ai", cacheKey, explanation, 3600);
+    const generatedAt = new Date().toISOString();
+    cacheManager.set(
+      "ai",
+      cacheKey,
+      { text: result.text, meta: result.meta, generatedAt },
+      AI_CACHE_TTL.workItemExplain
+    );
 
     res.json({
-      workItemId: workItemId,
-      explanation: explanation,
+      workItemId,
+      explanation: result.text,
       status: "completed",
       cached: false,
+      meta: buildAiMeta(result.meta, { cached: false, generatedAt }),
     });
   } catch (error) {
-    logger.error("Error generating work item explanation:", error);
-    res.status(500).json({
-      error: "Failed to generate work item explanation",
-      details: error.message,
-      status: "error",
-    });
+    logger.error("Error generating work item explanation:", redactSecrets(error?.message || error));
+    return sendAiError(res, error);
   }
 });
 async function processAISummaryAsync(workItems) {
@@ -708,9 +761,13 @@ router.get("/builds/:buildId", async (req, res) => {
 });
 
 // Build analysis endpoint
-router.post("/builds/:buildId/analyze", async (req, res) => {
+router.post("/builds/:buildId/analyze", aiFeatureRateLimiter, async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
+    const availability = assertAiAvailable(org, "build_analyze");
+    if (!availability.ok) {
+      return res.json(unavailableAiResponse(availability));
+    }
 
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: "Azure DevOps configuration required" });
@@ -718,8 +775,8 @@ router.post("/builds/:buildId/analyze", async (req, res) => {
 
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const buildId = req.params.buildId;
+    const orgAi = { ai: availability.config };
 
-    // Get build details
     const build = await client.getBuild(buildId);
 
     if (!build) {
@@ -729,48 +786,103 @@ router.post("/builds/:buildId/analyze", async (req, res) => {
       });
     }
 
-    // Get timeline and logs for analysis
+    const { cacheManager } = await import("../cache/CacheManager.js");
+    const cacheKey = buildAnalyzeCacheKey(
+      org._id,
+      buildId,
+      build.status || build.result,
+      build.finishTime || build.lastChangedDate
+    );
+    const refresh = wantsAiRefresh(req) || req.body?.refresh === true;
+    const cached = !refresh ? cacheManager.get("ai", cacheKey) : null;
+
+    if (cached?.text) {
+      return res.json({
+        buildId,
+        analysis: cached.text,
+        status: "completed",
+        cached: true,
+        meta: buildAiMeta(cached.meta, { cached: true, generatedAt: cached.generatedAt }),
+        agentic: { success: true, method: "cache", cacheHit: true, ruleUsed: false, duration: 0 },
+      });
+    }
+
     const [timeline, logs] = await Promise.all([
       client.getBuildTimeline(buildId),
       client.getBuildLogs(buildId),
     ]);
 
-    // Initialize AI service with organization settings
-    aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
-
-    // Initialize FreeModelRouter with org AI config
+    // Keep FreeModelRouter in sync for agent fallback paths (org shape accepted)
     const { freeModelRouter } = await import("../ai/FreeModelRouter.js");
-    const aiConfig = getAIConfig(org);
-    freeModelRouter.initialize(aiConfig || {});
+    freeModelRouter.initialize(availability.config || {});
 
-    // Route through agentic system (cache → rules → AI)
-    const { monitorAgent } = await import("../agents/MonitorAgent.js");
-    const agentResult = await monitorAgent.monitorBuildFailure(build, timeline, logs, client);
+    const started = Date.now();
+    const result = await runInFlight(cacheKey, async () => {
+      const { monitorAgent } = await import("../agents/MonitorAgent.js");
+      const agentResult = await monitorAgent.monitorBuildFailure(
+        build,
+        timeline,
+        logs,
+        client,
+        orgAi
+      );
 
-    // Extract analysis from agent result
-    const analysis = agentResult.success
-      ? agentResult.result?.solution || agentResult.result?.action || "Analysis completed"
-      : "Analysis failed";
+      if (!agentResult.success) {
+        const err = new Error(agentResult.error || "Analysis failed");
+        err.aiCode = "PROVIDER_UNAVAILABLE";
+        throw err;
+      }
 
+      const analysisText =
+        agentResult.result?.solution || agentResult.result?.action || agentResult.result?.analysis;
+
+      // Soft-failure strings from legacy paths must not be returned as success
+      const { isSoftAiFailure } = await import("../ai/aiService.js");
+      if (!analysisText || isSoftAiFailure(analysisText)) {
+        // Prefer dedicated WithMeta path
+        return {
+          ...(await aiService.summarizeBuildFailureWithMeta(build, timeline, logs, client, orgAi)),
+          agentResult,
+        };
+      }
+
+      return {
+        text: analysisText,
+        meta: agentResult.result?.meta || {
+          provider: availability.config.provider,
+          model: availability.config.model,
+          latencyMs: Date.now() - started,
+        },
+        agentResult,
+      };
+    });
+
+    const generatedAt = new Date().toISOString();
+    cacheManager.set(
+      "ai",
+      cacheKey,
+      { text: result.text, meta: result.meta, generatedAt },
+      AI_CACHE_TTL.buildAnalyze
+    );
+
+    const agentResult = result.agentResult;
     res.json({
-      buildId: buildId,
-      analysis: analysis,
+      buildId,
+      analysis: result.text,
       status: "completed",
+      cached: false,
+      meta: buildAiMeta(result.meta, { cached: false, generatedAt }),
       agentic: {
-        success: agentResult.success,
-        method: agentResult.result?.method || "unknown",
-        cacheHit: agentResult.stats?.cacheHits > 0,
-        ruleUsed: agentResult.stats?.rulesUsed > 0,
-        duration: agentResult.duration,
+        success: agentResult?.success !== false,
+        method: agentResult?.result?.method || "ai",
+        cacheHit: agentResult?.stats?.cacheHits > 0,
+        ruleUsed: agentResult?.stats?.rulesUsed > 0,
+        duration: agentResult?.duration ?? Date.now() - started,
       },
     });
   } catch (error) {
-    logger.error("Error analyzing build:", error);
-    res.status(500).json({
-      error: "Failed to analyze build",
-      details: error.message,
-      status: "error",
-    });
+    logger.error("Error analyzing build:", redactSecrets(error?.message || error));
+    return sendAiError(res, error);
   }
 });
 
@@ -939,9 +1051,13 @@ router.get("/pull-requests/idle", async (req, res) => {
 });
 
 // Pull Request AI explanation endpoint
-router.get("/pull-requests/:id/explain", async (req, res) => {
+router.get("/pull-requests/:id/explain", aiFeatureRateLimiter, async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
+    const availability = assertAiAvailable(org, "pr_explain");
+    if (!availability.ok) {
+      return res.json(unavailableAiResponse(availability));
+    }
 
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({ error: "Azure DevOps configuration required" });
@@ -949,8 +1065,8 @@ router.get("/pull-requests/:id/explain", async (req, res) => {
 
     const client = azureDevOpsClient.createUserClient(getAzureDevOpsConfig(org));
     const pullRequestId = req.params.id;
+    const orgAi = { ai: availability.config };
 
-    // Get PR details
     const pullRequest = await client.getPullRequestDetails(pullRequestId);
 
     if (!pullRequest) {
@@ -960,62 +1076,70 @@ router.get("/pull-requests/:id/explain", async (req, res) => {
       });
     }
 
-    // Get PR changes and commits for better analysis (don't fail if unavailable)
     let changes = null;
     let commits = null;
 
     try {
       changes = await client.getPullRequestIterationChanges(pullRequestId);
     } catch (error) {
-      logger.warn("Failed to fetch PR changes:", error.message);
+      logger.warn("Failed to fetch PR changes:", redactSecrets(error.message));
     }
 
     try {
       commits = await client.getPullRequestCommits(pullRequestId);
     } catch (error) {
-      logger.warn("Failed to fetch PR commits:", error.message);
+      logger.warn("Failed to fetch PR commits:", redactSecrets(error.message));
     }
 
-    // Check cache first
     const { cacheManager } = await import("../cache/CacheManager.js");
-    const cacheKey = `pr_explain_${org._id}_${pullRequestId}_${pullRequest.lastMergeSourceCommit?.commitId || "initial"}`;
-    const cached = cacheManager.get("ai", cacheKey);
+    const cacheKey = pullRequestExplainCacheKey(
+      org._id,
+      pullRequestId,
+      pullRequest.lastMergeSourceCommit?.commitId || "initial"
+    );
+    const refresh = wantsAiRefresh(req);
+    const cached = !refresh ? cacheManager.get("ai", cacheKey) : null;
 
-    if (cached) {
+    if (cached?.text) {
       logger.info("PR explanation cache hit", { pullRequestId });
       return res.json({
-        pullRequestId: pullRequestId,
-        explanation: cached,
-        changes: changes,
-        commits: commits,
+        pullRequestId,
+        explanation: cached.text,
+        changes,
+        commits,
         status: "completed",
         cached: true,
+        meta: buildAiMeta(cached.meta, { cached: true, generatedAt: cached.generatedAt }),
       });
     }
 
-    // Generate AI explanation
-    const explanation = await aiService.explainPullRequest(pullRequest, changes, commits, {
-      ai: getAIConfig(org),
-    });
+    const result = await runInFlight(cacheKey, () =>
+      aiService.explainPullRequestWithMeta(pullRequest, changes, commits, orgAi)
+    );
 
-    // Cache for 1 hour
-    cacheManager.set("ai", cacheKey, explanation, 3600);
+    const generatedAt = new Date().toISOString();
+    cacheManager.set(
+      "ai",
+      cacheKey,
+      { text: result.text, meta: result.meta, generatedAt },
+      AI_CACHE_TTL.pullRequestExplain
+    );
 
     res.json({
-      pullRequestId: pullRequestId,
-      explanation: explanation,
-      changes: changes,
-      commits: commits,
+      pullRequestId,
+      explanation: result.text,
+      changes,
+      commits,
       status: "completed",
       cached: false,
+      meta: buildAiMeta(result.meta, { cached: false, generatedAt }),
     });
   } catch (error) {
-    logger.error("Error generating pull request explanation:", error);
-    res.status(500).json({
-      error: "Failed to generate pull request explanation",
-      details: error.message,
-      status: "error",
-    });
+    logger.error(
+      "Error generating pull request explanation:",
+      redactSecrets(error?.message || error)
+    );
+    return sendAiError(res, error);
   }
 });
 
@@ -2576,10 +2700,14 @@ router.get("/releases/:releaseId/logs", async (req, res) => {
 });
 
 // Analyze failed release task logs with AI
-router.get("/releases/:releaseId/analyze", async (req, res) => {
+router.get("/releases/:releaseId/analyze", aiFeatureRateLimiter, async (req, res) => {
   try {
     const { releaseId } = req.params;
     const org = await getOrganizationSettings(req);
+    const availability = assertAiAvailable(org, "release_analyze");
+    if (!availability.ok) {
+      return res.json({ ...unavailableAiResponse(availability), success: false });
+    }
 
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
@@ -2588,6 +2716,7 @@ router.get("/releases/:releaseId/analyze", async (req, res) => {
       });
     }
 
+    const orgAi = { ai: availability.config };
     const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
       azureConfig.organization,
@@ -2595,7 +2724,6 @@ router.get("/releases/:releaseId/analyze", async (req, res) => {
       azureConfig.pat
     );
 
-    // Get release with failed task logs
     const releaseResponse = await releaseClient.client.get(`/release/releases/${releaseId}`, {
       params: { "api-version": "6.0" },
     });
@@ -2603,7 +2731,6 @@ router.get("/releases/:releaseId/analyze", async (req, res) => {
     const release = releaseResponse.data;
     const failedTasks = [];
 
-    // Collect failed tasks with logs (parallel processing)
     const environmentPromises = (release.environments || []).map(async (env) => {
       try {
         const tasksResponse = await releaseClient.client.get(
@@ -2632,7 +2759,7 @@ router.get("/releases/:releaseId/analyze", async (req, res) => {
                   timeout: 30000,
                 });
                 logContent = logResponse.data || "";
-              } catch (logError) {
+              } catch (_logError) {
                 logContent = "Log content unavailable";
               }
             }
@@ -2649,7 +2776,10 @@ router.get("/releases/:releaseId/analyze", async (req, res) => {
 
         return envFailedTasks;
       } catch (taskError) {
-        logger.warn(`Failed to fetch tasks for environment ${env.id}:`, taskError.message);
+        logger.warn(
+          `Failed to fetch tasks for environment ${env.id}:`,
+          redactSecrets(taskError.message)
+        );
         return [];
       }
     });
@@ -2664,26 +2794,52 @@ router.get("/releases/:releaseId/analyze", async (req, res) => {
       });
     }
 
-    // Generate AI analysis
-    await aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
-    const analysis = await aiService.analyzeReleaseFailure(release, failedTasks);
+    const { cacheManager } = await import("../cache/CacheManager.js");
+    const modified = release.modifiedOn || release.status || release.createdOn || "unknown";
+    const cacheKey = releaseAnalyzeCacheKey(org._id, releaseId, modified);
+    const refresh = wantsAiRefresh(req);
+    const cached = !refresh ? cacheManager.get("ai", cacheKey) : null;
+
+    if (cached?.text) {
+      return res.json({
+        success: true,
+        analysis: cached.text,
+        cached: true,
+        meta: buildAiMeta(cached.meta, { cached: true, generatedAt: cached.generatedAt }),
+      });
+    }
+
+    const result = await runInFlight(cacheKey, () =>
+      aiService.analyzeReleaseFailureWithMeta(release, failedTasks, orgAi)
+    );
+
+    const generatedAt = new Date().toISOString();
+    cacheManager.set(
+      "ai",
+      cacheKey,
+      { text: result.text, meta: result.meta, generatedAt },
+      AI_CACHE_TTL.releaseAnalyze
+    );
 
     res.json({
       success: true,
-      analysis: analysis,
+      analysis: result.text,
+      cached: false,
+      meta: buildAiMeta(result.meta, { cached: false, generatedAt }),
     });
   } catch (error) {
-    logger.error("Error analyzing release:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to analyze release",
-    });
+    logger.error("Error analyzing release:", redactSecrets(error?.message || error));
+    return sendAiError(res, error);
   }
 });
 
-router.get("/releases/ai-analysis", async (req, res) => {
+router.get("/releases/ai-analysis", aiFeatureRateLimiter, async (req, res) => {
   try {
     const org = await getOrganizationSettings(req);
+    const availability = assertAiAvailable(org, "release_ai_analysis");
+    if (!availability.ok) {
+      return res.json({ ...unavailableAiResponse(availability), success: false });
+    }
 
     if (!hasAzureDevOpsConfig(org)) {
       return res.status(400).json({
@@ -2692,6 +2848,7 @@ router.get("/releases/ai-analysis", async (req, res) => {
       });
     }
 
+    const orgAi = { ai: availability.config };
     const azureConfig = getAzureDevOpsConfig(org);
     const releaseClient = new AzureDevOpsReleaseClient(
       azureConfig.organization,
@@ -2701,7 +2858,6 @@ router.get("/releases/ai-analysis", async (req, res) => {
     );
 
     try {
-      // Get recent releases for analysis (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -2723,7 +2879,6 @@ router.get("/releases/ai-analysis", async (req, res) => {
         });
       }
 
-      // Prepare data for AI analysis
       const analysisData = {
         totalReleases: releases.length,
         timeframe: "last 30 days",
@@ -2739,36 +2894,41 @@ router.get("/releases/ai-analysis", async (req, res) => {
         })),
       };
 
-      // Generate AI analysis
-      const aiPrompt = `Analyze the following Azure DevOps release data and provide insights:
+      const messages = [
+        {
+          role: "system",
+          content: `You analyze Azure DevOps release patterns. ${ADO_DATA_RULE}`,
+        },
+        {
+          role: "user",
+          content: `Analyze the following Azure DevOps release data and provide insights:
 
-${JSON.stringify(analysisData, null, 2)}
+${wrapAdoContent("release_data", JSON.stringify(analysisData, null, 2))}
 
 Please provide:
 1. A brief summary of release patterns and trends
 2. Key insights about deployment success rates and environment health
 3. Specific recommendations for improving release processes
 
-Keep the response concise and actionable. Focus on practical insights that would help a DevOps team.`;
-
-      const messages = [
-        {
-          role: "user",
-          content: aiPrompt,
+Keep the response concise and actionable. Focus on practical insights that would help a DevOps team.`,
         },
       ];
 
-      // Initialize AI service with organization settings
-      aiService.initializeWithUserSettings({ ai: getAIConfig(org) });
-      const aiAnalysis = await aiService.generateCompletion(messages);
+      const result = await aiService.generateCompletionWithMeta(
+        messages,
+        { max_tokens: 800, temperature: 0.3, feature: "releaseAiAnalysis" },
+        orgAi
+      );
 
+      const generatedAt = new Date().toISOString();
       res.json({
         success: true,
         data: {
-          summary: aiAnalysis,
-          generatedAt: new Date().toISOString(),
+          summary: result.text,
+          generatedAt,
           dataPoints: releases.length,
         },
+        meta: buildAiMeta(result.meta, { cached: false, generatedAt }),
       });
     } catch (apiError) {
       if (apiError.response?.status === 404) {
@@ -2785,11 +2945,8 @@ Keep the response concise and actionable. Focus on practical insights that would
       }
     }
   } catch (error) {
-    logger.error("Error generating AI release analysis:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to generate AI analysis",
-    });
+    logger.error("Error generating AI release analysis:", redactSecrets(error?.message || error));
+    return sendAiError(res, error);
   }
 });
 

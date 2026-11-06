@@ -45,15 +45,23 @@ api.interceptors.response.use(
 
     // Create user-friendly error messages
     let userMessage = "Something went wrong. Please try again.";
+    const structured =
+      errorData?.error && typeof errorData.error === "object" ? errorData.error : null;
 
     if (error.code === "ECONNABORTED" || status === 504) {
-      userMessage = "Request timed out. Please check your connection and try again.";
+      userMessage = structured?.message
+        ? `${structured.message}${structured.hint ? ` ${structured.hint}` : ""}`
+        : "Request timed out. Please check your connection and try again.";
+    } else if (structured?.message) {
+      userMessage = `${structured.message}${structured.hint ? ` ${structured.hint}` : ""}`.trim();
     } else if (status === 400) {
       // Bad request - usually missing org or invalid input
       if (errorData?.code === "MISSING_ORGANIZATION_ID") {
         userMessage = "Please select an organization to continue.";
       } else {
-        userMessage = errorData?.error || "Invalid request. Please check your input.";
+        userMessage =
+          (typeof errorData?.error === "string" ? errorData.error : null) ||
+          "Invalid request. Please check your input.";
       }
     } else if (status === 401) {
       // Unauthorized - session expired
@@ -66,7 +74,9 @@ api.interceptors.response.use(
       userMessage = "You don't have permission to perform this action.";
     } else if (status === 410) {
       // Gone - organization deactivated
-      userMessage = errorData?.error || "This resource is no longer available.";
+      userMessage =
+        (typeof errorData?.error === "string" ? errorData.error : null) ||
+        "This resource is no longer available.";
     } else if (status === 429) {
       userMessage = "Too many requests. Please wait a moment and try again.";
     } else if (status >= 500) {
@@ -75,6 +85,9 @@ api.interceptors.response.use(
 
     // Attach user-friendly message to error
     error.userMessage = userMessage;
+    if (structured) {
+      error.aiError = structured;
+    }
 
     return Promise.reject(error);
   }
@@ -124,14 +137,18 @@ export const apiService = {
   },
 
   // AI Summary (separate endpoint for async loading)
-  async getAISummary() {
-    const response = await api.get("/work-items/ai-summary");
+  async getAISummary(options = {}) {
+    const response = await api.get("/work-items/ai-summary", {
+      params: options.refresh ? { refresh: 1 } : undefined,
+    });
     return response.data;
   },
 
   // Work item AI explanation
-  async explainWorkItem(workItemId) {
-    const response = await api.get(`/work-items/${workItemId}/explain`);
+  async explainWorkItem(workItemId, options = {}) {
+    const response = await api.get(`/work-items/${workItemId}/explain`, {
+      params: options.refresh ? { refresh: 1 } : undefined,
+    });
     return response.data;
   },
 
@@ -168,14 +185,20 @@ export const apiService = {
   },
 
   // Pull request AI explanation
-  async explainPullRequest(pullRequestId) {
-    const response = await api.get(`/pull-requests/${pullRequestId}/explain`);
+  async explainPullRequest(pullRequestId, options = {}) {
+    const response = await api.get(`/pull-requests/${pullRequestId}/explain`, {
+      params: options.refresh ? { refresh: 1 } : undefined,
+    });
     return response.data;
   },
 
   // Build analysis
-  async analyzeBuild(buildId) {
-    const response = await api.post(`/builds/${buildId}/analyze`);
+  async analyzeBuild(buildId, options = {}) {
+    const response = await api.post(
+      `/builds/${buildId}/analyze`,
+      options.refresh ? { refresh: true } : {},
+      options.refresh ? { params: { refresh: 1 } } : undefined
+    );
     return response.data;
   },
 

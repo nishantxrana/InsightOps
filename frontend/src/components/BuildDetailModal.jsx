@@ -10,6 +10,13 @@ import { StatusBadge } from "@/components/kit/StatusBadge";
 import { StatusCallout } from "@/components/kit/StatusCallout";
 import { buildStatus } from "@/components/kit/statusMaps";
 import { Button } from "@/components/ui/button";
+import {
+  aiDisabledInfo,
+  aiErrorText,
+  formatAiMetaLine,
+  isAiGeneratable,
+  mapAiAvailabilityToPanel,
+} from "@/lib/aiInsight";
 
 function getBuildUrl(build) {
   return build?._links?.web?.href || "#";
@@ -36,9 +43,12 @@ export default function BuildDetailModal({
   list = [],
   onNavigate,
   triggerRef,
+  aiStatus = null,
 }) {
   const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiMeta, setAiMeta] = useState(null);
   const [aiError, setAiError] = useState(null);
+  const [aiAvailability, setAiAvailability] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -81,18 +91,48 @@ export default function BuildDetailModal({
     return null;
   }, [build, isFailed, isSucceeded, isInProgress]);
 
-  const aiState = loadingAI ? "loading" : aiError ? "error" : aiAnalysis ? "ready" : "idle";
+  const orgGate = aiDisabledInfo(aiStatus);
+  const availabilityPanel = mapAiAvailabilityToPanel(aiAvailability);
+  let aiState = "idle";
+  let disabledReason;
+  let settingsHref;
+  if (orgGate) {
+    aiState = "disabled";
+    disabledReason = orgGate.reason;
+    settingsHref = orgGate.href;
+  } else if (availabilityPanel) {
+    aiState = availabilityPanel.state;
+    disabledReason = availabilityPanel.disabledReason;
+    settingsHref = availabilityPanel.settingsHref;
+  } else if (loadingAI) {
+    aiState = "loading";
+  } else if (aiError) {
+    aiState = "error";
+  } else if (aiAnalysis) {
+    aiState = "ready";
+  }
 
-  const loadAIAnalysis = async () => {
-    if (!build || loadingAI) return;
+  const canGenerate = isAiGeneratable(aiStatus) && !orgGate;
+
+  const loadAIAnalysis = async ({ refresh = false } = {}) => {
+    if (!build || loadingAI || !canGenerate) return;
     setLoadingAI(true);
     setAiError(null);
+    setAiAvailability(null);
     try {
-      const response = await apiService.analyzeBuild(build.id);
+      const response = await apiService.analyzeBuild(build.id, { refresh });
+      if (response.status === "not_configured" || response.status === "disabled") {
+        setAiAvailability(response);
+        setAiAnalysis(null);
+        setAiMeta(null);
+        return;
+      }
       setAiAnalysis(response.analysis);
+      setAiMeta(response.meta || null);
     } catch (error) {
       setAiAnalysis(null);
-      setAiError(error.userMessage || "AI analysis temporarily unavailable.");
+      setAiMeta(null);
+      setAiError(aiErrorText(error));
     } finally {
       setLoadingAI(false);
     }
@@ -111,7 +151,9 @@ export default function BuildDetailModal({
   useEffect(() => {
     if (isOpen && build) {
       setAiAnalysis(null);
+      setAiMeta(null);
       setAiError(null);
+      setAiAvailability(null);
       setLoadingAI(false);
       setCopied(false);
     }
@@ -199,11 +241,14 @@ export default function BuildDetailModal({
         {isFailed ? (
           <AiInsightPanel
             title="Failure analysis"
+            provider={formatAiMetaLine(aiMeta)}
             state={aiState}
             markdown={aiAnalysis || undefined}
             errorText={aiError || undefined}
-            onGenerate={loadAIAnalysis}
-            onRegenerate={loadAIAnalysis}
+            disabledReason={disabledReason}
+            settingsHref={settingsHref}
+            onGenerate={canGenerate ? () => loadAIAnalysis({ refresh: false }) : undefined}
+            onRegenerate={canGenerate ? () => loadAIAnalysis({ refresh: true }) : undefined}
           />
         ) : null}
       </div>

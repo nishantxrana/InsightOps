@@ -157,4 +157,9 @@ rateLimiter.configure("openai", {
   window: 60000, // 1 minute
 });
 
+rateLimiter.configure("groq", {
+  requests: 30,
+  window: 60000, // 1 minute
+});
+
 export default rateLimiter;

@@ -9,6 +9,7 @@ import ReleaseDetailModal from "../components/ReleaseDetailModal";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useDensity } from "@/hooks/useDensity";
+import { useAiStatus } from "@/hooks/useAiStatus";
 import { Button } from "@/components/ui/button";
 import {
   Pagination,
@@ -130,6 +131,7 @@ export default function Releases() {
   const { currentOrganization, currentProject, clearSwitching } = useOrganization();
   const { checkConnection } = useHealth();
   const { density } = useDensity();
+  const { aiStatus } = useAiStatus();
 
   const [loading, setLoading] = useState(true);
   const [paginationLoading, setPaginationLoading] = useState(false);
@@ -722,6 +724,7 @@ export default function Releases() {
         list={filteredReleases}
         onNavigate={navigateSheet}
         triggerRef={triggerRef}
+        aiStatus={aiStatus}
       />
     </div>
   );

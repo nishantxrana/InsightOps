@@ -64,6 +64,12 @@ describe("normalizeAiError", () => {
     expect(r.code).toBe("TIMEOUT");
   });
 
+  it("maps EMPTY_RESPONSE", () => {
+    const r = normalizeAiError({ aiCode: "EMPTY_RESPONSE", message: "EMPTY_RESPONSE" });
+    expect(r.code).toBe("EMPTY_RESPONSE");
+    expect(r.httpStatus).toBe(502);
+  });
+
   it("maps model not supported", () => {
     const r = normalizeAiError({ status: 400, message: "Model not supported" });
     expect(r.code).toBe("MODEL_NOT_SUPPORTED");

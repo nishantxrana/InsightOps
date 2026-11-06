@@ -17,12 +17,12 @@ class MonitorAgent extends LightweightAgent {
   /**
    * Monitor build failures
    */
-  async monitorBuildFailure(build, timeline, logs, client) {
+  async monitorBuildFailure(build, timeline, logs, client, orgSettings = null) {
     const task = {
       type: "build_failure",
       category: "build",
       description: this.extractBuildError(build, timeline),
-      data: { build, timeline, logs, client },
+      data: { build, timeline, logs, client, orgSettings },
     };
 
     return await this.execute(task);
@@ -128,15 +128,30 @@ class MonitorAgent extends LightweightAgent {
   async aiAnalyze(task) {
     // For build failures, use the specialized aiService
     if (task.type === "build_failure" && task.data.build) {
-      const { aiService } = await import("../ai/aiService.js");
-      const { build, timeline, logs, client } = task.data;
+      const { aiService, isSoftAiFailure } = await import("../ai/aiService.js");
+      const { build, timeline, logs, client, orgSettings } = task.data;
 
-      const analysis = await aiService.summarizeBuildFailure(build, timeline, logs, client);
+      if (!orgSettings?.ai?.provider) {
+        throw new Error("AI organization settings are required for build analysis");
+      }
+
+      const { text, meta } = await aiService.summarizeBuildFailureWithMeta(
+        build,
+        timeline,
+        logs,
+        client,
+        orgSettings
+      );
+
+      if (!text || isSoftAiFailure(text)) {
+        throw new Error("EMPTY_RESPONSE");
+      }
 
       return {
         method: "ai",
-        analysis,
-        solution: analysis,
+        analysis: text,
+        solution: text,
+        meta,
         confidence: 0.8,
         action: "provide_solution",
         autoFix: false,

@@ -2,10 +2,21 @@ import OpenAI from "openai";
 import Groq from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "../utils/logger.js";
-import { configLoader } from "../config/settings.js";
 import { metrics } from "../observability/metrics.js";
 import { normalizeAzureEndpoint } from "./azureEndpoint.js";
-import { isResponsesUnsupportedError, isUnsupportedParameterError } from "./errors.js";
+import {
+  isResponsesUnsupportedError,
+  isUnsupportedParameterError,
+  redactSecrets,
+} from "./errors.js";
+import { emptyResponseError } from "./http.js";
+import {
+  ADO_DATA_RULE,
+  PROMPT_CAPS,
+  redactForPrompt,
+  sanitizeAdoField,
+  wrapAdoContent,
+} from "./promptSafety.js";
 
 const SDK_TIMEOUT_MS = 45000;
 const SDK_MAX_RETRIES = 1;
@@ -144,7 +155,7 @@ export class AIClient {
       text = response?.choices?.[0]?.message?.content;
       usage = response?.usage;
       if (!text || text.trim() === "") {
-        throw new Error("OpenAI returned empty response");
+        throw emptyResponseError();
       }
     } else if (provider === "groq") {
       const response = await this.client.chat.completions.create({
@@ -154,7 +165,7 @@ export class AIClient {
       text = response?.choices?.[0]?.message?.content;
       usage = response?.usage;
       if (!text || text.trim() === "") {
-        throw new Error("Groq returned empty response");
+        throw emptyResponseError();
       }
     } else if (provider === "gemini") {
       const model = this.client.getGenerativeModel({ model: completionOptions.model });
@@ -166,7 +177,7 @@ export class AIClient {
       const result = await model.generateContent(prompt);
       text = result?.response?.text();
       if (!text || text.trim() === "") {
-        throw new Error("Gemini returned empty response");
+        throw emptyResponseError();
       }
     } else if (provider === "azure") {
       const azureResult = await this._generateAzure(messages, completionOptions);
@@ -274,9 +285,7 @@ export class AIClient {
     if (!text || String(text).trim() === "") {
       // Reasoning models may spend the token budget on thinking; treat as
       // fallback-worthy in auto rather than a hard failure after a long wait.
-      const err = new Error("Azure Responses returned empty response");
-      err.code = "empty_response";
-      throw err;
+      throw emptyResponseError();
     }
     return { text, usage: response?.usage };
   }
@@ -295,7 +304,7 @@ export class AIClient {
       const response = await this.client.chat.completions.create(base);
       const text = response?.choices?.[0]?.message?.content;
       if (!text || text.trim() === "") {
-        throw new Error("Azure Chat Completions returned empty response");
+        throw emptyResponseError();
       }
       return { text, usage: response?.usage };
     } catch (err) {
@@ -310,7 +319,7 @@ export class AIClient {
           const response = await this.client.chat.completions.create(retryBody);
           const text = response?.choices?.[0]?.message?.content;
           if (!text || text.trim() === "") {
-            throw new Error("Azure Chat Completions returned empty response");
+            throw emptyResponseError();
           }
           return { text, usage: response?.usage };
         } catch (retryErr) {
@@ -323,7 +332,7 @@ export class AIClient {
             });
             const text = response?.choices?.[0]?.message?.content;
             if (!text || text.trim() === "") {
-              throw new Error("Azure Chat Completions returned empty response");
+              throw emptyResponseError();
             }
             return { text, usage: response?.usage };
           }
@@ -334,31 +343,40 @@ export class AIClient {
     }
   }
 }
+/**
+ * Soft-failure strings returned to webhooks when AI fails.
+ * Callers should omit AI text from notifications when these appear.
+ */
+const SOFT_FAIL = {
+  notConfigured: "AI summarization not available - please configure AI provider in settings.",
+  summarize: "Unable to generate AI summary at this time.",
+  explain: "Unable to generate AI explanation at this time. Please try again later.",
+  analyze: "Unable to generate AI analysis of build failure at this time.",
+  prSummary: "Unable to generate AI summary of pull request at this time.",
+  sprint: "Unable to generate sprint insights at this time.",
+  release: "Unable to analyze release failure at this time.",
+};
 
 /**
- * AI Service - Factory for creating isolated AI clients
- *
- * IMPORTANT: This service does NOT maintain shared state across requests.
- * Each request that needs AI should call createClientFromSettings() to get
- * an isolated client instance.
- *
- * For backward compatibility, legacy methods that don't pass settings
- * will use the global configLoader settings.
+ * @param {unknown} text
+ * @returns {boolean}
+ */
+export function isSoftAiFailure(text) {
+  if (!text || typeof text !== "string") return true;
+  return /unable to generate|not available - please configure|AI summarization not available|AI analysis not available|AI insights not available|AI explanation not available|Unable to analyze release/i.test(
+    text
+  );
+}
+
+/**
+ * AI Service - Factory for creating isolated AI clients per org request.
+ * Org feature methods require orgSettings — no silent configLoader fallback.
  */
 class AIService {
-  constructor() {
-    // NO shared client state - each request gets its own client
-    // These are only used for legacy backward compatibility
-    this._legacyClient = null;
-    this._legacyInitialized = false;
-  }
-
   /**
-   * Create an isolated AI client from organization/user settings
-   * This is the PREFERRED method - creates request-scoped client
-   *
-   * @param {Object} settings - Settings object with ai.provider, ai.model, ai.apiKeys
-   * @returns {AIClient} - Isolated AI client instance
+   * Create an isolated AI client from organization settings.
+   * @param {Object} settings - `{ ai: { provider, model, apiKeys, azure? } }`
+   * @returns {AIClient}
    */
   createClientFromSettings(settings) {
     if (!settings?.ai?.provider) {
@@ -379,143 +397,89 @@ class AIService {
     return new AIClient(config);
   }
 
-  /**
-   * DEPRECATED: Initialize with user settings
-   * This method exists for backward compatibility but stores state temporarily.
-   * New code should use createClientFromSettings() instead.
-   *
-   * @deprecated Use createClientFromSettings() for proper isolation
-   */
-  initializeWithUserSettings(userSettings) {
-    // Create isolated client but store reference for legacy methods
-    // WARNING: This is NOT thread-safe in concurrent environments
-    // The client is replaced on each call, which can cause race conditions
-    logger.warn(
-      "DEPRECATED: initializeWithUserSettings called. Use createClientFromSettings() for proper isolation.",
-      {
-        provider: userSettings.ai?.provider,
-      }
-    );
-
-    const config = {
-      provider: userSettings.ai.provider,
-      model: userSettings.ai.model,
-      openaiApiKey: userSettings.ai.apiKeys?.openai,
-      groqApiKey: userSettings.ai.apiKeys?.groq,
-      geminiApiKey: userSettings.ai.apiKeys?.gemini,
-      azureApiKey: userSettings.ai.apiKeys?.azure,
-      azureEndpoint: userSettings.ai.azure?.endpoint,
-      azureApiStyle: userSettings.ai.azure?.apiStyle || "auto",
-    };
-
-    this._legacyClient = new AIClient(config);
-    this._legacyInitialized = true;
-
-    logger.info(`AI service initialized with user settings - provider: ${config.provider}`);
-  }
-
-  /**
-   * LEGACY: Initialize from global config
-   * Only used when no org/user settings are provided
-   */
-  initializeClient() {
-    if (this._legacyInitialized) return;
-
-    const globalConfig = configLoader.getAIConfig();
-
-    const config = {
-      provider: globalConfig.provider,
-      model: globalConfig.model,
-      openaiApiKey: globalConfig.openaiApiKey,
-      groqApiKey: globalConfig.groqApiKey,
-      geminiApiKey: globalConfig.geminiApiKey,
-    };
-
-    this._legacyClient = new AIClient(config);
-    this._legacyInitialized = true;
-  }
-
-  // Helper to get current client (for legacy methods)
-  _getClient() {
-    if (!this._legacyInitialized) {
-      this.initializeClient();
+  _requireOrgSettings(orgSettings) {
+    if (!orgSettings?.ai?.provider) {
+      const err = new Error("AI organization settings are required");
+      err.aiCode = "NOT_CONFIGURED";
+      throw err;
     }
-    return this._legacyClient;
+    return this.createClientFromSettings(orgSettings);
   }
 
-  // Expose initialized state for backward compatibility
-  get initialized() {
-    return this._legacyInitialized;
+  _inputChars(messages) {
+    return (messages || []).reduce((n, m) => n + String(m?.content || "").length, 0);
   }
 
-  get config() {
-    return this._legacyClient?.config || {};
+  _logAiCall({ feature, meta, success, inputChars, outputChars, error }) {
+    const line = {
+      feature,
+      provider: meta?.provider || "unknown",
+      model: meta?.model || "unknown",
+      durationMs: meta?.latencyMs,
+      success,
+      inputChars,
+      outputChars,
+    };
+    if (meta?.usage) line.usage = meta.usage;
+    if (meta?.apiStyleUsed) line.apiStyleUsed = meta.apiStyleUsed;
+    if (success) {
+      logger.info("AI call", line);
+    } else {
+      logger.error("AI call failed", {
+        ...line,
+        error: redactSecrets(error?.message || String(error || "")),
+      });
+    }
   }
 
   /**
-   * Generate AI completion with metadata (provider, latency, usage).
-   * For org-isolated calls, pass orgSettings to create fresh client.
+   * @returns {Promise<{ text: string, meta: object }>}
    */
   async generateCompletionWithMeta(messages, options = {}, orgSettings = null) {
     const startTime = Date.now();
-    const provider = orgSettings?.ai?.provider || this.config?.provider || "unknown";
+    const provider = orgSettings?.ai?.provider || "unknown";
+    const feature = options.feature || "completion";
+    const inputChars = this._inputChars(messages);
 
     try {
-      let client;
-      if (orgSettings) {
-        client = this.createClientFromSettings(orgSettings);
-      } else {
-        client = this._getClient();
-      }
-
-      const result = await client.generateCompletionWithMeta(messages, options);
+      const client = this._requireOrgSettings(orgSettings);
+      const { feature: _f, ...completionOpts } = options;
+      void _f;
+      const result = await client.generateCompletionWithMeta(messages, completionOpts);
       const durationMs = Date.now() - startTime;
       metrics.recordAICall(provider, true, durationMs);
-      return result;
+      const meta = { ...result.meta, latencyMs: result.meta.latencyMs ?? durationMs };
+      this._logAiCall({
+        feature,
+        meta,
+        success: true,
+        inputChars,
+        outputChars: String(result.text || "").length,
+      });
+      if (!result.text || !String(result.text).trim()) {
+        throw emptyResponseError();
+      }
+      return { text: result.text, meta };
     } catch (error) {
       const durationMs = Date.now() - startTime;
       metrics.recordAICall(provider, false, durationMs);
+      this._logAiCall({
+        feature,
+        meta: { provider, model: orgSettings?.ai?.model, latencyMs: durationMs },
+        success: false,
+        inputChars,
+        outputChars: 0,
+        error,
+      });
       throw error;
     }
   }
 
-  /**
-   * Generate AI completion
-   * For org-isolated calls, pass orgSettings to create fresh client
-   */
   async generateCompletion(messages, options = {}, orgSettings = null) {
-    const startTime = Date.now();
-    const provider = orgSettings?.ai?.provider || this.config?.provider || "unknown";
-
-    try {
-      let client;
-
-      if (orgSettings) {
-        // Create isolated client for this request
-        client = this.createClientFromSettings(orgSettings);
-      } else {
-        // Fall back to legacy client
-        client = this._getClient();
-      }
-
-      const result = await client.generateCompletion(messages, options);
-
-      // Record success metric
-      const durationMs = Date.now() - startTime;
-      metrics.recordAICall(provider, true, durationMs);
-
-      return result;
-    } catch (error) {
-      // Record failure metric
-      const durationMs = Date.now() - startTime;
-      metrics.recordAICall(provider, false, durationMs);
-
-      logger.error("Error generating AI completion:", error);
-      throw error;
-    }
+    const result = await this.generateCompletionWithMeta(messages, options, orgSettings);
+    return result.text;
   }
 
-  // Helper method to convert priority number to readable text
   getPriorityText(priority) {
     if (!priority) return "Not set";
     const priorityMap = {
@@ -527,31 +491,22 @@ class AIService {
     return priorityMap[priority] || `Priority ${priority}`;
   }
 
-  async summarizeWorkItem(workItem, orgSettings = null) {
-    try {
-      let client;
-      if (orgSettings) {
-        client = this.createClientFromSettings(orgSettings);
-      } else {
-        try {
-          client = this._getClient();
-        } catch (error) {
-          logger.warn("AI service not configured, returning fallback summary");
-          return "AI summarization not available - please configure AI provider in settings.";
-        }
-      }
+  // --- Work item summarize (webhook) ---
 
-      const title = workItem.fields?.["System.Title"] || "No title";
-      const description = workItem.fields?.["System.Description"] || "No description";
-      const workItemType = workItem.fields?.["System.WorkItemType"] || "Unknown";
-      const priority = workItem.fields?.["Microsoft.VSTS.Common.Priority"] || "Not set";
+  async summarizeWorkItemWithMeta(workItem, orgSettings) {
+    const title = workItem.fields?.["System.Title"] || "No title";
+    const description = sanitizeAdoField(workItem.fields?.["System.Description"], {
+      max: PROMPT_CAPS.DESCRIPTION_CAP,
+    });
+    const workItemType = workItem.fields?.["System.WorkItemType"] || "Unknown";
+    const priority = workItem.fields?.["Microsoft.VSTS.Common.Priority"] || "Not set";
 
-      const cleanDescription = description.replace(/<[^>]*>/g, "").trim();
+    const messages = [
+      {
+        role: "system",
+        content: `You are a DevOps work item analyzer. Provide clear, actionable summaries for development teams.
 
-      const messages = [
-        {
-          role: "system",
-          content: `You are a DevOps work item analyzer. Provide clear, actionable summaries for development teams.
+${ADO_DATA_RULE}
 
 Formatting Rules:
 - Write in plain text with selective *bold* emphasis only for key terms
@@ -564,66 +519,58 @@ Content Rules:
 - Focus on what needs to be done and its business impact
 - No assumptions or speculation beyond the data
 - Make it informative and actionable for the team`,
-        },
-        {
-          role: "user",
-          content: `Analyze this work item and provide a 2-3 sentence summary:
+      },
+      {
+        role: "user",
+        content: `Analyze this work item and provide a 2-3 sentence summary:
 
 Work Item Type: ${workItemType}
 Title: ${title}
 Priority: ${this.getPriorityText(priority)}
-Description: ${cleanDescription}
+${wrapAdoContent("description", description)}
 
 Summarize what needs to be done, why it's important, and any key technical or business considerations.`,
-        },
-      ];
+      },
+    ];
 
-      const summary = await client.generateCompletion(messages, {
-        max_tokens: 150,
-        temperature: 0.1,
-      });
+    return this.generateCompletionWithMeta(
+      messages,
+      { max_tokens: 150, temperature: 0.1, feature: "summarizeWorkItem" },
+      orgSettings
+    );
+  }
 
-      logger.info("Generated work item summary", {
-        workItemId: workItem.id,
-        workItemType,
-        priority: this.getPriorityText(priority),
-        summaryLength: summary.length,
-      });
-
-      return summary;
+  async summarizeWorkItem(workItem, orgSettings = null) {
+    try {
+      if (!orgSettings?.ai?.provider) {
+        return SOFT_FAIL.notConfigured;
+      }
+      const { text } = await this.summarizeWorkItemWithMeta(workItem, orgSettings);
+      return text;
     } catch (error) {
-      logger.error("Error summarizing work item:", error);
-      return "Unable to generate AI summary at this time.";
+      logger.error("Error summarizing work item:", redactSecrets(error?.message || error));
+      return SOFT_FAIL.summarize;
     }
   }
 
-  async explainWorkItem(workItem, userSettings = null) {
-    try {
-      let client;
-      if (userSettings) {
-        client = this.createClientFromSettings(userSettings);
-      } else {
-        try {
-          client = this._getClient();
-        } catch (error) {
-          logger.warn("AI service not configured, returning fallback explanation");
-          return "AI explanation not available - please configure AI provider in settings.";
-        }
-      }
+  // --- Work item explain ---
 
-      const title = workItem.fields?.["System.Title"] || "No title";
-      const description = workItem.fields?.["System.Description"] || "No description";
-      const workItemType = workItem.fields?.["System.WorkItemType"] || "Unknown";
-      const priority = workItem.fields?.["Microsoft.VSTS.Common.Priority"] || "Not set";
-      const state = workItem.fields?.["System.State"] || "Unknown";
-      const assignee = workItem.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
+  async explainWorkItemWithMeta(workItem, orgSettings) {
+    const title = workItem.fields?.["System.Title"] || "No title";
+    const description = sanitizeAdoField(workItem.fields?.["System.Description"], {
+      max: PROMPT_CAPS.DESCRIPTION_CAP,
+    });
+    const workItemType = workItem.fields?.["System.WorkItemType"] || "Unknown";
+    const priority = workItem.fields?.["Microsoft.VSTS.Common.Priority"] || "Not set";
+    const state = workItem.fields?.["System.State"] || "Unknown";
+    const assignee = workItem.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
 
-      const cleanDescription = description.replace(/<[^>]*>/g, "").trim();
+    const messages = [
+      {
+        role: "system",
+        content: `You are a DevOps assistant that provides concise, factual work item explanations. Base your response the provided work item data - no assumptions or speculation.
 
-      const messages = [
-        {
-          role: "system",
-          content: `You are a DevOps assistant that provides concise, factual work item explanations. Base your response the provided work item data - no assumptions or speculation.
+${ADO_DATA_RULE}
 
 **Formatting Rules:**
 - Use markdown formatting (**bold**, bullet points)
@@ -636,119 +583,112 @@ Summarize what needs to be done, why it's important, and any key technical or bu
 - Focus on: what it is, current status, and immediate next action
 - No speculation about business impact or technical details not in the data
 - If description is empty/unclear, acknowledge it directly`,
-        },
-        {
-          role: "user",
-          content: `Explain this work item based on the provided data:
+      },
+      {
+        role: "user",
+        content: `Explain this work item based on the provided data:
 
 **Type:** ${workItemType}
 **Title:** ${title}
 **State:** ${state}
 **Priority:** ${this.getPriorityText(priority)}
 **Assigned:** ${assignee}
-**Description:** ${cleanDescription || "No description provided"}
+${wrapAdoContent("description", description || "No description provided")}
 
 Provide a concise explanation (3-5 sentences max) based on this data.`,
-        },
-      ];
+      },
+    ];
 
-      const explanation = await client.generateCompletion(messages, {
-        max_tokens: 500,
-        temperature: 0.4,
-      });
+    return this.generateCompletionWithMeta(
+      messages,
+      { max_tokens: 500, temperature: 0.4, feature: "explainWorkItem" },
+      orgSettings
+    );
+  }
 
-      logger.info("Generated work item explanation", {
-        workItemId: workItem.id,
-        workItemType,
-        priority: this.getPriorityText(priority),
-        explanationLength: explanation.length,
-      });
-
-      return explanation;
+  async explainWorkItem(workItem, userSettings = null) {
+    try {
+      if (!userSettings?.ai?.provider) {
+        return "AI explanation not available - please configure AI provider in settings.";
+      }
+      const { text } = await this.explainWorkItemWithMeta(workItem, userSettings);
+      return text;
     } catch (error) {
-      logger.error("Error explaining work item:", error);
-      return "Unable to generate AI explanation at this time. Please try again later.";
+      logger.error("Error explaining work item:", redactSecrets(error?.message || error));
+      return SOFT_FAIL.explain;
     }
   }
 
-  async explainPullRequest(pullRequest, changes = null, commits = null, userSettings = null) {
-    try {
-      let client;
-      if (userSettings) {
-        client = this.createClientFromSettings(userSettings);
-      } else {
-        try {
-          client = this._getClient();
-        } catch (error) {
-          logger.warn("AI service not configured, returning fallback explanation");
-          return "AI analysis not available - please configure AI provider in settings.";
-        }
-      }
+  // --- PR explain ---
 
-      const title = pullRequest.title || "No title";
-      const description = pullRequest.description || "No description provided";
-      const sourceBranch = pullRequest.sourceRefName?.replace("refs/heads/", "") || "Unknown";
-      const targetBranch = pullRequest.targetRefName?.replace("refs/heads/", "") || "Unknown";
-      const status = pullRequest.status || "Unknown";
-      const createdBy = pullRequest.createdBy?.displayName || "Unknown";
-      const isDraft = pullRequest.isDraft || false;
-      const reviewers = pullRequest.reviewers || [];
-      const workItemRefs = pullRequest.workItemRefs || [];
+  async explainPullRequestWithMeta(pullRequest, changes = null, commits = null, orgSettings) {
+    const title = pullRequest.title || "No title";
+    const description = sanitizeAdoField(pullRequest.description, {
+      max: PROMPT_CAPS.DESCRIPTION_CAP,
+    });
+    const sourceBranch = pullRequest.sourceRefName?.replace("refs/heads/", "") || "Unknown";
+    const targetBranch = pullRequest.targetRefName?.replace("refs/heads/", "") || "Unknown";
+    const status = pullRequest.status || "Unknown";
+    const createdBy = pullRequest.createdBy?.displayName || "Unknown";
+    const isDraft = pullRequest.isDraft || false;
+    const reviewers = pullRequest.reviewers || [];
+    const workItemRefs = pullRequest.workItemRefs || [];
 
-      let changesSummary = "No file changes available";
-      let fileAnalysis = "";
+    let changesSummary = "No file changes available";
+    let fileAnalysis = "";
 
-      if (changes?.changeEntries && changes.changeEntries.length > 0) {
-        const summary = changes.summary || {};
+    if (changes?.changeEntries && changes.changeEntries.length > 0) {
+      const summary = changes.summary || {};
+      const filesByType = summary.fileTypes || {};
+      const fileTypeAnalysis = Object.entries(filesByType)
+        .map(([type, count]) => `${count} ${type} file${count !== 1 ? "s" : ""}`)
+        .join(", ");
 
-        const filesByType = summary.fileTypes || {};
-        const fileTypeAnalysis = Object.entries(filesByType)
-          .map(([type, count]) => `${count} ${type} file${count !== 1 ? "s" : ""}`)
-          .join(", ");
-
-        changesSummary = `${summary.totalFiles || 0} files changed:
+      changesSummary = `${summary.totalFiles || 0} files changed:
 - ${summary.addedFiles || 0} added
 - ${summary.modifiedFiles || 0} modified  
 - ${summary.deletedFiles || 0} deleted
 
 File types: ${fileTypeAnalysis || "Mixed files"}`;
 
-        const keyFiles = changes.changeEntries
-          .filter((c) => !c.isFolder)
-          .slice(0, 10)
-          .map((c) => `${c.changeType}: ${c.path}`)
-          .join("\n");
+      const keyFiles = changes.changeEntries
+        .filter((c) => !c.isFolder)
+        .slice(0, 10)
+        .map((c) => `${c.changeType}: ${c.path}`)
+        .join("\n");
 
-        if (keyFiles) {
-          fileAnalysis = `\n\nKey file changes:\n${keyFiles}`;
-        }
+      if (keyFiles) {
+        fileAnalysis = `\n\nKey file changes:\n${keyFiles}`;
       }
+    }
 
-      let commitsSummary = "No commit information available";
-      if (commits?.value && commits.value.length > 0) {
-        const commitMessages = commits.value
-          .slice(0, 5)
-          .map((commit) => commit.comment || "No commit message")
-          .join("\n");
+    let commitsSummary = "No commit information available";
+    if (commits?.value && commits.value.length > 0) {
+      const commitMessages = commits.value
+        .slice(0, 5)
+        .map((commit) => sanitizeAdoField(commit.comment || "No commit message", { max: 500 }))
+        .join("\n");
 
-        commitsSummary = `${commits.value.length} commit${commits.value.length !== 1 ? "s" : ""}:\n${commitMessages}`;
-      }
+      commitsSummary = `${commits.value.length} commit${commits.value.length !== 1 ? "s" : ""}:\n${commitMessages}`;
+    }
 
-      let reviewerInfo = "";
-      if (reviewers.length > 0) {
-        const reviewerNames = reviewers.map((r) => r.displayName).join(", ");
-        reviewerInfo = `\nReviewers: ${reviewerNames}`;
-      }
+    let reviewerInfo = "";
+    if (reviewers.length > 0) {
+      const reviewerNames = reviewers.map((r) => r.displayName).join(", ");
+      reviewerInfo = `\nReviewers: ${reviewerNames}`;
+    }
 
-      let workItemInfo = "";
-      if (workItemRefs.length > 0) {
-        workItemInfo = `\nLinked work items: ${workItemRefs.length} item${workItemRefs.length !== 1 ? "s" : ""}`;
-      }
+    let workItemInfo = "";
+    if (workItemRefs.length > 0) {
+      workItemInfo = `\nLinked work items: ${workItemRefs.length} item${workItemRefs.length !== 1 ? "s" : ""}`;
+    }
 
-      const messages = [
-        {
-          role: "system",
-          content: `You are a senior code reviewer analyzing pull requests. Provide clear, actionable insights.
+    const messages = [
+      {
+        role: "system",
+        content: `You are a senior code reviewer analyzing pull requests. Provide clear, actionable insights.
+
+${ADO_DATA_RULE}
 
 **Formatting Rules:**
 - Use markdown formatting (**bold**, bullet points)
@@ -758,17 +698,17 @@ File types: ${fileTypeAnalysis || "Mixed files"}`;
 
 **Analysis Focus:**
 - Explain the PR's purpose and scope based on title, description, and file changes
-- Identify the type of change (feature, bugfix, refactor, etc.)
+- Identify the type of change (feature, bug fix, refactor, etc.)
 - Highlight key technical areas affected
 - Mention review considerations based on file types and changes
 - Note any patterns in the changes that suggest the implementation approach`,
-        },
-        {
-          role: "user",
-          content: `Analyze this pull request:
+      },
+      {
+        role: "user",
+        content: `Analyze this pull request:
 
 **Title:** ${title}
-**Description:** ${description}
+${wrapAdoContent("description", description || "No description provided")}
 **Branch:** ${sourceBranch} → ${targetBranch}
 **Status:** ${status}${isDraft ? " (Draft)" : ""}
 **Author:** ${createdBy}${reviewerInfo}${workItemInfo}
@@ -777,117 +717,141 @@ File types: ${fileTypeAnalysis || "Mixed files"}`;
 ${changesSummary}${fileAnalysis}
 
 **Commits:**
-${commitsSummary}
+${wrapAdoContent("commits", commitsSummary)}
 
 Provide a comprehensive analysis of what this PR accomplishes, the technical approach, and what reviewers should focus on.`,
-        },
-      ];
+      },
+    ];
 
-      const explanation = await client.generateCompletion(messages, {
-        max_tokens: 500,
-        temperature: 0.3,
-      });
+    return this.generateCompletionWithMeta(
+      messages,
+      { max_tokens: 500, temperature: 0.3, feature: "explainPullRequest" },
+      orgSettings
+    );
+  }
 
-      logger.info("Generated PR explanation", {
-        pullRequestId: pullRequest.pullRequestId,
-        title,
-        filesChanged: changes?.summary?.totalFiles || 0,
-        explanationLength: explanation.length,
-      });
-
-      return explanation;
+  async explainPullRequest(pullRequest, changes = null, commits = null, userSettings = null) {
+    try {
+      if (!userSettings?.ai?.provider) {
+        return "AI analysis not available - please configure AI provider in settings.";
+      }
+      const { text } = await this.explainPullRequestWithMeta(
+        pullRequest,
+        changes,
+        commits,
+        userSettings
+      );
+      return text;
     } catch (error) {
-      logger.error("Error explaining pull request:", error);
-      return "Unable to generate AI explanation at this time. Please try again later.";
+      logger.error("Error explaining pull request:", redactSecrets(error?.message || error));
+      return SOFT_FAIL.explain;
     }
   }
 
-  async summarizeBuildFailure(build, timeline, logs, userClient = null, orgSettings = null) {
-    try {
-      let aiClient;
-      if (orgSettings) {
-        aiClient = this.createClientFromSettings(orgSettings);
-      } else {
-        try {
-          aiClient = this._getClient();
-        } catch (error) {
-          logger.warn("AI service not configured, returning fallback summary");
-          return "AI analysis not available - please configure AI provider in settings.";
-        }
-      }
+  // --- Build failure ---
 
-      const buildName = build.definition?.name || "Unknown Build";
-      const buildNumber = build.buildNumber || "Unknown";
+  async _prepareBuildFailureContext(build, timeline, logs, userClient) {
+    void logs;
+    const buildName = build.definition?.name || "Unknown Build";
+    const buildNumber = build.buildNumber || "Unknown";
 
-      let sourceBranch = build.sourceBranch || "Unknown";
-      if (sourceBranch.includes("refs/pull/")) {
-        sourceBranch = "master";
-        logger.info(
-          `PR build detected, using master branch for YAML analysis instead of ${build.sourceBranch}`
-        );
-      } else {
-        sourceBranch = sourceBranch.replace("refs/heads/", "");
-      }
+    let sourceBranch = build.sourceBranch || "Unknown";
+    if (sourceBranch.includes("refs/pull/")) {
+      sourceBranch = "master";
+    } else {
+      sourceBranch = sourceBranch.replace("refs/heads/", "");
+    }
 
-      const failedJobs =
-        timeline?.records?.filter(
-          (record) => record.result === "failed" || record.result === "canceled"
-        ) || [];
+    const failedJobs =
+      timeline?.records?.filter(
+        (record) => record.result === "failed" || record.result === "canceled"
+      ) || [];
 
-      const errorMessages = failedJobs
+    const errorMessages = redactForPrompt(
+      failedJobs
         .map((job) => {
           const jobName = job.name || "Unknown Job";
           const issues =
             job.issues?.map((i) => i.message).join("; ") || "No specific error details";
           return `${jobName}: ${issues}`;
         })
-        .join("\n");
+        .join("\n")
+    );
 
-      let pipelineContent = "";
-      let pipelineType = "classic";
-      let pipelineAnalysisNote = "";
+    let pipelineContent = "";
+    let pipelineType = "classic";
+    let pipelineAnalysisNote = "";
 
-      try {
-        if (build.definition?.id && userClient) {
-          const definition = await userClient.getBuildDefinition(build.definition.id);
+    try {
+      if (build.definition?.id && userClient) {
+        const definition = await userClient.getBuildDefinition(build.definition.id);
 
-          if (definition.process?.type === 2 && definition.process?.yamlFilename) {
-            pipelineType = "yaml";
-            const yamlPath = definition.process.yamlFilename;
-            const repositoryId = definition.repository?.id;
+        if (definition.process?.type === 2 && definition.process?.yamlFilename) {
+          pipelineType = "yaml";
+          const yamlPath = definition.process.yamlFilename;
+          const repositoryId = definition.repository?.id;
 
-            if (repositoryId && yamlPath) {
-              try {
-                const yamlFile = await userClient.getRepositoryFile(
-                  repositoryId,
-                  yamlPath,
-                  sourceBranch
-                );
-                pipelineContent = yamlFile.content || "";
+          if (repositoryId && yamlPath) {
+            try {
+              const yamlFile = await userClient.getRepositoryFile(
+                repositoryId,
+                yamlPath,
+                sourceBranch
+              );
+              pipelineContent = redactForPrompt(truncateYaml(yamlFile.content || ""));
 
-                if (!pipelineContent) {
-                  pipelineAnalysisNote = "YAML pipeline file was found but appears to be empty.";
-                }
-              } catch (yamlError) {
-                logger.warn(`Failed to fetch YAML file ${yamlPath}:`, yamlError);
-                pipelineAnalysisNote = `Unable to fetch YAML pipeline file (${yamlPath}).`;
+              if (!pipelineContent) {
+                pipelineAnalysisNote = "YAML pipeline file was found but appears to be empty.";
               }
-            } else {
-              pipelineAnalysisNote = "YAML pipeline detected but missing repository information.";
+            } catch (yamlError) {
+              logger.warn(
+                `Failed to fetch YAML file ${yamlPath}:`,
+                redactSecrets(yamlError?.message || yamlError)
+              );
+              pipelineAnalysisNote = `Unable to fetch YAML pipeline file (${yamlPath}).`;
             }
+          } else {
+            pipelineAnalysisNote = "YAML pipeline detected but missing repository information.";
           }
-        } else if (!userClient) {
-          pipelineAnalysisNote = "User client not available for pipeline analysis.";
         }
-      } catch (definitionError) {
-        logger.warn("Failed to fetch build definition:", definitionError);
-        pipelineAnalysisNote = `Unable to fetch build definition. Analysis limited to timeline data.`;
+      } else if (!userClient) {
+        pipelineAnalysisNote = "User client not available for pipeline analysis.";
       }
+    } catch (definitionError) {
+      logger.warn("Failed to fetch build definition:", redactSecrets(definitionError?.message));
+      pipelineAnalysisNote = `Unable to fetch build definition. Analysis limited to timeline data.`;
+    }
 
-      let systemPrompt, userPrompt;
+    return {
+      buildName,
+      buildNumber,
+      sourceBranch,
+      failedJobs,
+      errorMessages,
+      pipelineContent,
+      pipelineType,
+      pipelineAnalysisNote,
+    };
+  }
 
-      if (pipelineType === "classic") {
-        systemPrompt = `You are a DevOps build failure analyzer for classic Azure DevOps pipelines.
+  _buildFailureMessages(ctx) {
+    const {
+      buildName,
+      buildNumber,
+      sourceBranch,
+      errorMessages,
+      pipelineContent,
+      pipelineType,
+      pipelineAnalysisNote,
+    } = ctx;
+
+    let systemPrompt;
+    let userPrompt;
+
+    if (pipelineType === "classic") {
+      systemPrompt = `You are a DevOps build failure analyzer for classic Azure DevOps pipelines.
+
+${ADO_DATA_RULE}
 
 FORMATTING RULES:
 - Write in plain text paragraphs
@@ -906,15 +870,17 @@ RESPONSE RULES:
 
 CONTEXT: Classic pipelines are configured through Azure DevOps UI, not YAML files.`;
 
-        userPrompt = `Analyze this classic pipeline build failure:
+      userPrompt = `Analyze this classic pipeline build failure:
 
 Build: ${buildName} #${buildNumber}
 Branch: ${sourceBranch}
-Timeline Errors: ${errorMessages || "No specific error details available from timeline"}
+${wrapAdoContent("timeline_errors", errorMessages || "No specific error details available from timeline")}
 
 Explain the likely cause based on the timeline errors and provide general troubleshooting steps for classic pipeline configuration. Write in flowing paragraphs without section headers.`;
-      } else if (pipelineType === "yaml" && pipelineContent) {
-        systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
+    } else if (pipelineType === "yaml" && pipelineContent) {
+      systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
+
+${ADO_DATA_RULE}
 
 FORMATTING RULES:
 - Write in plain text paragraphs
@@ -933,22 +899,20 @@ RESPONSE RULES:
 
 CONTEXT: You have both the execution errors and the YAML pipeline configuration.`;
 
-        userPrompt = `Analyze this YAML pipeline build failure:
+      userPrompt = `Analyze this YAML pipeline build failure:
 
 Build: ${buildName} #${buildNumber}
 Branch: ${sourceBranch}
 
-TIMELINE ERRORS (what failed):
-${errorMessages || "No specific error details available"}
+${wrapAdoContent("timeline_errors", errorMessages || "No specific error details available")}
 
-YAML PIPELINE CONFIGURATION:
-\`\`\`yaml
-${pipelineContent}
-\`\`\`
+${wrapAdoContent("yaml_pipeline", pipelineContent)}
 
 Cross-reference the timeline errors with the YAML configuration to identify the specific issue and provide exact YAML fixes needed. Write in flowing paragraphs without section headers.`;
-      } else {
-        systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
+    } else {
+      systemPrompt = `You are a DevOps build failure analyzer for YAML Azure DevOps pipelines.
+
+${ADO_DATA_RULE}
 
 FORMATTING RULES:
 - Write in plain text paragraphs
@@ -966,77 +930,77 @@ RESPONSE RULES:
 
 CONTEXT: YAML pipeline detected but configuration could not be retrieved.`;
 
-        userPrompt = `Analyze this YAML pipeline build failure (configuration not available):
+      userPrompt = `Analyze this YAML pipeline build failure (configuration not available):
 
 Build: ${buildName} #${buildNumber}
 Branch: ${sourceBranch}
-Timeline Errors: ${errorMessages || "No specific error details available"}
+${wrapAdoContent("timeline_errors", errorMessages || "No specific error details available")}
 Note: ${pipelineAnalysisNote}
 
 Explain the likely cause based on timeline errors and suggest what to check in the YAML pipeline configuration. Write in flowing paragraphs without section headers.`;
+    }
+
+    return [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ];
+  }
+
+  async summarizeBuildFailureWithMeta(
+    build,
+    timeline,
+    logs,
+    userClient = null,
+    orgSettings = null
+  ) {
+    const ctx = await this._prepareBuildFailureContext(build, timeline, logs, userClient);
+    const messages = this._buildFailureMessages(ctx);
+    return this.generateCompletionWithMeta(
+      messages,
+      { max_tokens: 1000, temperature: 0.1, feature: "summarizeBuildFailure" },
+      orgSettings
+    );
+  }
+
+  async summarizeBuildFailure(build, timeline, logs, userClient = null, orgSettings = null) {
+    try {
+      if (!orgSettings?.ai?.provider) {
+        return "AI analysis not available - please configure AI provider in settings.";
       }
-
-      logger.info("AI Prompt being sent:", {
-        systemPrompt,
-        userPrompt,
-      });
-
-      const messages = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ];
-
-      const summary = await aiClient.generateCompletion(messages, {
-        max_tokens: 1000,
-        temperature: 0.1,
-      });
-
-      logger.info("AI Response received:", { response: summary });
-
-      logger.info("Build failure analysis completed", {
-        buildId: build.id,
-        buildName,
-        pipelineType,
-        hasYamlContent: pipelineContent.length > 0,
-        failedJobsCount: failedJobs.length,
-        analysisSuccess: !!summary,
-      });
-
-      return summary;
+      const { text } = await this.summarizeBuildFailureWithMeta(
+        build,
+        timeline,
+        logs,
+        userClient,
+        orgSettings
+      );
+      return text;
     } catch (error) {
       logger.error("Error in build failure analysis:", {
-        error: error.message,
+        error: redactSecrets(error?.message || error),
         buildId: build?.id,
-        buildName: build?.definition?.name,
       });
-      return "Unable to generate AI analysis of build failure at this time.";
+      return SOFT_FAIL.analyze;
     }
   }
 
-  async summarizePullRequest(pullRequest, orgSettings = null) {
-    try {
-      let client;
-      if (orgSettings) {
-        client = this.createClientFromSettings(orgSettings);
-      } else {
-        try {
-          client = this._getClient();
-        } catch (error) {
-          logger.warn("AI service not configured, returning fallback summary");
-          return "AI summarization not available - please configure AI provider in settings.";
-        }
-      }
+  // --- PR summarize (webhook) ---
 
-      const title = pullRequest.title || "No title";
-      const description = pullRequest.description || "No description";
-      const sourceBranch = pullRequest.sourceRefName?.replace("refs/heads/", "") || "unknown";
-      const targetBranch = pullRequest.targetRefName?.replace("refs/heads/", "") || "unknown";
-      const createdBy = pullRequest.createdBy?.displayName || "Unknown";
+  async summarizePullRequestWithMeta(pullRequest, orgSettings) {
+    const title = pullRequest.title || "No title";
+    const description = sanitizeAdoField(pullRequest.description, {
+      max: PROMPT_CAPS.DESCRIPTION_CAP,
+    });
+    const sourceBranch = pullRequest.sourceRefName?.replace("refs/heads/", "") || "unknown";
+    const targetBranch = pullRequest.targetRefName?.replace("refs/heads/", "") || "unknown";
+    const createdBy = pullRequest.createdBy?.displayName || "Unknown";
 
-      const messages = [
-        {
-          role: "system",
-          content: `You are a pull request code reviewer assistant. Provide clear, actionable summaries for development teams.
+    const messages = [
+      {
+        role: "system",
+        content: `You are a pull request code reviewer assistant. Provide clear, actionable summaries for development teams.
+
+${ADO_DATA_RULE}
 
 Formatting Rules:
 - Write in plain text with selective *bold* emphasis only for key terms
@@ -1050,118 +1014,116 @@ Content Rules:
 - Mention business impact or technical benefit
 - Be specific about components or functionality affected
 - No speculation beyond the provided information`,
-        },
-        {
-          role: "user",
-          content: `Analyze this pull request and provide a 2-3 sentence summary:
+      },
+      {
+        role: "user",
+        content: `Analyze this pull request and provide a 2-3 sentence summary:
 
 Title: ${title}
 Author: ${createdBy}
 Source Branch: ${sourceBranch}
 Target Branch: ${targetBranch}
-Description: ${description}
+${wrapAdoContent("description", description)}
 
 Summarize what type of change this is, what specific functionality is affected, and why this change is important for the codebase.`,
-        },
-      ];
+      },
+    ];
 
-      const summary = await client.generateCompletion(messages, {
-        max_tokens: 120,
-        temperature: 0.2,
-      });
+    return this.generateCompletionWithMeta(
+      messages,
+      { max_tokens: 120, temperature: 0.2, feature: "summarizePullRequest" },
+      orgSettings
+    );
+  }
 
-      logger.info("Generated pull request summary", {
-        pullRequestId: pullRequest.pullRequestId,
-        author: createdBy,
-        sourceBranch,
-        targetBranch,
-        summaryLength: summary.length,
-      });
-
-      return summary;
+  async summarizePullRequest(pullRequest, orgSettings = null) {
+    try {
+      if (!orgSettings?.ai?.provider) {
+        return SOFT_FAIL.notConfigured;
+      }
+      const { text } = await this.summarizePullRequestWithMeta(pullRequest, orgSettings);
+      return text;
     } catch (error) {
-      logger.error("Error summarizing pull request:", error);
-      return "Unable to generate AI summary of pull request at this time.";
+      logger.error("Error summarizing pull request:", redactSecrets(error?.message || error));
+      return SOFT_FAIL.prSummary;
     }
   }
 
-  async summarizeSprintWorkItems(workItems, orgSettings = null) {
-    try {
-      if (!workItems || workItems.length === 0) {
-        return "No work items found in the current sprint.";
-      }
+  // --- Sprint ---
 
-      let client;
-      if (orgSettings) {
-        client = this.createClientFromSettings(orgSettings);
-      } else {
-        try {
-          client = this._getClient();
-        } catch (error) {
-          logger.warn("AI service not configured, returning fallback message");
-          return "AI insights not available - please configure AI provider in settings.";
-        }
-      }
+  async summarizeSprintWorkItemsWithMeta(workItems, orgSettings) {
+    if (!workItems || workItems.length === 0) {
+      return {
+        text: "No work items found in the current sprint.",
+        meta: {
+          provider: orgSettings?.ai?.provider,
+          model: orgSettings?.ai?.model,
+          latencyMs: 0,
+        },
+      };
+    }
 
-      const groupedItems = workItems.reduce((acc, item) => {
-        const state = item.fields?.["System.State"] || "Unknown";
-        const assignee = item.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
+    const groupedItems = workItems.reduce((acc, item) => {
+      const state = item.fields?.["System.State"] || "Unknown";
+      const assignee = item.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
 
-        if (!acc[state]) acc[state] = {};
-        if (!acc[state][assignee]) acc[state][assignee] = [];
+      if (!acc[state]) acc[state] = {};
+      if (!acc[state][assignee]) acc[state][assignee] = [];
 
-        acc[state][assignee].push({
-          id: item.id,
-          title: item.fields?.["System.Title"] || "No title",
-          type: item.fields?.["System.WorkItemType"] || "Unknown",
-          priority: item.fields?.["Microsoft.VSTS.Common.Priority"] || "Not set",
-        });
-
-        return acc;
-      }, {});
-
-      const dataSummary = Object.entries(groupedItems)
-        .map(([state, assignees]) => {
-          const assigneeSummary = Object.entries(assignees)
-            .map(([assignee, items]) => {
-              return `${assignee}: ${items.length} items (${items.map((i) => `${i.type} #${i.id}`).join(", ")})`;
-            })
-            .join("; ");
-
-          return `${state} (${Object.values(assignees).flat().length} items): ${assigneeSummary}`;
-        })
-        .join("\n");
-
-      const totalItems = workItems.length;
-      const activeStates = workItems.filter((item) => {
-        const state = item.fields?.["System.State"];
-        return (
-          state &&
-          ![
-            "Defined",
-            "New",
-            "Closed",
-            "Blocked",
-            "Paused",
-            "Removed",
-            "Released to Production",
-          ].includes(state)
-        );
+      acc[state][assignee].push({
+        id: item.id,
+        title: item.fields?.["System.Title"] || "No title",
+        type: item.fields?.["System.WorkItemType"] || "Unknown",
+        priority: item.fields?.["Microsoft.VSTS.Common.Priority"] || "Not set",
       });
-      const unassignedItems = workItems.filter(
-        (item) => !item.fields?.["System.AssignedTo"]?.displayName
+
+      return acc;
+    }, {});
+
+    const dataSummary = Object.entries(groupedItems)
+      .map(([state, assignees]) => {
+        const assigneeSummary = Object.entries(assignees)
+          .map(([assignee, items]) => {
+            return `${assignee}: ${items.length} items (${items.map((i) => `${i.type} #${i.id}`).join(", ")})`;
+          })
+          .join("; ");
+
+        return `${state} (${Object.values(assignees).flat().length} items): ${assigneeSummary}`;
+      })
+      .join("\n");
+
+    const totalItems = workItems.length;
+    const activeStates = workItems.filter((item) => {
+      const state = item.fields?.["System.State"];
+      return (
+        state &&
+        ![
+          "Defined",
+          "New",
+          "Closed",
+          "Blocked",
+          "Paused",
+          "Removed",
+          "Released to Production",
+        ].includes(state)
       );
+    });
+    const unassignedItems = workItems.filter(
+      (item) => !item.fields?.["System.AssignedTo"]?.displayName
+    );
 
-      const assigneeWorkloads = {};
-      workItems.forEach((item) => {
-        const assignee = item.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
-        assigneeWorkloads[assignee] = (assigneeWorkloads[assignee] || 0) + 1;
-      });
+    const assigneeWorkloads = {};
+    workItems.forEach((item) => {
+      const assignee = item.fields?.["System.AssignedTo"]?.displayName || "Unassigned";
+      assigneeWorkloads[assignee] = (assigneeWorkloads[assignee] || 0) + 1;
+    });
 
-      const messages = [
-        {
-          role: "system",
-          content: `You are a sprint analysis expert providing actionable insights for development teams.
+    const messages = [
+      {
+        role: "system",
+        content: `You are a sprint analysis expert providing actionable insights for development teams.
+
+${ADO_DATA_RULE}
 
 FORMATTING RULES:
 - Use markdown formatting for structure
@@ -1183,10 +1145,10 @@ ANALYSIS FOCUS:
 - Team workload distribution and balance
 - Risk identification (overloaded members, unassigned items, blockers)
 - Process improvements and next steps`,
-        },
-        {
-          role: "user",
-          content: `Analyze this sprint data and provide insights and recommendations:
+      },
+      {
+        role: "user",
+        content: `Analyze this sprint data and provide insights and recommendations:
 
 SPRINT METRICS:
 - Total items: ${totalItems}
@@ -1194,13 +1156,12 @@ SPRINT METRICS:
 - Unassigned items: ${unassignedItems.length}
 - Team members: ${Object.keys(assigneeWorkloads).filter((a) => a !== "Unassigned").length}
 
-WORK DISTRIBUTION:
-${dataSummary}
-
-TEAM WORKLOADS:
-${Object.entries(assigneeWorkloads)
-  .map(([assignee, count]) => `${assignee}: ${count} items`)
-  .join("\n")}
+${wrapAdoContent(
+  "work_distribution",
+  `WORK DISTRIBUTION:\n${dataSummary}\n\nTEAM WORKLOADS:\n${Object.entries(assigneeWorkloads)
+    .map(([assignee, count]) => `${assignee}: ${count} items`)
+    .join("\n")}`
+)}
 
 Provide executive insights focusing on:
 1. Sprint progress and velocity assessment
@@ -1209,83 +1170,102 @@ Provide executive insights focusing on:
 4. Specific recommendations for improvement
 
 Do NOT repeat the raw data - focus on analysis and actionable insights only.`,
-        },
-      ];
+      },
+    ];
 
-      const aiInsights = await client.generateCompletion(messages, {
-        max_tokens: 800,
-        temperature: 0.3,
-      });
+    return this.generateCompletionWithMeta(
+      messages,
+      { max_tokens: 800, temperature: 0.3, feature: "summarizeSprintWorkItems" },
+      orgSettings
+    );
+  }
 
-      logger.info("Generated sprint insights", {
-        totalItems,
-        activeItems: activeStates.length,
-        unassignedItems: unassignedItems.length,
-        teamMembers: Object.keys(assigneeWorkloads).filter((a) => a !== "Unassigned").length,
-        insightsLength: aiInsights.length,
-      });
-
-      return aiInsights;
+  async summarizeSprintWorkItems(workItems, orgSettings = null) {
+    try {
+      if (!workItems || workItems.length === 0) {
+        return "No work items found in the current sprint.";
+      }
+      if (!orgSettings?.ai?.provider) {
+        return "AI insights not available - please configure AI provider in settings.";
+      }
+      const { text } = await this.summarizeSprintWorkItemsWithMeta(workItems, orgSettings);
+      return text;
     } catch (error) {
-      logger.error("Error generating sprint insights:", error);
-      return "Unable to generate sprint insights at this time.";
+      logger.error("Error generating sprint insights:", redactSecrets(error?.message || error));
+      return SOFT_FAIL.sprint;
     }
   }
 
-  async analyzeReleaseFailure(release, failedTasks, orgSettings = null) {
-    try {
-      let client;
-      if (orgSettings) {
-        client = this.createClientFromSettings(orgSettings);
-      } else {
-        client = this._getClient();
-      }
+  // --- Release ---
 
-      const tasksSummary = failedTasks
-        .map((task) => {
-          const logPreview =
-            task.logContent.length > 2000 ? task.logContent.slice(-2000) : task.logContent;
+  async analyzeReleaseFailureWithMeta(release, failedTasks, orgSettings) {
+    const tasksSummary = failedTasks
+      .map((task) => {
+        const logPreview = sanitizeAdoField(task.logContent, {
+          max: PROMPT_CAPS.LOG_CAP,
+          html: false,
+        });
+        // Prefer last N chars of log (existing behavior)
+        const raw = String(task.logContent || "");
+        const sliced = raw.length > PROMPT_CAPS.LOG_CAP ? raw.slice(-PROMPT_CAPS.LOG_CAP) : raw;
+        const safeLog = redactForPrompt(sliced);
 
-          return `Task: ${task.taskName}
+        return `Task: ${task.taskName}
 Environment: ${task.environmentName}
 Status: ${task.status}
 ${task.issues.length > 0 ? `Issues: ${task.issues.map((i) => i.message || i).join(", ")}` : ""}
 Log Output (last 2000 chars):
-${logPreview}`;
-        })
-        .join("\n\n---\n\n");
+${safeLog || logPreview}`;
+      })
+      .join("\n\n---\n\n");
 
-      const messages = [
-        {
-          role: "system",
-          content: `You are an expert DevOps engineer analyzing release deployment failures. Explain why the deployment failed in simple, clear terms. Focus on:
+    const messages = [
+      {
+        role: "system",
+        content: `You are an expert DevOps engineer analyzing release deployment failures. Explain why the deployment failed in simple, clear terms. Focus on:
 - What went wrong (the root cause)
 - Which component or step failed
 - The specific error or issue
-DO NOT provide fixes or solutions - only explain what happened and why it failed.`,
-        },
-        {
-          role: "user",
-          content: `Release: ${release.name}
+DO NOT provide fixes or solutions - only explain what happened and why it failed.
+
+${ADO_DATA_RULE}`,
+      },
+      {
+        role: "user",
+        content: `Release: ${release.name}
 Failed Tasks: ${failedTasks.length}
 
-${tasksSummary}
+${wrapAdoContent("failed_tasks", tasksSummary)}
 
 Explain in simple terms why this release failed. Focus on the root cause and what went wrong, not how to fix it.`,
-        },
-      ];
+      },
+    ];
 
-      const analysis = await client.generateCompletion(messages, {
-        max_tokens: 500,
-        temperature: 0.3,
-      });
+    return this.generateCompletionWithMeta(
+      messages,
+      { max_tokens: 500, temperature: 0.3, feature: "analyzeReleaseFailure" },
+      orgSettings
+    );
+  }
 
-      return analysis;
+  async analyzeReleaseFailure(release, failedTasks, orgSettings = null) {
+    try {
+      if (!orgSettings?.ai?.provider) {
+        return SOFT_FAIL.release;
+      }
+      const { text } = await this.analyzeReleaseFailureWithMeta(release, failedTasks, orgSettings);
+      return text;
     } catch (error) {
-      logger.error("Error analyzing release failure:", error);
-      return "Unable to analyze release failure at this time.";
+      logger.error("Error analyzing release failure:", redactSecrets(error?.message || error));
+      return SOFT_FAIL.release;
     }
   }
+}
+
+function truncateYaml(content) {
+  const s = String(content || "");
+  if (s.length <= PROMPT_CAPS.YAML_CAP) return s;
+  return `${s.slice(0, PROMPT_CAPS.YAML_CAP)}\n[truncated]`;
 }
 
 export const aiService = new AIService();

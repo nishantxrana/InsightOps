@@ -68,17 +68,19 @@ class WorkItemWebhook extends BaseWebhook {
       // Get organization settings with credentials
       let userConfig = null;
       let userSettings = null;
+      let orgWithCredentials = null;
 
       try {
         const { organizationService } = await import("../services/organizationService.js");
-        const org = await organizationService.getOrganizationWithCredentials(organizationId);
-        if (org) {
-          userId = org.userId;
-          userConfig = org.azureDevOps;
+        orgWithCredentials =
+          await organizationService.getOrganizationWithCredentials(organizationId);
+        if (orgWithCredentials) {
+          userId = orgWithCredentials.userId;
+          userConfig = orgWithCredentials.azureDevOps;
           userSettings = {
-            azureDevOps: org.azureDevOps,
-            ai: org.ai,
-            notifications: org.notifications,
+            azureDevOps: orgWithCredentials.azureDevOps,
+            ai: orgWithCredentials.ai,
+            notifications: orgWithCredentials.notifications,
           };
         }
       } catch (error) {
@@ -90,30 +92,31 @@ class WorkItemWebhook extends BaseWebhook {
         return res.status(404).json({ error: "Organization settings not found" });
       }
 
-      // Generate AI summary if configured
+      // Generate AI summary when enabled for notifications
       let aiSummary = null;
-      if (userSettings?.ai?.provider && userSettings?.ai?.apiKeys?.[userSettings.ai.provider]) {
-        try {
+      try {
+        const { assertAiAvailable } = await import("../ai/guard.js");
+        const { isSoftAiFailure } = await import("../ai/aiService.js");
+        const availability = assertAiAvailable(orgWithCredentials, "webhook_work_item");
+        const useInNotifications = orgWithCredentials?.ai?.useInNotifications !== false;
+        if (availability.ok && useInNotifications) {
           logger.info(`Generating AI summary for work item ${resource.id}`, {
-            provider: userSettings.ai.provider,
-            hasApiKey: !!userSettings.ai.apiKeys[userSettings.ai.provider],
+            provider: availability.config.provider,
           });
-          aiService.initializeWithUserSettings(userSettings);
-          aiSummary = await aiService.summarizeWorkItem(resource);
-          logger.info(`AI summary generated successfully`, {
-            summaryLength: aiSummary?.length || 0,
+          aiSummary = await aiService.summarizeWorkItem(resource, {
+            ai: availability.config,
           });
-        } catch (error) {
-          logger.warn("Failed to generate AI summary:", error);
+          if (isSoftAiFailure(aiSummary)) {
+            aiSummary = null;
+          } else {
+            logger.info(`AI summary generated successfully`, {
+              summaryLength: aiSummary?.length || 0,
+            });
+          }
         }
-      } else {
-        logger.warn("AI not configured for work item summary", {
-          hasProvider: !!userSettings?.ai?.provider,
-          provider: userSettings?.ai?.provider,
-          hasApiKeys: !!userSettings?.ai?.apiKeys,
-          hasSpecificKey: !!userSettings?.ai?.apiKeys?.[userSettings?.ai?.provider],
-          userId,
-        });
+      } catch (error) {
+        logger.warn("Failed to generate AI summary:", error?.message || error);
+        aiSummary = null;
       }
 
       // Format notification message with user config

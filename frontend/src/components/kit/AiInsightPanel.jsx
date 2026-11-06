@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { Loader2, RefreshCw } from "lucide-react";
 
@@ -21,6 +22,8 @@ function SafeLink({ href, children, ...props }) {
  *   markdown?: string,
  *   errorText?: string,
  *   disabledReason?: string,
+ *   settingsHref?: string,
+ *   settingsLabel?: string,
  *   onGenerate?: () => void,
  *   onRegenerate?: () => void,
  *   className?: string,
@@ -33,6 +36,8 @@ export function AiInsightPanel({
   markdown,
   errorText,
   disabledReason,
+  settingsHref,
+  settingsLabel = "Open AI settings",
   onGenerate,
   onRegenerate,
   className,
@@ -40,12 +45,14 @@ export function AiInsightPanel({
   return (
     <section className={cn("rounded-panel border border-border bg-surface", className)}>
       <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-5 items-center rounded-control bg-muted px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            AI
-          </span>
-          <h3 className="truncate text-sm font-semibold text-foreground">{title}</h3>
-          {provider ? (
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="inline-flex h-5 items-center rounded-control bg-muted px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              AI
+            </span>
+            <h3 className="truncate text-sm font-semibold text-foreground">{title}</h3>
+          </div>
+          {provider && state === "ready" ? (
             <span className="truncate text-xs text-muted-foreground">{provider}</span>
           ) : null}
         </div>
@@ -76,9 +83,19 @@ export function AiInsightPanel({
         ) : null}
 
         {state === "disabled" ? (
-          <p className="text-sm text-muted-foreground">
-            {disabledReason || "AI insights are disabled."}
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {disabledReason || "AI insights are disabled."}
+            </p>
+            {settingsHref ? (
+              <Link
+                to={settingsHref}
+                className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                {settingsLabel}
+              </Link>
+            ) : null}
+          </div>
         ) : null}
 
         {state === "idle" ? (

@@ -108,8 +108,10 @@ export const releaseService = {
   },
 
   // Analyze failed release task logs with AI
-  async analyzeRelease(releaseId) {
-    const response = await api.get(`/releases/${releaseId}/analyze`);
+  async analyzeRelease(releaseId, options = {}) {
+    const response = await api.get(`/releases/${releaseId}/analyze`, {
+      params: options.refresh ? { refresh: 1 } : undefined,
+    });
     return response.data;
   },
 };

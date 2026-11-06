@@ -120,13 +120,6 @@ let validatedEnv;
 try {
   validatedEnv = envSchema.parse(process.env);
 
-  const hasAIProvider =
-    validatedEnv.OPENAI_API_KEY || validatedEnv.GROQ_API_KEY || validatedEnv.GEMINI_API_KEY;
-
-  if (!hasAIProvider) {
-    logger.warn("No AI provider configured at boot. Users can add keys under Settings in the app.");
-  }
-
   if (!validatedEnv.ACS_CONNECTION_STRING || !validatedEnv.ACS_EMAIL_FROM) {
     logger.warn(
       "ACS email not configured (ACS_CONNECTION_STRING / ACS_EMAIL_FROM). Signup and password-reset OTPs will not send."
@@ -145,8 +138,6 @@ try {
     nodeEnv: validatedEnv.NODE_ENV,
     port: validatedEnv.PORT,
     logLevel: validatedEnv.LOG_LEVEL,
-    hasAI: Boolean(hasAIProvider),
-    aiProvider: validatedEnv.AI_PROVIDER,
     acsEmailConfigured: Boolean(validatedEnv.ACS_CONNECTION_STRING && validatedEnv.ACS_EMAIL_FROM),
   });
 } catch (error) {
@@ -187,16 +178,6 @@ export const rateLimits = {
   max: env.RATE_LIMIT_MAX,
   authMax: env.RATE_LIMIT_AUTH_MAX,
   aiMax: env.RATE_LIMIT_AI_MAX,
-};
-
-export const ai = {
-  provider: env.AI_PROVIDER,
-  model: env.AI_MODEL,
-  apiKeys: {
-    openai: env.OPENAI_API_KEY,
-    groq: env.GROQ_API_KEY,
-    gemini: env.GEMINI_API_KEY,
-  },
 };
 
 export const notifications = {

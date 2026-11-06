@@ -5,6 +5,7 @@ import { AiInsightPanel } from "@/components/kit/AiInsightPanel";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { formatAiMetaLine, mapAiAvailabilityToPanel, SETTINGS_AI_HREF } from "@/lib/aiInsight";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,35 +15,73 @@ import { cn } from "@/lib/utils";
  *   enabled: boolean,
  *   onEnabledChange: (next: boolean) => void,
  *   loading: boolean,
- *   summary: { summary?: string, status?: string } | null,
+ *   summary: { summary?: string, status?: string, message?: string, meta?: object } | null,
  *   onRetry: () => void,
+ *   aiStatus?: { enabled?: boolean, configured?: boolean } | null,
  * }} props
  */
-export function SprintInsights({ enabled, onEnabledChange, loading, summary, onRetry }) {
+export function SprintInsights({
+  enabled,
+  onEnabledChange,
+  loading,
+  summary,
+  onRetry,
+  aiStatus = null,
+}) {
   const [open, setOpen] = useState(false);
 
   let panelState = "disabled";
   let markdown;
   let errorText;
   let disabledReason = "AI insights are off";
+  let settingsHref;
+  let providerLine;
+
+  const orgDisabled =
+    aiStatus?.enabled === false
+      ? {
+          state: "disabled",
+          disabledReason: "AI is turned off for this organization.",
+          settingsHref: SETTINGS_AI_HREF,
+        }
+      : aiStatus?.configured === false
+        ? {
+            state: "disabled",
+            disabledReason: "AI is not configured. Add a provider and API key in Settings.",
+            settingsHref: SETTINGS_AI_HREF,
+          }
+        : null;
 
   if (!enabled) {
     panelState = "disabled";
     disabledReason = "AI insights are off";
+  } else if (orgDisabled) {
+    panelState = orgDisabled.state;
+    disabledReason = orgDisabled.disabledReason;
+    settingsHref = orgDisabled.settingsHref;
   } else if (loading) {
     panelState = "loading";
-  } else if (summary?.status === "error") {
-    panelState = "error";
-    errorText = summary.summary || "AI summary temporarily unavailable.";
-  } else if (summary?.summary) {
-    panelState = "ready";
-    markdown = summary.summary;
-    if (summary.status === "disabled_large_dataset") {
-      markdown = `${summary.summary}\n\n_AI analysis is limited for large datasets to keep performance stable._`;
-    }
   } else {
-    panelState = "error";
-    errorText = "AI insights unavailable.";
+    const availability = mapAiAvailabilityToPanel(summary);
+    if (availability) {
+      panelState = availability.state;
+      disabledReason = availability.disabledReason;
+      settingsHref = availability.settingsHref;
+    } else if (summary?.status === "error") {
+      panelState = "error";
+      errorText = summary.summary || summary.message || "AI summary temporarily unavailable.";
+    } else if (
+      summary?.summary &&
+      summary.status !== "not_configured" &&
+      summary.status !== "disabled"
+    ) {
+      panelState = "ready";
+      markdown = summary.summary;
+      providerLine = formatAiMetaLine(summary.meta);
+    } else {
+      panelState = "error";
+      errorText = "AI insights unavailable.";
+    }
   }
 
   return (
@@ -85,10 +124,13 @@ export function SprintInsights({ enabled, onEnabledChange, loading, summary, onR
         <div className="border-t border-border p-3">
           <AiInsightPanel
             title="Sprint summary"
+            provider={providerLine}
             state={panelState}
             markdown={markdown}
             errorText={errorText}
             disabledReason={disabledReason}
+            settingsHref={settingsHref}
+            settingsLabel="Open AI settings"
             onGenerate={enabled && panelState === "error" ? onRetry : undefined}
             onRegenerate={enabled && panelState === "ready" ? onRetry : undefined}
           />

@@ -4,11 +4,12 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "../utils/logger.js";
 import { cacheManager } from "../cache/CacheManager.js";
 import { rateLimiter } from "../utils/RateLimiter.js";
-import { configLoader } from "../config/settings.js";
+import { redactSecrets } from "./errors.js";
 
 /**
- * Smart AI model router with caching and rate limiting
- * Optimized for free tier usage
+ * FreeModelRouter — experimental cross-provider fallback for agents only.
+ * Do NOT wire into user-facing interactive AI routes (those use AIClient / aiService).
+ * Fallback routing is best-effort and not a product guarantee.
  */
 class FreeModelRouter {
   constructor() {
@@ -23,17 +24,36 @@ class FreeModelRouter {
   }
 
   /**
+   * Normalize flat keys or org shape `{ provider, model, apiKeys }` into flat keys.
+   */
+  _normalizeConfig(config = {}) {
+    if (config.apiKeys && typeof config.apiKeys === "object") {
+      return {
+        openaiApiKey: config.openaiApiKey || config.apiKeys.openai,
+        groqApiKey: config.groqApiKey || config.apiKeys.groq,
+        geminiApiKey: config.geminiApiKey || config.apiKeys.gemini,
+      };
+    }
+    return {
+      openaiApiKey: config.openaiApiKey,
+      groqApiKey: config.groqApiKey,
+      geminiApiKey: config.geminiApiKey,
+    };
+  }
+
+  /**
    * Initialize AI clients
    */
   initialize(config) {
-    if (config.openaiApiKey) {
-      this.clients.openai = new OpenAI({ apiKey: config.openaiApiKey });
+    const normalized = this._normalizeConfig(config);
+    if (normalized.openaiApiKey) {
+      this.clients.openai = new OpenAI({ apiKey: normalized.openaiApiKey });
     }
-    if (config.groqApiKey) {
-      this.clients.groq = new Groq({ apiKey: config.groqApiKey });
+    if (normalized.groqApiKey) {
+      this.clients.groq = new Groq({ apiKey: normalized.groqApiKey });
     }
-    if (config.geminiApiKey) {
-      this.clients.gemini = new GoogleGenerativeAI(config.geminiApiKey);
+    if (normalized.geminiApiKey) {
+      this.clients.gemini = new GoogleGenerativeAI(normalized.geminiApiKey);
     }
     this.initialized = true;
     logger.info("FreeModelRouter initialized");
@@ -83,7 +103,7 @@ class FreeModelRouter {
 
       return response;
     } catch (error) {
-      logger.error("AI query failed, trying fallback", error);
+      logger.error("AI query failed, trying fallback", redactSecrets(error?.message || error));
       return await this.fallback(prompt, selectedModel, { maxTokens, temperature });
     }
   }
@@ -212,7 +232,13 @@ class FreeModelRouter {
     logger.warn(`Trying fallback after ${failedModel.provider} failed`);
 
     const available = await this.getAvailableModels();
-    const alternatives = available.filter((m) => m !== failedModel.name);
+    // Compare catalog keys, not API model ids (failedModel.name is the API id)
+    const catalogKeys = ["gemini-2.0-flash", "gpt-4o-mini", "llama-3-8b-instant"];
+    const failedCatalogKey = catalogKeys.find((key) => {
+      const cfg = this.getModelConfig(key);
+      return cfg.name === failedModel.name || cfg.provider === failedModel.provider;
+    });
+    const alternatives = available.filter((m) => m !== failedCatalogKey);
 
     if (alternatives.length === 0) {
       throw new Error("No fallback models available");

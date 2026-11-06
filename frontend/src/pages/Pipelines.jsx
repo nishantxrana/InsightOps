@@ -7,6 +7,7 @@ import { useOrganization } from "../contexts/OrganizationContext";
 import BuildDetailModal from "../components/BuildDetailModal";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useDensity } from "@/hooks/useDensity";
+import { useAiStatus } from "@/hooks/useAiStatus";
 import { Button } from "@/components/ui/button";
 import {
   DataCell,
@@ -99,6 +100,7 @@ function healthLabel(successRate) {
 
 export default function Pipelines() {
   const { currentOrganization, currentProject, clearSwitching } = useOrganization();
+  const { aiStatus } = useAiStatus();
   const { checkConnection } = useHealth();
   const { density } = useDensity();
 
@@ -592,6 +594,7 @@ export default function Pipelines() {
         list={filteredBuilds}
         onNavigate={navigateSheet}
         triggerRef={triggerRef}
+        aiStatus={aiStatus}
       />
     </div>
   );
